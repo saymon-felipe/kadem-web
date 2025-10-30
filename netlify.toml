@@ -1,0 +1,4 @@
+[[redirects]]
+  from = "/check_connection/*" # A URL que seu Vue chama
+  to = "https://httpbin.org/:splat" # A API de destino
+  status = 200 # Responde como um proxy (não um redirecionamento 301)
