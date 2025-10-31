@@ -34,6 +34,8 @@ const api = axios.create({
     withCredentials: true
 });
 
+export { api };
+
 export default {
     install(app) {
         app.config.globalProperties.api = api;

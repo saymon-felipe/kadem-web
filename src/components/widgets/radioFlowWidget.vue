@@ -26,11 +26,11 @@
 </template>
 <script>
 import { mapState } from 'pinia';
-import { useGlobalStore } from '@/stores/global';
+import { usePlayerStore } from '@/stores/player';
 
 export default {
     computed: {
-        ...mapState(useGlobalStore, ['currentMusic', 'currentPlaylist'])
+        ...mapState(usePlayerStore, ['currentMusic', 'currentPlaylist'])
     },
     methods: {
         prev() {

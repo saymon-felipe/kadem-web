@@ -10,7 +10,9 @@
 </template>
 <script>
 import { mapState, mapActions } from 'pinia';
-import { useGlobalStore } from '@/stores/global';
+import { useAuthStore } from '@/stores/auth';
+import { useAppStore } from '@/stores/app';
+import { useUtilsStore } from '@/stores/utils';
 import headerSystem from "../components/headerSystem.vue";
 import homeWidgets from "../components/homeWidgets.vue";
 import loadingSpinner from "../components/loadingSpinner.vue";
@@ -23,7 +25,8 @@ export default {
         loadingSpinner
     },
     computed: {
-        ...mapState(useGlobalStore, ['user', 'system']),
+        ...mapState(useAuthStore, ['user']),
+        ...mapState(useAppStore, ['system']),
         finalImageUrl() {
             if (this.system && this.system.background && this.system.background != "") {
                 return this.system.background;
@@ -80,7 +83,8 @@ export default {
         }
     },
     methods: {
-        ...mapActions(useGlobalStore, ['setUser', 'setSystem']),
+        ...mapActions(useAuthStore, ['setUser']),
+        ...mapActions(useAppStore, ['setSystem']),
         returnUser: function () {
             let user = {
                 id: 1,
@@ -143,8 +147,8 @@ export default {
             this.setSystem(system);
         },
         initConnectionMonitor() {
-            const globalStore = useGlobalStore();
-            globalStore.initConnectionMonitor();
+            const utilsStore = useUtilsStore();
+            utilsStore.initConnectionMonitor();
         }
     },
     mounted: function () {

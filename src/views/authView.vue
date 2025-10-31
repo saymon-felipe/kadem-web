@@ -61,6 +61,7 @@
 <script>
 import LoadingResponse from "@/components/loadingResponse.vue";
 import switchComponent from "../components/switchComponent.vue";
+import { useAuthStore } from '@/stores/auth';
 
 export default {
     components: {
@@ -135,56 +136,64 @@ export default {
         updatePasswordStrength() {
             this.passwordStrength = this.checkPasswordStrength(this.password);
         },
-        auth() {
+        async auth() {
             this.resetResponse();
 
             if (this.password.length < 6) {
                 this.setResponse("error", "A senha deve ter no mínimo 6 caracteres.", false);
                 return;
             }
-
             if (this.isRegister) {
                 if (this.password !== this.repeatPassword) {
                     this.setResponse("error", "As senhas não conferem.", false);
                     return;
                 }
-
                 const strength = this.checkPasswordStrength(this.password);
-
                 if (strength.class !== 'strong') {
                     this.setResponse("error", "Sua senha não é forte o suficiente. Deve conter maiúscula, minúscula, número e caractere especial (!@#$%&*).", false);
                     return;
                 }
             }
 
-            const data = {
-                email: this.email,
-                password: this.password
-            };
-
-            if (this.isRegister) {
-                data.name = this.name;
-            }
-
+            const authStore = useAuthStore();
             this.setResponse("", "", true);
 
-            this.api.post("/auth/" + this.authType, data).then((response) => {
+            try {
+                let response;
+
+                if (this.isRegister) {
+                    const data = {
+                        email: this.email,
+                        password: this.password,
+                        name: this.name
+                    };
+
+                    response = await authStore.register(data);
+                } else {
+                    response = await authStore.login(this.email, this.password);
+                }
+
+                console.log(response)
                 this.setResponse("success", response.data.message, false);
 
                 if (this.isRegister) {
                     setTimeout(() => {
                         let email = this.email;
-                        this.authType = "login";
 
                         this.$nextTick(() => {
+                            this.authType = "login";
                             this.email = email;
                         })
-                    }, 2000)
+                    }, 2000);
+                } else {
+                    this.$router.push("/");
                 }
-            }).catch((error) => {
-                const errorMsg = error.response.data.message || "Ocorreu um erro desconhecido.";
+
+            } catch (error) {
+                console.log(error)
+                const errorMsg = error.response.data?.message || error.message || "Ocorreu um erro desconhecido.";
                 this.setResponse("error", errorMsg, false);
-            });
+            }
         }
     }
 }

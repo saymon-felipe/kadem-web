@@ -5,11 +5,11 @@
 </template>
 <script>
 import { mapState } from 'pinia';
-import { useGlobalStore } from '@/stores/global';
+import { useUtilsStore } from '@/stores/utils';
 
 export default {
     computed: {
-        ...mapState(useGlobalStore, ['connection'])
+        ...mapState(useUtilsStore, ['connection'])
     },
     watch: {
         connection: function () {
