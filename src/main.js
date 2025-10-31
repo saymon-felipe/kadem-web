@@ -1,5 +1,6 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
+import piniaPluginPersistedState from 'pinia-plugin-persistedstate';
 import App from './App.vue';
 import router from './router';
 import './assets/styles/main.css';
@@ -15,7 +16,11 @@ import {
     faBackwardStep,
     faWifi,
     faGlobe,
-    faEye
+    faEye,
+    faWindowMaximize,
+    faWindowRestore,
+    faMinus,
+    faXmark
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -24,11 +29,16 @@ library.add(
     faBackwardStep,
     faWifi,
     faGlobe,
-    faEye
+    faEye,
+    faWindowMaximize,
+    faWindowRestore,
+    faMinus,
+    faXmark
 );
 
 const app = createApp(App);
 const pinia = createPinia();
+pinia.use(piniaPluginPersistedState);
 
 app.directive('animate-height', vAnimateHeight);
 

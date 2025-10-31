@@ -41,7 +41,7 @@
                     </div>
 
                     <button type="submit" class="btn btn-primary">{{ isRegister ? "Criar conta" : "Entrar"
-                        }}</button>
+                    }}</button>
                     <div class="form-group">
                         <p v-if="isRegister">Já tem uma conta? <strong style="cursor: pointer;"
                                 @click="authType = 'login'">Entre</strong></p>
@@ -173,7 +173,6 @@ export default {
                     response = await authStore.login(this.email, this.password);
                 }
 
-                console.log(response)
                 this.setResponse("success", response.data.message, false);
 
                 if (this.isRegister) {
@@ -190,7 +189,6 @@ export default {
                 }
 
             } catch (error) {
-                console.log(error)
                 const errorMsg = error.response.data?.message || error.message || "Ocorreu um erro desconhecido.";
                 this.setResponse("error", errorMsg, false);
             }

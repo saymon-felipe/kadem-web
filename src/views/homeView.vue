@@ -6,6 +6,8 @@
     <div class="main" :style="background">
         <headerSystem />
         <homeWidgets />
+        <DesktopWindowManager />
+        <button @click="logout">Sair</button>
     </div>
 </template>
 <script>
@@ -17,12 +19,14 @@ import headerSystem from "../components/headerSystem.vue";
 import homeWidgets from "../components/homeWidgets.vue";
 import loadingSpinner from "../components/loadingSpinner.vue";
 import systemBackground from "../assets/images/system-background.webp";
+import DesktopWindowManager from "../components/windowing/DesktopWindowManager.vue";
 
 export default {
     components: {
         headerSystem,
         homeWidgets,
-        loadingSpinner
+        loadingSpinner,
+        DesktopWindowManager
     },
     computed: {
         ...mapState(useAuthStore, ['user']),
@@ -83,68 +87,12 @@ export default {
         }
     },
     methods: {
-        ...mapActions(useAuthStore, ['setUser']),
+        ...mapActions(useAuthStore, ['setUser', 'logout']),
         ...mapActions(useAppStore, ['setSystem']),
-        returnUser: function () {
-            let user = {
-                id: 1,
-                name: "Zeno",
-                avatar: "https://cademint.s3.amazonaws.com/2025-08-25T15_22_33.528ZWhatsApp_Image%202025-08-16%20at%2022.13.02.jpeg",
-                email: "zeno@gmail.com",
-                bio: "Sou desenvolvedor da Kadem",
-                accounts: [
-                    {
-                        id: 1,
-                        type: "Google",
-                        avatar: "https://logo.clearbit.com/Google.com",
-                        name: "Kadem"
-                    }
-                ],
-                level: 32,
-                level_progress: 20,
-                groups: [
-                    {
-                        id: 1,
-                        name: "Grupo de fulano",
-                        owner: 2,
-                        members: [
-                            {
-                                name: "Fulano",
-                                avatar: "https://coretest-cademint-0012d7964dfd.herokuapp.com/public/default-user-image.png"
-                            },
-                            {
-                                name: "Zeno",
-                                avatar: "https://cademint.s3.amazonaws.com/2025-08-25T15_22_33.528ZWhatsApp_Image%202025-08-16%20at%2022.13.02.jpeg"
-                            }
-                        ],
-                        task_count: 23,
-                        banner: "https://cademint.s3.amazonaws.com/2025-08-01T00_02_16.103ZFrame_122%20%281%29.png"
-                    }
-                ],
-                medals: [
-                    {
-                        id: 1,
-                        name: "Usuário ativo",
-                        description: "Essa pessoa fica online frequentemente na Kadem"
-                    }
-                ],
-                occupations: [
-                    {
-                        id: 1,
-                        name: "Desenvolvedor"
-                    }
-                ]
-            }
-
-            this.setUser(user);
-        },
         returnSystem: function () {
-            let system = {
-                background: "",
-                version: "2.0.0"
-            }
-
-            this.setSystem(system);
+            this.api.get("/system").then((response) => {
+                this.setSystem(response.data.returnObj);
+            })
         },
         initConnectionMonitor() {
             const utilsStore = useUtilsStore();
@@ -152,12 +100,9 @@ export default {
         }
     },
     mounted: function () {
-        this.returnUser();
-        this.returnSystem();
-        //this.initConnectionMonitor();
 
-        console.log(this.user)
-        console.log(this.system)
+        this.returnSystem();
+        this.initConnectionMonitor();
     }
 }
 </script>
