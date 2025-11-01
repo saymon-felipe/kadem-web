@@ -21,15 +21,16 @@
         <header class="window-header" @mousedown.left.stop="startDrag" @dblclick.stop="handleToggleMaximize">
             <span class="window-title">{{ windowData.title }}</span>
             <div class="window-controls">
-                <button class="window-control-btn minimize" @click.stop="minimize">
+                <button class="window-control-btn minimize" @click.stop="minimize" @mousedown.stop>
                     <font-awesome-icon icon="minus" />
                 </button>
 
-                <button class="window-control-btn maximize" @click.stop="handleToggleMaximize">
+                <button class="window-control-btn maximize" v-if="!isMobile" @click.stop="handleToggleMaximize"
+                    @mousedown.stop>
                     <font-awesome-icon :icon="windowData.isMaximized ? 'window-restore' : 'window-maximize'" />
                 </button>
 
-                <button class="window-control-btn close" @click.stop="close">
+                <button class="window-control-btn close" @click.stop="close" @mousedown.stop>
                     <font-awesome-icon icon="xmark" />
                 </button>
             </div>
@@ -44,11 +45,13 @@
 <script>
 import { mapState, mapActions } from 'pinia';
 import { useWindowStore } from '@/stores/windows';
+import { useAppStore } from '@/stores/app';
 import { windowComponentMap } from './componentMap.js';
 
 const SNAP_ZONE_SIZE = 30;
 const CLICK_DRAG_THRESHOLD = 5;
-const MAXIMIZED_BOTTOM_OFFSET = 40;
+const MAXIMIZED_BOTTOM_OFFSET = 0;
+const HEADER_OFFSET = 82;
 
 export default {
     props: {
@@ -68,6 +71,9 @@ export default {
     },
     computed: {
         ...mapState(useWindowStore, ['activeWindowId', 'activeSnapTarget']),
+        ...mapState(useAppStore, {
+            isMobile: 'getIsMobile'
+        }),
         isActive() {
             return this.activeWindowId === this.windowData.id;
         },
@@ -75,16 +81,25 @@ export default {
             const position = this.isDragging ? this.dragPosition : this.windowData.position;
             const size = this.windowData.size || { width: 500, height: 400 };
 
+            if (this.isMobile) {
+                return {
+                    transform: `translate(0, ${HEADER_OFFSET}px)`,
+                    width: '100%',
+                    height: `calc(100% - ${MAXIMIZED_BOTTOM_OFFSET}px - ${HEADER_OFFSET}px)`,
+                    zIndex: this.windowData.zIndex,
+                };
+            }
+
             const styles = {
                 transform: this.windowData.isMaximized ?
-                    'translate(0, 0)' :
+                    `translate(0, ${HEADER_OFFSET}px)` :
                     `translate(${position.x}px, ${position.y}px)`,
 
                 width: this.windowData.isMaximized && !this.isRestoring ?
                     '100%' :
                     `${size.width}px`,
                 height: this.windowData.isMaximized && !this.isRestoring ?
-                    `calc(100% - ${MAXIMIZED_BOTTOM_OFFSET}px)` :
+                    `calc(100% - ${MAXIMIZED_BOTTOM_OFFSET}px - ${HEADER_OFFSET}px)` :
                     `${size.height}px`,
 
                 zIndex: this.windowData.zIndex,
@@ -106,7 +121,8 @@ export default {
             'updateWindowSize',
             'setSnapTarget',
             'applySnap',
-            'clearPreviousState'
+            'clearPreviousState',
+            'unMaximize'
         ]),
         close() {
             this.closeWindow(this.windowData.id);
@@ -120,19 +136,17 @@ export default {
             this.minimizeWindow(this.windowData.id);
         },
         handleToggleMaximize() {
+            if (this.isMobile) return;
             this.toggleMaximize(this.windowData.id);
         },
         startDrag(event) {
             this.focus();
-
             const store = useWindowStore();
             const initialMouseX = event.clientX;
             const initialMouseY = event.clientY;
-
             let startX, startY;
 
             const onMouseMove = (moveEvent) => {
-
                 const movedX = Math.abs(moveEvent.clientX - initialMouseX);
                 const movedY = Math.abs(moveEvent.clientY - initialMouseY);
 
@@ -144,18 +158,26 @@ export default {
                         this.isRestoring = true;
                         const userState = store._getOrCreateCurrentUserState();
                         const prefs = userState.windowPrefs[this.windowData.id] || {};
-                        currentSize = this.windowData.previousSize || prefs.size || { width: 500, height: 400 };
+                        let restoredSize = this.windowData.previousSize;
+
+                        if (this.windowData.isMaximized) {
+                            restoredSize = this.unMaximize(this.windowData.id);
+                        }
+
+                        currentSize = restoredSize || prefs.size || { width: 500, height: 400 };
                         currentPosition = this.windowData.previousPosition || prefs.pos || { x: 100, y: 100 };
+
                         const grabPercentX = moveEvent.clientX / window.innerWidth;
                         currentPosition.x = moveEvent.clientX - (grabPercentX * currentSize.width);
                         currentPosition.y = moveEvent.clientY - 16;
-                        if (this.windowData.isMaximized) {
-                            this.toggleMaximize(this.windowData.id);
-                        } else {
-                            this.updateWindowSize(this.windowData.id, currentSize);
+
+                        if (!this.windowData.isMaximized) {
                             this.clearPreviousState(this.windowData.id);
                         }
+
+                        this.updateWindowSize(this.windowData.id, currentSize);
                         this.updateWindowPosition(this.windowData.id, currentPosition);
+
                         this.dragPosition = { ...currentPosition };
                         setTimeout(() => {
                             this.isRestoring = false;
@@ -170,28 +192,36 @@ export default {
                 if (!this.isDragging) return;
 
                 const x = moveEvent.clientX - startX;
-                const y = moveEvent.clientY - startY;
+                const y = Math.max(HEADER_OFFSET, moveEvent.clientY - startY);
                 this.dragPosition = { x, y };
 
                 const { clientX, clientY } = moveEvent;
                 const { innerWidth, innerHeight } = window;
-                const snapHeight = innerHeight - MAXIMIZED_BOTTOM_OFFSET;
+
+                const TOP_SNAP_ZONE_Y = SNAP_ZONE_SIZE + HEADER_OFFSET;
+                const BOTTOM_SNAP_ZONE_Y = innerHeight - SNAP_ZONE_SIZE;
+                const topY = HEADER_OFFSET;
+                const availableHeight = innerHeight - HEADER_OFFSET - MAXIMIZED_BOTTOM_OFFSET;
+                const halfHeight = availableHeight / 2;
+                const fullHeight = availableHeight;
+                const midY = topY + halfHeight;
+
                 let newSnapTarget = null;
 
-                if (clientX < SNAP_ZONE_SIZE && clientY < SNAP_ZONE_SIZE) {
-                    newSnapTarget = { id: 'tl', x: '0', y: '0', width: '50%', height: '50%', xPx: 0, yPx: 0, widthPx: innerWidth / 2, heightPx: innerHeight / 2 };
-                } else if (clientX > innerWidth - SNAP_ZONE_SIZE && clientY < SNAP_ZONE_SIZE) {
-                    newSnapTarget = { id: 'tr', x: '50%', y: '0', width: '50%', height: '50%', xPx: innerWidth / 2, yPx: 0, widthPx: innerWidth / 2, heightPx: innerHeight / 2 };
-                } else if (clientX < SNAP_ZONE_SIZE && clientY > innerHeight - SNAP_ZONE_SIZE) {
-                    newSnapTarget = { id: 'bl', x: '0', y: '50%', width: '50%', height: '50%', xPx: 0, yPx: innerHeight / 2, widthPx: innerWidth / 2, heightPx: innerHeight / 2 };
-                } else if (clientX > innerWidth - SNAP_ZONE_SIZE && clientY > innerHeight - SNAP_ZONE_SIZE) {
-                    newSnapTarget = { id: 'br', x: '50%', y: '50%', width: '50%', height: '50%', xPx: innerWidth / 2, yPx: innerHeight / 2, widthPx: innerWidth / 2, heightPx: innerHeight / 2 };
-                } else if (clientY < SNAP_ZONE_SIZE) {
-                    newSnapTarget = { id: 'top', x: '0', y: '0', width: '100%', height: `calc(100% - ${MAXIMIZED_BOTTOM_OFFSET}px)`, xPx: 0, yPx: 0, widthPx: innerWidth, heightPx: snapHeight };
+                if (clientX < SNAP_ZONE_SIZE && clientY < TOP_SNAP_ZONE_Y) {
+                    newSnapTarget = { id: 'tl', x: '0', y: `${topY}px`, width: '50%', height: `${halfHeight}px`, xPx: 0, yPx: topY, widthPx: innerWidth / 2, heightPx: halfHeight };
+                } else if (clientX > innerWidth - SNAP_ZONE_SIZE && clientY < TOP_SNAP_ZONE_Y) {
+                    newSnapTarget = { id: 'tr', x: '50%', y: `${topY}px`, width: '50%', height: `${halfHeight}px`, xPx: innerWidth / 2, yPx: topY, widthPx: innerWidth / 2, heightPx: halfHeight };
+                } else if (clientX < SNAP_ZONE_SIZE && clientY > BOTTOM_SNAP_ZONE_Y) {
+                    newSnapTarget = { id: 'bl', x: '0', y: `${midY}px`, width: '50%', height: `${halfHeight}px`, xPx: 0, yPx: midY, widthPx: innerWidth / 2, heightPx: halfHeight };
+                } else if (clientX > innerWidth - SNAP_ZONE_SIZE && clientY > BOTTOM_SNAP_ZONE_Y) {
+                    newSnapTarget = { id: 'br', x: '50%', y: `${midY}px`, width: '50%', height: `${halfHeight}px`, xPx: innerWidth / 2, yPx: midY, widthPx: innerWidth / 2, heightPx: halfHeight };
+                } else if (clientY < TOP_SNAP_ZONE_Y) {
+                    newSnapTarget = { id: 'top', x: '0', y: `${topY}px`, width: '100%', height: `${fullHeight}px`, xPx: 0, yPx: topY, widthPx: innerWidth, heightPx: fullHeight };
                 } else if (clientX < SNAP_ZONE_SIZE) {
-                    newSnapTarget = { id: 'left', x: '0', y: '0', width: '50%', height: `calc(100% - ${MAXIMIZED_BOTTOM_OFFSET}px)`, xPx: 0, yPx: 0, widthPx: innerWidth / 2, heightPx: snapHeight };
+                    newSnapTarget = { id: 'left', x: '0', y: `${topY}px`, width: '50%', height: `${fullHeight}px`, xPx: 0, yPx: topY, widthPx: innerWidth / 2, heightPx: fullHeight };
                 } else if (clientX > innerWidth - SNAP_ZONE_SIZE) {
-                    newSnapTarget = { id: 'right', x: '50%', y: '0', width: '50%', height: `calc(100% - ${MAXIMIZED_BOTTOM_OFFSET}px)`, xPx: innerWidth / 2, yPx: 0, widthPx: innerWidth / 2, heightPx: snapHeight };
+                    newSnapTarget = { id: 'right', x: '50%', y: `${topY}px`, width: '50%', height: `${fullHeight}px`, xPx: innerWidth / 2, yPx: topY, widthPx: innerWidth / 2, heightPx: fullHeight };
                 }
 
                 if (this.activeSnapTarget?.id !== newSnapTarget?.id) {
@@ -227,6 +257,8 @@ export default {
             document.addEventListener('mouseup', onMouseUp);
         },
         startResize(event, direction) {
+            if (this.isMobile) return;
+
             this.focus();
             this.isResizing = true;
             const store = useWindowStore();
@@ -299,11 +331,6 @@ export default {
 }
 
 .window-wrapper.maximized {
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    transform: translate(0, 0) !important;
     border-radius: 0;
     border: none;
 }
@@ -441,5 +468,13 @@ export default {
     width: 10px;
     height: 10px;
     cursor: nwse-resize;
+}
+
+@media (max-width: 768px) {
+
+    .window-header,
+    .resize-handle {
+        cursor: default !important;
+    }
 }
 </style>

@@ -88,7 +88,7 @@ export default {
     },
     methods: {
         ...mapActions(useAuthStore, ['setUser', 'logout']),
-        ...mapActions(useAppStore, ['setSystem']),
+        ...mapActions(useAppStore, ['setSystem', 'updateMobileStatus']),
         returnSystem: function () {
             this.api.get("/system").then((response) => {
                 this.setSystem(response.data.returnObj);
@@ -97,12 +97,20 @@ export default {
         initConnectionMonitor() {
             const utilsStore = useUtilsStore();
             utilsStore.initConnectionMonitor();
+        },
+        handleResize() {
+            this.updateMobileStatus();
         }
     },
     mounted: function () {
+        this.handleResize();
+        window.addEventListener('resize', this.handleResize);
 
         this.returnSystem();
         this.initConnectionMonitor();
+    },
+    beforeUnmount() {
+        window.removeEventListener('resize', this.handleResize);
     }
 }
 </script>

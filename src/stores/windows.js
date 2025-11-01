@@ -49,6 +49,16 @@ export const useWindowStore = defineStore('windows', {
     },
 
     actions: {
+        unMaximize(id) {
+            const userState = this._getOrCreateCurrentUserState();
+            const window = userState?.openWindows[id];
+
+            if (window && window.isMaximized) {
+                window.isMaximized = false;
+                return window.previousSize || null;
+            }
+            return null;
+        },
         _findAndFocusNextWindow() {
             const userState = this._getOrCreateCurrentUserState();
             if (!userState) return;

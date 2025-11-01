@@ -1,6 +1,6 @@
 <template>
     <div class="desktop-manager">
-        <SnapIndicator :snap-target="activeSnapTarget" />
+        <SnapIndicator :snap-target="activeSnapTarget" v-if="!isMobile" />
 
         <TransitionGroup name="window">
             <BaseWindow v-for="window in currentUserWindows" :key="window.id" :window-data="window" />
@@ -13,6 +13,7 @@ import { mapState } from 'pinia';
 import { useWindowStore } from '@/stores/windows';
 import BaseWindow from './BaseWindow.vue';
 import SnapIndicator from './SnapIndicator.vue';
+import { useAppStore } from '@/stores/app';
 
 export default {
     components: {
@@ -23,7 +24,10 @@ export default {
         ...mapState(useWindowStore, [
             'currentUserWindows',
             'activeSnapTarget'
-        ])
+        ]),
+        ...mapState(useAppStore, {
+            isMobile: 'getIsMobile'
+        }),
     }
 }
 </script>
