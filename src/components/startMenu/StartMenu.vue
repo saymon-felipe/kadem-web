@@ -15,20 +15,16 @@ export default {
 
 <style scoped>
 .start-menu {
-    position: absolute;
+    position: fixed;
     z-index: 9000;
-    top: 70px;
-    left: 0;
-    right: 0;
-    margin: auto;
-    transform: translateX(-80px);
-    width: 60%;
-    max-width: 450px;
-    height: 70vh;
-    max-height: 550px;
+    top: 82px;
+    left: .5dvw !important;
+    height: calc(100dvh - 90px);
+    max-height: calc(100dvh - 90px);
+    width: 99dvw !important;
+    max-width: 99dvw !important;
     padding: var(--space-4);
     overflow: hidden;
-    transform-origin: top left;
 }
 
 .start-menu-content {
@@ -36,17 +32,5 @@ export default {
     height: 100%;
     overflow-y: auto;
     color: var(--deep-blue);
-}
-
-@media (max-width: 768px) {
-    .start-menu {
-        margin: initial;
-        height: calc(100dvh - 82px);
-        max-height: calc(100dvh - 82px);
-        width: 100% !important;
-        max-width: 100% !important;
-        transform: translateX(0);
-        left: 0 !important;
-    }
 }
 </style>

@@ -174,17 +174,12 @@ export const useWindowStore = defineStore('windows', {
             const window = userState?.openWindows[id];
             if (!window) return;
 
-            if (window.isMaximized) {
-                this.toggleMaximize(id);
-            }
-
             if (window.isMinimized) {
                 window.isMinimized = false;
             }
 
             this.focusWindow(id);
         },
-
         closeWindow(id) {
             const wasActive = this.activeWindowId === id;
 
