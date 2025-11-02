@@ -1,6 +1,7 @@
 <template>
     <div class="start-menu glass" @mousedown.stop>
         <div class="start-menu-content">
+            <avatarComponent :user="user" />
             <h3>Menu Iniciar</h3>
             <p>Seus aplicativos e arquivos aqui.</p>
         </div>
@@ -8,11 +9,19 @@
 </template>
 
 <script>
-export default {
+import avatarComponent from "../avatarComponent.vue";
+import { mapState } from 'pinia';
+import { useAuthStore } from '@/stores/auth';
 
+export default {
+    components: {
+        avatarComponent
+    },
+    computed: {
+        ...mapState(useAuthStore, ['user']),
+    }
 }
 </script>
-
 <style scoped>
 .start-menu {
     position: fixed;
