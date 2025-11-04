@@ -2,12 +2,11 @@
     <div class="loading-overlay" :class="{ 'fade-out': !isLoading }">
         <loadingSpinner type="yellow" />
     </div>
-
     <div class="main" :style="background">
         <headerSystem />
+        <SyncIndicator :syncing="isSyncing" />
         <homeWidgets />
         <DesktopWindowManager />
-        <button @click="logout">Sair</button>
     </div>
 </template>
 <script>
@@ -20,16 +19,19 @@ import homeWidgets from "../components/homeWidgets.vue";
 import loadingSpinner from "../components/loadingSpinner.vue";
 import systemBackground from "../assets/images/system-background.webp";
 import DesktopWindowManager from "../components/windowing/DesktopWindowManager.vue";
+import SyncIndicator from '@/components/SyncIndicator.vue';
 
 export default {
     components: {
         headerSystem,
         homeWidgets,
         loadingSpinner,
-        DesktopWindowManager
+        DesktopWindowManager,
+        SyncIndicator
     },
     computed: {
         ...mapState(useAuthStore, ['user']),
+        ...mapState(useUtilsStore, ['isSyncing']),
         ...mapState(useAppStore, ['system']),
         finalImageUrl() {
             if (this.system && this.system.background && this.system.background != "") {
@@ -87,7 +89,7 @@ export default {
         }
     },
     methods: {
-        ...mapActions(useAuthStore, ['setUser', 'logout']),
+        ...mapActions(useAuthStore, ['setUser']),
         ...mapActions(useAppStore, ['setSystem', 'updateMobileStatus']),
         returnSystem: function () {
             this.api.get("/system").then((response) => {

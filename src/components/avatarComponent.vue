@@ -1,6 +1,7 @@
 <template>
     <div class="user-badge-wrapper">
-        <div class="avatar-container" :style="progressRingStyle">
+        <div class="avatar-container" :style="progressRingStyle"
+            :title="percentToNextLevel + '% para o próximo nível.'">
             <img :src="getAvatar()" :alt="user.name" class="avatar-image" />
             <div class="level-badge">{{ user.level }}</div>
         </div>
@@ -39,11 +40,13 @@ export default {
             return {
                 '--progress-value-deg': `${progressDegrees}deg`
             };
+        },
+        percentToNextLevel() {
+            return Math.floor(this.user.level_progress);
         }
     },
     methods: {
         getAvatar() {
-            console.log("entrou, ", event)
             if (this.user.avatar) return this.user.avatar;
 
             const initials = this.user.name ? this.user.name.substring(0, 1) : '?';
@@ -54,19 +57,10 @@ export default {
 </script>
 
 <style scoped>
-/* MUDANÇA: O :root foi removido.
-  Agora estamos usando as variáveis globais de 'variables.css'.
-*/
-
 .user-badge-wrapper {
     display: flex;
     align-items: center;
     gap: var(--space-5);
-    /* 16px */
-    font-family: Roboto, system-ui, sans-serif;
-    /* Padrão do main.css */
-    padding: var(--space-4);
-    /* 12px */
 }
 
 .avatar-container {
@@ -74,13 +68,8 @@ export default {
     width: 90px;
     height: 90px;
     border-radius: var(--radius-full);
-
-    /* O anel de progresso é o fundo do container */
     background-image: conic-gradient(var(--deep-blue) var(--progress-value-deg),
-            var(--gray-700) 0
-            /* Usa --gray-700 de variables.css */
-        );
-
+            var(--gray-700) 0);
     display: grid;
     place-items: center;
     flex-shrink: 0;
@@ -91,20 +80,30 @@ export default {
     height: 80px;
     border-radius: var(--radius-full);
     object-fit: cover;
-    border: 2px solid var(--white);
+}
+
+@media (max-width: 768px) {
+    .avatar-container {
+        width: 70px;
+        height: 70px;
+    }
+
+    .avatar-image {
+        width: 60px;
+        height: 60px;
+    }
 }
 
 .level-badge {
     position: absolute;
-    bottom: -4px;
+    bottom: -10px;
     left: 50%;
     transform: translateX(-50%);
-
-    background-color: var(--deep-blue);
+    background-image: var(--deep-blue-gradient);
     color: var(--white);
-    font-size: 14px;
+    font-size: var(--fontsize-xs);
     font-weight: bold;
-    padding: 2px 10px;
+    padding: var(--space-1) var(--space-4);
     border-radius: var(--radius-md);
     border: 2px solid var(--white);
 }
@@ -116,17 +115,15 @@ export default {
 }
 
 .connected-as {
-    font-size: 14px;
+    font-size: var(--fontsize-xs);
     color: var(--gray-100);
-    /* Usa --gray-100 de variables.css */
     font-weight: 500;
 }
 
 .user-name {
-    font-size: 26px;
+    font-size: var(--fontsize-md);
     font-weight: 700;
     color: var(--deep-blue);
-    /* Usa --deep-blue de variables.css */
     margin: 0;
     padding: 0;
 }
@@ -134,19 +131,12 @@ export default {
 .medals-container {
     display: flex;
     gap: var(--space-3);
-    /* 8px */
     margin-top: var(--space-3);
 }
 
-/* MUDANÇA: Nova classe para estilizar as imagens das medalhas
-*/
 .medal-image {
     width: 24px;
     height: 24px;
     object-fit: contain;
 }
-
-/* MUDANÇA: Classes de cor de medalha removidas
-  (.medal-green, .medal-gold, etc.)
-*/
 </style>

@@ -9,6 +9,7 @@ import globalMixin from "./assets/scripts/global";
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import vAnimateHeight from './directives/v-animate-height.js';
+import { syncService } from './services/syncService';
 
 import {
     faForwardStep,
@@ -20,7 +21,11 @@ import {
     faWindowMaximize,
     faWindowRestore,
     faMinus,
-    faXmark
+    faXmark,
+    faRightFromBracket,
+    faPlus,
+    faPencil,
+    faArrowsRotate
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -33,7 +38,11 @@ library.add(
     faWindowMaximize,
     faWindowRestore,
     faMinus,
-    faXmark
+    faXmark,
+    faRightFromBracket,
+    faPlus,
+    faPencil,
+    faArrowsRotate
 );
 
 const app = createApp(App);

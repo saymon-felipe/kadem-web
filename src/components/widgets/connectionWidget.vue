@@ -10,11 +10,6 @@ import { useUtilsStore } from '@/stores/utils';
 export default {
     computed: {
         ...mapState(useUtilsStore, ['connection'])
-    },
-    watch: {
-        connection: function () {
-            console.log(this.connection)
-        }
     }
 }
 </script>

@@ -3,20 +3,29 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('KademDB');
 
-// Define a estrutura do banco
-db.version(1).stores({
-    /**
-     * Tabela para nossos dados.
-     * '++id' = ID auto-incremental
-     * 'title' = Um campo que talvez queiramos pesquisar
-     * 'tempId' = ID temporário que usamos no front
-     */
+db.version(4).stores({
+    // Tabelas anteriores
     tasks: '++id, title, tempId',
+    syncQueue: '++id, type',
 
     /**
-     * Tabela para a fila de sincronização.
-     * '++id' = Ordem da fila
-     * 'type' = 'CREATE_TASK', 'UPDATE_TASK', etc.
+     * Tabela para os dados do perfil do usuário.
+     * '&id' = Chave primária (vem do backend)
      */
-    syncQueue: '++id, type'
+    users: '&id',
+
+    /**
+     * Tabela para as ocupações do usuário.
+     * '&id' = Chave primária (vem do backend)
+     * 'user_id' = Campo indexado para podermos buscar por usuário
+     */
+    user_occupations: '++localId, &id, user_id',
+
+    /**
+     * Tabela mestre das medalhas.
+     * '&id' = Chave primária (vem do backend)
+     */
+    medals: '&id'
+
+    // Tabela 'user_medals' removida. Não é necessária.
 });

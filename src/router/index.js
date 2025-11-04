@@ -1,14 +1,22 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { useAuthStore } from '../stores/auth.js';
 
 import homeView from "../views/homeView.vue";
 import authView from "../views/authView.vue";
+import LogoutView from '../views/LogoutView.vue';
 
 const routes = [
   {
     path: "/",
     name: "Home",
     component: homeView,
+    meta: {
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/logout',
+    name: 'Logout',
+    component: LogoutView,
     meta: {
       requiresAuth: true
     }
@@ -33,6 +41,7 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
+  const { useAuthStore } = await import('../stores/auth.js');
   const authStore = useAuthStore();
 
   await authStore.checkAuthStatus();

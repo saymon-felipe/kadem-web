@@ -21,6 +21,8 @@
     --deep-blue-gradient: linear-gradient(to left, var(--deep-blue), var(--deep-blue-2));
     --deep-blue-gradient-right: linear-gradient(to right, var(--deep-blue), var(--deep-blue-2));
 
+    --yellow-gradient: linear-gradient(to left, var(--yellow), var(--orange));
+
     /* BORDER RADIUS */
     --radius-sm: clamp(0.75rem, 0.65rem + 0.5vw, 0.875rem);
     --radius-md: clamp(1rem, 0.9rem + 0.5vw, 1.125rem);

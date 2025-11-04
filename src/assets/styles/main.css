@@ -19,6 +19,37 @@ h1, h2, h3, h4, h5, h6 {
     user-select: none;
 }
 
+.ui-hover {
+  position: relative;
+
+  & > * {
+    position: relative;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  &::after {
+    content: "";
+    width: 100%;
+    transform: scale(1.4);
+    aspect-ratio: 1/1;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: auto;
+    transition: background 0.2s ease-in-out;
+    z-index: 1;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  &:hover::after {
+      background: rgba(255, 255, 255, 0.3);
+  }
+}
+
 .glass {
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: var(--radius-md);
@@ -171,7 +202,7 @@ textarea:not(:placeholder-shown):invalid ~ label {
 
 textarea {
   height: 130px;
-  resize: none;
+  resize: vertical;
 }
 
 .btn {
@@ -221,6 +252,34 @@ textarea {
       
       /* Esta linha é removida: */
       /* background-image: var(--deep-blue-gradient-right); */
+    }
+  }
+}
+
+.btn-small {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--fontsize-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &.btn-cancel {
+    background-color: var(--gray-600);
+    color: var(--gray-100);
+
+    &:hover {
+      background-color: var(--gray-500);
+    }
+  }
+
+  &.btn-save {
+    background-color: var(--deep-blue);
+    color: var(--white);
+
+    &:hover {
+      filter: brightness(1.2);
     }
   }
 }

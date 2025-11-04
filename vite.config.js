@@ -13,7 +13,41 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
+        runtimeCaching: [
+          /*{
+            urlPattern: ({ url }) => url.pathname.endsWith('/api/system'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'api-system-cache',
+              expiration: {
+                maxEntries: 1,
+                maxAgeSeconds: 60 * 60 * 24 
+              }
+            }
+          },*/
+          {
+            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'runtime-images-cache',
+              expiration: {
+                maxAgeSeconds: 30 * 24 * 60 * 60
+              }
+            }
+          },
+          {
+            urlPattern: ({ url }) => url.hostname === 'placehold.co',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'placeholder-images-cache',
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 30 * 24 * 60 * 60
+              }
+            }
+          }
+        ]
       },
       manifest: {
         name: 'Kadem',

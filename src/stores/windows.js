@@ -2,12 +2,14 @@ import { defineStore } from 'pinia';
 import { useAuthStore } from './auth';
 
 export const useWindowStore = defineStore('windows', {
+    // --- State ---
     state: () => ({
         windowStatesByUser: {},
         _zIndexCounter: 0,
         snapTarget: null,
     }),
 
+    // --- Getters ---
     getters: {
         activeWindowId(state) {
             const windows = this.currentUserWindows;
@@ -48,53 +50,11 @@ export const useWindowStore = defineStore('windows', {
         }
     },
 
+    // --- Actions ---
     actions: {
-        unMaximize(id) {
-            const userState = this._getOrCreateCurrentUserState();
-            const window = userState?.openWindows[id];
 
-            if (window && window.isMaximized) {
-                window.isMaximized = false;
-                return window.previousSize || null;
-            }
-            return null;
-        },
-        _findAndFocusNextWindow() {
-            const userState = this._getOrCreateCurrentUserState();
-            if (!userState) return;
+        // --- Ações Públicas de Janela (Lifecycle & State) ---
 
-            const openWindows = Object.values(userState.openWindows);
-            const visibleWindows = openWindows.filter(win => !win.isMinimized);
-
-            if (visibleWindows.length === 0) {
-                return;
-            }
-
-            const nextActiveWindow = visibleWindows.reduce((highest, current) => {
-                return current.zIndex > highest.zIndex ? current : highest;
-            });
-
-            this.focusWindow(nextActiveWindow.id);
-        },
-        _getOrCreateCurrentUserState() {
-            const authStore = useAuthStore();
-            const userId = authStore.user?.id;
-            if (!userId) return null;
-
-            if (!this.windowStatesByUser[userId]) {
-                this.windowStatesByUser[userId] = { openWindows: {}, windowPrefs: {} };
-            }
-
-            if (!this.windowStatesByUser[userId].openWindows) {
-                this.windowStatesByUser[userId].openWindows = {};
-            }
-
-            if (!this.windowStatesByUser[userId].windowPrefs) {
-                this.windowStatesByUser[userId].windowPrefs = {};
-            }
-
-            return this.windowStatesByUser[userId];
-        },
         openWindow({ id, title, componentId }) {
             const userState = this._getOrCreateCurrentUserState();
             if (!userState) return;
@@ -125,30 +85,50 @@ export const useWindowStore = defineStore('windows', {
 
             userState.openWindows[id] = newWindow;
         },
-        updateWindowSize(id, { width, height }) {
-            const userState = this._getOrCreateCurrentUserState();
-            const window = userState?.openWindows[id];
 
-            if (window && !window.isMaximized) {
-                window.size = { width, height };
-
-                if (!userState.windowPrefs[id]) userState.windowPrefs[id] = {};
-                userState.windowPrefs[id].size = { width, height };
-            }
-        },
-        minimizeWindow(id) {
+        closeWindow(id) {
             const wasActive = this.activeWindowId === id;
-
             const userState = this._getOrCreateCurrentUserState();
-            const window = userState?.openWindows[id];
-            if (window) {
-                window.isMinimized = true;
 
+            if (userState && userState.openWindows[id]) {
+                delete userState.openWindows[id];
                 if (wasActive) {
                     this._findAndFocusNextWindow();
                 }
             }
         },
+
+        focusWindow(id) {
+            const userState = this._getOrCreateCurrentUserState();
+            if (userState && userState.openWindows[id]) {
+                userState.openWindows[id].zIndex = this._zIndexCounter++;
+            }
+        },
+
+        minimizeWindow(id) {
+            const wasActive = this.activeWindowId === id;
+            const userState = this._getOrCreateCurrentUserState();
+            const window = userState?.openWindows[id];
+
+            if (window) {
+                window.isMinimized = true;
+                if (wasActive) {
+                    this._findAndFocusNextWindow();
+                }
+            }
+        },
+
+        restoreWindow(id) {
+            const userState = this._getOrCreateCurrentUserState();
+            const window = userState?.openWindows[id];
+            if (!window) return;
+
+            if (window.isMinimized) {
+                window.isMinimized = false;
+            }
+            this.focusWindow(id);
+        },
+
         toggleMaximize(id) {
             const userState = this._getOrCreateCurrentUserState();
             const window = userState?.openWindows[id];
@@ -156,7 +136,6 @@ export const useWindowStore = defineStore('windows', {
 
             if (window.isMaximized) {
                 const prefs = userState.windowPrefs[id] || {};
-
                 window.position = window.previousPosition || prefs.pos || { x: 100, y: 100 };
                 window.size = window.previousSize || prefs.size || { width: 500, height: 400 };
                 window.isMaximized = false;
@@ -166,60 +145,72 @@ export const useWindowStore = defineStore('windows', {
                 window.previousSize = { ...window.size };
                 window.isMaximized = true;
             }
-
             this.focusWindow(id);
         },
-        restoreWindow(id) {
+
+        unMaximize(id) {
             const userState = this._getOrCreateCurrentUserState();
             const window = userState?.openWindows[id];
-            if (!window) return;
 
-            if (window.isMinimized) {
-                window.isMinimized = false;
+            if (window && window.isMaximized) {
+                window.isMaximized = false;
+                return window.previousSize || null;
             }
-
-            this.focusWindow(id);
-        },
-        closeWindow(id) {
-            const wasActive = this.activeWindowId === id;
-
-            const userState = this._getOrCreateCurrentUserState();
-            if (userState && userState.openWindows[id]) {
-                delete userState.openWindows[id];
-
-                if (wasActive) {
-                    this._findAndFocusNextWindow();
-                }
-            }
+            return null;
         },
 
-        focusWindow(id) {
-            const userState = this._getOrCreateCurrentUserState();
-
-            if (userState && userState.openWindows[id]) {
-                userState.openWindows[id].zIndex = this._zIndexCounter++;
-            }
-        },
         updateWindowPosition(id, { x, y }) {
             const userState = this._getOrCreateCurrentUserState();
             const window = userState?.openWindows[id];
 
             if (window) {
                 window.position = { x, y };
-
                 if (!userState.windowPrefs[id]) userState.windowPrefs[id] = {};
                 userState.windowPrefs[id].pos = { x, y };
             }
         },
+
+        updateWindowSize(id, { width, height }) {
+            const userState = this._getOrCreateCurrentUserState();
+            const window = userState?.openWindows[id];
+
+            if (window && !window.isMaximized) {
+                window.size = { width, height };
+                if (!userState.windowPrefs[id]) userState.windowPrefs[id] = {};
+                userState.windowPrefs[id].size = { width, height };
+            }
+        },
+
+        // --- Ações de Encaixe (Snapping) ---
+
+        setSnapTarget(target) {
+            this.snapTarget = target;
+        },
+
+        applySnap(id, target) {
+            const userState = this._getOrCreateCurrentUserState();
+            const window = userState?.openWindows[id];
+            if (!window) return;
+
+            if (!window.isMaximized) {
+                window.previousPosition = { ...window.position };
+                window.previousSize = { ...window.size };
+            }
+            window.position = { x: target.xPx, y: target.yPx };
+            window.size = { width: target.widthPx, height: target.heightPx };
+            window.isMaximized = target.id === 'top';
+            this.focusWindow(id);
+        },
+
+        // --- Ações Internas & de Limpeza ---
+
         clearWindowsForUser(userId) {
             if (userId && this.windowStatesByUser[userId]) {
                 this.windowStatesByUser[userId].openWindows = {};
                 console.log(`Estado de janelas limpo para o usuário ${userId}`);
             }
         },
-        setSnapTarget(target) {
-            this.snapTarget = target;
-        },
+
         clearPreviousState(id) {
             const userState = this._getOrCreateCurrentUserState();
             const window = userState?.openWindows[id];
@@ -228,23 +219,43 @@ export const useWindowStore = defineStore('windows', {
                 window.previousSize = null;
             }
         },
-        applySnap(id, target) {
+
+        _findAndFocusNextWindow() {
             const userState = this._getOrCreateCurrentUserState();
-            const window = userState?.openWindows[id];
+            if (!userState) return;
 
-            if (!window) return;
+            const openWindows = Object.values(userState.openWindows);
+            const visibleWindows = openWindows.filter(win => !win.isMinimized);
 
-            if (!window.isMaximized) {
-                window.previousPosition = { ...window.position };
-                window.previousSize = { ...window.size };
+            if (visibleWindows.length === 0) {
+                return;
             }
 
-            window.position = { x: target.xPx, y: target.yPx };
-            window.size = { width: target.widthPx, height: target.heightPx };
+            const nextActiveWindow = visibleWindows.reduce((highest, current) => {
+                return current.zIndex > highest.zIndex ? current : highest;
+            });
 
-            window.isMaximized = target.id === 'top';
+            this.focusWindow(nextActiveWindow.id);
+        },
 
-            this.focusWindow(id);
+        _getOrCreateCurrentUserState() {
+            const authStore = useAuthStore();
+            const userId = authStore.user?.id;
+            if (!userId) return null;
+
+            if (!this.windowStatesByUser[userId]) {
+                this.windowStatesByUser[userId] = { openWindows: {}, windowPrefs: {} };
+            }
+
+            if (!this.windowStatesByUser[userId].openWindows) {
+                this.windowStatesByUser[userId].openWindows = {};
+            }
+
+            if (!this.windowStatesByUser[userId].windowPrefs) {
+                this.windowStatesByUser[userId].windowPrefs = {};
+            }
+
+            return this.windowStatesByUser[userId];
         },
     },
     persist: true,
