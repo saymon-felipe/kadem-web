@@ -213,45 +213,22 @@ textarea {
   height: 50px;
   border-radius: var(--radius-sm);
   font-size: var(--fontsize-sm);
-
-  /* IMPORTANTE: Mude 'all' para propriedades específicas. 
-    Nós vamos animar o 'background-position'.
-  */
   transition: background-position 0.4s ease-in-out, color 0.2s ease-in-out;
-  
   background-color: var(--background-gray);
   color: var(--black);
   cursor: pointer;
-
-  /* Isso é necessário para não distorcer o botão, 
-     como no seu print anterior */
   position: relative;
   overflow: hidden;
   z-index: 1;
 
   &.btn-primary {
-    /* 1. Use APENAS o seu gradiente inicial.
-      (Se o seu 'right' for muito diferente, 
-      você pode precisar combinar os dois em um só)
-    */
     background-image: var(--deep-blue-gradient);
     color: var(--white);
-
-    /* 2. Faça o gradiente ter o dobro da largura do botão */
     background-size: 200% auto;
-    
-    /* 3. Posição inicial: mostra a metade da esquerda */
-    background-position: left center; /* ou 0% 50% */
-
+    background-position: left center; 
 
     &:hover {
-      /* 4. No hover, mude a POSIÇÃO, não a IMAGEM.
-        Isso desliza o gradiente para mostrar a metade da direita.
-      */
-      background-position: right center; /* ou 100% 50% */
-      
-      /* Esta linha é removida: */
-      /* background-image: var(--deep-blue-gradient-right); */
+      background-position: right center;
     }
   }
 }

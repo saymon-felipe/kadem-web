@@ -1,16 +1,8 @@
-// src/services/syncService.js
 import { api } from '../plugins/api';
-import { syncQueueRepository } from './localData';
+import { syncQueueRepository, userRepository } from './localData';
 
-// --- Estado do Módulo ---
 let isProcessing = false;
 
-// --- Handlers Internos (Lógica da Fila) ---
-
-/**
- * Processa uma única tarefa da fila, chamando a API correspondente.
- * @param {object} task A tarefa vinda do Dexie
- */
 async function processTask(task) {
     switch (task.type) {
         case 'CREATE_OCCUPATION':
@@ -23,7 +15,7 @@ async function processTask(task) {
             return await api.patch('/users/profile', task.payload);
 
         case 'UPDATE_USER_BIO':
-            return await api.patch('/users/profile/bio', { bio: task.payload });
+            return await api.patch('/users/profile/bio', task.payload);
 
         default:
             console.warn(`Tipo de sync desconhecido: ${task.type}`);
@@ -31,17 +23,11 @@ async function processTask(task) {
     }
 }
 
-// --- Serviço Público de Sincronização ---
-
 export const syncService = {
-    /**
-     * Tenta processar todas as tarefas pendentes na fila.
-     */
     async processSyncQueue() {
         if (isProcessing || !navigator.onLine) {
             return;
         }
-
         isProcessing = true;
 
         const tasks = await syncQueueRepository.getPendingTasks();
@@ -50,7 +36,6 @@ export const syncService = {
             isProcessing = false;
             return;
         }
-
         console.log(`[SyncService] Iniciando sincronização de ${tasks.length} tarefas...`);
 
         for (const task of tasks) {
@@ -59,10 +44,22 @@ export const syncService = {
 
                 await syncQueueRepository.deleteTask(task.id);
                 console.log(`[SyncService] Tarefa ${task.id} (${task.type}) concluída.`);
-
             } catch (error) {
-                console.error(`[SyncService] Falha ao sincronizar tarefa ${task.id} (${task.type}).`, error);
-                break;
+                if (error.response?.status === 409) {
+                    console.warn(`[SyncService] Conflito 409 detectado para tarefa ${task.id}. O servidor venceu.`);
+
+                    const serverData = error.response.data;
+
+                    if (task.type === 'UPDATE_USER_BIO') {
+                        await userRepository.saveLocalUserProfile(serverData);
+                    }
+
+                    await syncQueueRepository.deleteTask(task.id);
+
+                } else {
+                    console.error(`[SyncService] Falha ao sincronizar tarefa ${task.id} (${task.type}).`, error);
+                    break;
+                }
             }
         }
 

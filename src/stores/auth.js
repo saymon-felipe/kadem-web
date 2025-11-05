@@ -150,6 +150,9 @@ export const useAuthStore = defineStore('auth', {
         async updateUserBio(newBio) {
             const currentUser = this.user;
             const { occupations, medals, ...profileData } = currentUser;
+
+            const recordLastUpdated = profileData.updated_at;
+
             const updatedProfileData = { ...profileData, bio: newBio };
             const updatedUserForState = { ...updatedProfileData, occupations, medals };
 
@@ -159,13 +162,15 @@ export const useAuthStore = defineStore('auth', {
 
                 await syncQueueRepository.addSyncQueueTask({
                     type: 'UPDATE_USER_BIO',
-                    payload: newBio,
+                    payload: {
+                        newBio: newBio,
+                        recordLastUpdated: recordLastUpdated
+                    },
                     userId: currentUser.id,
                     timestamp: new Date().toISOString()
                 });
 
                 syncService.processSyncQueue();
-
             } catch (error) {
                 console.error("Falha ao salvar bio localmente:", error);
             }
@@ -235,12 +240,17 @@ export const useAuthStore = defineStore('auth', {
             const updatedProfileData = { ...profileData, ...dataToUpdate };
             const updatedUserForState = { ...updatedProfileData, occupations, medals };
 
+            const recordLastUpdated = profileData.updatedAt;
+
             await userRepository.saveLocalUserProfile(updatedProfileData);
             this.setUser(updatedUserForState);
 
             await syncQueueRepository.addSyncQueueTask({
                 type: 'UPDATE_USER_PROFILE',
-                payload: dataToUpdate,
+                payload: {
+                    newData: dataToUpdate,
+                    recordLastUpdated: recordLastUpdated
+                },
                 userId: currentUser.id,
                 timestamp: new Date().toISOString()
             });

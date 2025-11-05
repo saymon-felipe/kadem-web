@@ -9,8 +9,9 @@
             </div>
 
             <nav class="tab-navigation">
-                <button v-for="(tab, index) in tabs" :key="tab.id"
-                    :class="['tab-button', { active: activeTabIndex === index }]" @click="setActiveTab(tab.id, index)">
+                <button v-for="(tab, index) in visibleTabs" :key="tab.id"
+                    :class="['tab-button', { active: activeTabIndex === tab.originalIndex }]"
+                    @click="setActiveTab(tab.id, tab.originalIndex)">
                     {{ tab.name }}
                 </button>
             </nav>
@@ -19,7 +20,9 @@
                 <div class="tabs-track" :style="trackStyle" ref="tabsTrack">
                     <div class="tab-pane" v-for="(tab, index) in tabs" :key="tab.id" role="tabpanel"
                         :aria-hidden="activeTabIndex !== index">
-                        <component :is="tab.component" />
+
+                        <component :is="tab.component" @request-new-group="setActiveTabById('new-group')"
+                            @cancel-new-group="setActiveTabById('main')" />
                     </div>
                 </div>
             </div>
@@ -35,28 +38,37 @@ import { useAuthStore } from '@/stores/auth';
 import MainInformations from './MainInformations.vue';
 import Configuration from './Configuration.vue';
 import AccountCenter from './AccountCenter.vue';
+import NewProject from './NewProject.vue';
 
 export default {
     components: {
         avatarComponent,
         MainInformations,
         Configuration,
-        AccountCenter
+        AccountCenter,
+        NewProject
     },
     data() {
         return {
             activeTab: 'main',
             activeTabIndex: 0,
             tabs: [
-                { id: 'main', name: 'Informações principais', component: MainInformations },
-                { id: 'config', name: 'Configurações', component: Configuration },
-                { id: 'accounts', name: 'Central de contas', component: AccountCenter },
+                { id: 'main', name: 'Informações principais', component: MainInformations, isNav: true },
+                { id: 'config', name: 'Configurações', component: Configuration, isNav: true },
+                { id: 'accounts', name: 'Central de contas', component: AccountCenter, isNav: true },
+                { id: 'new-group', name: 'Criar Grupo', component: NewProject, isNav: false },
             ],
-            animationDuration: 350 // ms
+            animationDuration: 350
         };
     },
     computed: {
         ...mapState(useAuthStore, ['user']),
+
+        visibleTabs() {
+            return this.tabs
+                .map((tab, index) => ({ ...tab, originalIndex: index }))
+                .filter(tab => tab.isNav);
+        },
         trackWidth() {
             return `${this.tabs.length * 100}%`;
         },
@@ -80,6 +92,13 @@ export default {
             if (this.activeTabIndex === newIndex) return;
             this.activeTab = tabId;
             this.activeTabIndex = newIndex;
+        },
+        setActiveTabById(tabId) {
+            const newIndex = this.tabs.findIndex(tab => tab.id === tabId);
+
+            if (newIndex !== -1 && this.activeTabIndex !== newIndex) {
+                this.setActiveTab(tabId, newIndex);
+            }
         }
     }
 };
@@ -184,8 +203,8 @@ export default {
 }
 
 .tabs-track>.tab-pane {
-    width: calc(100% / 3);
-    flex: 0 0 calc(100% / 3);
+    width: calc(100% / 4);
+    flex: 0 0 calc(100% / 4);
 }
 
 .tab-pane::-webkit-scrollbar {

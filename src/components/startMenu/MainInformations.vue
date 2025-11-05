@@ -50,7 +50,7 @@
         <section class="info-section">
             <div class="section-header">
                 <p>Meus projetos</p>
-                <button class="icon-button" title="Adicionar Projeto">
+                <button class="icon-button" title="Adicionar Projeto" @click="$emit('request-new-group')">
                     <font-awesome-icon icon="plus" />
                 </button>
             </div>
@@ -71,6 +71,7 @@ import { useAuthStore } from '@/stores/auth';
 export default {
     // --- Nome do Componente ---
     name: "MainInformations",
+    emits: ['request-new-group'],
 
     // --- Estado Local (data) ---
     data() {
