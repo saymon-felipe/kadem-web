@@ -54,10 +54,12 @@
                     <font-awesome-icon icon="plus" />
                 </button>
             </div>
+
             <div class="projects-grid">
-                <div class="project-card" v-for="i in 10" :key="i">
-                    <img src="https://via.placeholder.com/150/d3d3d3/808080?text=Cademint" alt="Cademint">
-                    <span>Cademint</span>
+                <div class="project-card" v-for="project in projects" :key="project.id || project.localId"
+                    @click="$emit('request-edit-group', project)">
+                    <img :src="project.image || defaultProjectImage" :alt="project.name">
+                    <span :data-name="project.name">&nbsp;</span>
                 </div>
             </div>
         </section>
@@ -67,46 +69,35 @@
 <script>
 import { mapState, mapActions } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
+import { useProjectStore } from '@/stores/projects';
+import defaultProjectImage from "@/assets/images/kadem-default-project.jpg";
 
 export default {
-    // --- Nome do Componente ---
     name: "MainInformations",
-    emits: ['request-new-group'],
-
-    // --- Estado Local (data) ---
+    emits: ['request-new-group', 'request-edit-group'],
     data() {
         return {
-            // Estado de Ocupações
             isAddingOccupation: false,
             newOccupationName: '',
-
-            // Estado de Biografia
+            defaultProjectImage: defaultProjectImage,
             isEditingBio: false,
             editableBio: ''
         }
     },
-
-    // --- Propriedades Computadas (getters) ---
     computed: {
         ...mapState(useAuthStore, ['user']),
+        ...mapState(useProjectStore, ['projects'])
     },
-
-    // --- Métodos (setters/ações) ---
     methods: {
-        // --- Ações da Store ---
         ...mapActions(useAuthStore, [
-            'updateUserProfile',
             'addNewOccupation',
             'removeOccupation',
             'updateUserBio'
         ]),
-
-        // --- Métodos de Biografia ---
         toggleBioEdit(isEditing) {
             this.isEditingBio = isEditing;
             if (isEditing) {
                 this.editableBio = this.user.bio || '';
-                // Aguarda a animação de transição (0.2s) + margem
                 setTimeout(() => {
                     this.$refs.bioTextarea.focus();
                 }, 300)
@@ -125,28 +116,22 @@ export default {
                 console.error("Falha ao salvar bio localmente:", error);
             }
         },
-
-        // --- Métodos de Ocupações (Tags) ---
         showAddInput() {
             this.isAddingOccupation = true;
-            // Aguarda a animação de transição (0.2s) + margem
             setTimeout(() => {
                 this.$refs.addTagInput.focus();
             }, 300);
         },
-
         cancelAddOccupation() {
             this.isAddingOccupation = false;
             this.newOccupationName = '';
         },
-
         async handleAddNewOccupation() {
             if (this.newOccupationName.trim() !== '') {
                 await this.addNewOccupation(this.newOccupationName);
             }
             this.cancelAddOccupation();
         },
-
         async handleRemoveOccupation(occupation) {
             await this.removeOccupation(occupation);
         }
@@ -155,9 +140,6 @@ export default {
 </script>
 
 <style scoped>
-/* ======================= */
-/* --- Layout Geral --- */
-/* ======================= */
 .info-wrapper {
     display: flex;
     flex-direction: column;
@@ -191,16 +173,12 @@ export default {
     cursor: pointer;
 }
 
-/* ======================= */
-/* --- Tags (Ocupações) --- */
-/* ======================= */
 .tags-container {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
 }
 
-/* Simula o 'gap' para permitir animação */
 .tags-container>* {
     margin: calc(var(--space-3) / 2);
 }
@@ -246,7 +224,6 @@ export default {
     background: var(--red-high);
 }
 
-/* --- Formulário de Adicionar Tag --- */
 .add-tag-btn {
     background: none;
     border: 1px dashed var(--gray-500);
@@ -277,9 +254,6 @@ export default {
     border-radius: 5px;
 }
 
-/* ======================= */
-/* --- Editor de Bio --- */
-/* ======================= */
 .biography-text {
     color: var(--text-gray);
     line-height: 1.6;
@@ -295,7 +269,6 @@ export default {
 .bio-editor textarea {
     padding: var(--space-3);
     margin-left: 4px;
-    /* Estilos (provavelmente globais) */
     width: 100%;
     background-color: var(--gray-700);
     color: var(--text-gray);
@@ -310,9 +283,6 @@ export default {
     gap: var(--space-3);
 }
 
-/* ======================= */
-/* --- Seção Projetos --- */
-/* ======================= */
 .projects-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -323,29 +293,45 @@ export default {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     overflow: hidden;
     cursor: pointer;
+    position: relative;
 
     & img {
         width: 100%;
-        height: 80px;
+        height: 120px;
         object-fit: cover;
     }
 
     & span {
         font-weight: 500;
         color: var(--deep-blue);
-        text-align: center;
         padding-bottom: var(--space-2);
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        display: inline-block;
+        color: var(--white);
+
+        &::after {
+            content: attr(data-name);
+            width: 100%;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            background-image: linear-gradient(to top, rgba(46, 46, 46, 0.6) 60%, transparent);
+            height: 120%;
+            display: flex;
+            align-items: center;
+            padding-left: var(--space-6);
+            padding-bottom: var(--space-3);
+            padding-top: var(--space-3);
+        }
     }
 }
 
-/* ======================= */
-/* --- Animações Vue --- */
-/* ======================= */
-
-/* Animação de troca (Bio e Botão Add) */
 .fade-switch-enter-active,
 .fade-switch-leave-active {
     transition: all 0.2s ease;
@@ -357,7 +343,6 @@ export default {
     transform: translateY(5px);
 }
 
-/* Animação da lista de Tags */
 .tag-anim-enter-active,
 .tag-anim-leave-active,
 .tag-anim-move {

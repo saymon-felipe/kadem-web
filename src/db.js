@@ -3,10 +3,9 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('KademDB');
 
-db.version(4).stores({
-    // Tabelas anteriores
+db.version(2).stores({
     tasks: '++id, title, tempId',
-    syncQueue: '++id, type',
+    syncQueue: '++id, type, timestamp',
 
     /**
      * Tabela para os dados do perfil do usuário.
@@ -16,7 +15,8 @@ db.version(4).stores({
 
     /**
      * Tabela para as ocupações do usuário.
-     * '&id' = Chave primária (vem do backend)
+     * '++localId' = Chave primária local auto-incremental
+     * '&id' = Chave primária (vem do backend, única)
      * 'user_id' = Campo indexado para podermos buscar por usuário
      */
     user_occupations: '++localId, &id, user_id',
@@ -25,7 +25,13 @@ db.version(4).stores({
      * Tabela mestre das medalhas.
      * '&id' = Chave primária (vem do backend)
      */
-    medals: '&id'
+    medals: '&id',
 
-    // Tabela 'user_medals' removida. Não é necessária.
+    /**
+     * Tabela de Projetos
+     * '++localId' = Chave primária local auto-incremental
+     * '&id' = Chave primária (vem do backend, única)
+     * 'name' = Indexado para busca
+     */
+    projects: '++localId, &id, name'
 });

@@ -15,17 +15,17 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
         runtimeCaching: [
-          /*{
+          {
             urlPattern: ({ url }) => url.pathname.endsWith('/api/system'),
             handler: 'CacheFirst',
             options: {
               cacheName: 'api-system-cache',
               expiration: {
                 maxEntries: 1,
-                maxAgeSeconds: 60 * 60 * 24 
+                maxAgeSeconds: 60 * 60 * 24
               }
             }
-          },*/
+          },
           {
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
             handler: 'CacheFirst',
@@ -69,6 +69,15 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
+  },
   server: {
     proxy: {
       '/check_connection': {

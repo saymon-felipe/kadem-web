@@ -2,36 +2,31 @@ import { defineStore } from 'pinia';
 import { api } from "../plugins/api";
 import router from "../router/index";
 import { useWindowStore } from './windows';
+import { useUtilsStore } from './utils';
 import { syncService } from '../services/syncService';
+import { useProjectStore } from './projects';
 
 import {
     userRepository,
     occupationRepository,
     medalRepository,
-    syncQueueRepository
+    syncQueueRepository,
+    projectRepository
 } from '../services/localData';
 
 export const useAuthStore = defineStore('auth', {
-    // --- State ---
     state: () => ({
         user: {},
         isAuthenticated: null,
     }),
-
-    // --- Getters ---
     getters: {
         isLoggedIn: (state) => state.isAuthenticated === true,
     },
-
-    // --- Actions ---
     actions: {
-
-        // --- 1. Funções de Autenticação (Core Auth) ---
-
         async login(email, password) {
             try {
                 const response = await api.post('/auth/login', { email, password });
-                await this._saveUserData(response.data.returnObj);
+                await this._saveUserData(response.data);
                 return response;
             } catch (error) {
                 this.user = {};
@@ -49,12 +44,15 @@ export const useAuthStore = defineStore('auth', {
             }
         },
 
-        async logout() {
+        async logout(force = false) {
             const windowStore = useWindowStore();
+            const projectStore = useProjectStore();
             const userIdToClear = this.user?.id;
 
             try {
-                await api.post('/auth/logout');
+                if (!force) {
+                    await api.post('/auth/logout');
+                }
             } catch (error) {
                 console.warn('Erro ao chamar API de logout, deslogando localmente.', error);
             } finally {
@@ -66,17 +64,17 @@ export const useAuthStore = defineStore('auth', {
                     userRepository.clearLocalProfile(),
                     occupationRepository.clearLocalUserOccupations(),
                     medalRepository.clearLocalMedals(),
-                    syncQueueRepository.clearSyncQueue()
+                    syncQueueRepository.clearSyncQueue(),
+                    projectRepository.clearLocalProjects()
                 ]);
 
                 this.user = {};
                 this.isAuthenticated = false;
+                projectStore.projects = [];
+
                 router.push("/auth");
             }
         },
-
-        // --- 2. Funções de Sincronização e Status (Data Flow) ---
-
         async checkAuthStatus() {
             if (this.isAuthenticated !== null) {
                 return;
@@ -84,6 +82,22 @@ export const useAuthStore = defineStore('auth', {
 
             try {
                 const localUser = await userRepository.getLocalUserProfile();
+                const projectStore = useProjectStore();
+                const utilsStore = useUtilsStore();
+
+                if (utilsStore.connection.connected) {
+                    try {
+                        await syncService.processSyncQueue();
+                        this.syncProfile();
+                        projectStore.pullProjects();
+                    } catch (syncError) {
+                        console.error("Falha na orquestração PUSH-PULL:", syncError);
+                        this.syncProfile();
+                        projectStore.pullProjects();
+                    }
+                } else {
+                    await projectStore._loadProjectsFromDB();
+                }
 
                 if (localUser) {
                     const localOccupations = await occupationRepository.getLocalUserOccupations();
@@ -94,39 +108,22 @@ export const useAuthStore = defineStore('auth', {
                         occupations: localOccupations,
                         medals: localMedals
                     };
+
                     this.isAuthenticated = true;
-
-                    if (navigator.onLine) {
-                        try {
-                            // PUSH PRIMEIRO (Front -> Back)
-                            await syncService.processSyncQueue();
-                            // PULL DEPOIS (Back -> Front)
-                            this.syncProfile();
-                        } catch (syncError) {
-                            console.error("Falha na orquestração PUSH-PULL:", syncError);
-                            this.syncProfile();
-                        }
-                    }
-                } else {
-                    const response = await api.get('/users/profile');
-                    await this._saveUserData(response.data.returnObj);
                 }
-
             } catch (error) {
                 this.user = {};
                 this.isAuthenticated = false;
             }
         },
-
         async syncProfile() {
             try {
                 const response = await api.get('/users/profile');
-                await this._saveUserData(response.data.returnObj);
+                await this._saveUserData(response.data);
             } catch (error) {
                 console.log('Falha ao sincronizar perfil em background. Usando dados locais.');
             }
         },
-
         async _saveUserData(apiUserData) {
             const { occupations, medals, ...profileData } = apiUserData;
 
@@ -144,15 +141,9 @@ export const useAuthStore = defineStore('auth', {
             };
             this.isAuthenticated = true;
         },
-
-        // --- 3. Funções de Mutação de Dados do Usuário (Offline PUSH) ---
-
         async updateUserBio(newBio) {
             const currentUser = this.user;
             const { occupations, medals, ...profileData } = currentUser;
-
-            const recordLastUpdated = profileData.updated_at;
-
             const updatedProfileData = { ...profileData, bio: newBio };
             const updatedUserForState = { ...updatedProfileData, occupations, medals };
 
@@ -161,10 +152,11 @@ export const useAuthStore = defineStore('auth', {
                 this.setUser(updatedUserForState);
 
                 await syncQueueRepository.addSyncQueueTask({
-                    type: 'UPDATE_USER_BIO',
+                    type: 'SYNC_PROFILE_CHANGE',
                     payload: {
-                        newBio: newBio,
-                        recordLastUpdated: recordLastUpdated
+                        field: 'bio',
+                        value: newBio,
+                        timestamp: new Date().toISOString()
                     },
                     userId: currentUser.id,
                     timestamp: new Date().toISOString()
@@ -175,13 +167,11 @@ export const useAuthStore = defineStore('auth', {
                 console.error("Falha ao salvar bio localmente:", error);
             }
         },
-
         async addNewOccupation(occupationName) {
             if (!occupationName || occupationName.trim() === '') return;
 
             const newOccupationData = {
                 name: occupationName,
-                user_id: this.user.id,
                 id: null
             };
 
@@ -191,8 +181,7 @@ export const useAuthStore = defineStore('auth', {
                 await syncQueueRepository.addSyncQueueTask({
                     type: 'CREATE_OCCUPATION',
                     payload: {
-                        name: occupationName,
-                        user_id: this.user.id
+                        name: occupationName
                     },
                     timestamp: new Date().toISOString()
                 });
@@ -231,35 +220,6 @@ export const useAuthStore = defineStore('auth', {
                 console.error("Falha ao remover ocupação local:", error);
             }
         },
-
-        async updateUserProfile(dataToUpdate) {
-            const currentUser = this.user;
-
-            // Separa os dados para salvar corretamente
-            const { occupations, medals, ...profileData } = currentUser;
-            const updatedProfileData = { ...profileData, ...dataToUpdate };
-            const updatedUserForState = { ...updatedProfileData, occupations, medals };
-
-            const recordLastUpdated = profileData.updatedAt;
-
-            await userRepository.saveLocalUserProfile(updatedProfileData);
-            this.setUser(updatedUserForState);
-
-            await syncQueueRepository.addSyncQueueTask({
-                type: 'UPDATE_USER_PROFILE',
-                payload: {
-                    newData: dataToUpdate,
-                    recordLastUpdated: recordLastUpdated
-                },
-                userId: currentUser.id,
-                timestamp: new Date().toISOString()
-            });
-
-            syncService.processSyncQueue();
-        },
-
-        // --- 4. Funções de Mutação de Estado (Setters) ---
-
         setUser(user) {
             this.user = user;
         },

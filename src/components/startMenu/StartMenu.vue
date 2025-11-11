@@ -21,8 +21,9 @@
                     <div class="tab-pane" v-for="(tab, index) in tabs" :key="tab.id" role="tabpanel"
                         :aria-hidden="activeTabIndex !== index">
 
-                        <component :is="tab.component" @request-new-group="setActiveTabById('new-group')"
-                            @cancel-new-group="setActiveTabById('main')" />
+                        <component :is="tab.component" @request-new-group="openCreateProject"
+                            @request-edit-group="openEditProject" @cancel-new-group="closeProjectView"
+                            :projectToEdit="projectToEdit" />
                     </div>
                 </div>
             </div>
@@ -58,12 +59,12 @@ export default {
                 { id: 'accounts', name: 'Central de contas', component: AccountCenter, isNav: true },
                 { id: 'new-group', name: 'Criar Grupo', component: NewProject, isNav: false },
             ],
-            animationDuration: 350
+            animationDuration: 350,
+            projectToEdit: null
         };
     },
     computed: {
         ...mapState(useAuthStore, ['user']),
-
         visibleTabs() {
             return this.tabs
                 .map((tab, index) => ({ ...tab, originalIndex: index }))
@@ -99,6 +100,18 @@ export default {
             if (newIndex !== -1 && this.activeTabIndex !== newIndex) {
                 this.setActiveTab(tabId, newIndex);
             }
+        },
+        openCreateProject() {
+            this.projectToEdit = null;
+            this.setActiveTabById('new-group');
+        },
+        openEditProject(projectPayload) {
+            this.projectToEdit = projectPayload;
+            this.setActiveTabById('new-group');
+        },
+        closeProjectView() {
+            this.setActiveTabById('main');
+            this.projectToEdit = null;
         }
     }
 };
@@ -123,6 +136,8 @@ export default {
     height: 100%;
     overflow: hidden;
     color: var(--deep-blue);
+    display: flex;
+    flex-direction: column;
 }
 
 .start-menu-header {
@@ -182,7 +197,6 @@ export default {
     position: relative;
     width: 100%;
     height: calc(100% - 140px);
-    /* ajuste conforme seu layout */
     overflow: hidden;
 }
 
@@ -200,6 +214,7 @@ export default {
     -webkit-overflow-scrolling: touch;
     padding-right: var(--space-4);
     box-sizing: border-box;
+    position: relative;
 }
 
 .tabs-track>.tab-pane {

@@ -25,7 +25,8 @@ import {
     faRightFromBracket,
     faPlus,
     faPencil,
-    faArrowsRotate
+    faArrowsRotate,
+    faTrashCan
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -42,7 +43,8 @@ library.add(
     faRightFromBracket,
     faPlus,
     faPencil,
-    faArrowsRotate
+    faArrowsRotate,
+    faTrashCan
 );
 
 const app = createApp(App);

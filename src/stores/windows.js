@@ -2,14 +2,11 @@ import { defineStore } from 'pinia';
 import { useAuthStore } from './auth';
 
 export const useWindowStore = defineStore('windows', {
-    // --- State ---
     state: () => ({
         windowStatesByUser: {},
         _zIndexCounter: 0,
         snapTarget: null,
     }),
-
-    // --- Getters ---
     getters: {
         activeWindowId(state) {
             const windows = this.currentUserWindows;
@@ -49,12 +46,7 @@ export const useWindowStore = defineStore('windows', {
             return state.snapTarget;
         }
     },
-
-    // --- Actions ---
     actions: {
-
-        // --- Ações Públicas de Janela (Lifecycle & State) ---
-
         openWindow({ id, title, componentId }) {
             const userState = this._getOrCreateCurrentUserState();
             if (!userState) return;
@@ -85,7 +77,6 @@ export const useWindowStore = defineStore('windows', {
 
             userState.openWindows[id] = newWindow;
         },
-
         closeWindow(id) {
             const wasActive = this.activeWindowId === id;
             const userState = this._getOrCreateCurrentUserState();
@@ -97,14 +88,12 @@ export const useWindowStore = defineStore('windows', {
                 }
             }
         },
-
         focusWindow(id) {
             const userState = this._getOrCreateCurrentUserState();
             if (userState && userState.openWindows[id]) {
                 userState.openWindows[id].zIndex = this._zIndexCounter++;
             }
         },
-
         minimizeWindow(id) {
             const wasActive = this.activeWindowId === id;
             const userState = this._getOrCreateCurrentUserState();
@@ -117,7 +106,6 @@ export const useWindowStore = defineStore('windows', {
                 }
             }
         },
-
         restoreWindow(id) {
             const userState = this._getOrCreateCurrentUserState();
             const window = userState?.openWindows[id];
@@ -128,7 +116,6 @@ export const useWindowStore = defineStore('windows', {
             }
             this.focusWindow(id);
         },
-
         toggleMaximize(id) {
             const userState = this._getOrCreateCurrentUserState();
             const window = userState?.openWindows[id];
@@ -147,7 +134,6 @@ export const useWindowStore = defineStore('windows', {
             }
             this.focusWindow(id);
         },
-
         unMaximize(id) {
             const userState = this._getOrCreateCurrentUserState();
             const window = userState?.openWindows[id];
@@ -158,7 +144,6 @@ export const useWindowStore = defineStore('windows', {
             }
             return null;
         },
-
         updateWindowPosition(id, { x, y }) {
             const userState = this._getOrCreateCurrentUserState();
             const window = userState?.openWindows[id];
@@ -169,7 +154,6 @@ export const useWindowStore = defineStore('windows', {
                 userState.windowPrefs[id].pos = { x, y };
             }
         },
-
         updateWindowSize(id, { width, height }) {
             const userState = this._getOrCreateCurrentUserState();
             const window = userState?.openWindows[id];
@@ -180,13 +164,9 @@ export const useWindowStore = defineStore('windows', {
                 userState.windowPrefs[id].size = { width, height };
             }
         },
-
-        // --- Ações de Encaixe (Snapping) ---
-
         setSnapTarget(target) {
             this.snapTarget = target;
         },
-
         applySnap(id, target) {
             const userState = this._getOrCreateCurrentUserState();
             const window = userState?.openWindows[id];
@@ -201,16 +181,12 @@ export const useWindowStore = defineStore('windows', {
             window.isMaximized = target.id === 'top';
             this.focusWindow(id);
         },
-
-        // --- Ações Internas & de Limpeza ---
-
         clearWindowsForUser(userId) {
             if (userId && this.windowStatesByUser[userId]) {
                 this.windowStatesByUser[userId].openWindows = {};
                 console.log(`Estado de janelas limpo para o usuário ${userId}`);
             }
         },
-
         clearPreviousState(id) {
             const userState = this._getOrCreateCurrentUserState();
             const window = userState?.openWindows[id];
@@ -219,7 +195,6 @@ export const useWindowStore = defineStore('windows', {
                 window.previousSize = null;
             }
         },
-
         _findAndFocusNextWindow() {
             const userState = this._getOrCreateCurrentUserState();
             if (!userState) return;
@@ -237,7 +212,6 @@ export const useWindowStore = defineStore('windows', {
 
             this.focusWindow(nextActiveWindow.id);
         },
-
         _getOrCreateCurrentUserState() {
             const authStore = useAuthStore();
             const userId = authStore.user?.id;

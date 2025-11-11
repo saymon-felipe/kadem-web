@@ -93,7 +93,7 @@ export default {
         ...mapActions(useAppStore, ['setSystem', 'updateMobileStatus']),
         returnSystem: function () {
             this.api.get("/system").then((response) => {
-                this.setSystem(response.data.returnObj);
+                this.setSystem(response.data);
             })
         },
         initConnectionMonitor() {

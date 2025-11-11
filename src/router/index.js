@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 
 import homeView from "../views/homeView.vue";
 import authView from "../views/authView.vue";
-import LogoutView from '../views/LogoutView.vue';
+import logoutView from '../views/logoutView.vue';
 
 const routes = [
   {
@@ -16,7 +16,7 @@ const routes = [
   {
     path: '/logout',
     name: 'Logout',
-    component: LogoutView,
+    component: logoutView,
     meta: {
       requiresAuth: true
     }

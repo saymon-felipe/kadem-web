@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { syncService } from '@/services/syncService';
 
 export const useUtilsStore = defineStore('utils', {
-    // --- State ---
     state: () => ({
         connection: {
             connected: navigator.onLine,
@@ -11,18 +10,11 @@ export const useUtilsStore = defineStore('utils', {
         _pollIntervalId: null,
         isSyncing: false,
     }),
-
-    // --- Getters ---
     getters: {
         isConnected: (state) => state.connection.connected,
         isChecking: (state) => state.connection.checking
     },
-
-    // --- Actions ---
     actions: {
-
-        // --- Funções de Monitoramento de Conexão ---
-
         initConnectionMonitor() {
             window.addEventListener('offline', () => {
                 console.log('Evento OFFLINE: Conexão perdida.');
@@ -42,7 +34,6 @@ export const useUtilsStore = defineStore('utils', {
                 this._startHeartbeatPolling();
             }
         },
-
         async checkRealConnection() {
             if (!navigator.onLine) {
                 this._setConnectionStatus(false);
@@ -63,9 +54,6 @@ export const useUtilsStore = defineStore('utils', {
                 this._setConnectionStatus(false);
             }
         },
-
-        // --- Funções de Sincronização (PUSH/PULL) ---
-
         async requestSync() {
             if (this.isSyncing) return;
 
@@ -75,10 +63,8 @@ export const useUtilsStore = defineStore('utils', {
                 const { useAuthStore } = await import('@/stores/auth');
                 let authStore = useAuthStore();
 
-                // 1. PUSH PRIMEIRO
                 await syncService.processSyncQueue();
 
-                // 2. PULL DEPOIS
                 if (authStore.isLoggedIn) {
                     await authStore.syncProfile();
                 }
@@ -90,9 +76,6 @@ export const useUtilsStore = defineStore('utils', {
                 }, 500);
             }
         },
-
-        // --- Funções Internas (Helpers de Status/Polling) ---
-
         _setConnectionStatus(isOnline) {
             this.connection.connected = isOnline;
             this.connection.checking = false;
