@@ -38,7 +38,7 @@ import { useAuthStore } from '@/stores/auth';
 
 import MainInformations from './MainInformations.vue';
 import Configuration from './Configuration.vue';
-import AccountCenter from './AccountCenter.vue';
+import AccountCenter from './AccountCenter/AccountCenter.vue';
 import NewProject from './NewProject.vue';
 
 export default {

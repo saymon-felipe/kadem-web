@@ -62,6 +62,7 @@
 import LoadingResponse from "@/components/loadingResponse.vue";
 import switchComponent from "../components/switchComponent.vue";
 import { useAuthStore } from '@/stores/auth';
+import { useVaultStore } from '@/stores/vault';
 
 export default {
     components: {
@@ -185,6 +186,10 @@ export default {
                         })
                     }, 2000);
                 } else {
+                    const vaultStore = useVaultStore();
+
+                    vaultStore.setupVault(this.password, this.email);
+
                     this.$router.push("/");
                 }
 
@@ -197,6 +202,12 @@ export default {
 }
 </script>
 <style scoped>
+form {
+    & button[type="submit"] {
+        margin-top: var(--space-3);
+    }
+}
+
 .auth {
     overflow: hidden;
     width: 100dvw;

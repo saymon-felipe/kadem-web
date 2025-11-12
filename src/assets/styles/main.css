@@ -58,6 +58,10 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(5px) saturate(180%);
   transition: all 0.4s ease-in-out;
+
+  &.borderless {
+    border-radius: 0px !important;
+  }
 }
 
 .error {
@@ -147,9 +151,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 form {
-    & button[type="submit"] {
-        margin-top: var(--space-3);
-    }
+  display: flex;
+  flex-direction: column;
 }
 
 .form-group {
@@ -165,7 +168,8 @@ form {
     color: #303030;
     position: absolute;
     z-index: 2;
-    left: 1rem;
+    left: 1.2rem;
+    text-align: left;
     transition: all 0.4s ease-in-out;
     cursor: select;
     user-select: none;
@@ -186,7 +190,8 @@ input:not(:placeholder-shown):valid ~ label,
 textarea:not(:placeholder-shown):valid ~ label,
 input:not(:placeholder-shown):invalid ~ label, 
 textarea:not(:placeholder-shown):invalid ~ label {
-  transform: translateY(-11px) scale(0.8);
+  transform: translateY(-11px);
+  font-size: var(--fontsize-xs);
 }
 
 textarea:not(:placeholder-shown):focus ~ label,
@@ -272,6 +277,28 @@ textarea {
     &:hover {
       filter: brightness(1.2);
     }
+  }
+}
+
+.avatar {
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 3px var(--deep-blue);
+  background-color: var(--white);
+
+  &.avatar-lg {
+    width: 80px;
+    height: 80px;
+  }
+
+  &.avatar-md {
+    width: 60px;
+    height: 60px;
+  }
+
+  &.avatar-sm {
+    width: 40px;
+    height: 40px;
   }
 }
 

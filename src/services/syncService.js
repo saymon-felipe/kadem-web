@@ -4,7 +4,8 @@ import {
     userRepository,
     occupationRepository,
     medalRepository,
-    projectRepository
+    projectRepository,
+    accountsRepository
 } from './localData';
 
 let isProcessing = false;
@@ -72,6 +73,37 @@ async function processIndividualTask(task) {
                 }
 
                 console.error(`[SyncService] Falha ao deletar projeto ${task.payload.id} na API.`, error);
+                throw error;
+            }
+
+        case 'CREATE_ACCOUNT':
+            try {
+                const response = await api.post('/accounts', { data: task.payload.data });
+
+                const serverId = response.data.id;
+
+                await accountsRepository.setServerId(task.payload.localId, serverId);
+                return Promise.resolve();
+            } catch (error) {
+                console.error(`[SyncService] Falha ao criar conta na API:`, error);
+                throw error;
+            }
+
+        case 'DELETE_ACCOUNT':
+            try {
+                const serverId = task.payload.id;
+                if (!serverId) {
+                    console.warn(`[SyncService] Ignorando DELETE_ACCOUNT local (${task.payload.localId}).`);
+                    return Promise.resolve();
+                }
+                await api.delete(`/accounts/${serverId}`);
+                return Promise.resolve();
+            } catch (error) {
+                if (error.response && error.response.status === 404) {
+                    console.warn(`[SyncService] Conta ${task.payload.id} já estava deletada na API (404).`);
+                    return Promise.resolve();
+                }
+                console.error(`[SyncService] Falha ao deletar conta ${task.payload.id} na API.`, error);
                 throw error;
             }
 
