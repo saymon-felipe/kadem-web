@@ -113,6 +113,64 @@ async function processIndividualTask(task) {
     }
 }
 
+async function processAccountsSync(accountTasks) {
+    if (accountTasks.length === 0) return;
+
+    const tasksByAccount = accountTasks.reduce((acc, task) => {
+        const key = task.payload.id;
+        if (!key) {
+            console.warn(`[SyncService] Ignorando UPDATE_ACCOUNT para item local (${task.payload.localId}) sem ID de servidor.`);
+            return acc;
+        }
+        if (!acc[key]) {
+            acc[key] = [];
+        }
+        acc[key].push(task);
+        return acc;
+    }, {});
+
+    console.log(`[SyncService] Sincronizando mudanças para ${Object.keys(tasksByAccount).length} contas do cofre...`);
+
+    for (const accountId of Object.keys(tasksByAccount)) {
+        const tasksForThisAccount = tasksByAccount[accountId];
+        const localId = tasksForThisAccount[0].payload.localId;
+
+        const changes = tasksForThisAccount.map(task => ({
+            field: 'data',
+            value: task.payload.data,
+            timestamp: task.timestamp
+        }));
+
+        try {
+            const response = await api.post(`/accounts/${accountId}/sync`, { changes });
+
+            const accountToSave = {
+                id: response.data.id,
+                data: response.data.data,
+                localId: localId
+            };
+
+            await accountsRepository.saveLocalAccount(accountToSave);
+
+            const taskIds = tasksForThisAccount.map(t => t.id);
+            await syncQueueRepository.deleteTasks(taskIds);
+
+            console.log(`[SyncService] Conta ${accountId} (LocalID: ${localId}) sincronizada com sucesso.`);
+
+        } catch (error) {
+            console.error(`[SyncService] Falha ao sincronizar conta ${accountId}.`, error);
+
+            if (error.response && error.response.status === 404) {
+                console.warn(`[SyncService] Conta ${accountId} não encontrada no servidor (404). Removendo tarefas zumbis.`);
+                const taskIds = tasksForThisAccount.map(t => t.id);
+                await syncQueueRepository.deleteTasks(taskIds);
+            } else {
+                throw error;
+            }
+        }
+    }
+}
+
 async function processProfileSync(profileTasks) {
     if (profileTasks.length === 0) return;
 
@@ -207,14 +265,18 @@ export const syncService = {
 
         const profileTasks = tasks.filter(t => t.type === 'SYNC_PROFILE_CHANGE');
         const projectTasks = tasks.filter(t => t.type === 'SYNC_PROJECT_CHANGE');
+        const accountSyncTasks = tasks.filter(t => t.type === 'UPDATE_ACCOUNT');
+
         const individualTasks = tasks.filter(t =>
             t.type !== 'SYNC_PROFILE_CHANGE' &&
-            t.type !== 'SYNC_PROJECT_CHANGE'
+            t.type !== 'SYNC_PROJECT_CHANGE' &&
+            t.type !== 'UPDATE_ACCOUNT'
         );
 
         try {
             await processProfileSync(profileTasks);
             await processProjectSync(projectTasks);
+            await processAccountsSync(accountSyncTasks);
 
             for (const task of individualTasks) {
                 try {

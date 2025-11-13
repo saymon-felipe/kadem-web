@@ -65,9 +65,8 @@
         </div>
     </div>
 
-    <ConfirmationModal v-if="showDeleteProjectModal"
-        message="Tem certeza que deseja excluir este projeto? Esta ação não pode ser desfeita." confirm-text="Excluir"
-        @confirmed="handleDeleteProject" @cancelled="showDeleteProjectModal = false" />
+    <ConfirmationModal v-model="showDeleteProjectModal" message="Tem certeza que deseja excluir este projeto?"
+        confirm-text="Excluir" @confirmed="handleDeleteProject" @cancelled="showDeleteProjectModal = false" />
 </template>
 
 <script>

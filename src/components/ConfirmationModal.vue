@@ -1,22 +1,29 @@
 <template>
-    <div class="modal-wrapper">
-        <div class="modal-overlay" @click="cancel"></div>
+    <Transition name="slide-over-root">
+        <div class="modal-wrapper" v-if="modelValue">
+            <div class="modal-overlay" @click="cancel"></div>
 
-        <div class="modal-content glass" @click.stop>
-            <p>{{ message }}</p>
-            <div class="modal-actions">
-                <button class="btn" @click="cancel">Cancelar</button>
-                <button class="btn btn-danger" @click="confirm">
-                    {{ confirmText }}
-                </button>
+            <div class="modal-content glass" @click.stop>
+                <p>{{ message }}</p>
+                <p class="subtitle">Esta ação não pode ser desfeita.</p>
+                <div class="modal-actions">
+                    <button class="btn" @click="cancel">Cancelar</button>
+                    <button class="btn" :class="confirmText == 'Excluir' ? 'btn-red' : 'btn-primary'" @click="confirm">
+                        {{ confirmText }}
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
+    </Transition>
 </template>
 <script>
 export default {
     name: 'ConfirmationModal',
     props: {
+        modelValue: {
+            type: Boolean,
+            default: false
+        },
         message: {
             type: String,
             required: true
@@ -75,17 +82,52 @@ export default {
     bottom: 0;
     right: 0;
     margin: auto;
+    display: grid;
 }
 
 .modal-content p {
     font-size: var(--fontsize-md);
     color: var(--deep-blue);
-    margin-bottom: var(--space-8);
+    margin: var(--space-3) 0;
+
+    &.subtitle {
+        font-size: var(--fontsize-sm);
+        color: var(--deep-blue-2);
+    }
 }
 
 .modal-actions {
     display: flex;
     justify-content: center;
     gap: var(--space-4);
+    margin-top: var(--space-6);
+}
+
+.slide-over-root-enter-active,
+.slide-over-root-leave-active {
+    transition: opacity 0.3s ease;
+}
+
+.slide-over-root-enter-active .modal-content,
+.slide-over-root-leave-active .modal-content {
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease-out;
+}
+
+.slide-over-root-enter-active .modal-overlay,
+.slide-over-root-leave-active .modal-overlay {
+    transition: opacity 0.3s ease;
+}
+
+.slide-over-root-enter-from,
+.slide-over-root-leave-to {
+    opacity: 0;
+}
+
+.slide-over-root-enter-from .modal-content {
+    transform: translateY(20px);
+}
+
+.slide-over-root-leave-to .modal-content {
+    transform: translateY(20px);
 }
 </style>

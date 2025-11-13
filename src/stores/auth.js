@@ -5,13 +5,16 @@ import { useWindowStore } from './windows';
 import { useUtilsStore } from './utils';
 import { syncService } from '../services/syncService';
 import { useProjectStore } from './projects';
+import { useVaultStore } from './vault';
+import { useAppStore } from './app';
 
 import {
     userRepository,
     occupationRepository,
     medalRepository,
     syncQueueRepository,
-    projectRepository
+    projectRepository,
+    accountsRepository
 } from '../services/localData';
 
 export const useAuthStore = defineStore('auth', {
@@ -46,6 +49,7 @@ export const useAuthStore = defineStore('auth', {
 
         async logout(force = false) {
             const windowStore = useWindowStore();
+            const appStore = useAppStore();
             const projectStore = useProjectStore();
             const userIdToClear = this.user?.id;
 
@@ -56,6 +60,8 @@ export const useAuthStore = defineStore('auth', {
             } catch (error) {
                 console.warn('Erro ao chamar API de logout, deslogando localmente.', error);
             } finally {
+                appStore.closeStartMenu();
+
                 if (userIdToClear) {
                     windowStore.clearWindowsForUser(userIdToClear);
                 }
@@ -65,7 +71,8 @@ export const useAuthStore = defineStore('auth', {
                     occupationRepository.clearLocalUserOccupations(),
                     medalRepository.clearLocalMedals(),
                     syncQueueRepository.clearSyncQueue(),
-                    projectRepository.clearLocalProjects()
+                    projectRepository.clearLocalProjects(),
+                    accountsRepository.clearLocalAccounts()
                 ]);
 
                 this.user = {};
@@ -84,17 +91,18 @@ export const useAuthStore = defineStore('auth', {
                 const localUser = await userRepository.getLocalUserProfile();
                 const projectStore = useProjectStore();
                 const utilsStore = useUtilsStore();
+                const vaultStore = useVaultStore();
 
                 if (utilsStore.connection.connected) {
                     try {
                         await syncService.processSyncQueue();
-                        this.syncProfile();
-                        projectStore.pullProjects();
                     } catch (syncError) {
                         console.error("Falha na orquestração PUSH-PULL:", syncError);
-                        this.syncProfile();
-                        projectStore.pullProjects();
                     }
+
+                    this.syncProfile();
+                    projectStore.pullProjects();
+                    vaultStore.pullAccounts();
                 } else {
                     await projectStore._loadProjectsFromDB();
                 }
@@ -133,6 +141,12 @@ export const useAuthStore = defineStore('auth', {
 
             const mergedOccupations = await occupationRepository.getLocalUserOccupations();
             const mergedMedals = await medalRepository.getLocalMedals();
+
+            const projectStore = useProjectStore();
+            const vaultStore = useVaultStore();
+
+            projectStore.pullProjects();
+            vaultStore.pullAccounts();
 
             this.user = {
                 ...profileData,

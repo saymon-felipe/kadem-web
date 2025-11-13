@@ -3,9 +3,12 @@ import { defineStore } from 'pinia';
 import { accountsRepository } from '../services/localData/accountsRepository';
 import { syncQueueRepository } from '../services/localData/syncQueueRepository';
 import { syncService } from '../services/syncService';
+import { api } from "../plugins/api";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+
+const PBKDF2_ITERATIONS = 310000;
 
 const bufferToBase64 = (buf) => {
     const binary = String.fromCharCode.apply(null, buf);
@@ -40,7 +43,7 @@ export const useVaultStore = defineStore('vault', () => {
             {
                 name: "PBKDF2",
                 salt: encoder.encode(salt),
-                iterations: 100000,
+                iterations: PBKDF2_ITERATIONS,
                 hash: "SHA-256",
             },
             keyMaterial,
@@ -79,6 +82,47 @@ export const useVaultStore = defineStore('vault', () => {
             data
         );
         return decoder.decode(decryptedBuffer);
+    };
+
+    const pullAccounts = async () => {
+
+        console.log("[Vault Store] Buscando estado das contas no servidor (Pull)...");
+        try {
+            const response = await api.get('/accounts');
+            const serverAccounts = response.data;
+
+            if (!serverAccounts || serverAccounts.length === 0) return;
+
+            const localAccounts = await accountsRepository.getAllLocalAccounts();
+            const localAccountMap = new Map();
+
+            localAccounts.forEach(a => {
+                if (a.id) {
+                    localAccountMap.set(a.id, a.localId);
+                }
+            });
+
+            for (const serverAcc of serverAccounts) {
+                const existingLocalId = localAccountMap.get(serverAcc.id);
+
+                const accountToSave = {
+                    id: serverAcc.id,
+                    data: serverAcc.data,
+                };
+
+                if (existingLocalId) {
+                    accountToSave.localId = existingLocalId;
+                    await accountsRepository.saveLocalAccount(accountToSave);
+                } else {
+                    const newLocalId = await accountsRepository.addLocalAccount(serverAcc.data);
+                    await accountsRepository.setServerId(newLocalId, serverAcc.id);
+                }
+            }
+            console.log(`[Vault Store] ${serverAccounts.length} contas atualizadas localmente.`);
+
+        } catch (error) {
+            console.error("[Vault Store] Falha no Pull de Contas:", error);
+        }
     };
 
     const unlockVault = async (masterPassword, userSalt) => {
@@ -158,7 +202,6 @@ export const useVaultStore = defineStore('vault', () => {
     const createAccount = async (accountData) => {
         if (!isUnlocked.value) throw new Error("Cofre trancado.");
 
-        console.log(accountData)
         const dataString = JSON.stringify(accountData);
         const encryptedBlob = await _encrypt(dataString);
         const localId = await accountsRepository.addLocalAccount(encryptedBlob);
@@ -173,6 +216,49 @@ export const useVaultStore = defineStore('vault', () => {
             },
             timestamp: new Date().toISOString()
         });
+        syncService.processSyncQueue();
+    };
+
+    const updateAccount = async (localId, newAccountData) => {
+        if (!isUnlocked.value) throw new Error("Cofre trancado.");
+
+        await _updateLastAccess(localId, newAccountData);
+    };
+
+    const _updateLastAccess = async (localId, newAccountData) => {
+        const accountIndex = accounts.value.findIndex(a => a.localId === localId);
+        if (accountIndex === -1) return;
+
+        const newLastAccess = new Date().toISOString();
+        const updatedAccount = {
+            ...accounts.value[accountIndex],
+            ...newAccountData,
+            lastAccess: newLastAccess
+        };
+
+        accounts.value.splice(accountIndex, 1, updatedAccount);
+
+        const { localId: omitLocalId, id: omitId, ...dataToEncrypt } = updatedAccount;
+
+        const dataString = JSON.stringify(dataToEncrypt);
+        const encryptedBlob = await _encrypt(dataString);
+
+        await accountsRepository.saveLocalAccount({
+            localId,
+            id: updatedAccount.id,
+            data: encryptedBlob
+        });
+
+        await syncQueueRepository.addSyncQueueTask({
+            type: 'UPDATE_ACCOUNT',
+            payload: {
+                localId: localId,
+                id: updatedAccount.id,
+                data: encryptedBlob
+            },
+            timestamp: new Date().toISOString()
+        });
+
         syncService.processSyncQueue();
     };
 
@@ -195,9 +281,11 @@ export const useVaultStore = defineStore('vault', () => {
         syncService.processSyncQueue();
     };
 
-    const revealPassword = (localId) => {
+    const revealPassword = async (localId) => {
         const account = accounts.value.find(a => a.localId === localId);
         if (!account) return;
+
+        await _updateLastAccess(localId);
 
         revealedPasswords.value[localId] = account.password;
 
@@ -205,15 +293,36 @@ export const useVaultStore = defineStore('vault', () => {
             if (revealedPasswords.value[localId]) {
                 delete revealedPasswords.value[localId];
             }
-        }, 60 * 1000);
+        }, 30 * 1000);
     };
 
     const hidePassword = (localId) => {
         delete revealedPasswords.value[localId];
     };
 
+    const copyPasswordToClipboard = async (localId) => {
+        const account = accounts.value.find(a => a.localId === localId);
+        if (!account) return false;
+
+        if (!revealedPasswords.value[localId]) {
+            revealPassword(localId);
+        }
+
+        try {
+            await navigator.clipboard.writeText(account.password);
+
+            hidePassword(localId);
+
+            return true;
+        } catch (err) {
+            console.error("Falha ao copiar para o clipboard:", err);
+            return false;
+        }
+    };
 
     return {
+        pullAccounts,
+        _updateLastAccess,
         isUnlocked,
         accounts,
         revealedPasswords,
@@ -222,8 +331,10 @@ export const useVaultStore = defineStore('vault', () => {
         setupVault,
         loadAccountsFromDB,
         createAccount,
+        updateAccount,
         deleteAccount,
         revealPassword,
-        hidePassword
+        hidePassword,
+        copyPasswordToClipboard
     };
 });

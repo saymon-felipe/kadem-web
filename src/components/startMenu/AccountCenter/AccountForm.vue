@@ -1,27 +1,27 @@
 <template>
     <div class="account-form" @click.stop>
-        <h3>Adicionar Nova Conta</h3>
+        <h3>{{ isEditMode ? 'Editar Conta' : 'Adicionar Nova Conta' }}</h3>
         <form @submit.prevent="handleSubmit">
             <div class="form-group">
-                <input v-model="form.type" type="text" required />
-                <label>Tipo (Ex: Google, Facebook)</label>
+                <input id="type" v-model="form.type" type="text" placeholder=" " required />
+                <label for="type">Tipo (Ex: Google, Facebook)</label>
             </div>
-            <img :src="accountTypeImage" class="avatar avatar-md">
+            <img :src="accountTypeImage" :alt="form.type" class="avatar avatar-md">
             <div class="form-group">
-                <input v-model="form.name" type="text" required />
-                <label>Nome</label>
-            </div>
-            <div class="form-group">
-                <input v-model="form.user" type="text" required />
-                <label>Usuário ou Email</label>
+                <input id="name" v-model="form.name" type="text" placeholder=" " required />
+                <label for="name">Nome</label>
             </div>
             <div class="form-group">
-                <input v-model="form.password" type="password" required />
-                <label>Senha</label>
+                <input id="user" v-model="form.user" type="text" placeholder=" " required />
+                <label for="user">Usuário ou Email</label>
+            </div>
+            <div class="form-group">
+                <input id="password" v-model="form.password" type="text" placeholder=" " :required="!isEditMode" />
+                <label for="password">Senha</label>
             </div>
             <div class="form-actions">
                 <button type="button" class="btn-small btn-cancel" @click="closeForm">Cancelar</button>
-                <button type="submit" class="btn-small btn-save">Salvar</button>
+                <button type="submit" class="btn-small btn-save">{{ isEditMode ? 'Salvar Edição' : 'Salvar' }}</button>
             </div>
         </form>
     </div>
@@ -33,6 +33,12 @@ import defaultAccount from "@/assets/images/kadem-default-account.jpg";
 export default {
     name: "AccountForm",
     emits: ["close", "save"],
+    props: {
+        accountToEdit: {
+            type: Object,
+            default: null
+        }
+    },
     data() {
         return {
             form: {
@@ -40,17 +46,50 @@ export default {
                 name: "",
                 user: "",
                 password: "",
+                localId: null,
+                id: null,
+                lastAccess: null
             },
         };
     },
     computed: {
+        isEditMode() {
+            return !!this.accountToEdit;
+        },
         accountTypeImage() {
             if (this.form.type.trim() == "") {
                 return defaultAccount;
             }
 
-            //return 'https://logo.clearbit.com/' + this.form.type + ".com"
-            return 'https://img.logo.dev/' + this.form.type + '.com?token=pk_PAz0kI4nRd6KqTrziA6zdw';
+            return 'https://img.logo.dev/' + this.form.type.toLowerCase().split(' ')[0] + '.com?token=pk_PAz0kI4nRd6KqTrziA6zdw';
+        }
+    },
+    watch: {
+        accountToEdit: {
+            handler(newVal) {
+                if (newVal) {
+                    this.form = {
+                        type: newVal.type || "",
+                        name: newVal.name || "",
+                        user: newVal.user || "",
+                        password: newVal.password,
+                        localId: newVal.localId,
+                        id: newVal.id,
+                        lastAccess: newVal.lastAccess
+                    };
+                } else {
+                    this.form = {
+                        type: "",
+                        name: "",
+                        user: "",
+                        password: "",
+                        localId: null,
+                        id: null,
+                        lastAccess: null
+                    };
+                }
+            },
+            immediate: true
         }
     },
     methods: {
@@ -59,7 +98,20 @@ export default {
         },
 
         handleSubmit() {
-            this.$emit("save", { ...this.form });
+            const dataToSave = {
+                type: this.form.type,
+                name: this.form.name,
+                user: this.form.user,
+                lastAccess: this.form.lastAccess || new Date().toISOString()
+            };
+
+            if (this.isEditMode) {
+                dataToSave.password = this.form.password;
+                this.$emit("save", dataToSave, this.form.localId);
+            } else {
+                dataToSave.password = this.form.password;
+                this.$emit("save", dataToSave);
+            }
         },
     },
 };
@@ -67,7 +119,7 @@ export default {
 
 <style scoped>
 .account-form {
-    padding: var(--space-4);
+    padding: var(--space-6);
 }
 
 .avatar {
@@ -78,5 +130,6 @@ export default {
     display: flex;
     justify-content: flex-end;
     gap: var(--space-4);
+    margin-top: var(--space-6);
 }
 </style>

@@ -23,7 +23,7 @@
                 <input type="text" placeholder="" class="search-bar" v-model="searchQuery" />
                 <label>Filtrar Nome ou email</label>
             </div>
-            <AccountList :accounts="filteredAccounts" class="mt-4" />
+            <AccountList :accounts="filteredAccounts" class="mt-4" @request-edit="handleRequestEdit" />
             <div class="buttons">
                 <button @click="showAddModal = true" class="btn-small btn-cancel">
                     Adicionar Conta
@@ -32,8 +32,9 @@
                     Trancar Cofre
                 </button>
             </div>
-            <SideModal v-model="showAddModal" @close="showAddModal = false">
-                <AccountForm @close="showAddModal = false" @save="handleSaveNewAccount" />
+            <SideModal v-model="showAddModal" @close="handleCloseModal">
+                <AccountForm @close="handleCloseModal" @save="handleSaveOrUpdateAccount"
+                    :accountToEdit="accountToEdit" />
             </SideModal>
         </div>
     </div>
@@ -44,7 +45,6 @@ import { useVaultStore } from "@/stores/vault";
 import { useAuthStore } from "@/stores/auth";
 import AccountList from "./AccountList.vue";
 import AccountForm from "./AccountForm.vue";
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import SideModal from "@/components/SideModal.vue";
 
 export default {
@@ -52,8 +52,7 @@ export default {
     components: {
         SideModal,
         AccountList,
-        AccountForm,
-        FontAwesomeIcon,
+        AccountForm
     },
     setup() {
         const vault = useVaultStore();
@@ -68,6 +67,7 @@ export default {
             error: null,
             showAddModal: false,
             searchQuery: "",
+            accountToEdit: null
         };
     },
     computed: {
@@ -84,6 +84,8 @@ export default {
         },
     },
     mounted: function () {
+        this.masterPasswordInput = "@Say2522";
+        this.handleUnlock();
     },
     methods: {
         showPassword() {
@@ -110,14 +112,39 @@ export default {
             }
         },
 
-        async handleSaveNewAccount(accountData) {
-            try {
-                await this.vault.createAccount(accountData);
-                this.showAddModal = false;
-            } catch (err) {
-                console.error("Erro ao salvar conta:", err);
-            }
+        openCreateModal() {
+            this.accountToEdit = null;
+            this.showAddModal = true;
         },
+
+        handleRequestEdit(account) {
+            console.log(account)
+            this.accountToEdit = account;
+            this.showAddModal = true;
+        },
+
+        handleCloseModal() {
+            this.showAddModal = false;
+            this.accountToEdit = null;
+        },
+
+        async handleSaveOrUpdateAccount(data, localDataId) {
+            try {
+                if (localDataId) {
+                    const localId = localDataId;
+                    const dataToSave = data;
+
+                    await this.vault.updateAccount(localId, dataToSave);
+                } else {
+                    const dataToCreate = data;
+                    await this.vault.createAccount(dataToCreate);
+                }
+
+                this.handleCloseModal();
+            } catch (err) {
+                console.error("Erro ao salvar/editar conta:", err);
+            }
+        }
     },
 };
 </script>
@@ -155,5 +182,9 @@ export default {
     display: flex;
     gap: var(--space-3);
     justify-content: flex-end;
+}
+
+.vault-unlocked-screen {
+    margin-left: 4px;
 }
 </style>

@@ -18,6 +18,7 @@ import {
     faWifi,
     faGlobe,
     faEye,
+    faEyeSlash,
     faWindowMaximize,
     faWindowRestore,
     faMinus,
@@ -26,7 +27,9 @@ import {
     faPlus,
     faPencil,
     faArrowsRotate,
-    faTrashCan
+    faTrashCan,
+    faCopy,
+    faCog
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -36,6 +39,7 @@ library.add(
     faWifi,
     faGlobe,
     faEye,
+    faEyeSlash,
     faWindowMaximize,
     faWindowRestore,
     faMinus,
@@ -44,7 +48,9 @@ library.add(
     faPlus,
     faPencil,
     faArrowsRotate,
-    faTrashCan
+    faTrashCan,
+    faCopy,
+    faCog
 );
 
 const app = createApp(App);

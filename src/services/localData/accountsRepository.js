@@ -11,6 +11,12 @@ export const accountsRepository = {
             data: encryptedBlob
         });
     },
+    saveLocalAccount: async (accountObject) => {
+        if (!db.accounts) {
+            throw new Error("Tabela de contas (accounts) não foi inicializada.");
+        }
+        return await db.accounts.put(accountObject);
+    },
     setServerId: async (localId, serverId) => {
         return await db.accounts.update(localId, { id: serverId });
     },
@@ -23,5 +29,8 @@ export const accountsRepository = {
             return [];
         }
         return await db.accounts.toArray();
+    },
+    async clearLocalAccounts() {
+        return await db.accounts.clear();
     }
 };
