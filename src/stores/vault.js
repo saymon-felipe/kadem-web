@@ -125,6 +125,25 @@ export const useVaultStore = defineStore('vault', () => {
         }
     };
 
+    const checkMasterPassword = async (masterPassword, userSalt) => {
+        try {
+            const keyCandidate = await _deriveKey(masterPassword, userSalt);
+            const encryptedValidation = localStorage.getItem('vault_validation');
+
+            if (!encryptedValidation) {
+                throw new Error("Cofre não inicializado.");
+            }
+
+            const validationToken = await _decrypt(encryptedValidation, keyCandidate);
+
+            return validationToken === "VALID_VAULT_KEY";
+
+        } catch (decryptError) {
+            console.error("Falha na checagem da senha:", decryptError.name);
+            return false;
+        }
+    };
+
     const unlockVault = async (masterPassword, userSalt) => {
         if (isUnlocked.value) return;
 
@@ -335,6 +354,7 @@ export const useVaultStore = defineStore('vault', () => {
         deleteAccount,
         revealPassword,
         hidePassword,
-        copyPasswordToClipboard
+        copyPasswordToClipboard,
+        checkMasterPassword
     };
 });

@@ -5,7 +5,7 @@
 
             <div class="modal-content glass" @click.stop>
                 <p>{{ message }}</p>
-                <p class="subtitle">Esta ação não pode ser desfeita.</p>
+                <p class="subtitle">{{ description }}</p>
                 <div class="modal-actions">
                     <button class="btn" @click="cancel">Cancelar</button>
                     <button class="btn" :class="confirmText == 'Excluir' ? 'btn-red' : 'btn-primary'" @click="confirm">
@@ -27,6 +27,10 @@ export default {
         message: {
             type: String,
             required: true
+        },
+        description: {
+            type: String,
+            default: 'Esta ação não pode ser desfeita.'
         },
         confirmText: {
             type: String,

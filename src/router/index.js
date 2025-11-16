@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import homeView from "../views/homeView.vue";
 import authView from "../views/authView.vue";
 import logoutView from '../views/logoutView.vue';
+import resetPasswordView from "../views/resetPasswordView.vue";
 
 const routes = [
   {
@@ -30,6 +31,14 @@ const routes = [
     }
   },
   {
+    path: "/reset_password",
+    name: "ResetPassword",
+    component: resetPasswordView,
+    meta: {
+      public: true
+    }
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: { name: 'Auth' }
   }
@@ -41,22 +50,23 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
+  if (to.meta.public) {
+    next();
+    return;
+  }
+
   const { useAuthStore } = await import('../stores/auth.js');
   const authStore = useAuthStore();
 
-  await authStore.checkAuthStatus();
+  await authStore.checkAuthStatus(); //
 
   const isAuthenticated = authStore.isLoggedIn;
 
   if (to.meta.requiresAuth && !isAuthenticated) {
     next({ name: 'Auth' });
-  }
-
-  else if (to.meta.requiresGuest && isAuthenticated) {
+  } else if (to.meta.requiresGuest && isAuthenticated) {
     next({ name: 'Home' });
-  }
-
-  else {
+  } else {
     next();
   }
 });

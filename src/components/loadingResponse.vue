@@ -1,6 +1,6 @@
 <template>
     <div class="loading-response"
-        :style="styletype == 'small' ? 'margin: var(--space-3) !important;' : 'margin: var(--space-7) 0;'">
+        :style="styletype == 'small' ? 'margin: var(--space-3) 0 !important;' : 'margin: var(--space-7) 0;'">
         <p :class="type" v-if="msg != '' && !loading" v-html="sanitizeHtml(msg)"></p>
         <loading v-if="loading" type="deep-blue" />
     </div>

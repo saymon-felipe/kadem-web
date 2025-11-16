@@ -40,8 +40,7 @@
                             @mouseup="hideRepeatPassword" @mouseleave="hideRepeatPassword" />
                     </div>
 
-                    <button type="submit" class="btn btn-primary">{{ isRegister ? "Criar conta" : "Entrar"
-                    }}</button>
+                    <button type="submit" class="btn btn-primary">{{ isRegister ? "Criar conta" : "Entrar" }}</button>
                     <div class="form-group">
                         <p v-if="isRegister">Já tem uma conta? <strong style="cursor: pointer;"
                                 @click="authType = 'login'">Entre</strong></p>
@@ -101,8 +100,24 @@ export default {
         }
     },
     methods: {
-        handleResetPassword() {
-            console.log("Esqueci minha senha");
+        async handleResetPassword() {
+            this.resetResponse();
+            if (!this.email) {
+                this.setResponse("error", "Por favor, digite seu e-mail no campo 'E-mail' para solicitar a redefinição.", false);
+                return;
+            }
+
+            this.setResponse("", "", true);
+            const authStore = useAuthStore();
+
+            try {
+                const message = await authStore.requestPasswordReset(this.email);
+
+                this.setResponse("success", message, false);
+            } catch (error) {
+                const errorMsg = error.response?.data?.message || error.message || "Ocorreu um erro desconhecido.";
+                this.setResponse("error", errorMsg, false);
+            }
         },
         showPassword() {
             this.passwordFieldType = 'text';

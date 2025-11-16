@@ -84,8 +84,6 @@ export default {
         },
     },
     mounted: function () {
-        this.masterPasswordInput = "@Say2522";
-        this.handleUnlock();
     },
     methods: {
         showPassword() {
@@ -94,7 +92,6 @@ export default {
         hidePassword() {
             this.passwordFieldType = "password";
         },
-
         async handleUnlock() {
             if (this.isLoading || !this.masterPasswordInput) return;
 
@@ -111,23 +108,19 @@ export default {
                 this.masterPasswordInput = "";
             }
         },
-
         openCreateModal() {
             this.accountToEdit = null;
             this.showAddModal = true;
         },
-
         handleRequestEdit(account) {
             console.log(account)
             this.accountToEdit = account;
             this.showAddModal = true;
         },
-
         handleCloseModal() {
             this.showAddModal = false;
             this.accountToEdit = null;
         },
-
         async handleSaveOrUpdateAccount(data, localDataId) {
             try {
                 if (localDataId) {

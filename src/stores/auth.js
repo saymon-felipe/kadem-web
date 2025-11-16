@@ -26,6 +26,16 @@ export const useAuthStore = defineStore('auth', {
         isLoggedIn: (state) => state.isAuthenticated === true,
     },
     actions: {
+        async requestPasswordReset(email) {
+            try {
+                const response = await api.post('/auth/request_reset_password', { email });
+
+                return response.data.message;
+            } catch (error) {
+                console.error('Erro ao solicitar redefinição de senha:', error);
+                throw error;
+            }
+        },
         async login(email, password) {
             try {
                 const response = await api.post('/auth/login', { email, password });
@@ -96,28 +106,27 @@ export const useAuthStore = defineStore('auth', {
                 if (utilsStore.connection.connected) {
                     try {
                         await syncService.processSyncQueue();
+                        await this.syncProfile();
+                        projectStore.pullProjects();
+                        vaultStore.pullAccounts();
                     } catch (syncError) {
                         console.error("Falha na orquestração PUSH-PULL:", syncError);
                     }
-
-                    this.syncProfile();
-                    projectStore.pullProjects();
-                    vaultStore.pullAccounts();
                 } else {
-                    await projectStore._loadProjectsFromDB();
-                }
+                    if (localUser) {
+                        const localOccupations = await occupationRepository.getLocalUserOccupations();
+                        const localMedals = await medalRepository.getLocalMedals();
 
-                if (localUser) {
-                    const localOccupations = await occupationRepository.getLocalUserOccupations();
-                    const localMedals = await medalRepository.getLocalMedals();
+                        await projectStore._loadProjectsFromDB();
 
-                    this.user = {
-                        ...localUser,
-                        occupations: localOccupations,
-                        medals: localMedals
-                    };
+                        this.user = {
+                            ...localUser,
+                            occupations: localOccupations,
+                            medals: localMedals
+                        };
 
-                    this.isAuthenticated = true;
+                        this.isAuthenticated = true;
+                    }
                 }
             } catch (error) {
                 this.user = {};
@@ -126,10 +135,14 @@ export const useAuthStore = defineStore('auth', {
         },
         async syncProfile() {
             try {
-                const response = await api.get('/users/profile');
+                let response = await api.get('/users/profile');
                 await this._saveUserData(response.data);
             } catch (error) {
-                console.log('Falha ao sincronizar perfil em background. Usando dados locais.');
+                if (error.status == 401) {
+                    this.logout(true);
+                } else {
+                    console.warn('Falha ao sincronizar perfil em background. Usando dados locais.');
+                }
             }
         },
         async _saveUserData(apiUserData) {
