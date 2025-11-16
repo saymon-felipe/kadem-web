@@ -175,8 +175,6 @@ export default {
             this.setResponse("", "", true);
 
             try {
-                let response;
-
                 if (this.isRegister) {
                     const data = {
                         email: this.email,
@@ -184,14 +182,14 @@ export default {
                         name: this.name
                     };
 
-                    response = await authStore.register(data);
+                    await authStore.register(data);
                 } else {
-                    response = await authStore.login(this.email, this.password);
+                    await authStore.login(this.email, this.password);
                 }
 
-                this.setResponse("success", response.data.message, false);
-
                 if (this.isRegister) {
+                    this.setResponse("success", "Registro realizado", false);
+
                     setTimeout(() => {
                         let email = this.email;
 
@@ -199,8 +197,10 @@ export default {
                             this.authType = "login";
                             this.email = email;
                         })
-                    }, 2000);
+                    }, 1500);
                 } else {
+                    this.setResponse("success", "Login realizado", false);
+
                     const vaultStore = useVaultStore();
 
                     vaultStore.setupVault(this.password, this.email);

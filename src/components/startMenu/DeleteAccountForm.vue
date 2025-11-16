@@ -11,13 +11,13 @@
         <label>Senha Mestra</label>
     </div>
 
-    <LoadingResponse :msg="error" type="error" styletype="small" :loading="isLoading" />
+    <LoadingResponse :msg="response" :type="responseType" styletype="small" :loading="loading" />
 
     <div class="modal-actions">
-        <button class="btn" @click="$emit('close')" :disabled="isLoading">
+        <button class="btn" @click="$emit('close')" :disabled="loading">
             Cancelar
         </button>
-        <button class="btn btn-red" @click="handleConfirmDelete" :disabled="isLoading || !masterPasswordInput">
+        <button class="btn btn-red" @click="handleConfirmDelete" :disabled="loading || !masterPasswordInput">
             {{ isLoading ? 'Encerrando...' : 'Encerrar Conta' }}
         </button>
     </div>
@@ -38,8 +38,6 @@ export default {
     data() {
         return {
             masterPasswordInput: '',
-            isLoading: false,
-            error: null,
             authStore: useAuthStore(),
             vaultStore: useVaultStore(),
         }
@@ -49,48 +47,46 @@ export default {
     },
     methods: {
         async handleConfirmDelete() {
-            const passwordToVerify = this.masterPasswordInput.trim()
+            const passwordToVerify = this.masterPasswordInput.trim();
 
             if (!passwordToVerify) {
-                this.error = 'A Senha Mestra é obrigatória.'
-                this.masterPasswordInput = ''
-                return
+                this.setResponse("error", 'A Senha Mestra é obrigatória.', false);
+                this.masterPasswordInput = '';
+                return;
             }
 
-            this.isLoading = true
-            this.error = null
-
-            const userSalt = this.authStore.user?.email
+            const userSalt = this.authStore.user?.email;
             if (!userSalt) {
-                this.error = 'Erro: Saldo do usuário não encontrado. Tente relogar.'
-                this.isLoading = false
-                return
+                this.setResponse("error", 'Ocorreu um erro. Tente relogar.', false);
+                return;
             }
 
             try {
+                this.setResponse("", "", true);
+
                 const isPasswordCorrect = await this.vaultStore.checkMasterPassword(
                     passwordToVerify,
                     userSalt
                 )
 
                 if (!isPasswordCorrect) {
-                    throw new Error('Senha Mestra incorreta.')
+                    throw new Error('Senha Mestra incorreta.');
                 }
 
-                await api.post('/users/close_account')
+                await api.delete('/users/close_account');
 
-                await this.authStore.logout(true)
+                this.setResponse("success", 'Conta encerrada com sucesso. Redirecionando...', false);
 
-                this.$emit('close')
+                setTimeout(() => {
+                    this.authStore.logout(true);
+                    this.$emit('close');
+                }, 1500)
             } catch (err) {
-                console.error('Falha ao encerrar conta:', err)
-                this.error =
-                    err.response?.data?.message ||
-                    err.message ||
-                    'Ocorreu um erro desconhecido.'
+                console.error('Falha ao encerrar conta:', err);
 
-                this.isLoading = false
-                this.masterPasswordInput = ''
+                this.setResponse("error", err.message, false);
+
+                this.masterPasswordInput = '';
             }
         },
     },
