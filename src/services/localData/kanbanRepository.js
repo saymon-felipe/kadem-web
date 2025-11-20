@@ -1,6 +1,6 @@
 import { db } from '../../db';
 
-export const kanban_repository = {
+export const kanbanRepository = {
     async get_columns_by_project(project_id) {
         return await db.columns
             .where('project_id')

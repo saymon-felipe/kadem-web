@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { kanban_repository } from '../services/localData/kanban_repository';
+import { kanbanRepository } from '../services/localData/kanbanRepository';
 import { syncQueueRepository } from '../services/localData/syncQueueRepository';
 
 export const useKanbanStore = defineStore('kanban', {
@@ -20,14 +20,14 @@ export const useKanbanStore = defineStore('kanban', {
     actions: {
         async loadProjectKanban(project_id) {
             try {
-                const local_columns = await kanban_repository.get_columns_by_project(project_id);
+                const local_columns = await kanbanRepository.get_columns_by_project(project_id);
                 this.columns[project_id] = local_columns;
 
                 local_columns.forEach(col => {
                     this.tasks[col.local_id] = [];
                 });
 
-                const all_tasks = await kanban_repository.get_tasks_by_project(project_id);
+                const all_tasks = await kanbanRepository.get_tasks_by_project(project_id);
 
                 all_tasks.forEach(task => {
                     if (!task.description && task.title) task.description = task.title;
@@ -56,7 +56,7 @@ export const useKanbanStore = defineStore('kanban', {
             };
 
             try {
-                const saved_column = await kanban_repository.add_column(new_column_data);
+                const saved_column = await kanbanRepository.add_column(new_column_data);
 
                 if (!this.columns[project_id]) this.columns[project_id] = [];
                 this.columns[project_id].push(saved_column);
@@ -79,7 +79,7 @@ export const useKanbanStore = defineStore('kanban', {
         async updateColumn(column) {
             try {
                 const clean_column = JSON.parse(JSON.stringify(column));
-                await kanban_repository.update_column(column.local_id, clean_column);
+                await kanbanRepository.update_column(column.local_id, clean_column);
 
                 const project_cols = this.columns[column.project_id];
                 if (project_cols) {
@@ -108,7 +108,7 @@ export const useKanbanStore = defineStore('kanban', {
                 }
                 delete this.tasks[column.local_id];
 
-                await kanban_repository.delete_column(column.local_id);
+                await kanbanRepository.delete_column(column.local_id);
 
                 await syncQueueRepository.addSyncQueueTask({
                     type: 'DELETE_COLUMN',
@@ -139,7 +139,7 @@ export const useKanbanStore = defineStore('kanban', {
             };
 
             try {
-                const saved_task = await kanban_repository.add_task(new_task_obj);
+                const saved_task = await kanbanRepository.add_task(new_task_obj);
 
                 if (!this.tasks[column_local_id]) this.tasks[column_local_id] = [];
                 this.tasks[column_local_id].push(saved_task);
@@ -162,7 +162,7 @@ export const useKanbanStore = defineStore('kanban', {
         async updateTask(task) {
             try {
                 const clean_task = JSON.parse(JSON.stringify(task));
-                await kanban_repository.update_task(task.local_id, clean_task);
+                await kanbanRepository.update_task(task.local_id, clean_task);
 
                 const column_tasks = this.tasks[task.column_id];
                 if (column_tasks) {
@@ -187,7 +187,7 @@ export const useKanbanStore = defineStore('kanban', {
                 if (column_tasks) {
                     this.tasks[task.column_id] = column_tasks.filter(t => t.local_id !== task.local_id);
                 }
-                await kanban_repository.delete_task(task.local_id);
+                await kanbanRepository.delete_task(task.local_id);
                 await syncQueueRepository.addSyncQueueTask({
                     type: 'DELETE_TASK',
                     payload: { id: task.id, local_id: task.local_id },
@@ -204,7 +204,7 @@ export const useKanbanStore = defineStore('kanban', {
             try {
                 const plain_columns = JSON.parse(JSON.stringify(columns));
                 const updates = plain_columns.map((col, index) => ({ ...col, order: index }));
-                await kanban_repository.bulk_put_columns(updates);
+                await kanbanRepository.bulk_put_columns(updates);
                 await syncQueueRepository.addSyncQueueTask({
                     type: 'REORDER_COLUMNS',
                     payload: { project_id: projectId, columns_order: updates },
@@ -224,7 +224,7 @@ export const useKanbanStore = defineStore('kanban', {
                     column_id: columnId,
                     order: index
                 }));
-                await kanban_repository.bulk_put_tasks(updates);
+                await kanbanRepository.bulk_put_tasks(updates);
                 if (event && (event.added || event.moved)) {
                     await syncQueueRepository.addSyncQueueTask({
                         type: 'MOVE_TASK_LIST',

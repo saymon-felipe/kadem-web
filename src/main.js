@@ -39,7 +39,9 @@ import {
     faPaperPlane,
     faEllipsisVertical,
     faUser,
-    faMagnifyingGlass
+    faMagnifyingGlass,
+    faUsers,
+    faDice
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -70,7 +72,9 @@ library.add(
     faPaperPlane,
     faEllipsisVertical,
     faUser,
-    faMagnifyingGlass
+    faMagnifyingGlass,
+    faUsers,
+    faDice
 );
 
 const app = createApp(App);

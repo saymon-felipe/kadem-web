@@ -53,12 +53,41 @@
         </div>
 
         <div v-if="is_creating_task" class="new-task-wrapper">
-            <div class="new-task-card">
+            <div class="new-task-card" v-click-outside="handle_click_outside_creation">
                 <textarea v-model="new_task_content" placeholder="Descreva a tarefa..." ref="new_task_input" rows="3"
-                    @keydown.enter.prevent="handle_create_task" @keydown.esc="cancel_create_task"></textarea>
+                    class="task-textarea" @keydown.enter.exact.prevent="handle_create_task"
+                    @keydown.esc="cancel_create_task"></textarea>
+
                 <div class="new-task-footer">
-                    <button class="btn-cancel" @click="cancel_create_task">Cancelar</button>
-                    <button class="btn-save" @click="handle_create_task">Salvar</button>
+                    <div class="assignee-selector-wrapper">
+                        <button class="btn-assignee" @click.stop="toggle_assignee_menu" :title="selected_assignee_name">
+                            <img :src="selected_assignee_avatar" class="avatar-xs" alt="Responsável">
+                            <span class="assignee-label" v-if="selected_assignee_label">{{ selected_assignee_label
+                            }}</span>
+                        </button>
+
+                        <transition name="fade-switch">
+                            <div v-if="show_assignee_menu" class="assignee-dropdown glass"
+                                v-click-outside="close_assignee_menu">
+                                <ul>
+                                    <li @click="select_assignee('all')">
+                                        <div class="avatar-placeholder all-icon"><font-awesome-icon icon="users" />
+                                        </div>
+                                        <span>Todos</span>
+                                    </li>
+                                    <li @click="select_assignee('any')">
+                                        <div class="avatar-placeholder any-icon"><font-awesome-icon icon="dice" /></div>
+                                        <span>Qualquer</span>
+                                    </li>
+                                    <hr class="divider" v-if="members && members.length > 0">
+                                    <li v-for="member in members" :key="member.id" @click="select_assignee(member)">
+                                        <img :src="member.avatar || default_avatar" class="avatar-xs">
+                                        <span>{{ member.name }}</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </transition>
+                    </div>
                 </div>
             </div>
         </div>
@@ -79,6 +108,7 @@ import draggable from 'vuedraggable';
 import { mapActions, mapState } from 'pinia';
 import { useKanbanStore } from '@/stores/kanban';
 import KanbanTask from './KanbanTask.vue';
+import defaultAvatar from "@/assets/images/kadem-default-account.jpg";
 
 export default {
     name: 'KanbanColumn',
@@ -87,6 +117,10 @@ export default {
         column: {
             type: Object,
             required: true
+        },
+        members: {
+            type: Array,
+            default: () => []
         }
     },
     emits: ['task-selected', 'delete-column'],
@@ -115,7 +149,10 @@ export default {
             search_query: '',
             show_options: false,
             is_renaming: false,
-            edit_title: ''
+            edit_title: '',
+            selected_assignee: 'any',
+            show_assignee_menu: false,
+            default_avatar: defaultAvatar
         };
     },
     computed: {
@@ -133,6 +170,22 @@ export default {
                 const resp_match = (task.responsible?.name || '').toLowerCase().includes(query);
                 return id_match || desc_match || resp_match;
             });
+        },
+        // Computadas para o Avatar
+        selected_assignee_name() {
+            if (this.selected_assignee === 'all') return 'Todos';
+            if (this.selected_assignee === 'any') return 'Qualquer um';
+            return this.selected_assignee?.name || 'Desconhecido';
+        },
+        selected_assignee_avatar() {
+            if (this.selected_assignee === 'all') return this.default_avatar;
+            if (this.selected_assignee === 'any') return this.default_avatar;
+            return this.selected_assignee?.avatar || this.default_avatar;
+        },
+        selected_assignee_label() {
+            if (this.selected_assignee === 'all') return 'Todos';
+            if (this.selected_assignee === 'any') return 'Qualquer';
+            return null;
         }
     },
     methods: {
@@ -194,27 +247,71 @@ export default {
             }
         },
         handle_task_click(task) { this.$emit('task-selected', task); },
+
         show_new_task_form() {
             this.close_search();
             this.is_creating_task = true;
+            this.new_task_content = ''; // Resetar conteúdo
+            this.selected_assignee = 'any'; // Resetar responsável
             this.$nextTick(() => { if (this.$refs.new_task_input) this.$refs.new_task_input.focus(); });
         },
+
         cancel_create_task() {
             this.is_creating_task = false;
             this.new_task_content = '';
+            this.show_assignee_menu = false;
         },
+        handle_click_outside_creation(event) {
+            const dropdown = this.$el.querySelector('.assignee-dropdown');
+            if (dropdown && dropdown.contains(event.target)) {
+                return;
+            }
+
+            const btnAssignee = this.$el.querySelector('.btn-assignee');
+            if (btnAssignee && btnAssignee.contains(event.target)) {
+                return;
+            }
+
+            if (this.new_task_content.trim()) {
+                this.handle_create_task();
+            } else {
+                this.cancel_create_task();
+            }
+        },
+
+        toggle_assignee_menu() {
+            this.show_assignee_menu = !this.show_assignee_menu;
+        },
+        close_assignee_menu() {
+            this.show_assignee_menu = false;
+        },
+        select_assignee(target) {
+            this.selected_assignee = target;
+            this.close_assignee_menu();
+
+            this.$nextTick(() => {
+                if (this.$refs.new_task_input) this.$refs.new_task_input.focus();
+            });
+        },
+
         async handle_create_task() {
             if (!this.new_task_content.trim()) {
                 this.cancel_create_task();
                 return;
             }
             try {
+                let responsibleData = null;
+                if (this.selected_assignee === 'all') responsibleData = { type: 'all' };
+                else if (this.selected_assignee === 'any') responsibleData = { type: 'any' };
+                else responsibleData = { ...this.selected_assignee };
+
                 const new_task = await this.createTask(this.column.local_id, {
                     description: this.new_task_content,
                     title: '',
-                    responsible: null,
+                    responsible: responsibleData,
                     project_id: this.column.project_id
                 });
+
                 if (new_task && new_task.local_id) {
                     this.$emit('task-selected', new_task);
                 }
@@ -468,39 +565,133 @@ export default {
     border-radius: var(--radius-md);
     padding: var(--space-3);
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    border: 1px solid transparent;
+    transition: border-color 0.2s;
 }
 
-.new-task-card textarea {
+.new-task-card:focus-within {
+    border-color: var(--deep-blue);
+}
+
+.task-textarea {
     width: 100%;
     border: none;
     resize: none;
     font-size: var(--fontsize-sm);
+    padding: var(--space-4) !important;
     outline: none;
     margin-bottom: var(--space-2);
     font-family: inherit;
+    color: var(--deep-blue);
+    background: transparent;
+
+    &:focus {
+        outline: 2px solid var(--deep-blue) !important;
+    }
 }
 
 .new-task-footer {
     display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--space-2);
 }
 
-.btn-save {
-    background: var(--deep-blue);
-    color: white;
+.hint-text {
+    font-size: 10px;
+    color: var(--gray-300);
+}
+
+.assignee-selector-wrapper {
+    position: relative;
+}
+
+.btn-assignee {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.05);
     border: none;
-    padding: 4px 12px;
+    padding: 2px 8px 2px 2px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 12px;
+    transition: background 0.2s;
 }
 
-.btn-cancel {
-    background: transparent;
-    color: var(--gray-300);
-    border: none;
-    font-size: 12px;
+.btn-assignee:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.avatar-xs {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.assignee-label {
+    font-size: var(--fontsize-xs);
+    color: var(--deep-blue);
+    font-weight: 500;
+}
+
+.assignee-dropdown {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    z-index: 150;
+    background: var(--white);
+    min-width: 160px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: var(--space-2) 0;
+    box-shadow: var(--boxshadow-default);
+    border-radius: var(--radius-sm);
+}
+
+.assignee-dropdown ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.assignee-dropdown li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
     cursor: pointer;
+    font-size: var(--fontsize-xs);
+    color: var(--deep-blue);
+    transition: background 0.1s;
+}
+
+.assignee-dropdown li:hover {
+    background: #f5f7fa;
+}
+
+.divider {
+    border: 0;
+    border-top: 1px solid var(--gray-300);
+    margin: 4px 0;
+    opacity: 0.3;
+}
+
+.avatar-placeholder {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    color: var(--white);
+}
+
+.all-icon {
+    background-color: var(--blue);
+}
+
+.any-icon {
+    background-color: var(--orange);
 }
 </style>
