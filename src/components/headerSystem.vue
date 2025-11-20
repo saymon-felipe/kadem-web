@@ -204,7 +204,7 @@ export default {
 .header-wrapper {
     position: relative;
     z-index: 9000;
-    width: 65%;
+    width: 100%;
     margin: 0 auto;
 }
 

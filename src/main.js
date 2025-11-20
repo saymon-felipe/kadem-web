@@ -29,7 +29,17 @@ import {
     faArrowsRotate,
     faTrashCan,
     faCopy,
-    faCog
+    faCog,
+    faCheck,
+    faCommentDots,
+    faGripLines,
+    faEllipsisV,
+    faChevronDown,
+    faChevronLeft,
+    faPaperPlane,
+    faEllipsisVertical,
+    faUser,
+    faMagnifyingGlass
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -50,7 +60,17 @@ library.add(
     faArrowsRotate,
     faTrashCan,
     faCopy,
-    faCog
+    faCog,
+    faGripLines,
+    faCheck,
+    faCommentDots,
+    faEllipsisV,
+    faChevronDown,
+    faChevronLeft,
+    faPaperPlane,
+    faEllipsisVertical,
+    faUser,
+    faMagnifyingGlass
 );
 
 const app = createApp(App);
