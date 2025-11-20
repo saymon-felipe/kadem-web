@@ -52,7 +52,7 @@ export default {
 <style scoped>
 .kanban-task {
     background: var(--white);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     padding: var(--space-4);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     cursor: grab;
@@ -113,7 +113,7 @@ export default {
 
 .task-description {
     font-size: var(--fontsize-sm);
-    color: var(--deep-blue);
+    color: var(--black);
     line-height: 1.4;
     margin: 0;
     pointer-events: none;

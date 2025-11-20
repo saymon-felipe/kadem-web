@@ -10,9 +10,9 @@
                     <input ref="renameInput" v-model="edit_title" @blur="save_rename" @keydown.enter="save_rename"
                         @keydown.esc="cancel_rename" class="rename-input" />
                 </div>
-                <strong v-else @dblclick="start_rename" title="Duplo clique para renomear">
+                <span class="column-name" v-else @dblclick="start_rename" title="Duplo clique para renomear">
                     {{ column.title }}
-                </strong>
+                </span>
 
                 <span class="task-count">{{ filtered_tasks.length }}</span>
             </div>
@@ -248,8 +248,17 @@ export default {
     align-items: center;
     justify-content: space-between;
     padding: var(--space-4);
+    gap: var(--space-3);
     flex-shrink: 0;
     position: relative;
+}
+
+.column-name {
+    font-size: var(--fontsize-sx);
+    flex-grow: 1;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 .header-left {
@@ -278,7 +287,9 @@ export default {
     border: 1px solid var(--deep-blue);
     border-radius: 4px;
     padding: 2px 4px;
-    outline: none;
+    outline: none !important;
+    box-shadow: none !important;
+    height: 30px;
 }
 
 .column-drag-handle {
@@ -307,6 +318,7 @@ export default {
 .header-actions {
     display: flex;
     gap: var(--space-2);
+    flex-shrink: 0;
 }
 
 .btn-icon {
@@ -314,8 +326,8 @@ export default {
     border: none;
     cursor: pointer;
     color: var(--gray-100);
-    padding: 4px 6px;
-    border-radius: var(--radius-sm);
+    padding: 6px;
+    border-radius: 5px;
     transition: all 0.2s;
 }
 
@@ -338,7 +350,7 @@ export default {
     top: 100%;
     right: 0;
     background: var(--white);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
     min-width: 140px;
     z-index: 100;
@@ -357,7 +369,7 @@ export default {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: var(--fontsize-sm);
+    font-size: var(--fontsize-xs);
     color: var(--deep-blue);
     transition: background 0.2s;
 }
@@ -375,7 +387,8 @@ export default {
 }
 
 .search-wrapper {
-    padding: 0 var(--space-4) var(--space-3) var(--space-4);
+    padding: 0 var(--space-4);
+    margin: var(--space-1) 0;
     position: relative;
 }
 
@@ -386,19 +399,23 @@ export default {
     border-radius: var(--radius-sm);
     font-size: var(--fontsize-xs);
     outline: none;
+    height: 40px;
     background: rgba(255, 255, 255, 0.8);
 }
 
 .search-input:focus {
-    border-color: var(--deep-blue);
+    outline: 2px solid var(--deep-blue);
     background: var(--white);
 }
 
 .clear-search {
     position: absolute;
     right: 20px;
-    top: 50%;
-    transform: translateY(-60%);
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    display: grid;
+    place-items: center;
     background: none;
     border: none;
     color: var(--gray-300);

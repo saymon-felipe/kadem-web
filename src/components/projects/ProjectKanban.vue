@@ -30,7 +30,7 @@
                 :project-name="project.name" @close="is_modal_open = false" @delete="ask_delete_task" />
         </SideModal>
 
-        <ConfirmationModal v-if="show_confirmation" :message="confirmation_message" confirmText="Excluir"
+        <ConfirmationModal v-model="show_confirmation" :message="confirmation_message" confirmText="Excluir"
             @confirmed="handle_confirm_delete" @cancelled="close_confirmation" />
     </div>
 </template>
