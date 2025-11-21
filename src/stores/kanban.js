@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia';
 import { kanbanRepository } from '../services/localData/kanbanRepository';
 import { syncQueueRepository } from '../services/localData/syncQueueRepository';
+import { syncService } from '../services/syncService';
+import { useAuthStore } from './auth';
+import { api } from '../plugins/api';
 
 export const useKanbanStore = defineStore('kanban', {
     state: () => ({
@@ -10,7 +13,8 @@ export const useKanbanStore = defineStore('kanban', {
 
     getters: {
         getColumns: (state) => (project_id) => {
-            return state.columns[project_id] || [];
+            const pid = Number(project_id) || project_id;
+            return state.columns[pid] || [];
         },
         getTasks: (state) => (column_local_id) => {
             return state.tasks[column_local_id] || [];
@@ -18,20 +22,142 @@ export const useKanbanStore = defineStore('kanban', {
     },
 
     actions: {
+        async addCommentToTask(task, content) {
+            const authStore = useAuthStore();
+            const user = authStore.user;
+
+            const newComment = {
+                id: null,
+                local_id: Date.now() + Math.floor(Math.random() * 1000),
+                task_local_id: task.local_id,
+                content: content,
+                author: {
+                    id: user.id,
+                    name: user.name,
+                    avatar: user.avatar
+                },
+                created_at: new Date().toISOString(),
+                likes: 0,
+                liked_by_me: false
+            };
+
+            try {
+                const taskInDb = await kanbanRepository.get_task_by_local_id(task.local_id);
+
+                if (taskInDb) {
+                    const commentsList = taskInDb.comments ? [...taskInDb.comments] : [];
+                    commentsList.push(newComment);
+                    await kanbanRepository.update_task(task.local_id, { comments: commentsList });
+
+                    if (this.tasks[task.column_id]) {
+                        const storedTask = this.tasks[task.column_id].find(t => t.local_id === task.local_id);
+                        if (storedTask) {
+                            if (!storedTask.comments) storedTask.comments = [];
+                            storedTask.comments.push(newComment);
+                        }
+                    }
+                }
+
+                await syncQueueRepository.addSyncQueueTask({
+                    type: 'CREATE_TASK_COMMENT',
+                    payload: {
+                        content: content,
+                        created_at: newComment.created_at,
+                        task_local_id: task.local_id,
+                        local_id: newComment.local_id
+                    },
+                    entity_id: newComment.local_id,
+                    timestamp: Date.now()
+                });
+
+                syncService.processSyncQueue();
+
+                return newComment;
+
+            } catch (error) {
+                console.error("[KanbanStore] Erro ao adicionar comentário:", error);
+                throw error;
+            }
+        },
+
+        async toggleCommentLike(task, comment) {
+            let storedComment = null;
+
+            if (this.tasks[task.column_id]) {
+                const storedTask = this.tasks[task.column_id].find(t => t.local_id === task.local_id);
+                if (storedTask && storedTask.comments) {
+                    storedComment = storedTask.comments.find(c => c.local_id === comment.local_id);
+                }
+            }
+
+            const currentStatus = storedComment ? storedComment.liked_by_me : comment.liked_by_me;
+
+            const isLiked = !currentStatus;
+            const newCount = isLiked ? (storedComment?.likes || 0) + 1 : (storedComment?.likes || 0) - 1;
+
+            if (storedComment) {
+                storedComment.liked_by_me = isLiked;
+                storedComment.likes = newCount;
+            }
+
+            await kanbanRepository.update_local_comment_state(task.local_id, comment.local_id, {
+                liked_by_me: isLiked,
+                likes: newCount
+            });
+
+            await syncQueueRepository.addSyncQueueTask({
+                type: 'TOGGLE_COMMENT_LIKE',
+                payload: {
+                    comment_local_id: comment.local_id,
+                    task_local_id: task.local_id
+                },
+                entity_id: comment.local_id,
+                timestamp: Date.now()
+            });
+
+            syncService.processSyncQueue();
+        },
+
+        async pullProjectKanban(serverProjectId, localProjectId) {
+            if (!navigator.onLine) return;
+
+            try {
+                const response = await api.get(`/kanban/projects/${serverProjectId}`);
+                const { project, columns, tasks, members } = response.data;
+
+                await kanbanRepository.mergeServerData(localProjectId, columns, tasks);
+
+                if (project) {
+                    const { useProjectStore } = await import('./projects');
+                    const projectStore = useProjectStore();
+                    await projectStore.updateProject({ localId: localProjectId }, {
+                        ...project,
+                        members: members || []
+                    });
+                }
+
+                await this.loadProjectKanban(localProjectId);
+
+            } catch (error) {
+                console.error("[KanbanStore] Erro pull:", error);
+            }
+        },
+
         async loadProjectKanban(project_id) {
             try {
-                const local_columns = await kanbanRepository.get_columns_by_project(project_id);
-                this.columns[project_id] = local_columns;
+                const pid = Number(project_id) || project_id;
+
+                const local_columns = await kanbanRepository.get_columns_by_project(pid);
+                this.columns[pid] = local_columns;
 
                 local_columns.forEach(col => {
                     this.tasks[col.local_id] = [];
                 });
 
-                const all_tasks = await kanbanRepository.get_tasks_by_project(project_id);
+                const all_tasks = await kanbanRepository.get_tasks_by_project(pid);
 
                 all_tasks.forEach(task => {
                     if (!task.description && task.title) task.description = task.title;
-
                     if (this.tasks[task.column_id]) {
                         this.tasks[task.column_id].push(task);
                     }
@@ -47,10 +173,11 @@ export const useKanbanStore = defineStore('kanban', {
         },
 
         async createColumn(project_id, title) {
-            const current_columns = this.columns[project_id] || [];
+            const pid = Number(project_id) || project_id;
+            const current_columns = this.columns[pid] || [];
             const new_column_data = {
                 id: null,
-                project_id: project_id,
+                project_id: pid,
                 title: title,
                 order: current_columns.length
             };
@@ -58,8 +185,8 @@ export const useKanbanStore = defineStore('kanban', {
             try {
                 const saved_column = await kanbanRepository.add_column(new_column_data);
 
-                if (!this.columns[project_id]) this.columns[project_id] = [];
-                this.columns[project_id].push(saved_column);
+                if (!this.columns[pid]) this.columns[pid] = [];
+                this.columns[pid].push(saved_column);
 
                 await syncQueueRepository.addSyncQueueTask({
                     type: 'CREATE_COLUMN',
@@ -67,6 +194,8 @@ export const useKanbanStore = defineStore('kanban', {
                     entity_id: saved_column.local_id,
                     timestamp: Date.now()
                 });
+
+                syncService.processSyncQueue();
 
                 return saved_column;
 
@@ -81,7 +210,8 @@ export const useKanbanStore = defineStore('kanban', {
                 const clean_column = JSON.parse(JSON.stringify(column));
                 await kanbanRepository.update_column(column.local_id, clean_column);
 
-                const project_cols = this.columns[column.project_id];
+                const pid = column.project_id;
+                const project_cols = this.columns[pid];
                 if (project_cols) {
                     const idx = project_cols.findIndex(c => c.local_id === column.local_id);
                     if (idx !== -1) {
@@ -95,6 +225,9 @@ export const useKanbanStore = defineStore('kanban', {
                     entity_id: column.local_id,
                     timestamp: Date.now()
                 });
+
+                syncService.processSyncQueue();
+
             } catch (error) {
                 console.error("[KanbanStore] Erro update coluna:", error);
             }
@@ -102,8 +235,9 @@ export const useKanbanStore = defineStore('kanban', {
 
         async deleteColumn(column) {
             try {
-                if (this.columns[column.project_id]) {
-                    this.columns[column.project_id] = this.columns[column.project_id]
+                const pid = column.project_id;
+                if (this.columns[pid]) {
+                    this.columns[pid] = this.columns[pid]
                         .filter(c => c.local_id !== column.local_id);
                 }
                 delete this.tasks[column.local_id];
@@ -117,22 +251,32 @@ export const useKanbanStore = defineStore('kanban', {
                     timestamp: Date.now()
                 });
 
+                syncService.processSyncQueue();
+
             } catch (error) {
                 console.error("[KanbanStore] Erro delete coluna:", error);
             }
         },
 
         async createTask(column_local_id, task_data) {
+            const { useAuthStore } = await import('./auth');
+            const authStore = useAuthStore();
             const current_tasks = this.tasks[column_local_id] || [];
+            const pid = Number(task_data.project_id) || task_data.project_id;
 
             const new_task_obj = {
                 id: null,
                 column_id: column_local_id,
-                project_id: task_data.project_id,
+                project_id: pid,
                 order: current_tasks.length,
                 title: '',
                 description: task_data.description || '',
                 responsible: task_data.responsible || null,
+                creator: {
+                    id: authStore.user.id,
+                    name: authStore.user.name,
+                    avatar: authStore.user.avatar
+                },
                 priority: 'Normal',
                 size: 'M - Médio',
                 comments: []
@@ -150,6 +294,8 @@ export const useKanbanStore = defineStore('kanban', {
                     entity_id: saved_task.local_id,
                     timestamp: Date.now()
                 });
+
+                syncService.processSyncQueue();
 
                 return saved_task;
 
@@ -176,6 +322,9 @@ export const useKanbanStore = defineStore('kanban', {
                     entity_id: task.local_id,
                     timestamp: Date.now()
                 });
+
+                syncService.processSyncQueue();
+
             } catch (error) {
                 console.error("[KanbanStore] Erro update tarefa:", error);
             }
@@ -194,22 +343,27 @@ export const useKanbanStore = defineStore('kanban', {
                     entity_id: task.local_id,
                     timestamp: Date.now()
                 });
+
+                syncService.processSyncQueue();
+
             } catch (error) {
                 console.error("[KanbanStore] Erro delete tarefa:", error);
             }
         },
 
         async updateColumnsForProject({ projectId, columns }) {
-            this.columns[projectId] = columns;
+            const pid = Number(projectId) || projectId;
+            this.columns[pid] = columns;
             try {
                 const plain_columns = JSON.parse(JSON.stringify(columns));
                 const updates = plain_columns.map((col, index) => ({ ...col, order: index }));
                 await kanbanRepository.bulk_put_columns(updates);
                 await syncQueueRepository.addSyncQueueTask({
                     type: 'REORDER_COLUMNS',
-                    payload: { project_id: projectId, columns_order: updates },
+                    payload: { project_id: pid, columns_order: updates },
                     timestamp: Date.now()
                 });
+                syncService.processSyncQueue();
             } catch (error) {
                 console.error("Erro reordenar colunas:", error);
             }
@@ -231,6 +385,7 @@ export const useKanbanStore = defineStore('kanban', {
                         payload: { column_id: columnId, tasks: updates },
                         timestamp: Date.now()
                     });
+                    syncService.processSyncQueue();
                 }
             } catch (error) {
                 console.error("Erro mover tarefas:", error);

@@ -41,7 +41,9 @@ import {
     faUser,
     faMagnifyingGlass,
     faUsers,
-    faDice
+    faDice,
+    faThumbsUp,
+    faTableCellsLarge
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -74,7 +76,9 @@ library.add(
     faUser,
     faMagnifyingGlass,
     faUsers,
-    faDice
+    faDice,
+    faThumbsUp,
+    faTableCellsLarge
 );
 
 const app = createApp(App);

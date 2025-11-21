@@ -5,113 +5,38 @@ import {
     occupationRepository,
     medalRepository,
     projectRepository,
+    kanbanRepository,
     accountsRepository
 } from './localData';
 
 let isProcessing = false;
 
+// --- HELPERS ---
+
 async function _saveServerData(apiUserData) {
     const { useAuthStore } = await import('../stores/auth');
     const authStore = useAuthStore();
-
     const { occupations, medals, ...profileData } = apiUserData;
     await userRepository.saveLocalUserProfile(profileData);
     await occupationRepository.mergeApiOccupations(occupations || []);
     await medalRepository.setLocalMedals(medals || []);
     const mergedOccupations = await occupationRepository.getLocalUserOccupations();
     const mergedMedals = await medalRepository.getLocalMedals();
-    authStore.setUser({
-        ...profileData,
-        occupations: mergedOccupations,
-        medals: mergedMedals
-    });
+    authStore.setUser({ ...profileData, occupations: mergedOccupations, medals: mergedMedals });
 }
 
-async function processIndividualTask(task) {
-    switch (task.type) {
-        case 'CREATE_OCCUPATION':
-            return await api.post('/users/occupations', task.payload);
+const resolveServerProjectId = async (localProjectId) => {
+    const numericLocalId = parseInt(localProjectId, 10);
+    if (isNaN(numericLocalId)) return localProjectId;
 
-        case 'DELETE_OCCUPATION':
-            return await api.delete(`/users/occupations/${task.payload.id}`);
+    const localProject = await projectRepository.getLocalProject(numericLocalId);
 
-        case 'CREATE_PROJECT':
-            try {
-                const { localId, ...projectData } = task.payload;
-                const response = await api.post('/projects', projectData);
+    if (!localProject) return localProjectId;
+    if (localProject.id) return localProject.id;
 
-                await projectRepository.deleteLocalProject(localId);
-                await projectRepository.saveLocalProject(response.data);
+    throw new Error(`PROJECT_NOT_SYNCED: Aguardando ID do servidor para projeto local ${numericLocalId}`);
+};
 
-                const { useProjectStore } = await import('../stores/projects');
-                const projectStore = useProjectStore();
-                await projectStore._loadProjectsFromDB();
-
-            } catch (error) {
-                console.error(`[SyncService] Falha ao criar projeto na API:`, error);
-                throw error;
-            }
-            return;
-
-        case 'DELETE_PROJECT':
-            try {
-                const serverId = task.payload.id;
-
-                if (!serverId) {
-                    console.warn(`[SyncService] Ignorando DELETE_PROJECT para item local (${task.payload.localId}) que nunca foi sincronizado.`);
-                    return Promise.resolve();
-                }
-
-                await api.delete(`/projects/${serverId}`);
-                console.log(`[SyncService] Projeto ${serverId} deletado na API.`);
-                return Promise.resolve();
-
-            } catch (error) {
-                if (error.response && error.response.status === 404) {
-                    console.warn(`[SyncService] Projeto ${task.payload.id} já estava deletado na API (404). Removendo tarefa.`);
-                    return Promise.resolve();
-                }
-
-                console.error(`[SyncService] Falha ao deletar projeto ${task.payload.id} na API.`, error);
-                throw error;
-            }
-
-        case 'CREATE_ACCOUNT':
-            try {
-                const response = await api.post('/accounts', { data: task.payload.data });
-
-                const serverId = response.data.id;
-
-                await accountsRepository.setServerId(task.payload.localId, serverId);
-                return Promise.resolve();
-            } catch (error) {
-                console.error(`[SyncService] Falha ao criar conta na API:`, error);
-                throw error;
-            }
-
-        case 'DELETE_ACCOUNT':
-            try {
-                const serverId = task.payload.id;
-                if (!serverId) {
-                    console.warn(`[SyncService] Ignorando DELETE_ACCOUNT local (${task.payload.localId}).`);
-                    return Promise.resolve();
-                }
-                await api.delete(`/accounts/${serverId}`);
-                return Promise.resolve();
-            } catch (error) {
-                if (error.response && error.response.status === 404) {
-                    console.warn(`[SyncService] Conta ${task.payload.id} já estava deletada na API (404).`);
-                    return Promise.resolve();
-                }
-                console.error(`[SyncService] Falha ao deletar conta ${task.payload.id} na API.`, error);
-                throw error;
-            }
-
-        default:
-            console.warn(`[SyncService] Tipo de tarefa individual desconhecido: ${task.type}`);
-            return Promise.resolve();
-    }
-}
 
 async function processAccountsSync(accountTasks) {
     if (accountTasks.length === 0) return;
@@ -122,9 +47,7 @@ async function processAccountsSync(accountTasks) {
             console.warn(`[SyncService] Ignorando UPDATE_ACCOUNT para item local (${task.payload.localId}) sem ID de servidor.`);
             return acc;
         }
-        if (!acc[key]) {
-            acc[key] = [];
-        }
+        if (!acc[key]) acc[key] = [];
         acc[key].push(task);
         return acc;
     }, {});
@@ -194,9 +117,7 @@ async function processProjectSync(projectTasks) {
 
     const tasksByProject = projectTasks.reduce((acc, task) => {
         const key = task.payload.project_id || `local_${task.payload.localId}`;
-        if (!acc[key]) {
-            acc[key] = [];
-        }
+        if (!acc[key]) acc[key] = [];
         acc[key].push(task);
         return acc;
     }, {});
@@ -206,12 +127,9 @@ async function processProjectSync(projectTasks) {
     for (const projectKey of Object.keys(tasksByProject)) {
         const tasksForThisProject = tasksByProject[projectKey];
         const projectId = tasksForThisProject[0].payload.project_id;
-
         const localId = tasksForThisProject[0].payload.localId;
 
-        if (!projectId) {
-            continue;
-        }
+        if (!projectId) continue;
 
         const changes = tasksForThisProject.map(task => ({
             field: task.payload.field,
@@ -248,56 +166,217 @@ async function processProjectSync(projectTasks) {
     }
 }
 
-export const syncService = {
-    async processSyncQueue() {
-        if (isProcessing || !navigator.onLine) {
+// --- PROCESSADORES INDIVIDUAIS (KANBAN/CRUD) ---
+
+async function processTaskItem(task) {
+    let response, serverId;
+
+    switch (task.type) {
+        case 'CREATE_PROJECT':
+            try {
+                const { localId, ...projectData } = task.payload;
+                response = await api.post('/projects', projectData);
+                const serverData = response.data;
+
+                if (projectRepository.updateLocalProject) {
+                    await projectRepository.updateLocalProject(localId, {
+                        id: serverData.id,
+                        updated_at: serverData.updated_at
+                    });
+                } else {
+                    await projectRepository.deleteLocalProject(localId);
+                    await projectRepository.saveLocalProject(serverData);
+                }
+
+                const { useProjectStore } = await import('../stores/projects');
+                const projectStore = useProjectStore();
+                await projectStore._loadProjectsFromDB();
+
+            } catch (error) {
+                console.error(`[SyncService] Falha ao criar projeto na API:`, error);
+                throw error;
+            }
             return;
-        }
+
+        case 'DELETE_PROJECT':
+            serverId = task.payload.id;
+            if (serverId) {
+                try { await api.delete(`/projects/${serverId}`); } catch (e) { if (e.response?.status !== 404) throw e; }
+            }
+            return;
+
+        case 'CREATE_COLUMN':
+            const serverProjId = await resolveServerProjectId(task.payload.project_id);
+            const colPayload = {
+                title: task.payload.title,
+                order: task.payload.order,
+                project_id: serverProjId
+            };
+            response = await api.post(`/kanban/columns`, colPayload);
+            serverId = response.data.id;
+            await kanbanRepository.setServerIdForColumn(task.entity_id, serverId);
+            return;
+
+        case 'UPDATE_COLUMN':
+            serverId = task.payload.id;
+            if (!serverId) {
+                const col = await kanbanRepository.get_column_by_local_id(task.entity_id);
+                if (!col?.id) throw new Error("COLUMN_NOT_SYNCED: Update em coluna sem ID server.");
+                serverId = col.id;
+            }
+            await api.put(`/kanban/columns/${serverId}`, task.payload);
+            return;
+
+        case 'DELETE_COLUMN':
+            serverId = task.payload.id;
+            if (serverId) {
+                try { await api.delete(`/kanban/columns/${serverId}`); } catch (e) { if (e.response?.status !== 404) throw e; }
+            }
+            return;
+
+        case 'REORDER_COLUMNS':
+            const pIdReorder = await resolveServerProjectId(task.payload.project_id);
+            const colsOrder = task.payload.columns_order.filter(c => c.id).map(c => ({ id: c.id, order: c.order }));
+            if (colsOrder.length) await api.post(`/kanban/projects/${pIdReorder}/reorder-columns`, { columns: colsOrder });
+            return;
+
+        case 'CREATE_TASK':
+            const tProjId = await resolveServerProjectId(task.payload.project_id);
+            const parentCol = await kanbanRepository.get_column_by_local_id(task.payload.column_id);
+            if (!parentCol || !parentCol.id) throw new Error("COLUMN_NOT_SYNCED: Coluna pai não sincronizada.");
+
+            const taskPayload = { ...task.payload, project_id: tProjId, column_id: parentCol.id };
+            response = await api.post(`/kanban/tasks`, taskPayload);
+            await kanbanRepository.setServerIdForTask(task.entity_id, response.data.id);
+            return;
+
+        case 'UPDATE_TASK':
+            serverId = task.payload.id;
+            const updateData = { ...task.payload };
+            if (updateData.column_id) {
+                const col = await kanbanRepository.get_column_by_local_id(updateData.column_id);
+                if (col && col.id) updateData.column_id = col.id;
+            }
+            delete updateData.project_id;
+
+            if (!serverId) {
+                const t = await kanbanRepository.get_task_by_local_id(task.entity_id);
+                serverId = t?.id;
+            }
+            if (serverId) await api.put(`/kanban/tasks/${serverId}`, updateData);
+            return;
+
+        case 'DELETE_TASK':
+            serverId = task.payload.id;
+            if (serverId) {
+                try { await api.delete(`/kanban/tasks/${serverId}`); } catch (e) { if (e.response?.status !== 404) throw e; }
+            }
+            return;
+
+        case 'CREATE_ACCOUNT':
+            try {
+                response = await api.post('/accounts', { data: task.payload.data });
+                await accountsRepository.setServerId(task.payload.localId, response.data.id);
+                return;
+            } catch (error) { console.error(`Falha CREATE_ACCOUNT`, error); throw error; }
+
+        case 'DELETE_ACCOUNT':
+            try {
+                serverId = task.payload.id;
+                if (!serverId) return;
+                await api.delete(`/accounts/${serverId}`);
+                return;
+            } catch (error) {
+                if (error.response && error.response.status === 404) return;
+                throw error;
+            }
+
+        default:
+            if (task.type === 'CREATE_TASK_COMMENT') {
+                const localTask = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
+                if (!localTask?.id) throw new Error("TASK_NOT_SYNCED: Comentário aguardando Task.");
+                response = await api.post(`/kanban/tasks/${localTask.id}/comments`, {
+                    content: task.payload.content,
+                    created_at: task.payload.created_at
+                });
+                const commentLocalId = task.payload.local_id || task.entity_id;
+                await kanbanRepository.update_local_comment_state(task.payload.task_local_id, commentLocalId, { id: response.data.id });
+                return;
+            }
+            if (task.type === 'TOGGLE_COMMENT_LIKE') {
+                const lTask = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
+                if (!lTask) return;
+                const targetComment = lTask.comments.find(c => c.local_id === task.payload.comment_local_id);
+                if (!targetComment?.id) throw new Error("COMMENT_NOT_SYNCED: Like aguardando comentário.");
+                try { await api.post(`/kanban/comments/${targetComment.id}/like`); }
+                catch (e) { if (e.response?.status !== 404) throw e; }
+                return;
+            }
+            console.warn(`[SyncService] Tarefa desconhecida: ${task.type}`);
+            return;
+    }
+}
+
+// --- FILA PRINCIPAL (MESCLADA) ---
+
+export const syncService = {
+    async processSyncQueue(force = false) {
+        if ((isProcessing && !force) || !navigator.onLine) return;
         isProcessing = true;
 
-        const tasks = await syncQueueRepository.getPendingTasks();
-        if (tasks.length === 0) {
-            isProcessing = false;
-            return;
-        }
-
-        console.log(`[SyncService] Iniciando sincronização de ${tasks.length} tarefas...`);
-
-        const profileTasks = tasks.filter(t => t.type === 'SYNC_PROFILE_CHANGE');
-        const projectTasks = tasks.filter(t => t.type === 'SYNC_PROJECT_CHANGE');
-        const accountSyncTasks = tasks.filter(t => t.type === 'UPDATE_ACCOUNT');
-
-        const individualTasks = tasks.filter(t =>
-            t.type !== 'SYNC_PROFILE_CHANGE' &&
-            t.type !== 'SYNC_PROJECT_CHANGE' &&
-            t.type !== 'UPDATE_ACCOUNT'
-        );
-
         try {
+            const allTasks = await syncQueueRepository.getPendingTasks();
+            if (allTasks.length === 0) {
+                isProcessing = false;
+                return;
+            }
+
+            console.log(`[SyncService] Iniciando sincronização de ${allTasks.length} tarefas...`);
+
+            const profileTasks = allTasks.filter(t => t.type === 'SYNC_PROFILE_CHANGE');
+            const projectFieldTasks = allTasks.filter(t => t.type === 'SYNC_PROJECT_CHANGE');
+            const accountSyncTasks = allTasks.filter(t => t.type === 'UPDATE_ACCOUNT');
+
+            const individualTasks = allTasks.filter(t =>
+                t.type !== 'SYNC_PROFILE_CHANGE' &&
+                t.type !== 'SYNC_PROJECT_CHANGE' &&
+                t.type !== 'UPDATE_ACCOUNT'
+            );
+
             await processProfileSync(profileTasks);
-            await processProjectSync(projectTasks);
+            await processProjectSync(projectFieldTasks);
             await processAccountsSync(accountSyncTasks);
 
-            for (const task of individualTasks) {
+            const creationOrder = { 'CREATE_PROJECT': 1, 'CREATE_COLUMN': 2, 'CREATE_TASK': 3 };
+            const sortedTasks = individualTasks.sort((a, b) => {
+                const orderA = creationOrder[a.type] || 10;
+                const orderB = creationOrder[b.type] || 10;
+                if (orderA !== orderB) return orderA - orderB;
+                return a.timestamp - b.timestamp;
+            });
+
+            for (const task of sortedTasks) {
                 try {
-                    await processIndividualTask(task);
+                    await processTaskItem(task);
                     await syncQueueRepository.deleteTask(task.id);
-                    console.log(`[SyncService] Tarefa ${task.id} (${task.type}) concluída.`);
+                    console.log(`[SyncService] OK: ${task.type} (${task.id})`);
                 } catch (error) {
-                    console.error(`[SyncService] Falha ao sincronizar tarefa ${task.id} (${task.type}).`, error);
-
-                    if (task.type === 'DELETE_PROJECT' && error.response && error.response.status === 404) {
-                        console.warn(`[SyncService] Tarefa ${task.type} falhou (404), mas continuando a fila.`);
-
+                    const msg = error.message || "";
+                    if (msg.includes("NOT_SYNCED")) {
+                        console.warn(`[SyncService] Adiado: ${task.type} (Dependência)`);
+                        // Não deleta da fila, tenta no próximo ciclo
+                    } else if (error.response && error.response.status === 404) {
+                        console.warn(`[SyncService] 404 (Não Encontrado). Limpando tarefa ${task.type}.`);
                         await syncQueueRepository.deleteTask(task.id);
                     } else {
-                        throw new Error("Falha em tarefa individual, interrompendo fila.");
+                        console.error(`[SyncService] Erro em ${task.type}:`, error);
+                        // Opcional: Lógica de Retry Count aqui
                     }
                 }
             }
-            console.log("[SyncService] Fila processada.");
-        } catch (syncError) {
-            console.warn("[SyncService] Processamento da fila interrompido por erro.", syncError.message);
+
+        } catch (globalError) {
+            console.error("[SyncService] Erro fatal no loop:", globalError);
         } finally {
             isProcessing = false;
         }

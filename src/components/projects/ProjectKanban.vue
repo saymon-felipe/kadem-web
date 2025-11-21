@@ -20,14 +20,15 @@
             force-fallback="true" :fallback-on-body="true" fallback-class="column-fallback" ghost-class="column-ghost"
             drag-class="column-drag" group="columns" direction="horizontal">
             <template #item="{ element }">
-                <KanbanColumn ref="column_refs" :column="element" @task-selected="open_task_modal"
-                    @delete-column="ask_delete_column" />
+                <KanbanColumn ref="column_refs" :column="element" :members="project_members"
+                    @task-selected="open_task_modal" @delete-column="ask_delete_column" />
             </template>
         </draggable>
 
         <SideModal v-model="is_modal_open" @close="is_modal_open = false">
             <TaskDetailForm v-if="selected_task" :key="selected_task.local_id" :task="selected_task"
-                :project-name="project.name" @close="is_modal_open = false" @delete="ask_delete_task" />
+                :project-name="project.name" :members="project_members" @close="is_modal_open = false"
+                @delete="ask_delete_task" />
         </SideModal>
 
         <ConfirmationModal v-model="show_confirmation" :message="confirmation_message" confirmText="Excluir"
@@ -76,6 +77,9 @@ export default {
         ...mapState(useKanbanStore, {
             getColumns: 'getColumns'
         }),
+        project_members() {
+            return this.project.members || [];
+        },
         columns: {
             get() {
                 return this.getColumns(this.project_local_id);
@@ -100,7 +104,8 @@ export default {
             'createColumn',
             'updateColumnsForProject',
             'deleteTask',
-            'deleteColumn'
+            'deleteColumn',
+            'pullProjectKanban'
         ]),
 
         handleSwitchProject(newProjectId) {
@@ -184,8 +189,14 @@ export default {
         cancel_create_column() { },
         handle_create_column() { }
     },
-    mounted() {
-        this.loadProjectKanban(this.project_local_id);
+    async mounted() {
+        await this.loadProjectKanban(this.project_local_id);
+
+        this.$nextTick(async () => {
+            if (this.project && this.project.id) {
+                await this.pullProjectKanban(this.project.id, this.project_local_id);
+            }
+        });
     }
 }
 </script>

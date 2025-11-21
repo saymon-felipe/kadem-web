@@ -6,11 +6,11 @@
             <h2>Projetos recentes</h2>
             <div class="project-grid">
                 <div v-for="project in recentProjects" :key="project.localId" class="project-card"
-                    @click="$emit('project-selected', project.localId)">
+                    @click="handleProjectSelect(project.localId)">
                     <img :src="project.image || defaultProjectImage" :alt="project.name">
                     <div class="card-overlay">
                         <span>{{ project.name }}</span>
-                        <small>Acessado há 2 dias</small>
+                        <small>{{ getTimeAgo(project.last_accessed_at) }}</small>
                     </div>
                 </div>
             </div>
@@ -20,11 +20,11 @@
             <h2>Todos os projetos</h2>
             <div class="project-grid">
                 <div v-for="project in projects" :key="project.localId" class="project-card"
-                    @click="$emit('project-selected', project.localId)">
+                    @click="handleProjectSelect(project.localId)">
                     <img :src="project.image || defaultProjectImage" :alt="project.name">
                     <div class="card-overlay">
                         <span>{{ project.name }}</span>
-                        <small>Acessado há 2 dias</small>
+                        <small>{{ getTimeAgo(project.last_accessed_at) }}</small>
                     </div>
                 </div>
                 <div class="project-card new-project-card" @click="createNewProject">
@@ -39,6 +39,7 @@
 <script>
 import defaultProjectImage from "@/assets/images/kadem-default-project.jpg";
 import { useAppStore } from '@/stores/app';
+import { useProjectStore } from '@/stores/projects'; // Importando a store
 import { mapActions } from 'pinia';
 
 export default {
@@ -57,13 +58,44 @@ export default {
     },
     computed: {
         recentProjects() {
-            return this.projects.slice(0, 4);
+            return [...this.projects]
+                .sort((a, b) => new Date(b.last_accessed_at || 0) - new Date(a.last_accessed_at || 0))
+                .slice(0, 4);
         }
     },
     methods: {
         ...mapActions(useAppStore, ['toggleStartMenu']),
+        ...mapActions(useProjectStore, ['markProjectAsAccessed']),
+
         createNewProject() {
             this.toggleStartMenu();
+        },
+
+        async handleProjectSelect(localId) {
+            this.$emit('project-selected', localId);
+            await this.markProjectAsAccessed(localId);
+        },
+
+        getTimeAgo(dateString) {
+            if (!dateString) return 'Nunca acessado';
+
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+
+            if (diffInSeconds < 60) return 'Acessado agora';
+
+            const diffInMinutes = Math.floor(diffInSeconds / 60);
+            if (diffInMinutes < 60) return `Acessado há ${diffInMinutes} min`;
+
+            const diffInHours = Math.floor(diffInMinutes / 60);
+            if (diffInHours < 24) return `Acessado há ${diffInHours}h`;
+
+            const diffInDays = Math.floor(diffInHours / 24);
+            if (diffInDays === 1) return 'Acessado ontem';
+            if (diffInDays < 30) return `Acessado há ${diffInDays} dias`;
+
+            return 'Acessado há muito tempo';
         }
     }
 }

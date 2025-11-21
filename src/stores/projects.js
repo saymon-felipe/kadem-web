@@ -12,6 +12,22 @@ export const useProjectStore = defineStore('projects', {
         projects: [],
     }),
     actions: {
+        async markProjectAsAccessed(projectId) {
+            const project = this.projects.find(p => p.localId === projectId || p.id === projectId);
+            if (project) {
+                project.last_accessed_at = new Date().toISOString();
+                await projectRepository.saveLocalProject(JSON.parse(JSON.stringify(project)));
+            }
+
+
+            if (project && project.id) {
+                try {
+                    await api.post(`/projects/${project.id}/access`);
+                } catch (error) {
+                    console.error("Erro ao registrar acesso ao projeto:", error);
+                }
+            }
+        },
         async _loadProjectsFromDB() {
             try {
                 this.projects = await projectRepository.getLocalProjects();

@@ -2,7 +2,7 @@
     <div class="task-detail-modal">
         <div class="modal-header">
             <div class="header-content">
-                <span class="project-name">Projeto de {{ project_name_only }}</span>
+                <span class="project-name">{{ projectName }}</span>
                 <h2 class="task-id">#{{ task_display_id }}</h2>
             </div>
             <div class="header-actions">
@@ -84,25 +84,28 @@
             <h4>Comentários</h4>
 
             <div class="comment-list" v-if="editable_task.comments && editable_task.comments.length">
-                <div v-for="comment in editable_task.comments" :key="comment.id" class="comment-item">
+                <div v-for="comment in editable_task.comments" :key="comment.local_id" class="comment-item">
                     <div class="comment-header">
                         <img :src="comment.author.avatar || default_account_image" class="avatar avatar-sm">
                         <div class="comment-meta">
                             <span class="comment-author">{{ comment.author.name }}</span>
-                            <span class="comment-time">{{ format_time_ago(comment.timestamp) }}</span>
+                            <span class="comment-time"
+                                :title="format_full_date(comment.timestamp || comment.created_at)">
+                                {{ format_time_ago(comment.timestamp || comment.created_at) }}
+                            </span>
                         </div>
 
                         <div class="comment-options" v-if="is_current_user(comment.author.id)">
-                            <button class="btn-icon-small" @click.stop="toggle_comment_menu(comment.id)">
+                            <button class="btn-icon-small" @click.stop="toggle_comment_menu(comment.local_id)">
                                 <font-awesome-icon icon="ellipsis-vertical" />
                             </button>
                             <transition name="fade-switch">
-                                <div v-if="open_comment_menu === comment.id" class="comment-menu glass"
+                                <div v-if="open_comment_menu === comment.local_id" class="comment-menu glass"
                                     v-click-outside="close_comment_menu">
                                     <button @click="edit_comment(comment)">
                                         <font-awesome-icon icon="pencil" /> Editar
                                     </button>
-                                    <button class="danger" @click="delete_comment(comment.id)">
+                                    <button class="danger" @click="delete_comment(comment)">
                                         <font-awesome-icon icon="trash-can" /> Excluir
                                     </button>
                                 </div>
@@ -111,7 +114,7 @@
                     </div>
 
                     <div class="comment-content-wrapper">
-                        <div v-if="editing_comment_id === comment.id" class="comment-edit-box">
+                        <div v-if="editing_comment_id === comment.local_id" class="comment-edit-box">
                             <textarea v-model="editing_comment_content" rows="2"></textarea>
                             <div class="edit-actions">
                                 <button class="btn-small btn-cancel" @click="cancel_edit_comment">Cancelar</button>
@@ -158,6 +161,8 @@ import { useKanbanStore } from '@/stores/kanban';
 import { useAuthStore } from '@/stores/auth';
 import defaultAccountImage from "@/assets/images/kadem-default-account.jpg";
 import CustomDropdown from '../ui/CustomDropdown.vue';
+import moment from 'moment';
+import 'moment/locale/pt-br';
 
 export default {
     name: 'TaskDetailForm',
@@ -203,11 +208,28 @@ export default {
     },
     computed: {
         ...mapState(useAuthStore, ['user']),
-        project_name_only() { return this.projectName; },
         task_display_id() { return this.task.id || this.task.local_id; },
-        is_dirty() { return JSON.stringify(this.editable_task) !== this.original_snapshot; },
-        task_creator_name() { return 'Saymon'; }, // Mock
-        created_time_ago() { return '2 meses'; }, // Mock
+        is_dirty() {
+            if (!this.original_snapshot) return false;
+
+            const current = this.get_clean_task_data(this.editable_task);
+            const original = this.get_clean_task_data(JSON.parse(this.original_snapshot));
+
+            return JSON.stringify(current) !== JSON.stringify(original);
+        },
+
+        task_creator_name() {
+            if (this.task.creator && this.task.creator.name) {
+                return this.task.creator.name;
+            }
+
+            return 'Desconhecido';
+        },
+
+        created_time_ago() {
+            if (!this.task.created_at) return 'algum tempo';
+            return moment(this.task.created_at).fromNow(true);
+        },
 
         responsible_options() {
             const base = [
@@ -224,23 +246,22 @@ export default {
             return [...base, ...members];
         }
     },
+    created() {
+        moment.locale('pt-br');
+    },
     methods: {
-        ...mapActions(useKanbanStore, ['updateTask']),
+        ...mapActions(useKanbanStore, ['updateTask', 'addCommentToTask', 'toggleCommentLike']),
 
+        get_clean_task_data(task) {
+            const clone = JSON.parse(JSON.stringify(task));
+            delete clone.comments;
+            return clone;
+        },
         snapshot_task() {
             this.editable_task = JSON.parse(JSON.stringify(this.task));
-            // Mock comments se não existirem
+
             if (!this.editable_task.comments) {
-                this.editable_task.comments = [
-                    {
-                        id: 1,
-                        author: { id: 99, name: 'Ricardo', avatar: null },
-                        content: 'Eu acho que a gente deveria conversar para validar melhor o requisito dessa tarefa.',
-                        timestamp: new Date(Date.now() - 10800000).toISOString(),
-                        likes: 4,
-                        liked_by_me: false
-                    }
-                ];
+                this.editable_task.comments = [];
             }
 
             if (!this.editable_task.priority) this.editable_task.priority = 'Importante';
@@ -270,10 +291,15 @@ export default {
         async handle_save() {
             if (this.is_dirty) {
                 if (this.selected_responsible_wrapper) {
+
                     if (this.selected_responsible_wrapper.type === 'special') {
-                        this.editable_task.responsible = this.selected_responsible_wrapper.id;
-                    } else {
-                        this.editable_task.responsible = this.selected_responsible_wrapper.originalData || {
+                        this.editable_task.responsible = {
+                            type: this.selected_responsible_wrapper.id
+                        };
+                    }
+                    else {
+                        this.editable_task.responsible = {
+                            type: 'user',
                             id: this.selected_responsible_wrapper.id,
                             name: this.selected_responsible_wrapper.name,
                             avatar: this.selected_responsible_wrapper.avatar
@@ -282,8 +308,11 @@ export default {
                 } else {
                     this.editable_task.responsible = null;
                 }
+
                 await this.updateTask(this.editable_task);
-                this.original_snapshot = JSON.stringify(this.editable_task);
+
+                this.snapshot_task();
+
                 this.$emit('close');
             }
         },
@@ -291,59 +320,90 @@ export default {
         is_current_user(authorId) {
             return this.user && this.user.id === authorId;
         },
+
+        format_full_date(timestamp) {
+            if (!timestamp) return '';
+            return moment(timestamp).format('LLLL');
+        },
+
         format_time_ago(timestamp) {
-            return 'Há 3 horas';
+            if (!timestamp) return '';
+            return moment(timestamp).fromNow();
         },
-        toggle_comment_menu(commentId) {
-            this.open_comment_menu = this.open_comment_menu === commentId ? null : commentId;
+
+        toggle_comment_menu(commentLocalId) {
+            this.open_comment_menu = this.open_comment_menu === commentLocalId ? null : commentLocalId;
         },
+
         close_comment_menu() {
             this.open_comment_menu = null;
         },
-        toggle_like(comment) {
-            comment.liked_by_me = !comment.liked_by_me;
-            comment.likes = comment.liked_by_me ? (comment.likes || 0) + 1 : (comment.likes || 0) - 1;
+
+        async toggle_like(comment) {
+            const isLiked = !comment.liked_by_me;
+            comment.liked_by_me = isLiked;
+            comment.likes = isLiked ? (comment.likes || 0) + 1 : (comment.likes || 0) - 1;
+
+            try {
+                await this.toggleCommentLike(this.editable_task, comment);
+            } catch (error) {
+                console.error("Erro ao persistir like:", error);
+                comment.liked_by_me = !isLiked;
+                comment.likes = isLiked ? comment.likes - 1 : comment.likes + 1;
+            }
         },
+
         edit_comment(comment) {
-            this.editing_comment_id = comment.id;
+            this.editing_comment_id = comment.local_id;
             this.editing_comment_content = comment.content;
             this.close_comment_menu();
         },
+
         cancel_edit_comment() {
             this.editing_comment_id = null;
             this.editing_comment_content = '';
         },
+
         save_edit_comment(comment) {
             comment.content = this.editing_comment_content;
             this.cancel_edit_comment();
-            // Persistir via Store
+            // TODO: Implementar persistência de edição de comentário via Store
         },
-        delete_comment(commentId) {
-            this.editable_task.comments = this.editable_task.comments.filter(c => c.id !== commentId);
+
+        delete_comment(comment) {
+            this.editable_task.comments = this.editable_task.comments.filter(c => c.local_id !== comment.local_id);
             this.close_comment_menu();
-            // Persistir via Store
+            // TODO: Implementar persistência de exclusão via Store
         },
-        submit_comment() {
+
+        async submit_comment() {
             if (!this.new_comment_text.trim()) return;
 
-            const newComment = {
-                id: Date.now(),
-                author: { ...this.user },
-                content: this.new_comment_text,
-                timestamp: new Date().toISOString(),
-                likes: 0,
-                liked_by_me: false
-            };
+            try {
+                const newComment = await this.addCommentToTask(
+                    this.editable_task,
+                    this.new_comment_text
+                );
 
-            if (!this.editable_task.comments) this.editable_task.comments = [];
-            this.editable_task.comments.push(newComment);
-            this.new_comment_text = '';
+                if (!this.editable_task.comments) this.editable_task.comments = [];
 
-            // Auto-save task para persistir o comentário no offline-first
-            // ou criar uma action específica 'addComment' na store
+                if (newComment) {
+                    const exists = this.editable_task.comments.find(c => c.local_id === newComment.local_id);
+                    if (!exists) this.editable_task.comments.push(newComment);
+                }
+
+                this.new_comment_text = '';
+
+                this.$nextTick(() => {
+                    const container = this.$el.querySelector('.comment-list');
+                    if (container) container.scrollTop = container.scrollHeight;
+                });
+
+            } catch (error) {
+                console.error("Erro ao enviar comentário:", error);
+            }
         },
 
-        // Helpers Estilo
         get_priority_color(val) {
             const map = { 'Normal': 'bg-gray', 'Importante': 'bg-orange', 'Urgente': 'bg-red' };
             return map[val] || 'bg-gray';
@@ -354,9 +414,32 @@ export default {
         }
     },
     watch: {
-        task: {
-            handler() { this.snapshot_task(); },
-            immediate: true,
+        'task.local_id': {
+            handler() {
+                this.snapshot_task();
+            },
+            immediate: true
+        },
+        'task.comments': {
+            handler(newComments) {
+                if (!newComments) return;
+
+                if (!this.editable_task.comments) this.editable_task.comments = [];
+
+                newComments.forEach(serverComment => {
+                    const exists = this.editable_task.comments.find(
+                        local => local.local_id === serverComment.local_id
+                    );
+                    if (!exists) {
+                        this.editable_task.comments.push(JSON.parse(JSON.stringify(serverComment)));
+                    } else {
+                        if (this.editing_comment_id !== serverComment.local_id) {
+                            exists.likes = serverComment.likes;
+                            exists.liked_by_me = serverComment.liked_by_me;
+                        }
+                    }
+                });
+            },
             deep: true
         }
     }
@@ -462,7 +545,6 @@ export default {
     resize: none;
     background-color: var(--white);
     border: 1px solid var(--background-gray);
-    /* #CCCCCC */
     border-radius: var(--radius-sm);
     padding: 10px;
     font-size: var(--fontsize-sm);
@@ -721,7 +803,6 @@ export default {
     background: var(--white);
     border: 1px solid var(--gray-300);
     border-radius: 20px;
-    /* Arredondado estilo chat */
     padding: 4px 12px;
     transition: border-color 0.2s;
 }
