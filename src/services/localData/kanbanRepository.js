@@ -88,7 +88,9 @@ export const kanbanRepository = {
                     order: task.order || 0,
                     responsible: task.responsible,
                     creator: task.creator,
-                    comments: task.comments || []
+                    comments: task.comments || [],
+                    created_at: task.created_at,
+                    updated_at: task.updated_at
                 };
 
                 if (existing) {

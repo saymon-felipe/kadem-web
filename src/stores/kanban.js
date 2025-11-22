@@ -277,6 +277,7 @@ export const useKanbanStore = defineStore('kanban', {
                     name: authStore.user.name,
                     avatar: authStore.user.avatar
                 },
+                created_at: new Date().toISOString(),
                 priority: 'Normal',
                 size: 'M - Médio',
                 comments: []

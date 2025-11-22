@@ -3,7 +3,7 @@
         <div class="modal-header">
             <div class="header-content">
                 <span class="project-name">{{ projectName }}</span>
-                <h2 class="task-id">#{{ task_display_id }}</h2>
+                <h3 class="task-id">#{{ task_display_id }}</h3>
             </div>
             <div class="header-actions">
                 <transition name="scale-btn">
@@ -76,7 +76,7 @@
             </div>
 
             <div class="meta-info">
-                <p><em>Tarefa aberta por: <strong>{{ task_creator_name }}</strong> - há {{ created_time_ago }}</em></p>
+                <p><em>Tarefa aberta por: <strong>{{ task_creator_name }}</strong> - {{ created_time_ago }}</em></p>
             </div>
         </form>
 
@@ -161,8 +161,10 @@ import { useKanbanStore } from '@/stores/kanban';
 import { useAuthStore } from '@/stores/auth';
 import defaultAccountImage from "@/assets/images/kadem-default-account.jpg";
 import CustomDropdown from '../ui/CustomDropdown.vue';
-import moment from 'moment';
-import 'moment/locale/pt-br';
+
+import moment from 'moment/min/moment-with-locales';
+
+moment.locale('pt-br');
 
 export default {
     name: 'TaskDetailForm',
@@ -209,12 +211,11 @@ export default {
     computed: {
         ...mapState(useAuthStore, ['user']),
         task_display_id() { return this.task.id || this.task.local_id; },
+
         is_dirty() {
             if (!this.original_snapshot) return false;
-
             const current = this.get_clean_task_data(this.editable_task);
             const original = this.get_clean_task_data(JSON.parse(this.original_snapshot));
-
             return JSON.stringify(current) !== JSON.stringify(original);
         },
 
@@ -222,13 +223,13 @@ export default {
             if (this.task.creator && this.task.creator.name) {
                 return this.task.creator.name;
             }
-
             return 'Desconhecido';
         },
 
         created_time_ago() {
             if (!this.task.created_at) return 'algum tempo';
-            return moment(this.task.created_at).fromNow(true);
+            // O locale já foi definido no topo, mas reforçamos aqui
+            return moment(this.task.created_at).locale('pt-br').fromNow();
         },
 
         responsible_options() {
@@ -241,7 +242,9 @@ export default {
                 name: m.name,
                 avatar: m.avatar || this.default_account_image,
                 originalData: m,
-                type: 'user'
+                type: 'user',
+                icon: 'user',
+                iconClass: 'bg-gray'
             }));
             return [...base, ...members];
         }
@@ -257,17 +260,20 @@ export default {
             delete clone.comments;
             return clone;
         },
+
         snapshot_task() {
             this.editable_task = JSON.parse(JSON.stringify(this.task));
 
             if (!this.editable_task.comments) {
                 this.editable_task.comments = [];
             }
-
             if (!this.editable_task.priority) this.editable_task.priority = 'Importante';
             if (!this.editable_task.size) this.editable_task.size = 'M - Médio';
 
             this.sync_responsible_wrapper();
+
+            this.apply_responsible_change(this.selected_responsible_wrapper);
+
             this.original_snapshot = JSON.stringify(this.editable_task);
         },
 
@@ -275,44 +281,30 @@ export default {
             const current = this.editable_task.responsible;
             if (!current) { this.selected_responsible_wrapper = null; return; }
 
-            if (current === 'all') this.selected_responsible_wrapper = this.responsible_options.find(o => o.id === 'all');
-            else if (current === 'any') this.selected_responsible_wrapper = this.responsible_options.find(o => o.id === 'any');
+            if (current === 'all' || (current.type === 'all')) {
+                this.selected_responsible_wrapper = this.responsible_options.find(o => o.id === 'all');
+            }
+            else if (current === 'any' || (current.type === 'any')) {
+                this.selected_responsible_wrapper = this.responsible_options.find(o => o.id === 'any');
+            }
             else if (typeof current === 'object') {
                 const found = this.responsible_options.find(o => o.id === current.id);
                 this.selected_responsible_wrapper = found || {
                     id: current.id,
                     name: current.name,
                     avatar: current.avatar || this.default_account_image,
-                    type: 'user'
+                    type: 'user',
+                    icon: 'user',
+                    iconClass: 'bg-gray'
                 };
             }
         },
 
         async handle_save() {
             if (this.is_dirty) {
-                if (this.selected_responsible_wrapper) {
-
-                    if (this.selected_responsible_wrapper.type === 'special') {
-                        this.editable_task.responsible = {
-                            type: this.selected_responsible_wrapper.id
-                        };
-                    }
-                    else {
-                        this.editable_task.responsible = {
-                            type: 'user',
-                            id: this.selected_responsible_wrapper.id,
-                            name: this.selected_responsible_wrapper.name,
-                            avatar: this.selected_responsible_wrapper.avatar
-                        };
-                    }
-                } else {
-                    this.editable_task.responsible = null;
-                }
 
                 await this.updateTask(this.editable_task);
-
                 this.snapshot_task();
-
                 this.$emit('close');
             }
         },
@@ -323,12 +315,12 @@ export default {
 
         format_full_date(timestamp) {
             if (!timestamp) return '';
-            return moment(timestamp).format('LLLL');
+            return moment(timestamp).locale('pt-br').format('LLLL');
         },
 
         format_time_ago(timestamp) {
             if (!timestamp) return '';
-            return moment(timestamp).fromNow();
+            return moment(timestamp).locale('pt-br').fromNow();
         },
 
         toggle_comment_menu(commentLocalId) {
@@ -411,7 +403,27 @@ export default {
         get_priority_text_color(val) {
             const map = { 'Normal': 'text-gray', 'Importante': 'text-orange', 'Urgente': 'text-red' };
             return map[val] || 'text-gray';
-        }
+        },
+        apply_responsible_change(wrapper) {
+            if (!this.editable_task) return;
+
+            if (wrapper) {
+                if (wrapper.type === 'special') {
+                    this.editable_task.responsible = {
+                        type: wrapper.id
+                    };
+                } else {
+                    this.editable_task.responsible = {
+                        type: 'user',
+                        id: wrapper.id,
+                        name: wrapper.name,
+                        avatar: wrapper.avatar
+                    };
+                }
+            } else {
+                this.editable_task.responsible = null;
+            }
+        },
     },
     watch: {
         'task.local_id': {
@@ -423,7 +435,6 @@ export default {
         'task.comments': {
             handler(newComments) {
                 if (!newComments) return;
-
                 if (!this.editable_task.comments) this.editable_task.comments = [];
 
                 newComments.forEach(serverComment => {
@@ -441,6 +452,12 @@ export default {
                 });
             },
             deep: true
+        },
+        selected_responsible_wrapper: {
+            handler(newVal) {
+                this.apply_responsible_change(newVal);
+            },
+            deep: true
         }
     }
 }
@@ -450,7 +467,7 @@ export default {
 .task-detail-modal {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    min-height: 100%;
     background-color: var(--white);
     color: var(--deep-blue);
     padding: var(--space-6);
@@ -480,10 +497,11 @@ export default {
 }
 
 .task-id {
-    font-size: var(--fontsize-xl);
+    font-size: var(--fontsize-lg);
     font-weight: 900;
     color: var(--deep-blue);
     margin: 0;
+    user-select: auto;
 }
 
 .header-actions {
@@ -494,7 +512,7 @@ export default {
 .action-btn {
     background: none;
     border: none;
-    font-size: var(--fontsize-md);
+    font-size: var(--fontsize-sm);
     cursor: pointer;
     color: var(--gray-300);
     padding: 4px;
@@ -518,11 +536,9 @@ export default {
 }
 
 .task-form-content {
-    flex-grow: 1;
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    overflow-y: auto;
     padding-right: 4px;
     margin-bottom: var(--space-4);
 }
@@ -542,7 +558,7 @@ export default {
 
 .description-input {
     min-height: 80px;
-    resize: none;
+    resize: vertical;
     background-color: var(--white);
     border: 1px solid var(--background-gray);
     border-radius: var(--radius-sm);
@@ -601,8 +617,8 @@ export default {
 }
 
 .avatar-placeholder {
-    width: 24px;
-    height: 24px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     display: grid;
     place-items: center;
@@ -648,8 +664,6 @@ export default {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    max-height: 300px;
-    overflow-y: auto;
 }
 
 .comment-item {
@@ -802,7 +816,7 @@ export default {
     align-items: center;
     background: var(--white);
     border: 1px solid var(--gray-300);
-    border-radius: 20px;
+    border-radius: var(--radius-sm);
     padding: 4px 12px;
     transition: border-color 0.2s;
 }
@@ -821,6 +835,7 @@ export default {
     font-size: 0.9rem;
     height: 36px;
     color: var(--deep-blue);
+    box-shadow: none;
 }
 
 .btn-send {

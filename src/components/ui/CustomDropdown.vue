@@ -52,14 +52,18 @@ export default {
         'click-outside': {
             mounted(el, binding) {
                 el.clickOutsideEvent = function (event) {
-                    if (!(el === event.target || el.contains(event.target))) {
+                    const path = event.composedPath ? event.composedPath() : (event.path || []);
+                    const isClickInside = path.includes(el) || el.contains(event.target);
+
+                    if (!isClickInside) {
                         binding.value(event);
                     }
                 };
-                document.body.addEventListener('click', el.clickOutsideEvent);
+
+                document.addEventListener('mousedown', el.clickOutsideEvent);
             },
             unmounted(el) {
-                document.body.removeEventListener('click', el.clickOutsideEvent);
+                document.removeEventListener('mousedown', el.clickOutsideEvent);
             }
         }
     },
@@ -130,7 +134,6 @@ export default {
     flex-grow: 1;
     display: flex;
     align-items: center;
-    overflow: hidden;
 }
 
 .arrow-icon {

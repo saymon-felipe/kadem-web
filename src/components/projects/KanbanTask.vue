@@ -10,8 +10,10 @@
         <p class="task-description">{{ task.description }}</p>
 
         <div class="task-footer">
-            <img :src="task.responsible?.avatar || default_account_image" class="avatar avatar-sm"
-                :title="task.responsible?.name || 'Não atribuído'" alt="Responsável" />
+            <img :src="task.responsible?.avatar || default_account_image" class="avatar avatar-xs"
+                :title="responsible_name" alt="Responsável" />
+
+            <span class="responsible-name">{{ responsible_name }}</span>
         </div>
     </div>
 </template>
@@ -44,6 +46,16 @@ export default {
                 'Urgente': 'priority-urgent'
             };
             return map[this.task.priority] || 'priority-normal';
+        },
+        responsible_name() {
+            const r = this.task.responsible;
+
+            if (!r) return 'Não atribuído';
+
+            if (r === 'all' || r.type === 'all') return 'Todos';
+            if (r === 'any' || r.type === 'any') return 'Qualquer';
+
+            return r.name || 'Não atribuído';
         }
     }
 };
@@ -119,17 +131,33 @@ export default {
     pointer-events: none;
     white-space: pre-wrap;
     word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .task-footer {
     display: flex;
+    align-items: center;
     justify-content: flex-start;
     margin-top: auto;
     pointer-events: none;
+    gap: 8px;
 }
 
 .avatar {
     border: 2px solid var(--white);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
+}
+
+.responsible-name {
+    font-size: var(--fontsize-xs);
+    color: var(--gray-100);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 </style>
