@@ -50,7 +50,8 @@
         <section class="info-section">
             <div class="section-header">
                 <p>Meus projetos</p>
-                <button class="icon-button" title="Adicionar Projeto" @click="$emit('request-new-group')">
+                <button class="icon-button" id="create-group" title="Adicionar Projeto"
+                    @click="$emit('request-new-group')">
                     <font-awesome-icon icon="plus" />
                 </button>
             </div>
@@ -284,9 +285,9 @@ export default {
 }
 
 .projects-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    display: flex;
     gap: var(--space-5);
+    flex-wrap: wrap;
 }
 
 .project-card {
@@ -297,6 +298,7 @@ export default {
     overflow: hidden;
     cursor: pointer;
     position: relative;
+    min-width: 180px;
 
     & img {
         width: 100%;

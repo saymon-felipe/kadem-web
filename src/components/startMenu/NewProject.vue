@@ -141,6 +141,14 @@ export default {
                 }
             },
             immediate: true
+        },
+        isCreating: {
+            handler() {
+                this.project.name = "";
+                this.project.description = "";
+                this.project.image = "";
+                this.project.members = [];
+            }
         }
     },
 

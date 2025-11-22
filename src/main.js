@@ -43,7 +43,9 @@ import {
     faUsers,
     faDice,
     faThumbsUp,
-    faTableCellsLarge
+    faTableCellsLarge,
+    faSyncAlt,
+    faClipboard
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -78,7 +80,9 @@ library.add(
     faUsers,
     faDice,
     faThumbsUp,
-    faTableCellsLarge
+    faTableCellsLarge,
+    faSyncAlt,
+    faClipboard
 );
 
 const app = createApp(App);

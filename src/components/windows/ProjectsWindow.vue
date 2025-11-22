@@ -4,7 +4,7 @@
             <ProjectList v-if="view_mode === 'list'" :projects="projects" @project-selected="openKanban" />
 
             <ProjectKanban v-else-if="view_mode === 'kanban'" :project_local_id="selected_project_local_id"
-                @back-to-list="view_mode = 'list'" @switch-project="switchKanbanProject" />
+                @back-to-list="view_mode = 'list'" @switch-project="openKanban" />
         </transition>
     </div>
 </template>
@@ -33,9 +33,6 @@ export default {
         openKanban(projectLocalId) {
             this.selected_project_local_id = projectLocalId;
             this.view_mode = 'kanban';
-        },
-        switchKanbanProject(newId) {
-            this.selected_project_local_id = newId;
         }
     }
 }

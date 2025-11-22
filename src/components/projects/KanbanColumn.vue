@@ -1,5 +1,5 @@
 <template>
-    <div class="kanban-column">
+    <div class="kanban-column glass">
         <header class="column-header">
             <div class="header-left">
                 <span class="column-drag-handle" title="Arrastar coluna">
@@ -63,7 +63,7 @@
                         <button class="btn-assignee" @click.stop="toggle_assignee_menu" :title="selected_assignee_name">
                             <img :src="selected_assignee_avatar" class="avatar-xs" alt="Responsável">
                             <span class="assignee-label" v-if="selected_assignee_label">{{ selected_assignee_label
-                            }}</span>
+                                }}</span>
                         </button>
 
                         <transition name="fade-switch">
@@ -93,11 +93,17 @@
         </div>
 
         <draggable :list="filtered_tasks" @change="on_task_change" item-key="local_id" group="tasks"
-            class="task-list scroll-custom" animation="300" force-fallback="true" :fallback-on-body="true"
+            class="task-list custom-scrollbar" animation="300" force-fallback="true" :fallback-on-body="true"
             fallback-class="task-fallback" ghost-class="task-ghost" drag-class="task-drag" :delay="0"
             :delay-on-touch-only="true" :disabled="is_searching">
             <template #item="{ element }">
                 <KanbanTask :task="element" @click="handle_task_click(element)" />
+            </template>
+
+            <template #footer>
+                <div v-if="filtered_tasks.length === 0" class="empty-column-message">
+                    <span>Nenhuma tarefa</span>
+                </div>
             </template>
         </draggable>
     </div>
@@ -171,7 +177,6 @@ export default {
                 return id_match || desc_match || resp_match;
             });
         },
-        // Computadas para o Avatar
         selected_assignee_name() {
             if (this.selected_assignee === 'all') return 'Todos';
             if (this.selected_assignee === 'any') return 'Qualquer um';
@@ -185,7 +190,7 @@ export default {
         selected_assignee_label() {
             if (this.selected_assignee === 'all') return 'Todos';
             if (this.selected_assignee === 'any') return 'Qualquer';
-            return null;
+            return this.selected_assignee.name;
         }
     },
     methods: {
@@ -251,8 +256,8 @@ export default {
         show_new_task_form() {
             this.close_search();
             this.is_creating_task = true;
-            this.new_task_content = ''; // Resetar conteúdo
-            this.selected_assignee = 'any'; // Resetar responsável
+            this.new_task_content = '';
+            this.selected_assignee = 'any';
             this.$nextTick(() => { if (this.$refs.new_task_input) this.$refs.new_task_input.focus(); });
         },
 
@@ -329,14 +334,11 @@ export default {
 .kanban-column {
     min-width: 320px;
     max-width: 320px;
-    height: 100%;
+    height: fit-content;
     background: rgba(206, 179, 134, 0.15);
-    border-radius: var(--radius-md);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(4px);
     position: relative;
 }
 
@@ -528,10 +530,35 @@ export default {
     flex-grow: 1;
     padding: var(--space-3);
     overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
     min-height: 100px;
+    position: relative;
+}
+
+.empty-column-message {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: auto;
+    display: grid;
+    place-items: center;
+    color: var(--gray-300);
+    font-size: var(--fontsize-xs);
+    font-style: italic;
+    user-select: none;
+    pointer-events: none;
+    transform: translateY(-10px);
+}
+
+.empty-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+    opacity: 0.5;
 }
 
 .task-ghost {
@@ -693,5 +720,33 @@ export default {
 
 .any-icon {
     background-color: var(--orange);
+}
+
+@media (max-width: 768px) {
+    .new-task-card {
+        height: 100%;
+
+        & textarea {
+            margin-bottom: 0;
+            height: 117px;
+        }
+
+        & .new-task-footer {
+            display: none;
+        }
+    }
+
+    .kanban-column {
+        width: 100%;
+        height: 200px;
+        min-width: 100%;
+        max-width: 100%;
+    }
+
+    .task-list {
+        flex-direction: row;
+        overflow-y: hidden;
+        overflow-x: auto;
+    }
 }
 </style>

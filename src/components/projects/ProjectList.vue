@@ -39,7 +39,7 @@
 <script>
 import defaultProjectImage from "@/assets/images/kadem-default-project.jpg";
 import { useAppStore } from '@/stores/app';
-import { useProjectStore } from '@/stores/projects'; // Importando a store
+import { useProjectStore } from '@/stores/projects';
 import { mapActions } from 'pinia';
 
 export default {
@@ -64,11 +64,11 @@ export default {
         }
     },
     methods: {
-        ...mapActions(useAppStore, ['toggleStartMenu']),
+        ...mapActions(useAppStore, ['createGroup']),
         ...mapActions(useProjectStore, ['markProjectAsAccessed']),
 
         createNewProject() {
-            this.toggleStartMenu();
+            this.createGroup();
         },
 
         async handleProjectSelect(localId) {

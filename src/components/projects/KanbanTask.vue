@@ -10,8 +10,12 @@
         <p class="task-description">{{ task.description }}</p>
 
         <div class="task-footer">
-            <img :src="task.responsible?.avatar || default_account_image" class="avatar avatar-xs"
-                :title="responsible_name" alt="Responsável" />
+            <img v-if="task.responsible?.name" :src="task.responsible?.avatar || default_account_image"
+                class="avatar avatar-xs" :title="responsible_name" alt="Responsável" />
+
+            <div v-else class="avatar-placeholder" :class="responsible_class">
+                <font-awesome-icon :icon="responsible_icon" />
+            </div>
 
             <span class="responsible-name">{{ responsible_name }}</span>
         </div>
@@ -46,6 +50,22 @@ export default {
                 'Urgente': 'priority-urgent'
             };
             return map[this.task.priority] || 'priority-normal';
+        },
+        responsible_icon() {
+            const r = this.task.responsible;
+
+            if (r === 'all' || r.type === 'all') return 'users';
+            if (r === 'any' || r.type === 'any') return 'dice';
+
+            return '';
+        },
+        responsible_class() {
+            const r = this.task.responsible;
+
+            if (r === 'all' || r.type === 'all') return 'all-icon';
+            if (r === 'any' || r.type === 'any') return 'any-icon';
+
+            return '';
         },
         responsible_name() {
             const r = this.task.responsible;
@@ -159,5 +179,36 @@ export default {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.avatar-placeholder {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    color: var(--white);
+}
+
+.all-icon {
+    background-color: var(--blue);
+}
+
+.any-icon {
+    background-color: var(--orange);
+}
+
+@media (max-width: 768px) {
+    .kanban-task {
+        height: 100%;
+        width: 200px;
+        min-width: 200px;
+        max-width: 200px;
+    }
+
+    .task-description {
+        -webkit-line-clamp: 2;
+    }
 }
 </style>

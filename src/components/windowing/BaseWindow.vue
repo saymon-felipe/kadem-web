@@ -398,6 +398,7 @@ export default {
 .window-content {
     padding: var(--space-3);
     height: calc(100% - 47px);
+    width: 100%;
     overflow: auto;
 }
 

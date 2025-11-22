@@ -1,29 +1,29 @@
 <template>
     <div class="kanban-board">
         <div class="kanban-header">
-            <button class="btn btn-small" @click="$emit('back-to-list')">
-                <font-awesome-icon icon="chevron-left" /> Voltar
+            <button class="btn-icon" @click="$emit('back-to-list')">
+                <font-awesome-icon icon="chevron-left" />
             </button>
 
-            <ProjectSelector :current-project-id="project_local_id" @switch-project="handleSwitchProject"
-                @back-to-home="$emit('back-to-list')" />
-
-            <div class="header-actions">
-                <button class="btn btn-small btn-primary" @click="start_add_column">
-                    <font-awesome-icon icon="plus" /> Nova Coluna
-                </button>
-            </div>
+            <ProjectDropdown :projects="projects" v-model="project_local_id_getter"
+                @switch-project="handleSwitchProject" />
         </div>
 
-        <draggable v-model="columns" @change="on_column_change" @start="on_column_drag_start" @end="on_column_drag_end"
-            item-key="local_id" class="kanban-container scroll-custom" handle=".column-drag-handle" animation="300"
-            force-fallback="true" :fallback-on-body="true" fallback-class="column-fallback" ghost-class="column-ghost"
-            drag-class="column-drag" group="columns" direction="horizontal">
-            <template #item="{ element }">
-                <KanbanColumn ref="column_refs" :column="element" :members="project_members"
-                    @task-selected="open_task_modal" @delete-column="ask_delete_column" />
-            </template>
-        </draggable>
+        <div class="kanban-columns-container">
+            <draggable v-model="columns" @change="on_column_change" @start="on_column_drag_start"
+                @end="on_column_drag_end" item-key="local_id" class="kanban-container scroll-custom"
+                handle=".column-drag-handle" animation="300" force-fallback="true" :fallback-on-body="true"
+                fallback-class="column-fallback" ghost-class="column-ghost" drag-class="column-drag" group="columns"
+                direction="horizontal">
+                <template #item="{ element }">
+                    <KanbanColumn ref="column_refs" :column="element" :members="project_members"
+                        @task-selected="open_task_modal" @delete-column="ask_delete_column" />
+                </template>
+            </draggable>
+            <button class="create-column glass" @click="start_add_column">
+                <font-awesome-icon icon="plus" /> Nova Coluna
+            </button>
+        </div>
 
         <SideModal v-model="is_modal_open" @close="is_modal_open = false">
             <TaskDetailForm v-if="selected_task" :key="selected_task.local_id" :task="selected_task"
@@ -46,11 +46,11 @@ import KanbanColumn from './KanbanColumn.vue';
 import SideModal from '@/components/SideModal.vue';
 import TaskDetailForm from './TaskDetailForm.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
-import ProjectSelector from './ProjectSelector.vue';
+import ProjectDropdown from './ProjectDropdown.vue';
 
 export default {
     name: 'ProjectKanban',
-    components: { draggable, KanbanColumn, SideModal, TaskDetailForm, ConfirmationModal, ProjectSelector },
+    components: { draggable, KanbanColumn, SideModal, TaskDetailForm, ConfirmationModal, ProjectDropdown },
     props: {
         project_local_id: {
             type: [String, Number],
@@ -77,6 +77,12 @@ export default {
         ...mapState(useKanbanStore, {
             getColumns: 'getColumns'
         }),
+        ...mapState(useProjectStore, {
+            projects: 'projects'
+        }),
+        project_local_id_getter() {
+            return JSON.parse(JSON.stringify(this.project_local_id));
+        },
         project_members() {
             return this.project.members || [];
         },
@@ -107,6 +113,15 @@ export default {
             return "";
         }
     },
+    watch: {
+        project_local_id: async function () {
+            await this.loadProjectKanban(this.project_local_id);
+
+            if (this.project && this.project.id) {
+                await this.pullProjectKanban(this.project.id, this.project_local_id);
+            }
+        }
+    },
     methods: {
         ...mapActions(useKanbanStore, [
             'loadProjectKanban',
@@ -119,8 +134,6 @@ export default {
         ]),
 
         handleSwitchProject(newProjectId) {
-            this.loadProjectKanban(newProjectId);
-
             this.$emit('switch-project', newProjectId);
         },
         async start_add_column() {
@@ -204,22 +217,32 @@ export default {
             this.selected_task = task;
             this.is_modal_open = true;
         },
-        cancel_create_column() { },
-        handle_create_column() { }
     },
     async mounted() {
         await this.loadProjectKanban(this.project_local_id);
 
-        this.$nextTick(async () => {
-            if (this.project && this.project.id) {
-                await this.pullProjectKanban(this.project.id, this.project_local_id);
-            }
-        });
+        if (this.project && this.project.id) {
+            await this.pullProjectKanban(this.project.id, this.project_local_id);
+        }
     }
 }
 </script>
 
 <style scoped>
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--gray-100);
+    padding: 6px;
+    border-radius: 5px;
+    transition: all 0.2s;
+
+    &:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+}
+
 .kanban-board {
     display: flex;
     flex-direction: column;
@@ -231,8 +254,8 @@ export default {
 .kanban-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: var(--space-4) var(--space-5);
+    gap: var(--space-6);
+    padding: var(--space-4) var(--space-5) 0 var(--space-5);
     flex-shrink: 0;
 }
 
@@ -242,12 +265,18 @@ export default {
 }
 
 .kanban-container {
-    flex-grow: 1;
     display: flex;
     gap: var(--space-6);
-    padding: var(--space-4) var(--space-6);
+    height: 100%;
+}
+
+.kanban-columns-container {
+    display: flex;
+    gap: var(--space-6);
+    flex-grow: 1;
     overflow-x: auto;
     overflow-y: hidden;
+    padding: var(--space-6) var(--space-6) var(--space-4) var(--space-6);
     align-items: flex-start;
 }
 
@@ -256,6 +285,24 @@ export default {
     background: rgba(0, 0, 0, 0.1);
     border: 2px dashed var(--gray-300);
     border-radius: var(--radius-md);
+}
+
+.create-column {
+    min-width: 320px;
+    max-width: 320px;
+    background: rgba(206, 179, 134, 0.15);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    justify-content: center;
+    min-height: 42px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+
+    &:hover {
+        background: rgba(206, 180, 134, 0.473);
+    }
 }
 
 .column-fallback {
@@ -269,5 +316,34 @@ export default {
 
 .column-drag {
     opacity: 0;
+}
+
+@media (max-width: 768px) {
+    .btn-icon {
+        display: none;
+    }
+
+    .kanban-header {
+        padding: var(--space-4) 0;
+    }
+
+    .kanban-columns-container {
+        padding: 0;
+        flex-direction: column;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .kanban-container {
+        flex-direction: column;
+        width: 100%;
+        height: fit-content;
+    }
+
+    .create-column {
+        width: 100%;
+        min-width: 100%;
+        max-width: 100%;
+    }
 }
 </style>

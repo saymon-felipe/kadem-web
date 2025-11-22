@@ -10,6 +10,13 @@ export const useAppStore = defineStore('app', {
         getIsMobile: (state) => state.isMobile,
     },
     actions: {
+        createGroup() {
+            this.toggleStartMenu();
+
+            setTimeout(() => {
+                document.getElementById("create-group").click();
+            }, 100)
+        },
         updateMobileStatus() {
             this.isMobile = window.innerWidth < 768;
         },
