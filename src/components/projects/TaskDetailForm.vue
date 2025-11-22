@@ -152,6 +152,9 @@
                 </div>
             </div>
         </div>
+        <ConfirmModal v-model="showConfirmModal" title="Excluir Comentário"
+            message="Tem certeza que deseja excluir este comentário permanentemente?" confirmText="Excluir"
+            cancelText="Cancelar" @confirmed="handleConfirmDelete" @cancelled="cancelDelete" />
     </div>
 </template>
 
@@ -161,6 +164,7 @@ import { useKanbanStore } from '@/stores/kanban';
 import { useAuthStore } from '@/stores/auth';
 import defaultAccountImage from "@/assets/images/kadem-default-account.jpg";
 import CustomDropdown from '../ui/CustomDropdown.vue';
+import ConfirmModal from '../ConfirmationModal.vue';
 
 import moment from 'moment/min/moment-with-locales';
 
@@ -168,7 +172,7 @@ moment.locale('pt-br');
 
 export default {
     name: 'TaskDetailForm',
-    components: { CustomDropdown },
+    components: { CustomDropdown, ConfirmModal },
     props: {
         task: { type: Object, required: true },
         projectName: { type: String, default: 'Projeto' },
@@ -205,7 +209,10 @@ export default {
             new_comment_text: '',
             open_comment_menu: null,
             editing_comment_id: null,
-            editing_comment_content: ''
+            editing_comment_content: '',
+
+            showConfirmModal: false,
+            commentToDelete: null
         };
     },
     computed: {
@@ -228,7 +235,7 @@ export default {
 
         created_time_ago() {
             if (!this.task.created_at) return 'algum tempo';
-            // O locale já foi definido no topo, mas reforçamos aqui
+
             return moment(this.task.created_at).locale('pt-br').fromNow();
         },
 
@@ -253,7 +260,7 @@ export default {
         moment.locale('pt-br');
     },
     methods: {
-        ...mapActions(useKanbanStore, ['updateTask', 'addCommentToTask', 'toggleCommentLike']),
+        ...mapActions(useKanbanStore, ['updateTask', 'addCommentToTask', 'toggleCommentLike', 'editTaskComment', 'deleteTaskComment']),
 
         get_clean_task_data(task) {
             const clone = JSON.parse(JSON.stringify(task));
@@ -356,16 +363,45 @@ export default {
             this.editing_comment_content = '';
         },
 
-        save_edit_comment(comment) {
+        async save_edit_comment(comment) {
+            if (!this.editing_comment_content.trim()) return;
+
             comment.content = this.editing_comment_content;
+
+            try {
+                await this.editTaskComment(this.editable_task, comment, this.editing_comment_content);
+            } catch (error) {
+                console.error("Erro ao editar:", error);
+            }
+
             this.cancel_edit_comment();
-            // TODO: Implementar persistência de edição de comentário via Store
         },
 
         delete_comment(comment) {
-            this.editable_task.comments = this.editable_task.comments.filter(c => c.local_id !== comment.local_id);
+            this.commentToDelete = comment;
+            this.showConfirmModal = true;
             this.close_comment_menu();
-            // TODO: Implementar persistência de exclusão via Store
+        },
+
+        async handleConfirmDelete() {
+            if (!this.commentToDelete) return;
+
+            const comment = this.commentToDelete;
+
+            this.editable_task.comments = this.editable_task.comments.filter(c => c.local_id !== comment.local_id);
+
+            try {
+                await this.deleteTaskComment(this.editable_task, comment);
+            } catch (error) {
+                console.error("Erro ao excluir:", error);
+            }
+
+            this.cancelDelete();
+        },
+
+        cancelDelete() {
+            this.showConfirmModal = false;
+            this.commentToDelete = null;
         },
 
         async submit_comment() {

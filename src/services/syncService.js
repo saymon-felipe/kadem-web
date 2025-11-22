@@ -291,6 +291,37 @@ async function processTaskItem(task) {
                 throw error;
             }
 
+        case 'UPDATE_TASK_COMMENT':
+            const lTaskUpd = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
+            if (!lTaskUpd) return;
+
+            const commToUpdate = lTaskUpd.comments.find(c => c.local_id === task.payload.comment_local_id);
+
+            if (commToUpdate && !commToUpdate.id) {
+                throw new Error("COMMENT_NOT_SYNCED: Edição aguardando ID do servidor.");
+            }
+            if (!commToUpdate) return;
+
+            await api.put(`/kanban/comments/${commToUpdate.id}`, {
+                content: task.payload.content
+            });
+            return;
+
+        case 'DELETE_TASK_COMMENT':
+            serverId = task.payload.server_id;
+
+            if (serverId) {
+                try {
+                    await api.delete(`/kanban/comments/${serverId}`);
+                } catch (error) {
+                    if (error.response && error.response.status === 404) return;
+                    throw error;
+                }
+            } else {
+                console.log("[Sync] Comentário local deletado antes de subir pro servidor.");
+            }
+            return;
+
         default:
             if (task.type === 'CREATE_TASK_COMMENT') {
                 const localTask = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);

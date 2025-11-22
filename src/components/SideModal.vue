@@ -66,6 +66,7 @@ export default {
 @media (max-width: 480px) {
     .modal-content {
         grid-column: 1;
+        width: calc(100dvw - 12px);
     }
 }
 

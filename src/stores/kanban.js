@@ -80,6 +80,53 @@ export const useKanbanStore = defineStore('kanban', {
             }
         },
 
+        async editTaskComment(task, comment, newContent) {
+            if (this.tasks[task.column_id]) {
+                const storedTask = this.tasks[task.column_id].find(t => t.local_id === task.local_id);
+                if (storedTask && storedTask.comments) {
+                    const target = storedTask.comments.find(c => c.local_id === comment.local_id);
+                    if (target) target.content = newContent;
+                }
+            }
+
+            await kanbanRepository.edit_comment_content(task.local_id, comment.local_id, newContent);
+
+            await syncQueueRepository.addSyncQueueTask({
+                type: 'UPDATE_TASK_COMMENT',
+                payload: {
+                    task_local_id: task.local_id,
+                    comment_local_id: comment.local_id,
+                    content: newContent
+                },
+                entity_id: comment.local_id,
+                timestamp: Date.now()
+            });
+            syncService.processSyncQueue();
+        },
+
+        async deleteTaskComment(task, comment) {
+            if (this.tasks[task.column_id]) {
+                const storedTask = this.tasks[task.column_id].find(t => t.local_id === task.local_id);
+                if (storedTask && storedTask.comments) {
+                    storedTask.comments = storedTask.comments.filter(c => c.local_id !== comment.local_id);
+                }
+            }
+
+            await kanbanRepository.remove_comment(task.local_id, comment.local_id);
+
+            await syncQueueRepository.addSyncQueueTask({
+                type: 'DELETE_TASK_COMMENT',
+                payload: {
+                    task_local_id: task.local_id,
+                    comment_local_id: comment.local_id,
+                    server_id: comment.id
+                },
+                entity_id: comment.local_id,
+                timestamp: Date.now()
+            });
+            syncService.processSyncQueue();
+        },
+
         async toggleCommentLike(task, comment) {
             let storedComment = null;
 

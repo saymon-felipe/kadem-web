@@ -32,6 +32,29 @@ export const kanbanRepository = {
         });
     },
 
+    async edit_comment_content(task_local_id, comment_local_id, new_content) {
+        await db.transaction('rw', db.tasks, async () => {
+            const task = await db.tasks.get(task_local_id);
+            if (task && task.comments) {
+                const index = task.comments.findIndex(c => c.local_id === comment_local_id);
+                if (index !== -1) {
+                    task.comments[index].content = new_content;
+                    await db.tasks.update(task_local_id, { comments: task.comments });
+                }
+            }
+        });
+    },
+
+    async remove_comment(task_local_id, comment_local_id) {
+        await db.transaction('rw', db.tasks, async () => {
+            const task = await db.tasks.get(task_local_id);
+            if (task && task.comments) {
+                const newComments = task.comments.filter(c => c.local_id !== comment_local_id);
+                await db.tasks.update(task_local_id, { comments: newComments });
+            }
+        });
+    },
+
     async mergeServerData(localProjectId, apiColumns, apiTasks) {
         await db.transaction('rw', db.columns, db.tasks, async () => {
             const serverColumnIds = apiColumns.map(c => c.id);
