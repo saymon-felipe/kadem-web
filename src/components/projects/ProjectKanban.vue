@@ -28,7 +28,7 @@
         <SideModal v-model="is_modal_open" @close="is_modal_open = false">
             <TaskDetailForm v-if="selected_task" :key="selected_task.local_id" :task="selected_task"
                 :project-name="project.name" :members="project_members" @close="is_modal_open = false"
-                @delete="ask_delete_task" />
+                @delete="ask_delete_task" @delete-comment="ask_delete_comment" ref="taskDetailForm" />
         </SideModal>
 
         <ConfirmationModal v-model="show_confirmation" :message="confirmation_message" confirmText="Excluir"
@@ -95,7 +95,16 @@ export default {
             if (this.delete_type === 'column') {
                 return "Tem certeza que deseja excluir esta coluna e todas as suas tarefas?";
             }
-            return "Tem certeza que deseja excluir esta tarefa permanentemente?";
+
+            if (this.delete_type === "task") {
+                return "Tem certeza que deseja excluir esta tarefa permanentemente?";
+            }
+
+            if (this.delete_type == "comment") {
+                return "Tem certeza que deseja excluir este comentário permanentemente?";
+            }
+
+            return "";
         }
     },
     methods: {
@@ -105,7 +114,8 @@ export default {
             'updateColumnsForProject',
             'deleteTask',
             'deleteColumn',
-            'pullProjectKanban'
+            'pullProjectKanban',
+            'deleteTaskComment'
         ]),
 
         handleSwitchProject(newProjectId) {
@@ -127,7 +137,11 @@ export default {
                 }
             }
         },
-
+        ask_delete_comment(obj) {
+            this.item_to_delete = obj;
+            this.delete_type = 'comment';
+            this.show_confirmation = true;
+        },
         ask_delete_task(task) {
             this.item_to_delete = task;
             this.delete_type = 'task';
@@ -145,6 +159,10 @@ export default {
                 this.is_modal_open = false;
             } else if (this.delete_type === 'column') {
                 await this.deleteColumn(this.item_to_delete);
+            } else if (this.delete_type == "comment") {
+                await this.deleteTaskComment(this.item_to_delete.task, this.item_to_delete.comment);
+
+                this.$refs.taskDetailForm.editable_task.comments = this.$refs.taskDetailForm.editable_task.comments.filter(c => c.local_id !== this.item_to_delete.comment.local_id);
             }
             this.close_confirmation();
         },

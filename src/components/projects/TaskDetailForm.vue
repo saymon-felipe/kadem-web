@@ -152,9 +152,6 @@
                 </div>
             </div>
         </div>
-        <ConfirmModal v-model="showConfirmModal" title="Excluir Comentário"
-            message="Tem certeza que deseja excluir este comentário permanentemente?" confirmText="Excluir"
-            cancelText="Cancelar" @confirmed="handleConfirmDelete" @cancelled="cancelDelete" />
     </div>
 </template>
 
@@ -164,7 +161,6 @@ import { useKanbanStore } from '@/stores/kanban';
 import { useAuthStore } from '@/stores/auth';
 import defaultAccountImage from "@/assets/images/kadem-default-account.jpg";
 import CustomDropdown from '../ui/CustomDropdown.vue';
-import ConfirmModal from '../ConfirmationModal.vue';
 
 import moment from 'moment/min/moment-with-locales';
 
@@ -172,7 +168,7 @@ moment.locale('pt-br');
 
 export default {
     name: 'TaskDetailForm',
-    components: { CustomDropdown, ConfirmModal },
+    components: { CustomDropdown },
     props: {
         task: { type: Object, required: true },
         projectName: { type: String, default: 'Projeto' },
@@ -211,8 +207,7 @@ export default {
             editing_comment_id: null,
             editing_comment_content: '',
 
-            showConfirmModal: false,
-            commentToDelete: null
+            showConfirmModal: false
         };
     },
     computed: {
@@ -378,30 +373,8 @@ export default {
         },
 
         delete_comment(comment) {
-            this.commentToDelete = comment;
-            this.showConfirmModal = true;
+            this.$emit("delete-comment", { task: this.editable_task, comment: comment });
             this.close_comment_menu();
-        },
-
-        async handleConfirmDelete() {
-            if (!this.commentToDelete) return;
-
-            const comment = this.commentToDelete;
-
-            this.editable_task.comments = this.editable_task.comments.filter(c => c.local_id !== comment.local_id);
-
-            try {
-                await this.deleteTaskComment(this.editable_task, comment);
-            } catch (error) {
-                console.error("Erro ao excluir:", error);
-            }
-
-            this.cancelDelete();
-        },
-
-        cancelDelete() {
-            this.showConfirmModal = false;
-            this.commentToDelete = null;
         },
 
         async submit_comment() {

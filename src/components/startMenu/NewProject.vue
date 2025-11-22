@@ -63,10 +63,9 @@
                 </div>
             </div>
         </div>
+        <ConfirmationModal v-model="showDeleteProjectModal" message="Tem certeza que deseja excluir este projeto?"
+            confirm-text="Excluir" @confirmed="handleDeleteProject" @cancelled="showDeleteProjectModal = false" />
     </div>
-
-    <ConfirmationModal v-model="showDeleteProjectModal" message="Tem certeza que deseja excluir este projeto?"
-        confirm-text="Excluir" @confirmed="handleDeleteProject" @cancelled="showDeleteProjectModal = false" />
 </template>
 
 <script>
@@ -252,6 +251,10 @@ export default {
     flex-direction: column;
     height: 100%;
     position: relative;
+}
+
+.modal-wrapper {
+    position: absolute !important;
 }
 
 .title {
