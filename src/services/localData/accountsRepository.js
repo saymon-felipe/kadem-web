@@ -32,5 +32,46 @@ export const accountsRepository = {
     },
     async clearLocalAccounts() {
         return await db.accounts.clear();
+    },
+    async mergeApiAccounts(apiAccounts) {
+        if (!Array.isArray(apiAccounts)) {
+            console.warn("[accountsRepository] apiAccounts inválido:", apiAccounts);
+            return;
+        }
+
+        return db.transaction('rw', db.accounts, async () => {
+            const localAccounts = await db.accounts.toArray();
+
+            const serverIdsSet = new Set(apiAccounts.map(acc => acc.id));
+
+            const accountsToDelete = localAccounts.filter(
+                localAcc => localAcc.id !== null &&
+                    localAcc.id !== undefined &&
+                    !serverIdsSet.has(localAcc.id)
+            );
+
+            if (accountsToDelete.length > 0) {
+                const idsToDelete = accountsToDelete.map(acc => acc.localId);
+                console.log(`[AccountsRepo] Removendo ${idsToDelete.length} contas deletadas no servidor.`);
+                await db.accounts.bulkDelete(idsToDelete);
+            }
+
+            for (const apiAcc of apiAccounts) {
+                const existingLocal = localAccounts.find(l => l.id === apiAcc.id);
+
+                if (existingLocal) {
+                    if (existingLocal.data !== apiAcc.data) {
+                        await db.accounts.update(existingLocal.localId, {
+                            data: apiAcc.data,
+                        });
+                    }
+                } else {
+                    await db.accounts.add({
+                        id: apiAcc.id,
+                        data: apiAcc.data,
+                    });
+                }
+            }
+        });
     }
 };

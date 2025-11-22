@@ -91,6 +91,10 @@ export default {
 </script>
 
 <style scoped>
+.modal-wrapper {
+    position: absolute !important;
+}
+
 .config-wrapper {
     padding: var(--space-4) 0;
     display: flex;

@@ -162,6 +162,10 @@ export default {
 </script>
 
 <style scoped>
+.modal-wrapper {
+    position: absolute !important;
+}
+
 .account-list {
     display: flex;
     flex-direction: column;

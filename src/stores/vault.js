@@ -85,43 +85,15 @@ export const useVaultStore = defineStore('vault', () => {
     };
 
     const pullAccounts = async () => {
-
-        console.log("[Vault Store] Buscando estado das contas no servidor (Pull)...");
+        console.log("[VaultStore] Iniciando Pull de contas...");
         try {
             const response = await api.get('/accounts');
-            const serverAccounts = response.data;
 
-            if (!serverAccounts || serverAccounts.length === 0) return;
+            await accountsRepository.mergeApiAccounts(response.data);
 
-            const localAccounts = await accountsRepository.getAllLocalAccounts();
-            const localAccountMap = new Map();
-
-            localAccounts.forEach(a => {
-                if (a.id) {
-                    localAccountMap.set(a.id, a.localId);
-                }
-            });
-
-            for (const serverAcc of serverAccounts) {
-                const existingLocalId = localAccountMap.get(serverAcc.id);
-
-                const accountToSave = {
-                    id: serverAcc.id,
-                    data: serverAcc.data,
-                };
-
-                if (existingLocalId) {
-                    accountToSave.localId = existingLocalId;
-                    await accountsRepository.saveLocalAccount(accountToSave);
-                } else {
-                    const newLocalId = await accountsRepository.addLocalAccount(serverAcc.data);
-                    await accountsRepository.setServerId(newLocalId, serverAcc.id);
-                }
-            }
-            console.log(`[Vault Store] ${serverAccounts.length} contas atualizadas localmente.`);
-
+            console.log("[VaultStore] Contas sincronizadas com sucesso.");
         } catch (error) {
-            console.error("[Vault Store] Falha no Pull de Contas:", error);
+            console.error("[VaultStore] Erro ao puxar contas:", error);
         }
     };
 

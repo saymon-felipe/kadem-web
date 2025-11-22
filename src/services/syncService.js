@@ -322,6 +322,12 @@ async function processTaskItem(task) {
             }
             return;
 
+        case 'CREATE_OCCUPATION':
+            return await api.post('/users/occupations', task.payload);
+
+        case 'DELETE_OCCUPATION':
+            return await api.delete(`/users/occupations/${task.payload.id}`);
+
         default:
             if (task.type === 'CREATE_TASK_COMMENT') {
                 const localTask = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
