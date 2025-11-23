@@ -22,6 +22,22 @@ export const useKanbanStore = defineStore('kanban', {
     },
 
     actions: {
+        async loadBoardFromLocal(projectId) {
+            if (!projectId) return;
+
+            const localColumns = await kanbanRepository.get_columns_by_project(projectId);
+
+            this.columns[projectId] = localColumns;
+
+            for (const col of localColumns) {
+                const localTasks = await kanbanRepository.get_tasks_by_project(projectId);
+                const columnTasks = localTasks
+                    .filter(t => t.column_id === col.local_id)
+                    .sort((a, b) => a.order - b.order);
+
+                this.tasks[col.local_id] = columnTasks;
+            }
+        },
         async addCommentToTask(task, content) {
             const authStore = useAuthStore();
             const user = authStore.user;

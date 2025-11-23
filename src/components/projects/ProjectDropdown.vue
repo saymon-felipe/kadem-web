@@ -46,7 +46,10 @@
                             <div class="list-project-img">
                                 <img :src="project.image || defaultProjectImage">
                             </div>
-                            <span class="list-project-name">{{ project.name }}</span>
+                            <div class="project-informations">
+                                <span class="list-project-name">{{ project.name }}</span>
+                                <span class="list-project-description">{{ project.description }}</span>
+                            </div>
                         </div>
 
                         <div class="row-right">
@@ -331,9 +334,19 @@ export default {
     object-fit: cover;
 }
 
+.project-informations {
+    display: flex;
+    flex-direction: column;
+}
+
 .list-project-name {
     font-weight: 500;
-    color: #333;
+    color: var(--deep-blue);
+}
+
+.list-project-description {
+    font-size: var(--fontsize-xs);
+    color: var(--text-gray);
 }
 
 .list-members-stack {
@@ -374,16 +387,6 @@ export default {
     align-items: center;
     justify-content: center;
     margin-right: 12px;
-}
-
-/* Scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
-    width: 5px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #ccc;
-    border-radius: 3px;
 }
 
 /* Animação do Dropdown */

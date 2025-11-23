@@ -1,5 +1,5 @@
 <template>
-    <div class="kanban-column glass">
+    <div class="kanban-column">
         <header class="column-header">
             <div class="header-left">
                 <span class="column-drag-handle" title="Arrastar coluna">
@@ -340,6 +340,10 @@ export default {
     flex-direction: column;
     overflow: hidden;
     position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2), inset 0 4px 20px rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(5px) saturate(180%);
 }
 
 .column-header {

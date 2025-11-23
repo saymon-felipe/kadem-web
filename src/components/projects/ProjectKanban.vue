@@ -20,6 +20,7 @@
                         @task-selected="open_task_modal" @delete-column="ask_delete_column" />
                 </template>
             </draggable>
+
             <button class="create-column glass" @click="start_add_column">
                 <font-awesome-icon icon="plus" /> Nova Coluna
             </button>
@@ -71,15 +72,14 @@ export default {
     computed: {
         ...mapState(useProjectStore, {
             project(state) {
-                return state.projects.find(p => p.localId === this.project_local_id) || { name: 'Carregando...' };
-            }
-        }),
-        ...mapState(useKanbanStore, {
-            getColumns: 'getColumns'
-        }),
-        ...mapState(useProjectStore, {
+                if (!this.project_local_id) return { name: 'Carregando...' };
+                return state.projects.find(p => p.localId == this.project_local_id) || { name: 'Carregando...' };
+            },
             projects: 'projects'
         }),
+
+        ...mapState(useKanbanStore, ['getColumns']),
+
         project_local_id_getter() {
             return JSON.parse(JSON.stringify(this.project_local_id));
         },
@@ -101,30 +101,34 @@ export default {
             if (this.delete_type === 'column') {
                 return "Tem certeza que deseja excluir esta coluna e todas as suas tarefas?";
             }
-
             if (this.delete_type === "task") {
                 return "Tem certeza que deseja excluir esta tarefa permanentemente?";
             }
-
             if (this.delete_type == "comment") {
                 return "Tem certeza que deseja excluir este comentário permanentemente?";
             }
-
             return "";
         }
     },
     watch: {
-        project_local_id: async function () {
-            await this.loadProjectKanban(this.project_local_id);
+        project_local_id: {
+            immediate: true,
+            async handler(newId) {
+                if (!newId) return;
 
-            if (this.project && this.project.id) {
-                await this.pullProjectKanban(this.project.id, this.project_local_id);
+                await this.loadBoardFromLocal(newId);
+
+                if (this.project && this.project.id) {
+                    this.pullProjectKanban(this.project.id, newId).catch(err => {
+                        console.warn("Falha ao atualizar kanban em segundo plano:", err);
+                    });
+                }
             }
         }
     },
     methods: {
         ...mapActions(useKanbanStore, [
-            'loadProjectKanban',
+            'loadBoardFromLocal',
             'createColumn',
             'updateColumnsForProject',
             'deleteTask',
@@ -175,7 +179,9 @@ export default {
             } else if (this.delete_type == "comment") {
                 await this.deleteTaskComment(this.item_to_delete.task, this.item_to_delete.comment);
 
-                this.$refs.taskDetailForm.editable_task.comments = this.$refs.taskDetailForm.editable_task.comments.filter(c => c.local_id !== this.item_to_delete.comment.local_id);
+                if (this.$refs.taskDetailForm && this.$refs.taskDetailForm.editable_task) {
+                    this.$refs.taskDetailForm.editable_task.comments = this.$refs.taskDetailForm.editable_task.comments.filter(c => c.local_id !== this.item_to_delete.comment.local_id);
+                }
             }
             this.close_confirmation();
         },
@@ -217,13 +223,6 @@ export default {
             this.selected_task = task;
             this.is_modal_open = true;
         },
-    },
-    async mounted() {
-        await this.loadProjectKanban(this.project_local_id);
-
-        if (this.project && this.project.id) {
-            await this.pullProjectKanban(this.project.id, this.project_local_id);
-        }
     }
 }
 </script>
