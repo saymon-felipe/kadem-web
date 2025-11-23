@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { kanbanRepository } from '../services/localData/kanbanRepository';
 import { syncQueueRepository } from '../services/localData/syncQueueRepository';
+import { projectRepository } from '../services/localData/projectRepository';
 import { syncService } from '../services/syncService';
 import { useAuthStore } from './auth';
 import { api } from '../plugins/api';
@@ -8,7 +9,8 @@ import { api } from '../plugins/api';
 export const useKanbanStore = defineStore('kanban', {
     state: () => ({
         columns: {},
-        tasks: {}
+        tasks: {},
+        lastSyncs: JSON.parse(localStorage.getItem('kadem_kanban_syncs') || '{}')
     }),
 
     getters: {
@@ -181,25 +183,85 @@ export const useKanbanStore = defineStore('kanban', {
             syncService.processSyncQueue();
         },
 
+        async syncAllBoards() {
+            const { useProjectStore } = await import('./projects');
+            const projectStore = useProjectStore();
+
+            if (projectStore.projects.length === 0) {
+                await projectStore._loadProjectsFromDB();
+            }
+
+            for (const proj of projectStore.projects) {
+                if (proj.id && proj.localId) {
+                    this.pullProjectKanban(proj.id, proj.localId);
+                }
+            }
+        },
+
         async pullProjectKanban(serverProjectId, localProjectId) {
+            // 1. Fast Paint
+            await this.loadBoardFromLocal(localProjectId);
+
             if (!navigator.onLine) return;
 
             try {
-                const response = await api.get(`/kanban/projects/${serverProjectId}`);
-                const { project, columns, tasks, members } = response.data;
+                const params = {};
+                const lastSync = this.lastSyncs[localProjectId];
 
-                await kanbanRepository.mergeServerData(localProjectId, columns, tasks);
+                const isDelta = !!lastSync;
 
-                if (project) {
-                    const { useProjectStore } = await import('./projects');
-                    const projectStore = useProjectStore();
-                    await projectStore.updateProject({ localId: localProjectId }, {
-                        ...project,
-                        members: members || []
-                    });
+                if (isDelta) {
+                    params.since = lastSync;
                 }
 
-                await this.loadProjectKanban(localProjectId);
+                const response = await api.get(`/kanban/projects/${serverProjectId}`, { params });
+
+                let apiData = response.data;
+                let serverTimestamp = null;
+
+                if (apiData && (apiData.server_timestamp || apiData.data)) {
+                    serverTimestamp = apiData.server_timestamp;
+                    apiData = apiData.data || apiData;
+                }
+
+                const { project, columns, tasks, members } = apiData;
+
+                const shouldMerge = !isDelta || (columns && columns.length > 0) || (tasks && tasks.length > 0);
+
+                if (shouldMerge) {
+                    await kanbanRepository.mergeServerData(localProjectId, columns || [], tasks || [], isDelta);
+
+                    if (project) {
+                        const localProject = await projectRepository.getLocalProject(localProjectId);
+
+                        if (localProject) {
+                            const updatedProject = {
+                                ...localProject,
+                                ...project,
+                                members: members || localProject.members || []
+                            };
+
+                            await projectRepository.saveLocalProject(updatedProject);
+
+                            const { useProjectStore } = await import('./projects');
+                            const projectStore = useProjectStore();
+
+                            if (projectStore.projects.length > 0) {
+                                const idx = projectStore.projects.findIndex(p => p.localId === localProjectId);
+                                if (idx !== -1) {
+                                    projectStore.projects[idx] = updatedProject;
+                                }
+                            }
+                        }
+                    }
+
+                    await this.loadBoardFromLocal(localProjectId);
+                }
+
+                if (serverTimestamp) {
+                    this.lastSyncs[localProjectId] = serverTimestamp;
+                    localStorage.setItem('kadem_kanban_syncs', JSON.stringify(this.lastSyncs));
+                }
 
             } catch (error) {
                 console.error("[KanbanStore] Erro pull:", error);

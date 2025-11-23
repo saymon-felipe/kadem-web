@@ -7,6 +7,7 @@ import { syncService } from '../services/syncService';
 import { useProjectStore } from './projects';
 import { useVaultStore } from './vault';
 import { useAppStore } from './app';
+import { useKanbanStore } from './kanban';
 
 import {
     userRepository,
@@ -92,6 +93,7 @@ export const useAuthStore = defineStore('auth', {
                 localStorage.removeItem('kadem_user_last_sync');
                 localStorage.removeItem('kadem_vault_last_sync');
                 localStorage.removeItem('kadem_projects_last_sync');
+                localStorage.removeItem('kadem_kanban_syncs');
 
                 router.push("/auth");
             }
@@ -106,6 +108,7 @@ export const useAuthStore = defineStore('auth', {
                 const projectStore = useProjectStore();
                 const utilsStore = useUtilsStore();
                 const vaultStore = useVaultStore();
+                const kanbanStore = useKanbanStore();
 
                 if (utilsStore.connection.connected) {
                     try {
@@ -113,6 +116,7 @@ export const useAuthStore = defineStore('auth', {
                         await this.syncProfile(recursive);
                         await projectStore.pullProjects();
                         await vaultStore.pullAccounts();
+                        await kanbanStore.syncAllBoards();
                     } catch (syncError) {
                         console.error("Falha na orquestração PUSH-PULL:", syncError);
                     }

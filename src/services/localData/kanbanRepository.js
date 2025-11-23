@@ -95,45 +95,61 @@ export const kanbanRepository = {
         });
     },
 
-    async mergeServerData(localProjectId, apiColumns, apiTasks) {
+    async mergeServerData(localProjectId, apiColumns, apiTasks, isDelta = false) {
+        if (isDelta && (!apiColumns?.length && !apiTasks?.length)) {
+            return;
+        }
+
         await db.transaction('rw', db.kanban_columns, db.kanban_tasks, async () => {
             const serverColumnIds = apiColumns.map(c => c.id);
             const serverTaskIds = apiTasks.map(t => t.id);
 
-            await db.kanban_columns
-                .where('project_id').equals(localProjectId)
-                .filter(col => col.id !== null && !serverColumnIds.includes(col.id))
-                .delete();
+            if (!isDelta) {
+                await db.kanban_columns
+                    .where('project_id').equals(localProjectId)
+                    .filter(col => col.id !== null && !serverColumnIds.includes(col.id))
+                    .delete();
 
-            await db.kanban_tasks
-                .where('project_id').equals(localProjectId)
-                .filter(task => task.id !== null && !serverTaskIds.includes(task.id))
-                .delete();
+                await db.kanban_tasks
+                    .where('project_id').equals(localProjectId)
+                    .filter(task => task.id !== null && !serverTaskIds.includes(task.id))
+                    .delete();
+            }
 
             const columnIdMap = new Map();
 
+            const currentCols = await db.kanban_columns.where('project_id').equals(localProjectId).toArray();
+            currentCols.forEach(c => {
+                if (c.id) columnIdMap.set(c.id, c.local_id);
+            });
+
             for (const col of apiColumns) {
-                let existing = await db.kanban_columns.where('id').equals(col.id).first();
+                let existingLocalId = columnIdMap.get(col.id);
+
+                if (!existingLocalId) {
+                    const existing = await db.kanban_columns.where({ project_id: localProjectId }).filter(c => c.id === col.id).first();
+                    if (existing) existingLocalId = existing.local_id;
+                }
 
                 const colData = {
                     id: col.id,
                     project_id: localProjectId,
                     title: col.title,
-                    order: col.order || col.order_index || 0
+                    order: col.order !== undefined ? col.order : (col.order_index || 0)
                 };
 
-                if (existing) {
-                    await db.kanban_columns.update(existing.local_id, colData);
-                    columnIdMap.set(col.id, existing.local_id);
+                if (existingLocalId) {
+                    await db.kanban_columns.update(existingLocalId, colData);
+                    columnIdMap.set(col.id, existingLocalId);
                 } else {
                     const newId = await db.kanban_columns.add(colData);
                     columnIdMap.set(col.id, newId);
                 }
             }
 
-            // Upsert Tasks
+            const tasksToPut = [];
             for (const task of apiTasks) {
-                const existing = await db.kanban_tasks.where('id').equals(task.id).first();
+                const existing = await db.kanban_tasks.where({ project_id: localProjectId }).filter(t => t.id === task.id).first();
 
                 const parentLocalId = columnIdMap.get(task.column_id);
 
@@ -147,7 +163,7 @@ export const kanbanRepository = {
                     description: task.description,
                     priority: task.priority,
                     size: task.size,
-                    order: task.order || 0,
+                    order: task.order !== undefined ? task.order : (task.order_index || 0),
                     responsible: task.responsible,
                     creator: task.creator,
                     comments: task.comments || [],
@@ -156,10 +172,14 @@ export const kanbanRepository = {
                 };
 
                 if (existing) {
-                    await db.kanban_tasks.update(existing.local_id, taskData);
-                } else {
-                    await db.kanban_tasks.add(taskData);
+                    taskData.local_id = existing.local_id;
                 }
+
+                tasksToPut.push(taskData);
+            }
+
+            if (tasksToPut.length > 0) {
+                await db.kanban_tasks.bulkPut(tasksToPut);
             }
         });
     }
