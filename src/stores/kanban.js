@@ -199,7 +199,6 @@ export const useKanbanStore = defineStore('kanban', {
         },
 
         async pullProjectKanban(serverProjectId, localProjectId) {
-            // 1. Fast Paint
             await this.loadBoardFromLocal(localProjectId);
 
             if (!navigator.onLine) return;

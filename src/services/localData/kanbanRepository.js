@@ -182,5 +182,12 @@ export const kanbanRepository = {
                 await db.kanban_tasks.bulkPut(tasksToPut);
             }
         });
+    },
+
+    async clearLocalKanban() {
+        return await db.transaction('rw', db.kanban_columns, db.kanban_tasks, async () => {
+            await db.kanban_columns.clear();
+            await db.kanban_tasks.clear();
+        });
     }
 };

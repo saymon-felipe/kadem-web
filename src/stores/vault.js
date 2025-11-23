@@ -9,6 +9,7 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 const PBKDF2_ITERATIONS = 310000;
+const AUTO_LOCK_DELAY = 5 * 60 * 1000; // 5 minutos
 
 const bufferToBase64 = (buf) => {
     const binary = String.fromCharCode.apply(null, buf);
@@ -31,6 +32,12 @@ export const useVaultStore = defineStore('vault', () => {
     const accounts = ref([]);
     const revealedPasswords = ref({});
 
+    let _inactivityTimer = null;
+    let _revealTimers = {};
+
+    const last_sync_timestamp = ref(localStorage.getItem('kadem_vault_last_sync') || null);
+
+    // --- CRIPTOGRAFIA (Web Crypto API) ---
     const _deriveKey = async (password, salt) => {
         const keyMaterial = await window.crypto.subtle.importKey(
             "raw",
@@ -84,9 +91,81 @@ export const useVaultStore = defineStore('vault', () => {
         return decoder.decode(decryptedBuffer);
     };
 
-    const last_sync_timestamp = ref(localStorage.getItem('kadem_vault_last_sync') || null);
+    // --- GESTÃO DE INATIVIDADE (AUTO-LOCK) ---
+    const _resetAutoLock = () => {
+        if (_inactivityTimer) clearTimeout(_inactivityTimer);
+        if (isUnlocked.value) {
+            _inactivityTimer = setTimeout(() => {
+                console.warn("[Vault] Inatividade detectada. Trancando cofre.");
+                lockVault();
+            }, AUTO_LOCK_DELAY);
+        }
+    };
+
+    const _setupActivityListeners = () => {
+        window.addEventListener('mousemove', _resetAutoLock);
+        window.addEventListener('keydown', _resetAutoLock);
+        window.addEventListener('click', _resetAutoLock);
+        _resetAutoLock();
+    };
+
+    const _removeActivityListeners = () => {
+        window.removeEventListener('mousemove', _resetAutoLock);
+        window.removeEventListener('keydown', _resetAutoLock);
+        window.removeEventListener('click', _resetAutoLock);
+        if (_inactivityTimer) clearTimeout(_inactivityTimer);
+    };
+
+    // --- AÇÕES DO COFRE ---
+
+    const lockVault = () => {
+        _mek.value = null;
+
+        accounts.value = [];
+        revealedPasswords.value = {};
+
+        Object.values(_revealTimers).forEach(timer => clearTimeout(timer));
+        _revealTimers = {};
+
+        isUnlocked.value = false;
+        _removeActivityListeners();
+
+        console.log("Cofre trancado e memória limpa.");
+    };
+
+    const loadAccountsFromDB = async () => {
+        if (!isUnlocked.value) return;
+
+        try {
+            const encryptedAccounts = await accountsRepository.getAllLocalAccounts();
+            const decryptedList = [];
+
+            for (const acc of encryptedAccounts) {
+                try {
+                    const decryptedData = await _decrypt(acc.data);
+                    const accountData = JSON.parse(decryptedData);
+                    decryptedList.push({
+                        localId: acc.localId,
+                        id: acc.id,
+                        ...accountData
+                    });
+                } catch (err) {
+                    console.error(`Falha ao descriptografar conta localId ${acc.localId}`, err);
+                }
+            }
+            accounts.value = decryptedList;
+        } catch (error) {
+            console.error("Erro ao carregar contas do DB:", error);
+        }
+    };
 
     const pullAccounts = async () => {
+        if (isUnlocked.value) {
+            await loadAccountsFromDB();
+        } else {
+            return;
+        }
+
         console.log("[VaultStore] Verificando atualizações...");
         try {
             const params = {};
@@ -100,6 +179,7 @@ export const useVaultStore = defineStore('vault', () => {
 
             if (remote_accounts.length > 0) {
                 await accountsRepository.mergeApiAccounts(remote_accounts);
+                await loadAccountsFromDB();
             } else {
                 console.log("[VaultStore] Cofre sincronizado.");
             }
@@ -111,25 +191,6 @@ export const useVaultStore = defineStore('vault', () => {
 
         } catch (error) {
             console.error("[VaultStore] Erro no sync (pode estar offline):", error);
-        }
-    };
-
-    const checkMasterPassword = async (masterPassword, userSalt) => {
-        try {
-            const keyCandidate = await _deriveKey(masterPassword, userSalt);
-            const encryptedValidation = localStorage.getItem('vault_validation');
-
-            if (!encryptedValidation) {
-                throw new Error("Cofre não inicializado.");
-            }
-
-            const validationToken = await _decrypt(encryptedValidation, keyCandidate);
-
-            return validationToken === "VALID_VAULT_KEY";
-
-        } catch (decryptError) {
-            console.error("Falha na checagem da senha:", decryptError.name);
-            return false;
         }
     };
 
@@ -155,6 +216,8 @@ export const useVaultStore = defineStore('vault', () => {
 
                 _mek.value = keyCandidate;
                 isUnlocked.value = true;
+
+                _setupActivityListeners();
                 await loadAccountsFromDB();
 
             } catch (decryptError) {
@@ -177,35 +240,20 @@ export const useVaultStore = defineStore('vault', () => {
         console.log("Cofre configurado.");
     };
 
-    const lockVault = () => {
-        _mek.value = null;
-        isUnlocked.value = false;
-        accounts.value = [];
-        revealedPasswords.value = {};
-        console.log("Cofre trancado.");
-    };
+    const checkMasterPassword = async (masterPassword, userSalt) => {
+        try {
+            const keyCandidate = await _deriveKey(masterPassword, userSalt);
+            const encryptedValidation = localStorage.getItem('vault_validation');
+            if (!encryptedValidation) throw new Error("Cofre não inicializado.");
 
-    const loadAccountsFromDB = async () => {
-        if (!isUnlocked.value) throw new Error("Cofre trancado.");
-
-        const encryptedAccounts = await accountsRepository.getAllLocalAccounts();
-
-        const decryptedList = [];
-        for (const acc of encryptedAccounts) {
-            try {
-                const decryptedData = await _decrypt(acc.data);
-                const accountData = JSON.parse(decryptedData);
-                decryptedList.push({
-                    localId: acc.localId,
-                    id: acc.id,
-                    ...accountData
-                });
-            } catch (err) {
-                console.error(`Falha ao descriptografar conta localId ${acc.localId}`, err);
-            }
+            const validationToken = await _decrypt(encryptedValidation, keyCandidate);
+            return validationToken === "VALID_VAULT_KEY";
+        } catch (decryptError) {
+            return false;
         }
-        accounts.value = decryptedList;
     };
+
+    // --- CRUD CONTAS ---
 
     const createAccount = async (accountData) => {
         if (!isUnlocked.value) throw new Error("Cofre trancado.");
@@ -215,13 +263,11 @@ export const useVaultStore = defineStore('vault', () => {
         const localId = await accountsRepository.addLocalAccount(encryptedBlob);
 
         accounts.value.push({ localId, id: null, ...accountData });
+        _resetAutoLock();
 
         await syncQueueRepository.addSyncQueueTask({
             type: 'CREATE_ACCOUNT',
-            payload: {
-                localId: localId,
-                data: encryptedBlob
-            },
+            payload: { localId, data: encryptedBlob },
             timestamp: new Date().toISOString()
         });
         syncService.processSyncQueue();
@@ -229,11 +275,10 @@ export const useVaultStore = defineStore('vault', () => {
 
     const updateAccount = async (localId, newAccountData) => {
         if (!isUnlocked.value) throw new Error("Cofre trancado.");
-
         await _updateLastAccess(localId, newAccountData);
     };
 
-    const _updateLastAccess = async (localId, newAccountData) => {
+    const _updateLastAccess = async (localId, newAccountData = {}) => {
         const accountIndex = accounts.value.findIndex(a => a.localId === localId);
         if (accountIndex === -1) return;
 
@@ -245,9 +290,9 @@ export const useVaultStore = defineStore('vault', () => {
         };
 
         accounts.value.splice(accountIndex, 1, updatedAccount);
+        _resetAutoLock();
 
         const { localId: omitLocalId, id: omitId, ...dataToEncrypt } = updatedAccount;
-
         const dataString = JSON.stringify(dataToEncrypt);
         const encryptedBlob = await _encrypt(dataString);
 
@@ -259,11 +304,7 @@ export const useVaultStore = defineStore('vault', () => {
 
         await syncQueueRepository.addSyncQueueTask({
             type: 'UPDATE_ACCOUNT',
-            payload: {
-                localId: localId,
-                id: updatedAccount.id,
-                data: encryptedBlob
-            },
+            payload: { localId, id: updatedAccount.id, data: encryptedBlob },
             timestamp: new Date().toISOString()
         });
 
@@ -275,15 +316,12 @@ export const useVaultStore = defineStore('vault', () => {
         if (!account) return;
 
         await accountsRepository.deleteLocalAccount(localId);
-
         accounts.value = accounts.value.filter(a => a.localId !== localId);
+        _resetAutoLock();
 
         await syncQueueRepository.addSyncQueueTask({
             type: 'DELETE_ACCOUNT',
-            payload: {
-                localId: localId,
-                id: account.id
-            },
+            payload: { localId, id: account.id },
             timestamp: new Date().toISOString()
         });
         syncService.processSyncQueue();
@@ -297,15 +335,22 @@ export const useVaultStore = defineStore('vault', () => {
 
         revealedPasswords.value[localId] = account.password;
 
-        setTimeout(() => {
+        if (_revealTimers[localId]) clearTimeout(_revealTimers[localId]);
+
+        _revealTimers[localId] = setTimeout(() => {
             if (revealedPasswords.value[localId]) {
                 delete revealedPasswords.value[localId];
+                delete _revealTimers[localId];
             }
         }, 30 * 1000);
     };
 
     const hidePassword = (localId) => {
         delete revealedPasswords.value[localId];
+        if (_revealTimers[localId]) {
+            clearTimeout(_revealTimers[localId]);
+            delete _revealTimers[localId];
+        }
     };
 
     const copyPasswordToClipboard = async (localId) => {
@@ -313,14 +358,12 @@ export const useVaultStore = defineStore('vault', () => {
         if (!account) return false;
 
         if (!revealedPasswords.value[localId]) {
-            revealPassword(localId);
+            await revealPassword(localId);
         }
 
         try {
             await navigator.clipboard.writeText(account.password);
-
             hidePassword(localId);
-
             return true;
         } catch (err) {
             console.error("Falha ao copiar para o clipboard:", err);

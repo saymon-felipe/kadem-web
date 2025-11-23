@@ -58,7 +58,7 @@ router.beforeEach(async (to, from, next) => {
   const { useAuthStore } = await import('../stores/auth.js');
   const authStore = useAuthStore();
 
-  await authStore.checkAuthStatus(); //
+  await authStore.checkAuthStatus();
 
   const isAuthenticated = authStore.isLoggedIn;
 

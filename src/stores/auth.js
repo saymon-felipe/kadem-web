@@ -15,7 +15,8 @@ import {
     medalRepository,
     syncQueueRepository,
     projectRepository,
-    accountsRepository
+    accountsRepository,
+    kanbanRepository
 } from '../services/localData';
 
 export const useAuthStore = defineStore('auth', {
@@ -63,6 +64,8 @@ export const useAuthStore = defineStore('auth', {
             const windowStore = useWindowStore();
             const appStore = useAppStore();
             const projectStore = useProjectStore();
+            const kanbanStore = useProjectStore();
+            const vaultStore = useVaultStore();
             const userIdToClear = this.user?.id;
 
             try {
@@ -84,12 +87,18 @@ export const useAuthStore = defineStore('auth', {
                     medalRepository.clearLocalMedals(),
                     syncQueueRepository.clearSyncQueue(),
                     projectRepository.clearLocalProjects(),
-                    accountsRepository.clearLocalAccounts()
+                    accountsRepository.clearLocalAccounts(),
+                    kanbanRepository.clearLocalKanban()
                 ]);
 
                 this.user = {};
                 this.isAuthenticated = false;
                 projectStore.projects = [];
+                projectStore.lastSyncTimestamp = null;
+                kanbanStore.columns = {};
+                kanbanStore.tasks = {};
+                kanbanStore.lastSyncs = null;
+                vaultStore.lockVault();
                 localStorage.removeItem('kadem_user_last_sync');
                 localStorage.removeItem('kadem_vault_last_sync');
                 localStorage.removeItem('kadem_projects_last_sync');
@@ -99,24 +108,24 @@ export const useAuthStore = defineStore('auth', {
             }
         },
         async checkAuthStatus(recursive = false) {
-            if (this.isAuthenticated !== null) {
-                return;
-            }
-
             try {
                 const localUser = await userRepository.getLocalUserProfile();
-                const projectStore = useProjectStore();
                 const utilsStore = useUtilsStore();
+                const projectStore = useProjectStore();
                 const vaultStore = useVaultStore();
-                const kanbanStore = useKanbanStore();
 
                 if (utilsStore.connection.connected) {
                     try {
                         await syncService.processSyncQueue();
                         await this.syncProfile(recursive);
-                        await projectStore.pullProjects();
-                        await vaultStore.pullAccounts();
-                        await kanbanStore.syncAllBoards();
+
+                        if (recursive) {
+                            const kanbanStore = useKanbanStore();
+
+                            await projectStore.pullProjects();
+                            await vaultStore.pullAccounts();
+                            await kanbanStore.syncAllBoards();
+                        }
                     } catch (syncError) {
                         console.error("Falha na orquestração PUSH-PULL:", syncError);
                     }
@@ -135,6 +144,14 @@ export const useAuthStore = defineStore('auth', {
                         };
 
                         this.isAuthenticated = true;
+
+                        if (recursive) {
+                            const kanbanStore = useKanbanStore();
+
+                            await projectStore.pullProjects();
+                            await vaultStore.pullAccounts();
+                            await kanbanStore.syncAllBoards();
+                        }
                     }
                 }
             } catch (error) {
@@ -184,7 +201,6 @@ export const useAuthStore = defineStore('auth', {
                     this.lastSyncTimestamp = server_timestamp;
                     localStorage.setItem('kadem_user_last_sync', server_timestamp);
                 }
-
             } catch (error) {
                 if (error.response && error.response.status === 401) {
                     this.logout(true);
@@ -209,12 +225,6 @@ export const useAuthStore = defineStore('auth', {
 
             const mergedOccupations = await occupationRepository.getLocalUserOccupations();
             const mergedMedals = await medalRepository.getLocalMedals();
-
-            const projectStore = useProjectStore();
-            const vaultStore = useVaultStore();
-
-            projectStore.pullProjects();
-            vaultStore.pullAccounts();
 
             this.user = {
                 ...profileData,
