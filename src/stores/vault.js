@@ -84,16 +84,33 @@ export const useVaultStore = defineStore('vault', () => {
         return decoder.decode(decryptedBuffer);
     };
 
+    const last_sync_timestamp = ref(localStorage.getItem('kadem_vault_last_sync') || null);
+
     const pullAccounts = async () => {
-        console.log("[VaultStore] Iniciando Pull de contas...");
         try {
-            const response = await api.get('/accounts');
+            const params = {};
+            if (last_sync_timestamp.value) {
+                params.since = last_sync_timestamp.value;
+            }
 
-            await accountsRepository.mergeApiAccounts(response.data);
+            const { data } = await api.get('/accounts', { params });
 
-            console.log("[VaultStore] Contas sincronizadas com sucesso.");
+            const remote_accounts = data.items || [];
+            const server_time = data.server_timestamp;
+
+            if (remote_accounts.length > 0) {
+                await accountsRepository.mergeApiAccounts(remote_accounts);
+            } else {
+                console.log("[Vault] Nenhuma alteração remota detectada.");
+            }
+
+            if (server_time) {
+                last_sync_timestamp.value = server_time;
+                localStorage.setItem('kadem_vault_last_sync', server_time);
+            }
+
         } catch (error) {
-            console.error("[VaultStore] Erro ao puxar contas:", error);
+            console.error("[Vault] Erro no Delta Sync:", error);
         }
     };
 

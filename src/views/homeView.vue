@@ -30,7 +30,7 @@ export default {
         SyncIndicator
     },
     computed: {
-        ...mapState(useAuthStore, ['user']),
+        ...mapState(useAuthStore, ['user', 'checkAuthStatus']),
         ...mapState(useUtilsStore, ['isSyncing']),
         ...mapState(useAppStore, ['system']),
         finalImageUrl() {
@@ -110,6 +110,8 @@ export default {
 
         this.returnSystem();
         this.initConnectionMonitor();
+
+        this.checkAuthStatus(true);
     },
     beforeUnmount() {
         window.removeEventListener('resize', this.handleResize);

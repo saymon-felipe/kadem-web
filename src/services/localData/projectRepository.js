@@ -1,3 +1,4 @@
+// src/services/localData/projectRepository.js
 import { db } from '../../db';
 
 export const projectRepository = {
@@ -20,48 +21,34 @@ export const projectRepository = {
         }
         return await db.projects.toArray();
     },
+
     async mergeApiProjects(apiProjects) {
-        if (!db.projects) {
-            console.error("[projectRepository] ERRO CRÍTICO: db.projects não está definido. A migração do Dexie falhou?");
-            return;
-        }
+        if (!db.projects) return;
 
         if (!Array.isArray(apiProjects)) {
-            console.warn("[projectRepository] Aviso: apiProjects não é um array. Recebido:", apiProjects);
             apiProjects = [];
         }
 
-        const apiIds = apiProjects
+        const validApiIds = apiProjects
             .map(p => p?.id)
-            .filter(id =>
-                id !== null &&
-                id !== undefined &&
-                id !== '' &&
-                !Number.isNaN(id)
-            );
+            .filter(id => id !== null && id !== undefined && id !== '');
 
-        console.log("[projectRepository] mergeApiProjects -> IDs válidos:", apiIds);
+        console.log("[projectRepository] Sincronizando IDs:", validApiIds);
 
         try {
-            if (apiIds.length > 0) {
-                console.log(`[projectRepository] Deletando projetos locais não listados na API (${apiIds.length} IDs válidos)...`);
+            if (validApiIds.length > 0) {
                 await db.projects
-                    .where('id')
-                    .noneOf(apiIds)
+                    .filter(p => p.id != null && !validApiIds.includes(p.id))
                     .delete();
             } else {
-                console.log("[projectRepository] Nenhum ID válido recebido da API. Limpando todos os projetos sincronizados...");
-
-                const projectsWithServerId = await db.projects
+                await db.projects
                     .filter(p => p.id != null)
-                    .toArray();
-
-                for (const p of projectsWithServerId) {
-                    await db.projects.delete(p.localId);
-                }
+                    .delete();
             }
 
             for (const apiProject of apiProjects) {
+                if (!apiProject.id) continue;
+
                 const localCopy = await db.projects.where('id').equals(apiProject.id).first();
 
                 if (localCopy) {
@@ -70,17 +57,25 @@ export const projectRepository = {
                         localId: localCopy.localId
                     });
                 } else {
-                    await db.projects.put(apiProject);
+                    try {
+                        await db.projects.put(apiProject);
+                    } catch (putError) {
+                        console.warn(`[projectRepository] Erro ao inserir projeto ${apiProject.id}. Tentando recuperação...`, putError);
+
+                        const conflict = await db.projects.where('id').equals(apiProject.id).first();
+                        if (conflict) {
+                            await db.projects.put({ ...apiProject, localId: conflict.localId });
+                        }
+                    }
                 }
             }
-
-            console.log(`[projectRepository] mergeApiProjects: finalizado (${apiProjects.length} projetos).`);
+            console.log(`[projectRepository] Sync finalizado.`);
 
         } catch (err) {
-            console.error("mergeApiProjects: erro ao mesclar projetos da API", err);
-            console.log("apiIds problemáticos:", apiIds);
+            console.error("mergeApiProjects: Erro fatal", err);
         }
     },
+
     async clearLocalProjects() {
         return await db.projects.clear();
     }

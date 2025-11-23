@@ -34,8 +34,11 @@ export const useProjectStore = defineStore('projects', {
         selectProject(localId) {
             this.active_project_id = localId;
         },
+
         async markProjectAsAccessed(localId) {
-            const project = this.projects.find(p => p.localId === localId);
+            const pid = Number(localId) || localId;
+            const project = this.projects.find(p => p.localId == pid);
+
             if (project) {
                 const now = new Date().toISOString();
 
@@ -44,8 +47,15 @@ export const useProjectStore = defineStore('projects', {
                 try {
                     const projectClone = JSON.parse(JSON.stringify(project));
                     await projectRepository.saveLocalProject(projectClone);
+                    console.debug(`[ProjectStore] Acesso salvo localmente: ${pid}`);
                 } catch (error) {
-                    console.error("Erro ao salvar acesso localmente:", error);
+                    console.error("[ProjectStore] Erro ao salvar acesso no Dexie:", error);
+                }
+
+                if (project.id) {
+                    api.post(`/projects/${project.id}/access`).catch(err => {
+                        console.warn("[ProjectStore] Falha silenciosa ao registrar acesso na API:", err.message);
+                    });
                 }
             }
         },
@@ -137,12 +147,15 @@ export const useProjectStore = defineStore('projects', {
 
         async createProject(projectData) {
             const cleanProjectData = JSON.parse(JSON.stringify(projectData));
+
             const localProject = {
                 ...cleanProjectData,
-                id: null,
                 status: 'em_andamento',
                 last_accessed_at: new Date().toISOString()
             };
+
+            delete localProject.id;
+
             try {
                 const localId = await projectRepository.addLocalProject(localProject);
                 this.projects.push({ ...projectData, localId });

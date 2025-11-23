@@ -33,45 +33,38 @@ export const accountsRepository = {
     async clearLocalAccounts() {
         return await db.accounts.clear();
     },
-    async mergeApiAccounts(apiAccounts) {
-        if (!Array.isArray(apiAccounts)) {
-            console.warn("[accountsRepository] apiAccounts inválido:", apiAccounts);
+    async mergeApiAccounts(api_accounts) {
+        if (!Array.isArray(api_accounts) || api_accounts.length === 0) {
             return;
         }
 
         return db.transaction('rw', db.accounts, async () => {
-            const localAccounts = await db.accounts.toArray();
+            const changes_to_sync = [];
 
-            const serverIdsSet = new Set(apiAccounts.map(acc => acc.id));
+            for (const api_acc of api_accounts) {
+                const existing_local = await db.accounts.where('id').equals(api_acc.id).first();
 
-            const accountsToDelete = localAccounts.filter(
-                localAcc => localAcc.id !== null &&
-                    localAcc.id !== undefined &&
-                    !serverIdsSet.has(localAcc.id)
-            );
+                const payload = {
+                    id: api_acc.id,
+                    data: api_acc.data,
+                    updated_at: api_acc.updated_at
+                };
 
-            if (accountsToDelete.length > 0) {
-                const idsToDelete = accountsToDelete.map(acc => acc.localId);
-                console.log(`[AccountsRepo] Removendo ${idsToDelete.length} contas deletadas no servidor.`);
-                await db.accounts.bulkDelete(idsToDelete);
+                if (existing_local) {
+                    payload.localId = existing_local.localId;
+                }
+
+                changes_to_sync.push(payload);
             }
 
-            for (const apiAcc of apiAccounts) {
-                const existingLocal = localAccounts.find(l => l.id === apiAcc.id);
-
-                if (existingLocal) {
-                    if (existingLocal.data !== apiAcc.data) {
-                        await db.accounts.update(existingLocal.localId, {
-                            data: apiAcc.data,
-                        });
-                    }
-                } else {
-                    await db.accounts.add({
-                        id: apiAcc.id,
-                        data: apiAcc.data,
-                    });
-                }
+            if (changes_to_sync.length > 0) {
+                await db.accounts.bulkPut(changes_to_sync);
+                console.log(`[AccountsRepo] Delta Sync: ${changes_to_sync.length} contas atualizadas/criadas.`);
             }
         });
+    },
+    async getLastUpdateTimestamp() {
+        const last_item = await db.accounts.orderBy('updated_at').last();
+        return last_item ? last_item.updated_at : null;
     }
 };

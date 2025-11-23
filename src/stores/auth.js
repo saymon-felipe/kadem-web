@@ -92,7 +92,7 @@ export const useAuthStore = defineStore('auth', {
                 router.push("/auth");
             }
         },
-        async checkAuthStatus() {
+        async checkAuthStatus(recursive = false) {
             if (this.isAuthenticated !== null) {
                 return;
             }
@@ -106,7 +106,7 @@ export const useAuthStore = defineStore('auth', {
                 if (utilsStore.connection.connected) {
                     try {
                         await syncService.processSyncQueue();
-                        await this.syncProfile();
+                        await this.syncProfile(recursive);
                         projectStore.pullProjects();
                         vaultStore.pullAccounts();
                     } catch (syncError) {
@@ -133,7 +133,7 @@ export const useAuthStore = defineStore('auth', {
                 this.isAuthenticated = false;
             }
         },
-        async syncProfile() {
+        async syncProfile(recursive = false) {
             try {
                 let response = await api.get('/users/profile');
                 await this._saveUserData(response.data);
@@ -143,6 +143,12 @@ export const useAuthStore = defineStore('auth', {
                 } else {
                     console.warn('Falha ao sincronizar perfil em background. Usando dados locais.');
                 }
+            }
+
+            if (recursive) {
+                setTimeout(() => {
+                    this.syncProfile();
+                }, 15 * 60 * 1000) //15 minutos
             }
         },
         async _saveUserData(apiUserData) {
