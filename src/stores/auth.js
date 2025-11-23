@@ -21,6 +21,7 @@ export const useAuthStore = defineStore('auth', {
     state: () => ({
         user: {},
         isAuthenticated: null,
+        lastSyncTimestamp: localStorage.getItem('kadem_user_last_sync') || null
     }),
     getters: {
         isLoggedIn: (state) => state.isAuthenticated === true,
@@ -88,6 +89,9 @@ export const useAuthStore = defineStore('auth', {
                 this.user = {};
                 this.isAuthenticated = false;
                 projectStore.projects = [];
+                localStorage.removeItem('kadem_user_last_sync');
+                localStorage.removeItem('kadem_vault_last_sync');
+                localStorage.removeItem('kadem_projects_last_sync');
 
                 router.push("/auth");
             }
@@ -107,8 +111,8 @@ export const useAuthStore = defineStore('auth', {
                     try {
                         await syncService.processSyncQueue();
                         await this.syncProfile(recursive);
-                        projectStore.pullProjects();
-                        vaultStore.pullAccounts();
+                        await projectStore.pullProjects();
+                        await vaultStore.pullAccounts();
                     } catch (syncError) {
                         console.error("Falha na orquestração PUSH-PULL:", syncError);
                     }
@@ -118,6 +122,7 @@ export const useAuthStore = defineStore('auth', {
                         const localMedals = await medalRepository.getLocalMedals();
 
                         await projectStore._loadProjectsFromDB();
+                        await vaultStore.loadAccountsFromDB();
 
                         this.user = {
                             ...localUser,
@@ -133,22 +138,62 @@ export const useAuthStore = defineStore('auth', {
                 this.isAuthenticated = false;
             }
         },
-        async syncProfile(recursive = false) {
+        async _loadLocalUserToState() {
             try {
-                let response = await api.get('/users/profile');
-                await this._saveUserData(response.data);
+                const localUser = await userRepository.getLocalUserProfile();
+                if (localUser) {
+                    const localOccupations = await occupationRepository.getLocalUserOccupations();
+                    const localMedals = await medalRepository.getLocalMedals();
+
+                    this.user = {
+                        ...localUser,
+                        occupations: localOccupations,
+                        medals: localMedals
+                    };
+                    this.isAuthenticated = true;
+                    return true;
+                }
+            } catch (err) {
+                console.error("Erro ao carregar usuário local:", err);
+            }
+            return false;
+        },
+        async syncProfile(recursive = false) {
+            const hasLocalData = await this._loadLocalUserToState();
+
+            try {
+                const params = {};
+                if (this.lastSyncTimestamp) {
+                    params.since = this.lastSyncTimestamp;
+                }
+
+                const response = await api.get('/users/profile', { params });
+                const { user: remoteUser, server_timestamp } = response.data;
+
+                if (remoteUser) {
+                    await this._saveUserData(remoteUser);
+                } else if (!hasLocalData) {
+                    await this._loadLocalUserToState();
+                }
+
+                if (server_timestamp) {
+                    this.lastSyncTimestamp = server_timestamp;
+                    localStorage.setItem('kadem_user_last_sync', server_timestamp);
+                }
+
             } catch (error) {
-                if (error.status == 401) {
+                if (error.response && error.response.status === 401) {
                     this.logout(true);
                 } else {
-                    console.warn('Falha ao sincronizar perfil em background. Usando dados locais.');
+                    console.warn('Falha ao sincronizar perfil. Usando dados locais.', error);
+                    await this._loadLocalUserToState();
                 }
             }
 
             if (recursive) {
                 setTimeout(() => {
                     this.syncProfile();
-                }, 15 * 60 * 1000) //15 minutos
+                }, 15 * 60 * 1000) // 15 minutos
             }
         },
         async _saveUserData(apiUserData) {

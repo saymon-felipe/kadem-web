@@ -25,55 +25,36 @@ export const projectRepository = {
     async mergeApiProjects(apiProjects) {
         if (!db.projects) return;
 
-        if (!Array.isArray(apiProjects)) {
-            apiProjects = [];
+        if (!Array.isArray(apiProjects) || apiProjects.length === 0) {
+            return;
         }
 
-        const validApiIds = apiProjects
-            .map(p => p?.id)
-            .filter(id => id !== null && id !== undefined && id !== '');
+        console.log(`[projectRepository] Processando Delta Sync de ${apiProjects.length} projetos.`);
 
-        console.log("[projectRepository] Sincronizando IDs:", validApiIds);
+        return db.transaction('rw', db.projects, async () => {
+            const changes_to_sync = [];
 
-        try {
-            if (validApiIds.length > 0) {
-                await db.projects
-                    .filter(p => p.id != null && !validApiIds.includes(p.id))
-                    .delete();
-            } else {
-                await db.projects
-                    .filter(p => p.id != null)
-                    .delete();
-            }
+            for (const apiProj of apiProjects) {
+                if (!apiProj.id) continue;
 
-            for (const apiProject of apiProjects) {
-                if (!apiProject.id) continue;
+                const existing_local = await db.projects.where('id').equals(apiProj.id).first();
 
-                const localCopy = await db.projects.where('id').equals(apiProject.id).first();
+                const payload = {
+                    ...apiProj,
+                    members: apiProj.members || []
+                };
 
-                if (localCopy) {
-                    await db.projects.put({
-                        ...apiProject,
-                        localId: localCopy.localId
-                    });
-                } else {
-                    try {
-                        await db.projects.put(apiProject);
-                    } catch (putError) {
-                        console.warn(`[projectRepository] Erro ao inserir projeto ${apiProject.id}. Tentando recuperação...`, putError);
-
-                        const conflict = await db.projects.where('id').equals(apiProject.id).first();
-                        if (conflict) {
-                            await db.projects.put({ ...apiProject, localId: conflict.localId });
-                        }
-                    }
+                if (existing_local) {
+                    payload.localId = existing_local.localId;
                 }
-            }
-            console.log(`[projectRepository] Sync finalizado.`);
 
-        } catch (err) {
-            console.error("mergeApiProjects: Erro fatal", err);
-        }
+                changes_to_sync.push(payload);
+            }
+
+            if (changes_to_sync.length > 0) {
+                await db.projects.bulkPut(changes_to_sync);
+            }
+        });
     },
 
     async clearLocalProjects() {

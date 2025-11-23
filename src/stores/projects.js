@@ -13,6 +13,7 @@ export const useProjectStore = defineStore('projects', {
         projects: [],
         active_project_id: null,
         is_populating_offline_cache: false,
+        lastSyncTimestamp: localStorage.getItem('kadem_projects_last_sync') || null
     }),
 
     getters: {
@@ -61,19 +62,37 @@ export const useProjectStore = defineStore('projects', {
         },
 
         async pullProjects() {
-            console.log("[pullProjects] Puxando projetos da API...");
+            await this._loadProjectsFromDB();
+
             try {
-                const response = await api.get('/projects');
+                const params = {};
+                if (this.lastSyncTimestamp) {
+                    params.since = this.lastSyncTimestamp;
+                }
 
-                await projectRepository.mergeApiProjects(response.data);
-                await this._loadProjectsFromDB();
+                const response = await api.get('/projects', { params });
 
-                console.log("[pullProjects] Lista sincronizada. Iniciando cache progressivo...");
-                this.start_progressive_details_pull(this.projects);
+                const isDeltaFormat = response.data && !Array.isArray(response.data) && 'items' in response.data;
+                const remoteProjects = isDeltaFormat ? response.data.items : response.data;
+                const serverTime = isDeltaFormat ? response.data.server_timestamp : null;
+
+                if (Array.isArray(remoteProjects) && remoteProjects.length > 0) {
+                    console.log(`[Projects] ${remoteProjects.length} alterações recebidas. Atualizando banco local...`);
+
+                    await projectRepository.mergeApiProjects(remoteProjects);
+
+                    await this._loadProjectsFromDB();
+                } else {
+                    console.log("[Projects] Sincronizado (Nenhuma alteração remota).");
+                }
+
+                if (serverTime) {
+                    this.lastSyncTimestamp = serverTime;
+                    localStorage.setItem('kadem_projects_last_sync', serverTime);
+                }
 
             } catch (error) {
-                console.error("Falha ao 'puxar' (pull) projetos da API:", error);
-                await this._loadProjectsFromDB();
+                console.warn("[Projects] Pull falhou ou offline:", error);
             }
         },
 

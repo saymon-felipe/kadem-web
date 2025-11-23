@@ -87,6 +87,7 @@ export const useVaultStore = defineStore('vault', () => {
     const last_sync_timestamp = ref(localStorage.getItem('kadem_vault_last_sync') || null);
 
     const pullAccounts = async () => {
+        console.log("[VaultStore] Verificando atualizações...");
         try {
             const params = {};
             if (last_sync_timestamp.value) {
@@ -94,14 +95,13 @@ export const useVaultStore = defineStore('vault', () => {
             }
 
             const { data } = await api.get('/accounts', { params });
-
             const remote_accounts = data.items || [];
             const server_time = data.server_timestamp;
 
             if (remote_accounts.length > 0) {
                 await accountsRepository.mergeApiAccounts(remote_accounts);
             } else {
-                console.log("[Vault] Nenhuma alteração remota detectada.");
+                console.log("[VaultStore] Cofre sincronizado.");
             }
 
             if (server_time) {
@@ -110,7 +110,7 @@ export const useVaultStore = defineStore('vault', () => {
             }
 
         } catch (error) {
-            console.error("[Vault] Erro no Delta Sync:", error);
+            console.error("[VaultStore] Erro no sync (pode estar offline):", error);
         }
     };
 
