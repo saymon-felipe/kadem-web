@@ -213,7 +213,9 @@ textarea:focus ~ label,
 input:not(:placeholder-shown):valid ~ label, 
 textarea:not(:placeholder-shown):valid ~ label,
 input:not(:placeholder-shown):invalid ~ label, 
-textarea:not(:placeholder-shown):invalid ~ label {
+textarea:not(:placeholder-shown):invalid ~ label,
+input:not(:placeholder-shown):disabled ~ label, 
+textarea:not(:placeholder-shown):disabled ~ label {
   transform: translateY(-11px);
   font-size: var(--fontsize-xs);
 }

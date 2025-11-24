@@ -37,7 +37,7 @@ export default defineConfig({
             }
           },
           {
-            urlPattern: ({ url }) => url.hostname === "logo.clearbit.com",
+            urlPattern: ({ url }) => url.hostname === "img.logo.dev",
             handler: 'CacheFirst',
             options: {
               cacheName: 'placeholder-images-cache',

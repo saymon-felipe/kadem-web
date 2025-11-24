@@ -129,7 +129,7 @@
                             <button class="btn-like" :class="{ 'liked': comment.liked_by_me }"
                                 @click="toggle_like(comment)" title="Curtir">
                                 <font-awesome-icon :icon="['fas', 'thumbs-up']" />
-                                <span>{{ comment.likes || 0 }}</span>
+                                <span>{{ comment.likes_count || 0 }}</span>
                             </button>
                         </div>
                     </div>
@@ -335,15 +335,19 @@ export default {
 
         async toggle_like(comment) {
             const isLiked = !comment.liked_by_me;
+
             comment.liked_by_me = isLiked;
-            comment.likes = isLiked ? (comment.likes || 0) + 1 : (comment.likes || 0) - 1;
+
+            let likes_count = parseInt(comment.likes_count);
+
+            comment.likes_count = isLiked ? (likes_count || 0) + 1 : (likes_count || 0) - 1;
 
             try {
                 await this.toggleCommentLike(this.editable_task, comment);
             } catch (error) {
                 console.error("Erro ao persistir like:", error);
                 comment.liked_by_me = !isLiked;
-                comment.likes = isLiked ? comment.likes - 1 : comment.likes + 1;
+                comment.likes_count = isLiked ? likes_count - 1 : likes_count + 1;
             }
         },
 
@@ -396,7 +400,8 @@ export default {
                 this.new_comment_text = '';
 
                 this.$nextTick(() => {
-                    const container = this.$el.querySelector('.comment-list');
+                    const container = document.querySelector('.projects-window-content .modal-content');
+
                     if (container) container.scrollTop = container.scrollHeight;
                 });
 

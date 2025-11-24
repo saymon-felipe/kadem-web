@@ -56,6 +56,20 @@
                 </button>
             </div>
 
+            <div class="projects-grid" v-if="my_projects.length > 0">
+                <div class="project-card" v-for="project in projects" :key="project.id || project.localId"
+                    @click="$emit('request-edit-group', project)">
+                    <img :src="project.image || defaultProjectImage" :alt="project.name">
+                    <span :data-name="project.name">&nbsp;</span>
+                </div>
+            </div>
+            <p v-else class="empty-state">Você ainda não criou nenhum projeto.</p>
+        </section>
+        <section class="info-section" v-if="participating_projects.length > 0">
+            <div class="section-header">
+                <p>Projetos que eu faço parte</p>
+            </div>
+
             <div class="projects-grid">
                 <div class="project-card" v-for="project in projects" :key="project.id || project.localId"
                     @click="$emit('request-edit-group', project)">
@@ -87,7 +101,29 @@ export default {
     },
     computed: {
         ...mapState(useAuthStore, ['user']),
-        ...mapState(useProjectStore, ['projects'])
+        ...mapState(useProjectStore, ['projects']),
+        my_projects() {
+            if (!this.user || !this.user.id) return [];
+
+            return this.projects.filter(project => {
+                if (!Array.isArray(project.members)) return false;
+
+                const me = project.members.find(member => member.id === this.user.id);
+
+                return me && me.role === 'admin';
+            });
+        },
+        participating_projects() {
+            if (!this.user || !this.user.id) return [];
+
+            return this.projects.filter(project => {
+                if (!Array.isArray(project.members)) return false;
+
+                const me = project.members.find(member => member.id === this.user.id);
+
+                return me && me.role !== 'admin';
+            });
+        }
     },
     methods: {
         ...mapActions(useAuthStore, [

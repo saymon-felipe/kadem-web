@@ -5,28 +5,33 @@
         <div class="form-container">
             <div class="form-inputs">
                 <div class="form-group">
-                    <input id="group-name" type="text" v-model="project.name" placeholder=" " required />
+                    <input id="group-name" type="text" v-model="project.name" placeholder=" " required
+                        :disabled="!canEditProject" />
                     <label for="group-name">Nome</label>
                 </div>
 
                 <div class="form-group">
-                    <input id="group-desc" type="text" v-model="project.description" placeholder=" " required />
+                    <input id="group-desc" type="text" v-model="project.description" placeholder=" " required
+                        :disabled="!canEditProject" />
                     <label for="group-desc">Descrição</label>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" v-if="canEditProject">
                     <input id="add-member" type="email" v-model="memberEmail" @keyup.enter="addMemberToList"
-                        placeholder=" " required />
+                        placeholder=" " required :disabled="!isConnected"
+                        :title="!isConnected ? 'A funcionalidade de convidar membros para o grupo só está disponível offline.' : ''" />
                     <label for="add-member">Adicionar membro (pressione Enter)</label>
                 </div>
 
                 <div class="pending-members">
                     <span v-for="(member, index) in project.members" :key="index">
                         {{ member.email || member.name }}
-                        <button @click="removeMemberFromList(index)" class="remove-member-btn"
+                        <button v-if="canEditProject" @click="removeMemberFromList(index)" class="remove-member-btn"
                             title="Remover">&times;</button>
                     </span>
                 </div>
+
+                <LoadingResponse :msg="response" :type="responseType" styletype="small" :loading="false" />
             </div>
 
             <div class="preview-card-container">
@@ -35,10 +40,12 @@
                     <div class="preview-overlay">
                         <span class="preview-title">{{ project.name || "Nome do grupo" }}</span>
                         <div class="image-actions">
-                            <button class="preview-refresh" @click="triggerImageUpload" title="Alterar imagem">
+                            <button v-if="canEditProject" class="preview-refresh" @click="triggerImageUpload"
+                                title="Alterar imagem">
                                 <font-awesome-icon icon="arrows-rotate" />
                             </button>
-                            <button v-if="project.image && project.image !== defaultProjectImage && isEditMode"
+                            <button
+                                v-if="project.image && project.image !== defaultProjectImage && isEditMode && canEditProject"
                                 class="preview-delete-image" @click="handleDeleteImage" title="Remover imagem">
                                 <font-awesome-icon icon="trash-can" />
                             </button>
@@ -54,10 +61,12 @@
                         :disabled="isCreating">
                         Excluir projeto
                     </button>
+
                     <button class="btn" @click="$emit('cancel-new-group')">
-                        Cancelar
+                        {{ canEditProject ? 'Cancelar' : 'Fechar' }}
                     </button>
-                    <button class="btn btn-primary" @click="handleSave" :disabled="isCreating">
+
+                    <button v-if="canEditProject" class="btn btn-primary" @click="handleSave" :disabled="isCreating">
                         {{ saveButtonText }}
                     </button>
                 </div>
@@ -73,13 +82,17 @@ import defaultProjectImage from "@/assets/images/kadem-default-project.jpg";
 import { mapActions, mapState } from 'pinia';
 import { useProjectStore } from '@/stores/projects';
 import { useAuthStore } from '@/stores/auth';
+import { useUtilsStore } from "@/stores/utils";
+import { api } from '@/plugins/api';
 
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import LoadingResponse from "@/components/loadingResponse.vue";
 
 export default {
     name: "NewProject",
     components: {
-        ConfirmationModal
+        ConfirmationModal,
+        LoadingResponse
     },
     props: {
         projectToEdit: {
@@ -101,25 +114,45 @@ export default {
             memberEmail: '',
             isCreating: false,
             showDeleteProjectModal: false,
+            newlyAddedEmails: []
         }
     },
     computed: {
         ...mapState(useAuthStore, ['user']),
+        ...mapState(useUtilsStore, ['isConnected']),
+
         isEditMode() {
             return !!this.projectToEdit;
         },
-        title() {
-            return this.isEditMode ? 'Editar projeto' : 'Criar projeto';
+        canEditProject() {
+            if (!this.isEditMode) return true;
+            return this.isUserAdmin;
         },
-        saveButtonText() {
-            return this.isCreating ? (this.isEditMode ? 'Salvando...' : 'Criando...') : (this.isEditMode ? 'Salvar alterações' : 'Criar grupo');
-        },
+
         isUserAdmin() {
-            if (!this.isEditMode || !this.originalProject || !this.user) {
+            if (!this.isEditMode) return true;
+
+            if (!this.originalProject || !this.user || !this.user.id) {
                 return false;
             }
 
-            return this.originalProject.user_role === 'admin';
+            if (Array.isArray(this.originalProject.members)) {
+                const me = this.originalProject.members.find(m => m.id === this.user.id);
+                return me && me.role === 'admin';
+            }
+
+            return false;
+        },
+
+        title() {
+            if (!this.isEditMode) return 'Criar projeto';
+            return this.canEditProject ? 'Editar projeto' : (this.project.name || 'Detalhes do Projeto');
+        },
+
+        saveButtonText() {
+            return this.isCreating ?
+                (this.isEditMode ? 'Salvando...' : 'Criando...') :
+                (this.isEditMode ? 'Salvar alterações' : 'Criar grupo');
         }
     },
     watch: {
@@ -144,19 +177,22 @@ export default {
         },
         isCreating: {
             handler() {
-                this.project.name = "";
-                this.project.description = "";
-                this.project.image = "";
-                this.project.members = [];
+                if (!this.isCreating && !this.isEditMode) {
+
+                }
             }
         }
     },
 
     methods: {
         ...mapActions(useProjectStore, ['createProject', 'updateProject', 'deleteProject']),
+
         triggerImageUpload() {
-            this.$refs.imageInput.click();
+            if (this.canEditProject) {
+                this.$refs.imageInput.click();
+            }
         },
+
         handleImageUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -169,28 +205,61 @@ export default {
             };
             reader.readAsDataURL(file);
         },
+
         addMemberToList() {
-            if (this.memberEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.memberEmail)) {
-                this.project.members.push({ email: this.memberEmail });
+            if (!this.memberEmail) return;
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(this.memberEmail)) return;
+
+            const exists = this.project.members.some(m => m.email === this.memberEmail || m.name === this.memberEmail);
+            if (exists) {
                 this.memberEmail = '';
+                return;
+            }
+
+            this.project.members.push({ email: this.memberEmail });
+
+            if (this.isEditMode) {
+                this.newlyAddedEmails.push(this.memberEmail);
+            }
+
+            this.memberEmail = '';
+        },
+
+        removeMemberFromList(index) {
+            const memberToRemove = this.project.members[index];
+            this.project.members.splice(index, 1);
+
+            if (this.isEditMode && memberToRemove.email) {
+                this.newlyAddedEmails = this.newlyAddedEmails.filter(e => e !== memberToRemove.email);
             }
         },
-        removeMemberFromList(index) {
-            this.project.members.splice(index, 1);
-        },
+
         async handleSave() {
+            if (!this.canEditProject) return;
+
             if (this.isEditMode) {
                 await this.handleUpdateProject();
             } else {
                 await this.handleCreateProject();
             }
         },
+
         async handleCreateProject() {
             if (this.isCreating || !this.project.name) return;
             this.isCreating = true;
 
             try {
-                await this.createProject(this.project);
+                const invitesList = this.project.members
+                    .map(m => m.email)
+                    .filter(email => email);
+
+                const payload = {
+                    ...this.project,
+                    invites: invitesList
+                };
+
+                await this.createProject(payload);
                 this.$emit('cancel-new-group');
             } catch (error) {
                 console.error("Falha ao criar projeto:", error);
@@ -198,32 +267,36 @@ export default {
                 this.isCreating = false;
             }
         },
+
         async handleUpdateProject() {
             if (this.isCreating) return;
             this.isCreating = true;
 
-            const changes = {};
-            if (this.project.name !== this.originalProject.name) {
-                changes.name = this.project.name;
-            }
-            if (this.project.description !== this.originalProject.description) {
-                changes.description = this.project.description;
-            }
-            if (this.project.image !== this.originalProject.image) {
-                changes.image = this.project.image;
-            }
-
             try {
+                const changes = {};
+                if (this.project.name !== this.originalProject.name) changes.name = this.project.name;
+                if (this.project.description !== this.originalProject.description) changes.description = this.project.description;
+                if (this.project.image !== this.originalProject.image) changes.image = this.project.image;
+
                 if (Object.keys(changes).length > 0) {
                     await this.updateProject(this.originalProject, changes);
                 }
+
+                if (this.newlyAddedEmails.length > 0 && this.isConnected) {
+                    await api.post(`/projects/${this.originalProject.id}/invite/batch`, {
+                        emails: this.newlyAddedEmails
+                    });
+                }
+
                 this.$emit('cancel-new-group');
             } catch (error) {
                 console.error("Falha ao atualizar projeto:", error);
             } finally {
                 this.isCreating = false;
+                this.newlyAddedEmails = [];
             }
         },
+
         handleDeleteImage() {
             this.project.image = '';
             this.projectImageBase64 = defaultProjectImage;
@@ -232,9 +305,9 @@ export default {
         confirmDeleteProject() {
             this.showDeleteProjectModal = true;
         },
+
         async handleDeleteProject() {
             if (!this.originalProject || !this.originalProject.id || !this.originalProject.localId) {
-                console.error("Dados do projeto original ausentes para exclusão.");
                 return;
             }
 

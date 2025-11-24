@@ -4,6 +4,7 @@ import homeView from "../views/homeView.vue";
 import authView from "../views/authView.vue";
 import logoutView from '../views/logoutView.vue';
 import resetPasswordView from "../views/resetPasswordView.vue";
+import inviteLandindView from "../views/InviteLanding.vue";
 
 const routes = [
   {
@@ -34,6 +35,14 @@ const routes = [
     path: "/reset_password",
     name: "ResetPassword",
     component: resetPasswordView,
+    meta: {
+      public: true
+    }
+  },
+  {
+    path: '/invite/landing',
+    name: 'invite-landing',
+    component: inviteLandindView,
     meta: {
       public: true
     }

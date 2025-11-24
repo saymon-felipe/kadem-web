@@ -17,7 +17,7 @@
             <div class="trigger-right">
                 <div class="members-stack-trigger">
                     <div v-for="(member, index) in (currentProject?.members || []).slice(0, 3)" :key="index"
-                        class="trigger-avatar">
+                        :title="member.name" class="trigger-avatar">
                         <img :src="member.avatar || defaultAccountImage">
                     </div>
                     <div v-if="(currentProject?.members || []).length > 3" class="trigger-avatar counter">
@@ -55,7 +55,7 @@
                         <div class="row-right">
                             <div class="list-members-stack">
                                 <div v-for="(member, index) in (project.members || []).slice(0, 2)" :key="index"
-                                    class="list-avatar">
+                                    :title="member.name" class="list-avatar">
                                     <img :src="member.avatar || defaultAccountImage">
                                 </div>
                             </div>
@@ -212,7 +212,7 @@ export default {
     border-radius: 50%;
     border: 2px solid #1E2139;
     overflow: hidden;
-    margin-left: -10px;
+    margin-left: -20px;
 }
 
 .trigger-avatar img {
@@ -358,7 +358,7 @@ export default {
     height: 28px;
     border-radius: 50%;
     overflow: hidden;
-    margin-left: -8px;
+    margin-left: -14px;
     border: 2px solid white;
 }
 

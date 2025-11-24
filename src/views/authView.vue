@@ -81,13 +81,29 @@ export default {
             ],
             passwordFieldType: "password",
             repeatPasswordFieldType: "password",
-            passwordStrength: { text: "", class: "" }
+            passwordStrength: { text: "", class: "" },
+            inviteToken: null
         }
     },
     computed: {
         isRegister() {
             return this.authType === 'register';
         }
+    },
+    mounted: function () {
+        if (this.$route.query.authtype == "login" || this.$route.query.authtype == "register") {
+            this.authType = this.$route.query.authtype;
+        }
+
+        this.$nextTick(() => {
+            if (this.$route.query.invite_token) {
+                this.inviteToken = this.$route.query.invite_token;
+            }
+
+            if (this.$route.query.email) {
+                this.email = this.$route.query.email;
+            }
+        })
     },
     watch: {
         authType() {
@@ -102,6 +118,7 @@ export default {
     methods: {
         async handleResetPassword() {
             this.resetResponse();
+
             if (!this.email) {
                 this.setResponse("error", "Por favor, digite seu e-mail no campo 'E-mail' para solicitar a redefinição.", false);
                 return;
@@ -179,12 +196,13 @@ export default {
                     const data = {
                         email: this.email,
                         password: this.password,
-                        name: this.name
+                        name: this.name,
+                        invite_token: this.inviteToken
                     };
 
                     await authStore.register(data);
                 } else {
-                    await authStore.login(this.email, this.password);
+                    await authStore.login(this.email, this.password, this.inviteToken);
                 }
 
                 if (this.isRegister) {

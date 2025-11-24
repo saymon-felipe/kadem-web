@@ -160,12 +160,6 @@ export const useVaultStore = defineStore('vault', () => {
     };
 
     const pullAccounts = async () => {
-        if (isUnlocked.value) {
-            await loadAccountsFromDB();
-        } else {
-            return;
-        }
-
         console.log("[VaultStore] Verificando atualizações...");
         try {
             const params = {};

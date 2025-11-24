@@ -39,9 +39,9 @@ export const useAuthStore = defineStore('auth', {
                 throw error;
             }
         },
-        async login(email, password) {
+        async login(email, password, invite_token) {
             try {
-                const response = await api.post('/auth/login', { email, password });
+                const response = await api.post('/auth/login', { email, password, invite_token });
                 await this._saveUserData(response.data);
                 return response;
             } catch (error) {
@@ -93,7 +93,11 @@ export const useAuthStore = defineStore('auth', {
 
                 this.user = {};
                 this.isAuthenticated = false;
+                this.lastSyncTimestamp = null;
                 projectStore.projects = [];
+                projectStore.lastSyncTimestamp = null;
+                projectStore.active_project_id = null;
+                projectStore.is_populating_offline_cache = false;
                 projectStore.lastSyncTimestamp = null;
                 kanbanStore.columns = {};
                 kanbanStore.tasks = {};
@@ -144,14 +148,6 @@ export const useAuthStore = defineStore('auth', {
                         };
 
                         this.isAuthenticated = true;
-
-                        if (recursive) {
-                            const kanbanStore = useKanbanStore();
-
-                            await projectStore.pullProjects();
-                            await vaultStore.pullAccounts();
-                            await kanbanStore.syncAllBoards();
-                        }
                     }
                 }
             } catch (error) {
