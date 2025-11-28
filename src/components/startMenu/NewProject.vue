@@ -24,10 +24,15 @@
                 </div>
 
                 <div class="pending-members">
-                    <span v-for="(member, index) in project.members" :key="index">
+                    <span v-for="(member, index) in project.members" :key="index" :class="getMemberBadgeClass(member)"
+                        :title="member.status === 'pending' ? 'Convite Pendente' : 'Membro Ativo'">
+
                         {{ member.email || member.name }}
-                        <button v-if="canEditProject" @click="removeMemberFromList(index)" class="remove-member-btn"
-                            title="Remover">&times;</button>
+
+                        <button @click="handleRemoveMemberOrInvite(member, index)" class="remove-member-btn"
+                            title="Remover" :disabled="isCreating" v-if="canEditProject">
+                            &times;
+                        </button>
                     </span>
                 </div>
 
@@ -174,19 +179,53 @@ export default {
                 }
             },
             immediate: true
-        },
-        isCreating: {
-            handler() {
-                if (!this.isCreating && !this.isEditMode) {
-
-                }
-            }
         }
     },
 
     methods: {
-        ...mapActions(useProjectStore, ['createProject', 'updateProject', 'deleteProject']),
+        ...mapActions(useProjectStore, [
+            'createProject',
+            'updateProject',
+            'deleteProject',
+            'removeProjectMember',
+            'revokeProjectInvite'
+        ]),
+        getMemberBadgeClass(member) {
+            if (member.status === 'pending') return 'badge-pending';
+            return 'badge-active';
+        },
+        async handleRemoveMemberOrInvite(member, index) {
+            if (this.isCreating) return;
 
+            if (!this.isEditMode || !member.status) {
+                this.project.members.splice(index, 1);
+                return;
+            }
+
+            if (this.isEditMode) {
+                this.isCreating = true;
+                try {
+                    if (member.status === 'active' && member.id) {
+                        await this.removeProjectMember(this.originalProject.id, this.originalProject.localId, member.id);
+                    } else if (member.status === 'pending' && member.email) {
+                        await this.revokeProjectInvite(this.originalProject.id, this.originalProject.localId, member.email);
+                    }
+
+                    this.project.members.splice(index, 1);
+                    if (this.originalProject && this.originalProject.members) {
+                        this.originalProject.members = this.originalProject.members.filter(m =>
+                            (m.id && m.id !== member.id) || (m.email && m.email !== member.email)
+                        );
+                    }
+
+                } catch (error) {
+                    console.error("Erro ao remover membro:", error);
+                    alert("Falha ao remover membro. Tente novamente.");
+                } finally {
+                    this.isCreating = false;
+                }
+            }
+        },
         triggerImageUpload() {
             if (this.canEditProject) {
                 this.$refs.imageInput.click();
@@ -378,10 +417,23 @@ export default {
 }
 
 .pending-members span {
-    background-color: var(--deep-blue);
     color: var(--white);
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background-color 0.2s;
+}
+
+.badge-active {
+    background-color: var(--deep-blue);
+}
+
+.badge-pending {
+    background-color: var(--gray-300);
+    color: var(--black);
+    border: 1px solid var(--gray-100);
 }
 
 .preview-card-container {

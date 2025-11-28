@@ -243,6 +243,65 @@ export const useProjectStore = defineStore('projects', {
                 timestamp: new Date().toISOString()
             });
             syncService.processSyncQueue();
+        },
+
+        async removeProjectMember(projectId, localId, targetUserId) {
+            const project = this.projects.find(p => p.localId === localId);
+            if (project) {
+                project.members = project.members.filter(m => m.id !== targetUserId);
+                await projectRepository.saveLocalProject(JSON.parse(JSON.stringify(project)));
+            }
+
+            await syncQueueRepository.addSyncQueueTask({
+                type: 'REMOVE_PROJECT_MEMBER',
+                payload: {
+                    projectId: projectId,
+                    targetUserId: targetUserId
+                },
+                timestamp: new Date().toISOString()
+            });
+
+            syncService.processSyncQueue();
+        },
+
+        async revokeProjectInvite(projectId, localId, targetEmail) {
+            const project = this.projects.find(p => p.localId === localId);
+            if (project) {
+                project.members = project.members.filter(m => m.email !== targetEmail);
+                await projectRepository.saveLocalProject(JSON.parse(JSON.stringify(project)));
+            }
+
+            await syncQueueRepository.addSyncQueueTask({
+                type: 'REVOKE_PROJECT_INVITE',
+                payload: {
+                    projectId: projectId,
+                    targetEmail: targetEmail
+                },
+                timestamp: new Date().toISOString()
+            });
+
+            syncService.processSyncQueue();
+        },
+
+        /**
+         * AÇÃO DE AUTO-CORREÇÃO DE SEGURANÇA
+         * Chamada quando o servidor retorna 403 Forbidden para um projeto.
+         */
+        async forceLocalProjectRemoval(projectId) {
+            console.warn(`[Security] Acesso revogado para o projeto ${projectId}. Iniciando remoção local.`);
+
+            try {
+                this.projects = this.projects.filter(p => String(p.id) !== String(projectId) && String(p.localId) !== String(projectId));
+
+                await projectRepository.deleteProjectByRemoteId(projectId);
+
+                await syncQueueRepository.removeTasksByProjectId(projectId);
+
+                window.dispatchEvent(new CustomEvent('project-access-revoked', { detail: { projectId } }));
+
+            } catch (error) {
+                console.error(`[Security] Erro ao limpar projeto revogado ${projectId}:`, error);
+            }
         }
     }
 });

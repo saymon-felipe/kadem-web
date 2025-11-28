@@ -57,6 +57,35 @@ export const projectRepository = {
         });
     },
 
+    /**
+     * Remove fisicamente um projeto do banco local (Dexie) usando o ID do servidor.
+     * Utilizado pelo mecanismo de segurança "Self-Healing".
+     */
+    async deleteProjectByRemoteId(projectId) {
+        const id = parseInt(projectId, 10);
+
+        if (isNaN(id)) {
+            console.error('[ProjectRepo] ID inválido para exclusão:', projectId);
+            return;
+        }
+
+        try {
+            await db.projects.where('id').equals(id).delete();
+
+            if (db.kanban_tasks) {
+                await db.kanban_tasks.where('project_id').equals(id).delete();
+            }
+            if (db.kanban_columns) {
+                await db.kanban_columns.where('project_id').equals(id).delete();
+            }
+
+            console.log(`[ProjectRepo] Projeto ${id} e dados associados removidos localmente.`);
+        } catch (error) {
+            console.error(`[ProjectRepo] Falha ao deletar projeto ${id}:`, error);
+            throw error;
+        }
+    },
+
     async clearLocalProjects() {
         return await db.projects.clear();
     }

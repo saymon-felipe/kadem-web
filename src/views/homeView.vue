@@ -102,7 +102,13 @@ export default {
         },
         handleResize() {
             this.updateMobileStatus();
+        },
+        handleProjectRevoked() {
+            this.$router.go();
         }
+    },
+    created() {
+        window.addEventListener('project-access-revoked', this.handleProjectRevoked);
     },
     mounted: function () {
         this.handleResize();
@@ -115,6 +121,7 @@ export default {
     },
     beforeUnmount() {
         window.removeEventListener('resize', this.handleResize);
+        window.removeEventListener('project-access-revoked', this.handleProjectRevoked);
     }
 }
 </script>

@@ -9,12 +9,14 @@ import {
     accountsRepository
 } from './localData';
 
+import { useProjectStore } from '../stores/projects';
+import { useAuthStore } from '../stores/auth';
+
 let isProcessing = false;
 
 // --- HELPERS ---
 
 async function _saveServerData(apiUserData) {
-    const { useAuthStore } = await import('../stores/auth');
     const authStore = useAuthStore();
     const { occupations, medals, ...profileData } = apiUserData;
     await userRepository.saveLocalUserProfile(profileData);
@@ -188,7 +190,6 @@ async function processTaskItem(task) {
                     await projectRepository.saveLocalProject(serverData);
                 }
 
-                const { useProjectStore } = await import('../stores/projects');
                 const projectStore = useProjectStore();
                 await projectStore._loadProjectsFromDB();
 
@@ -328,6 +329,27 @@ async function processTaskItem(task) {
         case 'DELETE_OCCUPATION':
             return await api.delete(`/users/occupations/${task.payload.id}`);
 
+        case 'REMOVE_PROJECT_MEMBER':
+            try {
+                await api.delete(`/projects/${task.payload.projectId}/members/${task.payload.targetUserId}`);
+                console.log(`[SyncService] Membro ${task.payload.targetUserId} removido do projeto ${task.payload.projectId}.`);
+                return Promise.resolve();
+            } catch (error) {
+                console.error(`[SyncService] Falha ao remover membro:`, error);
+                throw error;
+            }
+
+        case 'REVOKE_PROJECT_INVITE':
+            try {
+                const encodedEmail = encodeURIComponent(task.payload.targetEmail);
+                await api.delete(`/projects/${task.payload.projectId}/invites/${encodedEmail}`);
+                console.log(`[SyncService] Convite para ${task.payload.targetEmail} cancelado.`);
+                return Promise.resolve();
+            } catch (error) {
+                console.error(`[SyncService] Falha ao cancelar convite:`, error);
+                throw error;
+            }
+
         default:
             if (task.type === 'CREATE_TASK_COMMENT') {
                 const localTask = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
@@ -398,20 +420,29 @@ export const syncService = {
                     await syncQueueRepository.deleteTask(task.id);
                     console.log(`[SyncService] OK: ${task.type} (${task.id})`);
                 } catch (error) {
+                    if (error.response && error.response.status === 403) {
+                        console.error(`[Security] Acesso negado ao processar ${task.type}. Removendo projeto local.`);
+
+                        await syncQueueRepository.deleteTask(task.id);
+
+                        if (task.payload && task.payload.projectId) {
+                            const projectStore = useProjectStore();
+                            projectStore.forceLocalProjectRemoval(task.payload.projectId);
+                        }
+                        continue;
+                    }
+
                     const msg = error.message || "";
                     if (msg.includes("NOT_SYNCED")) {
                         console.warn(`[SyncService] Adiado: ${task.type} (Dependência)`);
-                        // Não deleta da fila, tenta no próximo ciclo
                     } else if (error.response && error.response.status === 404) {
                         console.warn(`[SyncService] 404 (Não Encontrado). Limpando tarefa ${task.type}.`);
                         await syncQueueRepository.deleteTask(task.id);
                     } else {
                         console.error(`[SyncService] Erro em ${task.type}:`, error);
-                        // Opcional: Lógica de Retry Count aqui
                     }
                 }
             }
-
         } catch (globalError) {
             console.error("[SyncService] Erro fatal no loop:", globalError);
         } finally {
