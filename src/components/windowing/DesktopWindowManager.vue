@@ -9,7 +9,7 @@
 </template>
 
 <script>
-import { mapState } from 'pinia';
+import { mapState, mapActions } from 'pinia';
 import { useWindowStore } from '@/stores/windows';
 import BaseWindow from './BaseWindow.vue';
 import SnapIndicator from './SnapIndicator.vue';
@@ -20,6 +20,11 @@ export default {
         BaseWindow,
         SnapIndicator
     },
+    data() {
+        return {
+            resize_timeout: null
+        };
+    },
     computed: {
         ...mapState(useWindowStore, [
             'currentUserWindows',
@@ -28,6 +33,24 @@ export default {
         ...mapState(useAppStore, {
             isMobile: 'getIsMobile'
         }),
+    },
+    methods: {
+        ...mapActions(useWindowStore, ['handle_viewport_resize']),
+
+        on_window_resize() {
+            if (this.resize_timeout) clearTimeout(this.resize_timeout);
+
+            this.resize_timeout = setTimeout(() => {
+                this.handle_viewport_resize();
+            }, 100);
+        }
+    },
+    mounted() {
+        window.addEventListener('resize', this.on_window_resize);
+    },
+    beforeUnmount() {
+        window.removeEventListener('resize', this.on_window_resize);
+        if (this.resize_timeout) clearTimeout(this.resize_timeout);
     }
 }
 </script>

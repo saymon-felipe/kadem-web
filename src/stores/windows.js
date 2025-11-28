@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia';
 import { useAuthStore } from './auth';
 
+const HEADER_OFFSET = 82;
+
 export const useWindowStore = defineStore('windows', {
     state: () => ({
         windowStatesByUser: {},
@@ -47,6 +49,62 @@ export const useWindowStore = defineStore('windows', {
         }
     },
     actions: {
+        ensure_window_visibility(window_id) {
+            const user_state = this._getOrCreateCurrentUserState();
+            if (!user_state || !user_state.openWindows[window_id]) return;
+
+            const win = user_state.openWindows[window_id];
+
+            // Se estiver minimizada ou maximizada, a lógica de posicionamento flutuante não se aplica da mesma forma
+            if (win.isMinimized || win.isMaximized) return;
+
+            const screen_w = window.innerWidth;
+            const screen_h = window.innerHeight;
+
+            let { x, y } = win.position;
+            const { width, height } = win.size;
+
+            // Limite Esquerdo: O X não pode ser menor que -(metade da largura)
+            const min_x = -(width * 0.5);
+
+            // Limite Direito: O X não pode ser maior que a largura da tela - (metade da largura da janela)
+            const max_x = screen_w - (width * 0.5);
+
+            // Limite Superior: Respeita o Header
+            const min_y = HEADER_OFFSET;
+
+            // Limite Inferior: O Y não pode ser maior que a altura da tela - (metade da altura da janela)
+            const max_y = screen_h - (height * 0.5);
+
+            let has_changed = false;
+
+            // Aplica a lógica de correção (Clamp)
+            if (x < min_x) { x = min_x; has_changed = true; }
+            if (x > max_x) { x = max_x; has_changed = true; }
+            if (y < min_y) { y = min_y; has_changed = true; }
+            if (y > max_y) { y = max_y; has_changed = true; }
+
+            // Apenas atualiza o estado e persistência se houve correção real para evitar reatividade desnecessária
+            if (has_changed) {
+                win.position = { x, y };
+
+                // Atualiza preferência persistida para garantir consistência no reload
+                if (!user_state.windowPrefs[window_id]) user_state.windowPrefs[window_id] = {};
+                user_state.windowPrefs[window_id].pos = { x, y };
+            }
+        },
+
+        // Action para ser chamada no resize da janela do navegador
+        handle_viewport_resize() {
+            const user_state = this._getOrCreateCurrentUserState();
+            if (!user_state) return;
+
+            const open_windows_ids = Object.keys(user_state.openWindows);
+            open_windows_ids.forEach(id => {
+                this.ensure_window_visibility(id);
+            });
+        },
+
         openWindow({ id, title, componentId }) {
             const userState = this._getOrCreateCurrentUserState();
             if (!userState) return;
@@ -54,6 +112,12 @@ export const useWindowStore = defineStore('windows', {
             const existingWindow = userState.openWindows[id];
 
             if (existingWindow) {
+                // Se já existe, trazemos para o foco e garantimos visibilidade
+                if (existingWindow.isMinimized) {
+                    this.restoreWindow(id);
+                } else {
+                    this.focusWindow(id);
+                }
                 return;
             }
 
@@ -76,6 +140,9 @@ export const useWindowStore = defineStore('windows', {
             };
 
             userState.openWindows[id] = newWindow;
+
+            // Garante que a nova janela (ou recuperada do cache) esteja visível
+            this.ensure_window_visibility(id);
         },
         closeWindow(id) {
             const wasActive = this.activeWindowId === id;
@@ -92,6 +159,8 @@ export const useWindowStore = defineStore('windows', {
             const userState = this._getOrCreateCurrentUserState();
             if (userState && userState.openWindows[id]) {
                 userState.openWindows[id].zIndex = this._zIndexCounter++;
+                // Garante visibilidade ao focar/clicar
+                this.ensure_window_visibility(id);
             }
         },
         minimizeWindow(id) {
@@ -115,6 +184,8 @@ export const useWindowStore = defineStore('windows', {
                 window.isMinimized = false;
             }
             this.focusWindow(id);
+            // Garante visibilidade ao restaurar
+            this.ensure_window_visibility(id);
         },
         toggleMaximize(id) {
             const userState = this._getOrCreateCurrentUserState();
@@ -127,6 +198,8 @@ export const useWindowStore = defineStore('windows', {
                 window.size = window.previousSize || prefs.size || { width: 500, height: 400 };
                 window.isMaximized = false;
                 this.clearPreviousState(id);
+                // Ao desmaximizar, verifica se a posição original ainda é válida
+                this.ensure_window_visibility(id);
             } else {
                 window.previousPosition = { ...window.position };
                 window.previousSize = { ...window.size };
