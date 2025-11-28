@@ -55,7 +55,7 @@ export const useWindowStore = defineStore('windows', {
 
             const win = user_state.openWindows[window_id];
 
-            // Se estiver minimizada ou maximizada, a lógica de posicionamento flutuante não se aplica da mesma forma
+            // Se estiver minimizada ou maximizada, a lógica de posicionamento flutuante não se aplica
             if (win.isMinimized || win.isMaximized) return;
 
             const screen_w = window.innerWidth;
@@ -64,37 +64,25 @@ export const useWindowStore = defineStore('windows', {
             let { x, y } = win.position;
             const { width, height } = win.size;
 
-            // Limite Esquerdo: O X não pode ser menor que -(metade da largura)
             const min_x = -(width * 0.5);
-
-            // Limite Direito: O X não pode ser maior que a largura da tela - (metade da largura da janela)
             const max_x = screen_w - (width * 0.5);
-
-            // Limite Superior: Respeita o Header
             const min_y = HEADER_OFFSET;
-
-            // Limite Inferior: O Y não pode ser maior que a altura da tela - (metade da altura da janela)
             const max_y = screen_h - (height * 0.5);
 
             let has_changed = false;
 
-            // Aplica a lógica de correção (Clamp)
             if (x < min_x) { x = min_x; has_changed = true; }
             if (x > max_x) { x = max_x; has_changed = true; }
             if (y < min_y) { y = min_y; has_changed = true; }
             if (y > max_y) { y = max_y; has_changed = true; }
 
-            // Apenas atualiza o estado e persistência se houve correção real para evitar reatividade desnecessária
             if (has_changed) {
                 win.position = { x, y };
-
-                // Atualiza preferência persistida para garantir consistência no reload
                 if (!user_state.windowPrefs[window_id]) user_state.windowPrefs[window_id] = {};
                 user_state.windowPrefs[window_id].pos = { x, y };
             }
         },
 
-        // Action para ser chamada no resize da janela do navegador
         handle_viewport_resize() {
             const user_state = this._getOrCreateCurrentUserState();
             if (!user_state) return;
@@ -112,7 +100,6 @@ export const useWindowStore = defineStore('windows', {
             const existingWindow = userState.openWindows[id];
 
             if (existingWindow) {
-                // Se já existe, trazemos para o foco e garantimos visibilidade
                 if (existingWindow.isMinimized) {
                     this.restoreWindow(id);
                 } else {
@@ -124,6 +111,7 @@ export const useWindowStore = defineStore('windows', {
             const prefs = userState.windowPrefs[id] || {};
             const savedSize = prefs.size || { width: 500, height: 400 };
             const savedPos = prefs.pos || { x: 100, y: 100 };
+            const savedMaximized = !!prefs.isMaximized; // Recupera estado maximizado
 
             const newWindow = {
                 id,
@@ -134,15 +122,19 @@ export const useWindowStore = defineStore('windows', {
                 size: savedSize,
                 isOpen: true,
                 isMinimized: false,
-                isMaximized: false,
-                previousPosition: null,
-                previousSize: null,
+                isMaximized: savedMaximized,
+                // Se iniciar maximizada, definimos o previousState com os valores salvos
+                // Isso permite que o usuário clique em "restaurar" e a janela volte ao tamanho correto
+                previousPosition: savedMaximized ? savedPos : null,
+                previousSize: savedMaximized ? savedSize : null,
             };
 
             userState.openWindows[id] = newWindow;
 
-            // Garante que a nova janela (ou recuperada do cache) esteja visível
-            this.ensure_window_visibility(id);
+            // Só verificamos visibilidade se NÃO estiver maximizada
+            if (!savedMaximized) {
+                this.ensure_window_visibility(id);
+            }
         },
         closeWindow(id) {
             const wasActive = this.activeWindowId === id;
@@ -159,7 +151,6 @@ export const useWindowStore = defineStore('windows', {
             const userState = this._getOrCreateCurrentUserState();
             if (userState && userState.openWindows[id]) {
                 userState.openWindows[id].zIndex = this._zIndexCounter++;
-                // Garante visibilidade ao focar/clicar
                 this.ensure_window_visibility(id);
             }
         },
@@ -184,7 +175,6 @@ export const useWindowStore = defineStore('windows', {
                 window.isMinimized = false;
             }
             this.focusWindow(id);
-            // Garante visibilidade ao restaurar
             this.ensure_window_visibility(id);
         },
         toggleMaximize(id) {
@@ -192,18 +182,28 @@ export const useWindowStore = defineStore('windows', {
             const window = userState?.openWindows[id];
             if (!window) return;
 
+            if (!userState.windowPrefs[id]) userState.windowPrefs[id] = {};
+
             if (window.isMaximized) {
-                const prefs = userState.windowPrefs[id] || {};
+                // RESTAURAR
+                const prefs = userState.windowPrefs[id];
                 window.position = window.previousPosition || prefs.pos || { x: 100, y: 100 };
                 window.size = window.previousSize || prefs.size || { width: 500, height: 400 };
                 window.isMaximized = false;
+
+                // Salva estado nas preferências
+                userState.windowPrefs[id].isMaximized = false;
+
                 this.clearPreviousState(id);
-                // Ao desmaximizar, verifica se a posição original ainda é válida
                 this.ensure_window_visibility(id);
             } else {
+                // MAXIMIZAR
                 window.previousPosition = { ...window.position };
                 window.previousSize = { ...window.size };
                 window.isMaximized = true;
+
+                // Salva estado nas preferências
+                userState.windowPrefs[id].isMaximized = true;
             }
             this.focusWindow(id);
         },
@@ -213,6 +213,10 @@ export const useWindowStore = defineStore('windows', {
 
             if (window && window.isMaximized) {
                 window.isMaximized = false;
+                // Atualiza preferência ao desmaximizar programaticamente
+                if (userState.windowPrefs[id]) {
+                    userState.windowPrefs[id].isMaximized = false;
+                }
                 return window.previousSize || null;
             }
             return null;
@@ -224,7 +228,12 @@ export const useWindowStore = defineStore('windows', {
             if (window) {
                 window.position = { x, y };
                 if (!userState.windowPrefs[id]) userState.windowPrefs[id] = {};
-                userState.windowPrefs[id].pos = { x, y };
+
+                // Só salvamos a posição como preferência se NÃO estiver maximizada
+                // Isso previne salvar "0,0" como a posição preferida
+                if (!window.isMaximized) {
+                    userState.windowPrefs[id].pos = { x, y };
+                }
             }
         },
         updateWindowSize(id, { width, height }) {
@@ -234,6 +243,7 @@ export const useWindowStore = defineStore('windows', {
             if (window && !window.isMaximized) {
                 window.size = { width, height };
                 if (!userState.windowPrefs[id]) userState.windowPrefs[id] = {};
+                // Salva o tamanho nas preferências
                 userState.windowPrefs[id].size = { width, height };
             }
         },
@@ -249,9 +259,17 @@ export const useWindowStore = defineStore('windows', {
                 window.previousPosition = { ...window.position };
                 window.previousSize = { ...window.size };
             }
+
             window.position = { x: target.xPx, y: target.yPx };
             window.size = { width: target.widthPx, height: target.heightPx };
-            window.isMaximized = target.id === 'top';
+
+            const isMax = target.id === 'top';
+            window.isMaximized = isMax;
+
+            // Atualiza preferência de maximização se for snap to top
+            if (!userState.windowPrefs[id]) userState.windowPrefs[id] = {};
+            userState.windowPrefs[id].isMaximized = isMax;
+
             this.focusWindow(id);
         },
         clearWindowsForUser(userId) {

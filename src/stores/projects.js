@@ -19,7 +19,8 @@ export const useProjectStore = defineStore('projects', {
     getters: {
         active_project: (state) => {
             if (!state.active_project_id) return null;
-            return state.projects.find(p => p.localId == state.active_project_id);
+
+            return state.projects.find(p => String(p.localId) === String(state.active_project_id));
         }
     },
 
@@ -303,5 +304,9 @@ export const useProjectStore = defineStore('projects', {
                 console.error(`[Security] Erro ao limpar projeto revogado ${projectId}:`, error);
             }
         }
+    },
+
+    persist: {
+        paths: ['active_project_id'],
     }
 });
