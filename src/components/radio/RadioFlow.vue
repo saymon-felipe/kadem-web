@@ -86,9 +86,9 @@
         <PlaylistSelector v-if="show_playlist_selector" :playlists="playlists" :position="selector_position"
             :default_avatar="default_avatar" @close="show_playlist_selector = false" @select="verify_and_add_track" />
 
-        <ConfirmationModal :show="show_duplicate_modal" title="Música já existente"
-            message="Esta música já está na playlist selecionada. Deseja adicionar mesmo assim?"
-            @close="show_duplicate_modal = false" @confirm="confirm_add_duplicate" />
+        <ConfirmationModal v-model="show_duplicate_modal" title="Música já existente"
+            message="Esta música já está na playlist selecionada." @cancelled="show_duplicate_modal = false"
+            description=" " confirmText="Ok" @confirmed="show_duplicate_modal = false" />
     </div>
 </template>
 
@@ -298,11 +298,6 @@ export default {
             } else {
                 await this.execute_add_track();
             }
-        },
-
-        async confirm_add_duplicate() {
-            this.show_duplicate_modal = false;
-            await this.execute_add_track();
         },
 
         // --- PLAYBACK ---
