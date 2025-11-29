@@ -45,7 +45,24 @@ import {
     faThumbsUp,
     faTableCellsLarge,
     faSyncAlt,
-    faClipboard
+    faClipboard,
+    faMusic,
+    faListCheck,
+    faArrowLeft,
+    faShuffle,
+    faPlay,
+    faPause,
+    faVolumeHigh,
+    faCirclePause,
+    faCirclePlus,
+    faListUl,
+    faArrowUpRightFromSquare,
+    faCircleChevronRight,
+    faChevronRight,
+    faChartSimple,
+    faVolumeLow,
+    faVolumeXmark,
+    faRadio
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -82,7 +99,24 @@ library.add(
     faThumbsUp,
     faTableCellsLarge,
     faSyncAlt,
-    faClipboard
+    faClipboard,
+    faMusic,
+    faListCheck,
+    faArrowLeft,
+    faShuffle,
+    faPlay,
+    faPause,
+    faVolumeHigh,
+    faCirclePause,
+    faCirclePlus,
+    faListUl,
+    faArrowUpRightFromSquare,
+    faChevronRight,
+    faChartSimple,
+    faVolumeLow,
+    faVolumeXmark,
+    faCircleChevronRight,
+    faRadio
 );
 
 const app = createApp(App);

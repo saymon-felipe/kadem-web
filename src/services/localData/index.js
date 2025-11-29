@@ -5,3 +5,4 @@ export * from './syncQueueRepository';
 export * from './projectRepository';
 export * from './accountsRepository';
 export * from './kanbanRepository';
+export * from './radioRepository';

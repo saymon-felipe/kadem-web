@@ -6,7 +6,8 @@ import {
     medalRepository,
     projectRepository,
     kanbanRepository,
-    accountsRepository
+    accountsRepository,
+    radioRepository
 } from './localData';
 
 import { useProjectStore } from '../stores/projects';
@@ -37,6 +38,18 @@ const resolveServerProjectId = async (localProjectId) => {
     if (localProject.id) return localProject.id;
 
     throw new Error(`PROJECT_NOT_SYNCED: Aguardando ID do servidor para projeto local ${numericLocalId}`);
+};
+
+const resolveServerPlaylistId = async (localPlaylistId) => {
+    const numericLocalId = parseInt(localPlaylistId, 10);
+    if (isNaN(numericLocalId)) return localPlaylistId;
+
+    const localPlaylist = await radioRepository.getLocalPlaylist(numericLocalId);
+
+    if (!localPlaylist) return localPlaylistId;
+    if (localPlaylist.id) return localPlaylist.id;
+
+    throw new Error(`PLAYLIST_NOT_SYNCED: Aguardando ID do servidor para playlist local ${numericLocalId}`);
 };
 
 
@@ -350,6 +363,72 @@ async function processTaskItem(task) {
                 throw error;
             }
 
+        case 'CREATE_PLAYLIST':
+            try {
+                const { localId, ...playlistData } = task.payload;
+                response = await api.post('/radio/playlists', playlistData);
+                const serverData = response.data;
+
+                await radioRepository.updateLocalPlaylist(localId, {
+                    id: serverData.id,
+                    updated_at: serverData.updated_at
+                });
+            } catch (error) {
+                console.error("Erro CREATE_PLAYLIST:", error);
+                throw error;
+            }
+            return;
+
+        case 'DELETE_PLAYLIST':
+            serverId = task.payload.id;
+            if (serverId) {
+                try { await api.delete(`/radio/playlists/${serverId}`); }
+                catch (e) { if (e.response?.status !== 404) throw e; }
+            }
+            return;
+
+        case 'SYNC_PLAYLIST_CHANGE':
+            serverId = task.payload.playlist_id;
+            if (!serverId) {
+                const localPl = await radioRepository.getLocalPlaylist(task.payload.localId);
+                serverId = localPl?.id;
+            }
+            if (serverId) {
+                await api.post(`/radio/playlists/${serverId}/sync`, {
+                    changes: [{
+                        field: task.payload.field,
+                        value: task.payload.value,
+                        timestamp: task.payload.timestamp
+                    }]
+                });
+            }
+            return;
+
+        case 'ADD_TRACK':
+            let parentPlaylistId = task.payload.playlist_id;
+
+            if (!task.payload.playlist_id_is_server) {
+                parentPlaylistId = await resolveServerPlaylistId(task.payload.playlist_local_id);
+            }
+
+            const trackPayload = { ...task.payload, playlist_id: parentPlaylistId };
+            delete trackPayload.playlist_local_id;
+            delete trackPayload.localId;
+            delete trackPayload.playlist_id_is_server;
+
+            response = await api.post(`/radio/playlists/${parentPlaylistId}/tracks`, trackPayload);
+
+            await radioRepository.updateLocalTrack(task.payload.localId, { id: response.data.id });
+            return;
+
+        case 'DELETE_TRACK':
+            serverId = task.payload.id;
+            if (serverId) {
+                try { await api.delete(`/radio/playlists/0/tracks/${serverId}`); }
+                catch (e) { if (e.response?.status !== 404) throw e; }
+            }
+            return;
+
         default:
             if (task.type === 'CREATE_TASK_COMMENT') {
                 const localTask = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
@@ -406,7 +485,7 @@ export const syncService = {
             await processProjectSync(projectFieldTasks);
             await processAccountsSync(accountSyncTasks);
 
-            const creationOrder = { 'CREATE_PROJECT': 1, 'CREATE_COLUMN': 2, 'CREATE_TASK': 3 };
+            const creationOrder = { 'CREATE_PROJECT': 1, 'CREATE_COLUMN': 2, 'CREATE_TASK': 3, 'CREATE_PLAYLIST': 4, 'ADD_TRACK': 5 };
             const sortedTasks = individualTasks.sort((a, b) => {
                 const orderA = creationOrder[a.type] || 10;
                 const orderB = creationOrder[b.type] || 10;
@@ -421,14 +500,8 @@ export const syncService = {
                     console.log(`[SyncService] OK: ${task.type} (${task.id})`);
                 } catch (error) {
                     if (error.response && error.response.status === 403) {
-                        console.error(`[Security] Acesso negado ao processar ${task.type}. Removendo projeto local.`);
-
+                        console.error(`[Security] Acesso negado ao processar ${task.type}.`);
                         await syncQueueRepository.deleteTask(task.id);
-
-                        if (task.payload && task.payload.projectId) {
-                            const projectStore = useProjectStore();
-                            projectStore.forceLocalProjectRemoval(task.payload.projectId);
-                        }
                         continue;
                     }
 

@@ -25,6 +25,27 @@ export default {
       const sanitized = withBreaks.replace(regex, '');
 
       return sanitized;
+    },
+    format_seconds_to_time: (seconds) => {
+      if (!seconds) return '0:00';
+
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+
+      const m_str = h > 0 ? m.toString().padStart(2, '0') : m.toString();
+      const s_str = s.toString().padStart(2, '0');
+
+      return h > 0 ? `${h}:${m_str}:${s_str}` : `${m_str}:${s_str}`;
+    },
+    format_total_duration_verbose: (seconds) => {
+      if (!seconds) return '0 minutos';
+
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+
+      if (h > 0) return `${h}h ${m}m`;
+      return `${m}:${Math.floor(seconds % 60).toString().padStart(2, '0')} minutos`;
     }
   },
   created() {

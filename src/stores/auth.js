@@ -8,6 +8,7 @@ import { useProjectStore } from './projects';
 import { useVaultStore } from './vault';
 import { useAppStore } from './app';
 import { useKanbanStore } from './kanban';
+import { useRadioStore } from './radio';
 
 import {
     userRepository,
@@ -16,7 +17,8 @@ import {
     syncQueueRepository,
     projectRepository,
     accountsRepository,
-    kanbanRepository
+    kanbanRepository,
+    radioRepository
 } from '../services/localData';
 
 export const useAuthStore = defineStore('auth', {
@@ -66,6 +68,7 @@ export const useAuthStore = defineStore('auth', {
             const projectStore = useProjectStore();
             const kanbanStore = useProjectStore();
             const vaultStore = useVaultStore();
+            const radioStore = useRadioStore();
             const userIdToClear = this.user?.id;
 
             try {
@@ -88,7 +91,8 @@ export const useAuthStore = defineStore('auth', {
                     syncQueueRepository.clearSyncQueue(),
                     projectRepository.clearLocalProjects(),
                     accountsRepository.clearLocalAccounts(),
-                    kanbanRepository.clearLocalKanban()
+                    kanbanRepository.clearLocalKanban(),
+                    radioRepository.clearLocalData()
                 ]);
 
                 this.user = {};
@@ -103,6 +107,7 @@ export const useAuthStore = defineStore('auth', {
                 kanbanStore.tasks = {};
                 kanbanStore.lastSyncs = null;
                 vaultStore.lockVault();
+                radioStore.clearState();
                 localStorage.removeItem('kadem_user_last_sync');
                 localStorage.removeItem('kadem_vault_last_sync');
                 localStorage.removeItem('kadem_projects_last_sync');
@@ -117,6 +122,7 @@ export const useAuthStore = defineStore('auth', {
                 const utilsStore = useUtilsStore();
                 const projectStore = useProjectStore();
                 const vaultStore = useVaultStore();
+                const radioStore = useRadioStore();
 
                 if (utilsStore.connection.connected) {
                     try {
@@ -129,6 +135,7 @@ export const useAuthStore = defineStore('auth', {
                             await projectStore.pullProjects();
                             await vaultStore.pullAccounts();
                             await kanbanStore.syncAllBoards();
+                            await radioStore.pullPlaylists();
                         }
                     } catch (syncError) {
                         console.error("Falha na orquestração PUSH-PULL:", syncError);
@@ -140,6 +147,7 @@ export const useAuthStore = defineStore('auth', {
 
                         await projectStore._loadProjectsFromDB();
                         await vaultStore.loadAccountsFromDB();
+                        await radioStore._loadFromDB();
 
                         this.user = {
                             ...localUser,

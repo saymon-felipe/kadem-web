@@ -1,4 +1,3 @@
-// src/services/localData/projectRepository.js
 import { db } from '../../db';
 
 export const projectRepository = {
