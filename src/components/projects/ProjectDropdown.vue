@@ -401,7 +401,7 @@ export default {
     transform: translateY(-10px);
 }
 
-@media (max-width: 768px) {
+@container (max-width: 768px) {
     .project-dropdown-wrapper {
         max-width: 100%;
     }

@@ -97,10 +97,10 @@ export default {
 
                 width: this.windowData.isMaximized && !this.isRestoring ?
                     '100%' :
-                    `${size.width}px`,
+                    `${Math.max(size.width, 400)}px`,
                 height: this.windowData.isMaximized && !this.isRestoring ?
                     `calc(100% - ${MAXIMIZED_BOTTOM_OFFSET}px - ${HEADER_OFFSET}px)` :
-                    `${size.height}px`,
+                    `${Math.max(size.height, 300)}px`,
 
                 zIndex: this.windowData.zIndex,
             };
@@ -400,6 +400,8 @@ export default {
     height: calc(100% - 47px);
     width: 100%;
     overflow: auto;
+    container-type: inline-size;
+    container-name: window-viewport;
 }
 
 .resize-handle {

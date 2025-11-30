@@ -199,7 +199,7 @@ export default {
     background-color: var(--orange);
 }
 
-@media (max-width: 768px) {
+@container (max-width: 768px) {
     .kanban-task {
         height: 100%;
         width: 200px;

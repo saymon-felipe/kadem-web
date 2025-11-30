@@ -317,7 +317,7 @@ export default {
     opacity: 0;
 }
 
-@media (max-width: 768px) {
+@container (max-width: 768px) {
     .btn-icon {
         display: none;
     }

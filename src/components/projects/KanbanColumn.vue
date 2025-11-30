@@ -63,7 +63,7 @@
                         <button class="btn-assignee" @click.stop="toggle_assignee_menu" :title="selected_assignee_name">
                             <img :src="selected_assignee_avatar" class="avatar-xs" alt="Responsável">
                             <span class="assignee-label" v-if="selected_assignee_label">{{ selected_assignee_label
-                                }}</span>
+                            }}</span>
                         </button>
 
                         <transition name="fade-switch">
@@ -726,7 +726,7 @@ export default {
     background-color: var(--orange);
 }
 
-@media (max-width: 768px) {
+@container (max-width: 768px) {
     .new-task-card {
         height: 100%;
 
