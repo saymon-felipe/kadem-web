@@ -186,7 +186,8 @@ export default {
             'toggle_play',
             'play_playlist_context',
             'toggle_shuffle',
-            'add_to_queue'
+            'add_to_queue',
+            'restorePlayerConnection'
         ]),
 
         // --- RADIO ACTIONS ---
@@ -361,15 +362,41 @@ export default {
         },
 
         create_yt_player() {
+            if (this.yt_player) {
+                try { this.yt_player.destroy(); } catch (e) { }
+            }
+
             this.yt_player = new window.YT.Player('youtube-player-container', {
-                height: '0', width: '0',
-                events: { 'onReady': (event) => { this.register_yt_instance(event.target); } }
+                height: '0',
+                width: '0',
+                playerVars: {
+                    'playsinline': 1,
+                    'controls': 0,
+                    'disablekb': 1
+                },
+                events: {
+                    'onReady': (event) => {
+                        console.log("[RadioFlow] YouTube Player Pronto.");
+                        this.register_yt_instance(event.target);
+
+                        this.restorePlayerConnection();
+                    },
+                    'onStateChange': (event) => {
+                        if (event.data === 0) {
+                            this.next();
+                        }
+                    }
+                }
             });
         }
     },
     mounted() {
         this.load_data();
         this.init_youtube_api();
+
+        if (this.player_mode === 'native' || !this.current_music) {
+            this.restorePlayerConnection();
+        }
     }
 }
 </script>

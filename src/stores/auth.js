@@ -9,6 +9,7 @@ import { useVaultStore } from './vault';
 import { useAppStore } from './app';
 import { useKanbanStore } from './kanban';
 import { useRadioStore } from './radio';
+import { usePlayerStore } from './player';
 
 import {
     userRepository,
@@ -82,6 +83,7 @@ export const useAuthStore = defineStore('auth', {
             const kanbanStore = useProjectStore();
             const vaultStore = useVaultStore();
             const radioStore = useRadioStore();
+            const playerStore = usePlayerStore();
             const userIdToClear = this.user?.id;
 
             try {
@@ -121,6 +123,7 @@ export const useAuthStore = defineStore('auth', {
                 kanbanStore.lastSyncs = null;
                 vaultStore.lockVault();
                 radioStore.clearState();
+                playerStore.clearState();
                 localStorage.removeItem('kadem_user_last_sync');
                 localStorage.removeItem('kadem_vault_last_sync');
                 localStorage.removeItem('kadem_projects_last_sync');
@@ -136,6 +139,7 @@ export const useAuthStore = defineStore('auth', {
                 const projectStore = useProjectStore();
                 const vaultStore = useVaultStore();
                 const radioStore = useRadioStore();
+                const playerStore = usePlayerStore();
 
                 if (utilsStore.connection.connected) {
                     try {
@@ -149,6 +153,7 @@ export const useAuthStore = defineStore('auth', {
                             await vaultStore.pullAccounts();
                             await kanbanStore.syncAllBoards();
                             await radioStore.pullPlaylists();
+                            await playerStore.pullPlayerState();
                         }
                     } catch (syncError) {
                         console.error("Falha na orquestração PUSH-PULL:", syncError);

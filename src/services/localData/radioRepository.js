@@ -167,5 +167,13 @@ export const radioRepository = {
             .where('playlist_local_id')
             .equals(old_local_playlist_id)
             .modify({ playlist_id: new_server_playlist_id });
-    }
+    },
+    async getLocalPlaylistByServerId(serverId) {
+        if (!serverId) return null;
+        return await db.playlists.where('id').equals(serverId).first();
+    },
+    async getLocalTrackByServerId(serverId) {
+        if (!serverId) return null;
+        return await db.tracks.where('id').equals(serverId).first();
+    },
 };

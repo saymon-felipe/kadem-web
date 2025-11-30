@@ -20,7 +20,7 @@
             </div>
 
             <div v-else class="active-app-view" key="app">
-                <button class="back-btn" @click="active_app = null">
+                <button class="back-btn" @click="close_app">
                     <font-awesome-icon icon="arrow-left" /> Voltar
                 </button>
                 <component :is="apps[active_app]" />
@@ -30,6 +30,8 @@
 </template>
 
 <script>
+import { mapState, mapActions } from 'pinia';
+import { usePlayerStore } from '@/stores/player';
 import RadioFlow from '../radio/RadioFlow.vue';
 
 export default {
@@ -42,9 +44,17 @@ export default {
             }
         }
     },
+    computed: {
+        ...mapState(usePlayerStore, ['active_app'])
+    },
     methods: {
         open_app(app_key) {
             this.active_app = app_key;
+            this.setActiveApp(app_key);
+        },
+        ...mapActions(usePlayerStore, ['setActiveApp']),
+        close_app() {
+            this.setActiveApp(null);
         }
     }
 }
