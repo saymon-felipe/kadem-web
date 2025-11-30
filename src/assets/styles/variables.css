@@ -17,6 +17,7 @@
 
     --gray-100: #666666;
     --gray-300: #999999;
+    --gray-600: #e0e0e0;
     --gray-700: #F2F2F2;
 
     --deep-blue-gradient: linear-gradient(to left, var(--deep-blue), var(--deep-blue-2));

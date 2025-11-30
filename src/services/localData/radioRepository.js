@@ -5,7 +5,6 @@ export const radioRepository = {
 
     async getLocalPlaylists() {
         if (!db.playlists) return [];
-        // Ordena por data de criação (mais recentes primeiro ou conforme preferência)
         return await db.playlists.orderBy('created_at').reverse().toArray();
     },
 
@@ -14,7 +13,6 @@ export const radioRepository = {
     },
 
     async addLocalPlaylist(playlistData) {
-        // Retorna o ID gerado (autoIncrement)
         return await db.playlists.add(playlistData);
     },
 
@@ -52,23 +50,38 @@ export const radioRepository = {
         return await db.tracks.delete(localId);
     },
 
-    // Método para salvar o Blob de áudio (Offline)
     async saveLocalTrackAudio(localId, audio_blob) {
         return await db.tracks.update(localId, { audio_blob });
     },
 
-    // --- SYNC / MERGE LOGIC ---
+    // --- SYNC / MERGE LOGIC (CORRIGIDO) ---
 
     async mergeApiPlaylists(apiData) {
         if (!db.playlists) return;
 
-        const playlists = Array.isArray(apiData) ? apiData : [];
-        if (playlists.length === 0) return;
+        const playlistsFromServer = Array.isArray(apiData) ? apiData : [];
 
-        console.log(`[RadioRepo] Processando Sync de ${playlists.length} playlists.`);
+        console.log(`[RadioRepo] Processando Sync de ${playlistsFromServer.length} playlists.`);
 
         return db.transaction('rw', db.playlists, db.tracks, async () => {
-            for (const apiPl of playlists) {
+
+            // 1. LIMPEZA DE PLAYLISTS EXCLUÍDAS NO SERVIDOR (NOVO BLOCO)
+            // ------------------------------------------------------------
+            const serverIdsSet = new Set(playlistsFromServer.map(p => p.id));
+            const allLocalPlaylists = await db.playlists.toArray();
+
+            for (const localPl of allLocalPlaylists) {
+                if (localPl.id && !serverIdsSet.has(localPl.id)) {
+                    console.log(`[RadioRepo] Excluindo playlist obsoleta localmente: ${localPl.name}`);
+
+                    await db.tracks.where('playlist_local_id').equals(localPl.local_id).delete();
+                    await db.playlists.delete(localPl.local_id);
+                }
+            }
+            // ------------------------------------------------------------
+
+            // 2. ATUALIZAÇÃO / INSERÇÃO
+            for (const apiPl of playlistsFromServer) {
                 if (!apiPl.id) continue;
 
                 let localPl = await db.playlists.where('id').equals(apiPl.id).first();
@@ -76,34 +89,38 @@ export const radioRepository = {
                 const plPayload = {
                     name: apiPl.name,
                     cover: apiPl.cover,
-                    id: apiPl.id,
+                    id: apiPl.id, // ID Servidor
                     user_id: apiPl.user_id,
                     created_at: apiPl.created_at,
                     updated_at: apiPl.updated_at
                 };
 
                 let playlistLocalId;
+
                 if (localPl) {
+                    // Update preservando ID local
                     plPayload.local_id = localPl.local_id;
                     await db.playlists.put(plPayload);
                     playlistLocalId = localPl.local_id;
                 } else {
+                    // Insert
                     playlistLocalId = await db.playlists.add(plPayload);
                 }
 
+                // 3. Sincroniza Tracks (Adição, Atualização e Remoção)
                 if (apiPl.tracks && Array.isArray(apiPl.tracks)) {
 
                     const serverTrackIds = new Set(apiPl.tracks.map(t => t.id));
-
                     const localTracks = await db.tracks.where('playlist_local_id').equals(playlistLocalId).toArray();
 
+                    // Remove tracks que sumiram do servidor
                     for (const localTrack of localTracks) {
                         if (localTrack.id && !serverTrackIds.has(localTrack.id)) {
-                            console.log(`[RadioRepo] Removendo track obsoleta: ${localTrack.title} (LocalID: ${localTrack.local_id})`);
                             await db.tracks.delete(localTrack.local_id);
                         }
                     }
 
+                    // Insere/Atualiza tracks
                     for (const apiTrack of apiPl.tracks) {
                         const existingTrack = await db.tracks.where('id').equals(apiTrack.id).first();
 

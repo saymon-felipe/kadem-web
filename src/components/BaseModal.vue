@@ -50,7 +50,7 @@ export default {
     opacity: 0;
 }
 
-.modal-wrapper {
+.modal-overlay {
     position: absolute;
     top: 0;
     left: 0;

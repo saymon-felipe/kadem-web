@@ -3,7 +3,7 @@
         <div class="start-menu-content">
             <div class="start-menu-header">
                 <avatarComponent :user="user" />
-                <div class="ui-hover" @click="logout">
+                <div class="ui-hover" @click="handleLogoutClick" title="Sair do Sistema">
                     <font-awesome-icon icon="right-from-bracket" class="logout" />
                 </div>
             </div>
@@ -28,18 +28,25 @@
                 </div>
             </div>
         </div>
+
+        <ConfirmationModal v-model="showSyncWarning"
+            :message="isOffline ? 'Aviso de Segurança (Offline)' : 'Alterações não salvas!'"
+            :description="syncWarningMessage" :confirmText="isOffline ? 'Sair e Fechar' : 'Sair e Perder Dados'"
+            @cancelled="showSyncWarning = false" @confirmed="forceLogout" />
     </div>
 </template>
 
 <script>
 import avatarComponent from "../avatarComponent.vue";
-import { mapState } from 'pinia';
+import { mapState, mapActions } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
+import { useUtilsStore } from '@/stores/utils';
 
 import MainInformations from './MainInformations.vue';
 import Configuration from './Configuration.vue';
 import AccountCenter from './AccountCenter/AccountCenter.vue';
 import NewProject from './NewProject.vue';
+import ConfirmationModal from '../ConfirmationModal.vue';
 
 export default {
     components: {
@@ -47,12 +54,17 @@ export default {
         MainInformations,
         Configuration,
         AccountCenter,
-        NewProject
+        NewProject,
+        ConfirmationModal
     },
     data() {
         return {
             activeTab: 'main',
             activeTabIndex: 0,
+
+            showSyncWarning: false,
+            pendingCount: 0,
+
             tabs: [
                 { id: 'main', name: 'Informações principais', component: MainInformations, isNav: true },
                 { id: 'config', name: 'Configurações', component: Configuration, isNav: true },
@@ -65,6 +77,12 @@ export default {
     },
     computed: {
         ...mapState(useAuthStore, ['user']),
+        ...mapState(useUtilsStore, ['connection']),
+
+        isOffline() {
+            return !this.connection.connected;
+        },
+
         visibleTabs() {
             return this.tabs
                 .map((tab, index) => ({ ...tab, originalIndex: index }))
@@ -83,9 +101,25 @@ export default {
                 transform: `translateX(${this.translatePercent}%)`,
                 transition: `transform ${this.animationDuration}ms cubic-bezier(.22,.9,.36,1)`,
             };
+        },
+
+        syncWarningMessage() {
+            let msg = '';
+
+            if (this.pendingCount > 0) {
+                msg += `Você possui ${this.pendingCount} alterações pendentes que serão PERDIDAS se sair agora.\n\n`;
+            }
+
+            if (this.isOffline) {
+                msg += `<span style="font-size: 1em; opacity: 0.8">O sistema não consegue encerrar sua sessão no servidor sem internet.</span><br><br>`;
+                msg += `Se este for um computador público, <strong>FECHE O NAVEGADOR</strong> após sair para garantir sua segurança.`;
+            }
+
+            return msg;
         }
     },
     methods: {
+        ...mapActions(useAuthStore, ['checkPendingChanges']),
         logout() {
             this.$router.push("/logout");
         },
@@ -112,6 +146,25 @@ export default {
         closeProjectView() {
             this.setActiveTabById('main');
             this.projectToEdit = null;
+        },
+
+        async handleLogoutClick() {
+            let hasPending = false;
+
+            if (this.checkPendingChanges) {
+                const check = await this.checkPendingChanges();
+                if (check && check.hasPending) {
+                    this.pendingCount = check.count;
+                    hasPending = true;
+                }
+            }
+
+            if (hasPending || this.isOffline) {
+                if (!hasPending) this.pendingCount = 0;
+                this.showSyncWarning = true;
+            } else {
+                this.logout();
+            }
         }
     }
 };

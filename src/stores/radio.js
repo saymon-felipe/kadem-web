@@ -87,6 +87,38 @@ export const useRadioStore = defineStore('radio', {
             }
         },
 
+        async renamePlaylist(playlist, newName) {
+            if (!playlist || !newName || playlist.name === newName) return;
+
+            const timestamp = new Date().toISOString();
+
+            const plIndex = this.playlists.findIndex(p => p.local_id === playlist.local_id);
+            if (plIndex !== -1) {
+                this.playlists[plIndex].name = newName;
+            }
+
+            try {
+                await radioRepository.updateLocalPlaylist(playlist.local_id, { name: newName });
+
+                await syncQueueRepository.addSyncQueueTask({
+                    type: 'SYNC_PLAYLIST_CHANGE',
+                    payload: {
+                        playlist_id: playlist.id,
+                        localId: playlist.local_id,
+                        field: 'name',
+                        value: newName,
+                        timestamp: timestamp
+                    },
+                    timestamp: timestamp
+                });
+
+                syncService.processSyncQueue();
+
+            } catch (error) {
+                console.error("[RadioStore] Erro ao renomear playlist:", error);
+            }
+        },
+
         async deletePlaylist(localId, serverId) {
             try {
                 await radioRepository.deleteLocalPlaylist(localId);

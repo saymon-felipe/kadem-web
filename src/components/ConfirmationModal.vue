@@ -1,13 +1,24 @@
 <template>
     <Transition name="slide-over-root">
-        <div class="modal-wrapper" v-if="modelValue">
-            <div class="modal-overlay" @click="cancel"></div>
+        <div v-if="modelValue" class="modal-overlay" @click.self="cancel">
+            <div class="modal-content glass-panel" role="dialog" aria-modal="true">
 
-            <div class="modal-content glass" @click.stop>
-                <p>{{ message }}</p>
-                <p class="subtitle">{{ description }}</p>
-                <div class="modal-actions">
-                    <button class="btn" @click="cancel">Cancelar</button>
+                <div class="modal-icon-wrapper" :class="{ 'warning': isWarning }">
+                    <font-awesome-icon :icon="iconName" />
+                </div>
+
+                <div class="modal-header">
+                    <h3>{{ message }}</h3>
+                </div>
+
+                <div class="modal-body">
+                    <p v-html="sanitizedMessage"></p>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn" @click="cancel">
+                        Cancelar
+                    </button>
                     <button class="btn" :class="confirmText == 'Excluir' ? 'btn-red' : 'btn-primary'" @click="confirm">
                         {{ confirmText }}
                     </button>
@@ -16,95 +27,116 @@
         </div>
     </Transition>
 </template>
+
 <script>
 export default {
     name: 'ConfirmationModal',
     props: {
-        modelValue: {
-            type: Boolean,
-            default: false
+        modelValue: { type: Boolean, default: false },
+        description: { type: String, default: 'Esta ação não pode ser desfeita.' },
+        message: { type: String, required: true },
+        confirmText: { type: String, default: 'Confirmar' }
+    },
+    emits: ['update:modelValue', 'cancelled', 'confirmed'],
+    computed: {
+        isWarning() {
+            const t = this.message.toLowerCase();
+            return t.includes('aviso') || t.includes('atenção') || t.includes('segurança') || t.includes('não salvas');
         },
-        message: {
-            type: String,
-            required: true
+        iconName() {
+            return this.isWarning ? 'triangle-exclamation' : 'circle-info';
         },
-        description: {
-            type: String,
-            default: 'Esta ação não pode ser desfeita.'
-        },
-        confirmText: {
-            type: String,
-            default: 'Confirmar'
+        sanitizedMessage() {
+            return this.sanitize(this.description);
         }
     },
-    emits: ['confirmed', 'cancelled'],
     methods: {
-        confirm() {
-            this.$emit('confirmed');
+        sanitize(html) {
+            if (!html) return '';
+
+            const temp = document.createElement('div');
+            temp.textContent = html;
+
+            return html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gm, "")
+                .replace(/on\w+="[^"]*"/g, "");
         },
         cancel() {
             this.$emit('cancelled');
+        },
+        confirm() {
+            this.$emit('confirmed');
         }
     }
-
 }
 </script>
 
 <style scoped>
-.modal-wrapper {
+.modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 10000;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
     display: grid;
     place-items: center;
-}
-
-.modal-overlay,
-.modal-content {
-    grid-area: 1 / 1;
-}
-
-.modal-overlay {
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 1;
+    z-index: 10000;
+    animation: fadeIn 0.2s ease-out;
 }
 
 .modal-content {
-    padding: var(--space-6);
-    max-width: 400px;
-    height: fit-content;
+    background: #ffffff;
+    border-radius: var(--radius-lg);
     width: 90%;
-    z-index: 2;
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    right: 0;
-    margin: auto;
-    display: grid;
-}
-
-.modal-content p {
-    font-size: var(--fontsize-md);
-    color: var(--deep-blue);
-    margin: var(--space-3) 0;
-
-    &.subtitle {
-        font-size: var(--fontsize-sm);
-        color: var(--deep-blue-2);
-    }
-}
-
-.modal-actions {
+    max-width: 450px;
+    padding: var(--space-6);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    color: var(--deep-blue);
+}
+
+.modal-icon-wrapper {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--gray-600);
+    color: var(--deep-blue);
+    display: flex;
+    align-items: center;
     justify-content: center;
-    gap: var(--space-4);
-    margin-top: var(--space-6);
+    font-size: 1.8rem;
+    margin-bottom: var(--space-4);
+}
+
+.modal-icon-wrapper.warning {
+    background: #FEF3C7;
+    color: #D97706;
+}
+
+.modal-header h3 {
+    margin: 0 0 var(--space-2) 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--deep-blue);
+}
+
+.modal-body p {
+    font-size: 0.95rem;
+    color: var(--deep-blue);
+    line-height: 1.6;
+    margin: 0 0 var(--space-6) 0;
+}
+
+.modal-footer {
+    display: flex;
+    gap: var(--space-3);
+    width: 100%;
 }
 
 .slide-over-root-enter-active,

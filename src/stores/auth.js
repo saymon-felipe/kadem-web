@@ -62,6 +62,19 @@ export const useAuthStore = defineStore('auth', {
             }
         },
 
+        async checkPendingChanges() {
+            try {
+                const pending = await syncQueueRepository.getPendingTasks();
+                return {
+                    hasPending: pending.length > 0,
+                    count: pending.length
+                };
+            } catch (error) {
+                console.error("Erro ao verificar fila de sync:", error);
+                return { hasPending: false, count: 0 };
+            }
+        },
+
         async logout(force = false) {
             const windowStore = useWindowStore();
             const appStore = useAppStore();

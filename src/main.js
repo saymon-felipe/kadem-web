@@ -9,7 +9,6 @@ import globalMixin from "./assets/scripts/global";
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import vAnimateHeight from './directives/v-animate-height.js';
-import { syncService } from './services/syncService';
 
 import {
     faForwardStep,
@@ -62,7 +61,11 @@ import {
     faChartSimple,
     faVolumeLow,
     faVolumeXmark,
-    faRadio
+    faRadio,
+    faPen,
+    faTrash,
+    faTriangleExclamation,
+    faCircleInfo
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -116,7 +119,11 @@ library.add(
     faVolumeLow,
     faVolumeXmark,
     faCircleChevronRight,
-    faRadio
+    faRadio,
+    faPen,
+    faTrash,
+    faTriangleExclamation,
+    faCircleInfo
 );
 
 const app = createApp(App);

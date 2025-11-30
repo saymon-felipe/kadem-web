@@ -91,7 +91,7 @@ export default {
 </script>
 
 <style scoped>
-.modal-wrapper {
+.modal-overlay {
     position: absolute !important;
 }
 

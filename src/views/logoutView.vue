@@ -24,7 +24,7 @@ export default {
             isLogoVisible: false,
             currentPhraseIndex: 0,
             phrases: [
-                'Salvando seus dados...',
+                'Encerrando sessão...',
                 'Desconectando...',
                 'El Psy Congroo!'
             ],

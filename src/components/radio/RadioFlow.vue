@@ -6,7 +6,8 @@
                 :current_playing_playlist_id="current_playlist?.local_id" :is_playing="is_playing"
                 :default_cover="default_cover" :default_avatar="default_avatar" :collapsed="is_sidebar_collapsed"
                 @select-playlist="select_playlist" @create-playlist="handle_create_playlist"
-                @toggle-collapse="toggle_sidebar" />
+                @toggle-collapse="toggle_sidebar" @rename-playlist="handle_rename_playlist"
+                @delete-playlist="handle_delete_playlist" />
 
             <div class="main-content glass">
 
@@ -29,7 +30,8 @@
                         <template v-if="view_mode === 'playlist'">
                             <PlaylistHeader :playlist="selected_playlist" :track_count="tracks.length"
                                 :total_duration_seconds="playlist_total_duration" :default_cover="default_cover"
-                                :default_avatar="default_avatar" />
+                                :default_avatar="default_avatar" @rename-playlist="handle_rename_playlist"
+                                @delete-playlist="handle_delete_playlist" />
 
                             <div class="playlist-controls">
                                 <div class="play-actions">
@@ -192,9 +194,28 @@ export default {
             'pullPlaylists',
             'createPlaylist',
             'deletePlaylist',
+            'renamePlaylist',
             'addTrackToPlaylist',
             'removeTrackFromPlaylist'
         ]),
+
+        async handle_rename_playlist(playlist, newName) {
+            if (!newName || newName.trim() === '') return;
+            await this.renamePlaylist(playlist, newName.trim());
+        },
+
+        async handle_delete_playlist(playlist) {
+            await this.deletePlaylist(playlist.local_id, playlist.id);
+
+            if (this.selected_playlist && this.selected_playlist.local_id === playlist.local_id) {
+                this.selected_playlist = null;
+                this.tracks = [];
+            }
+
+            if (this.playlists.length > 0 && !this.selected_playlist) {
+                this.select_playlist(this.playlists[0]);
+            }
+        },
 
         // --- INICIALIZAÇÃO ---
         async load_data() {

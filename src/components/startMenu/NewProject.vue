@@ -373,7 +373,7 @@ export default {
     position: relative;
 }
 
-.modal-wrapper {
+.modal-overlay {
     position: absolute !important;
 }
 
