@@ -15,19 +15,30 @@ import { useAuthStore } from '../stores/auth';
 
 let isProcessing = false;
 
-// --- HELPERS ---
+// ============================================================================
+// HELPERS & UTILS
+// ============================================================================
 
+/**
+ * Salva os dados do perfil recebidos do servidor no banco local.
+ */
 async function _saveServerData(apiUserData) {
     const authStore = useAuthStore();
     const { occupations, medals, ...profileData } = apiUserData;
+
     await userRepository.saveLocalUserProfile(profileData);
     await occupationRepository.mergeApiOccupations(occupations || []);
     await medalRepository.setLocalMedals(medals || []);
+
     const mergedOccupations = await occupationRepository.getLocalUserOccupations();
     const mergedMedals = await medalRepository.getLocalMedals();
+
     authStore.setUser({ ...profileData, occupations: mergedOccupations, medals: mergedMedals });
 }
 
+/**
+ * Garante que temos um ID de projeto válido do servidor.
+ */
 const resolveServerProjectId = async (localProjectId) => {
     const numericLocalId = parseInt(localProjectId, 10);
     if (isNaN(numericLocalId)) return localProjectId;
@@ -40,6 +51,9 @@ const resolveServerProjectId = async (localProjectId) => {
     throw new Error(`PROJECT_NOT_SYNCED: Aguardando ID do servidor para projeto local ${numericLocalId}`);
 };
 
+/**
+ * Garante que temos um ID de playlist válido do servidor (Radio Flow).
+ */
 const resolveServerPlaylistId = async (localPlaylistId) => {
     const numericLocalId = parseInt(localPlaylistId, 10);
     if (isNaN(numericLocalId)) return localPlaylistId;
@@ -52,6 +66,31 @@ const resolveServerPlaylistId = async (localPlaylistId) => {
     throw new Error(`PLAYLIST_NOT_SYNCED: Aguardando ID do servidor para playlist local ${numericLocalId}`);
 };
 
+/**
+ * Transforma um objeto plano em um array de alterações para Delta Sync.
+ * Ignora chaves de controle interno.
+ */
+const buildChangesArray = (payload, timestamp) => {
+    const changes = [];
+    const ignoreKeys = ['id', 'local_id', 'localId', 'project_id', 'timestamp', 'type', 'entity_id', 'playlist_id_is_server'];
+    const changeTs = timestamp || new Date().toISOString();
+
+    for (const key in payload) {
+        if (ignoreKeys.includes(key)) continue;
+        if (payload[key] !== undefined) {
+            changes.push({
+                field: key,
+                value: payload[key],
+                timestamp: changeTs
+            });
+        }
+    }
+    return changes;
+};
+
+// ============================================================================
+// BATCH PROCESSORS (Processamento em Lote)
+// ============================================================================
 
 async function processAccountsSync(accountTasks) {
     if (accountTasks.length === 0) return;
@@ -97,9 +136,8 @@ async function processAccountsSync(accountTasks) {
 
         } catch (error) {
             console.error(`[SyncService] Falha ao sincronizar conta ${accountId}.`, error);
-
             if (error.response && error.response.status === 404) {
-                console.warn(`[SyncService] Conta ${accountId} não encontrada no servidor (404). Removendo tarefas zumbis.`);
+                console.warn(`[SyncService] Conta ${accountId} não encontrada (404). Limpando tarefas.`);
                 const taskIds = tasksForThisAccount.map(t => t.id);
                 await syncQueueRepository.deleteTasks(taskIds);
             } else {
@@ -113,11 +151,12 @@ async function processProfileSync(profileTasks) {
     if (profileTasks.length === 0) return;
 
     console.log(`[SyncService] Sincronizando ${profileTasks.length} mudanças de perfil...`);
-
     const changes = profileTasks.map(task => task.payload);
+
     try {
         const response = await api.post('/users/profile/sync', { changes });
         await _saveServerData(response.data);
+
         const taskIds = profileTasks.map(t => t.id);
         await syncQueueRepository.deleteTasks(taskIds);
         console.log(`[SyncService] Mudanças de perfil sincronizadas com sucesso.`);
@@ -169,9 +208,8 @@ async function processProjectSync(projectTasks) {
 
         } catch (error) {
             console.error(`[SyncService] Falha ao sincronizar projeto ${projectId}.`, error);
-
             if (error.response && error.response.status === 404) {
-                console.warn(`[SyncService] Projeto ${projectId} não encontrado no servidor (404). Removendo tarefas zumbis.`);
+                console.warn(`[SyncService] Projeto ${projectId} não encontrado (404). Limpando tarefas.`);
                 const taskIds = tasksForThisProject.map(t => t.id);
                 await syncQueueRepository.deleteTasks(taskIds);
             } else {
@@ -181,16 +219,17 @@ async function processProjectSync(projectTasks) {
     }
 }
 
-// --- PROCESSADORES INDIVIDUAIS (KANBAN/CRUD) ---
+// ============================================================================
+// DOMAIN HANDLERS (Processadores por Módulo)
+// ============================================================================
 
-async function processTaskItem(task) {
-    let response, serverId;
-
+async function _handleProjectTask(task) {
+    let serverId;
     switch (task.type) {
         case 'CREATE_PROJECT':
             try {
                 const { localId, ...projectData } = task.payload;
-                response = await api.post('/projects', projectData);
+                const response = await api.post('/projects', projectData);
                 const serverData = response.data;
 
                 if (projectRepository.updateLocalProject) {
@@ -205,20 +244,35 @@ async function processTaskItem(task) {
 
                 const projectStore = useProjectStore();
                 await projectStore._loadProjectsFromDB();
-
             } catch (error) {
                 console.error(`[SyncService] Falha ao criar projeto na API:`, error);
                 throw error;
             }
-            return;
+            break;
 
         case 'DELETE_PROJECT':
             serverId = task.payload.id;
             if (serverId) {
-                try { await api.delete(`/projects/${serverId}`); } catch (e) { if (e.response?.status !== 404) throw e; }
+                try { await api.delete(`/projects/${serverId}`); }
+                catch (e) { if (e.response?.status !== 404) throw e; }
             }
-            return;
+            break;
 
+        case 'REMOVE_PROJECT_MEMBER':
+            await api.delete(`/projects/${task.payload.projectId}/members/${task.payload.targetUserId}`);
+            break;
+
+        case 'REVOKE_PROJECT_INVITE':
+            const encodedEmail = encodeURIComponent(task.payload.targetEmail);
+            await api.delete(`/projects/${task.payload.projectId}/invites/${encodedEmail}`);
+            break;
+    }
+}
+
+async function _handleKanbanTask(task) {
+    let serverId, response;
+
+    switch (task.type) {
         case 'CREATE_COLUMN':
             const serverProjId = await resolveServerProjectId(task.payload.project_id);
             const colPayload = {
@@ -227,9 +281,8 @@ async function processTaskItem(task) {
                 project_id: serverProjId
             };
             response = await api.post(`/kanban/columns`, colPayload);
-            serverId = response.data.id;
-            await kanbanRepository.setServerIdForColumn(task.entity_id, serverId);
-            return;
+            await kanbanRepository.setServerIdForColumn(task.entity_id, response.data.id);
+            break;
 
         case 'UPDATE_COLUMN':
             serverId = task.payload.id;
@@ -238,21 +291,27 @@ async function processTaskItem(task) {
                 if (!col?.id) throw new Error("COLUMN_NOT_SYNCED: Update em coluna sem ID server.");
                 serverId = col.id;
             }
-            await api.put(`/kanban/columns/${serverId}`, task.payload);
-            return;
+
+            // Delta Sync: Converte objeto em array changes
+            const colChanges = buildChangesArray(task.payload, task.timestamp);
+            if (colChanges.length > 0) {
+                await api.put(`/kanban/columns/${serverId}`, { changes: colChanges });
+            }
+            break;
 
         case 'DELETE_COLUMN':
             serverId = task.payload.id;
             if (serverId) {
-                try { await api.delete(`/kanban/columns/${serverId}`); } catch (e) { if (e.response?.status !== 404) throw e; }
+                try { await api.delete(`/kanban/columns/${serverId}`); }
+                catch (e) { if (e.response?.status !== 404) throw e; }
             }
-            return;
+            break;
 
         case 'REORDER_COLUMNS':
             const pIdReorder = await resolveServerProjectId(task.payload.project_id);
             const colsOrder = task.payload.columns_order.filter(c => c.id).map(c => ({ id: c.id, order: c.order }));
             if (colsOrder.length) await api.post(`/kanban/projects/${pIdReorder}/reorder-columns`, { columns: colsOrder });
-            return;
+            break;
 
         case 'CREATE_TASK':
             const tProjId = await resolveServerProjectId(task.payload.project_id);
@@ -262,122 +321,91 @@ async function processTaskItem(task) {
             const taskPayload = { ...task.payload, project_id: tProjId, column_id: parentCol.id };
             response = await api.post(`/kanban/tasks`, taskPayload);
             await kanbanRepository.setServerIdForTask(task.entity_id, response.data.id);
-            return;
+            break;
 
         case 'UPDATE_TASK':
             serverId = task.payload.id;
-            const updateData = { ...task.payload };
-            if (updateData.column_id) {
-                const col = await kanbanRepository.get_column_by_local_id(updateData.column_id);
-                if (col && col.id) updateData.column_id = col.id;
+            if (task.payload.column_id) {
+                const col = await kanbanRepository.get_column_by_local_id(task.payload.column_id);
+                if (col && col.id) task.payload.column_id = col.id;
             }
-            delete updateData.project_id;
 
             if (!serverId) {
                 const t = await kanbanRepository.get_task_by_local_id(task.entity_id);
                 serverId = t?.id;
             }
-            if (serverId) await api.put(`/kanban/tasks/${serverId}`, updateData);
-            return;
+
+            if (serverId) {
+                const taskChanges = buildChangesArray(task.payload, task.timestamp);
+                if (taskChanges.length > 0) {
+                    await api.put(`/kanban/tasks/${serverId}`, { changes: taskChanges });
+                }
+            }
+            break;
 
         case 'DELETE_TASK':
             serverId = task.payload.id;
             if (serverId) {
-                try { await api.delete(`/kanban/tasks/${serverId}`); } catch (e) { if (e.response?.status !== 404) throw e; }
+                try { await api.delete(`/kanban/tasks/${serverId}`); }
+                catch (e) { if (e.response?.status !== 404) throw e; }
             }
-            return;
+            break;
 
-        case 'CREATE_ACCOUNT':
-            try {
-                response = await api.post('/accounts', { data: task.payload.data });
-                await accountsRepository.setServerId(task.payload.localId, response.data.id);
-                return;
-            } catch (error) { console.error(`Falha CREATE_ACCOUNT`, error); throw error; }
+        case 'CREATE_TASK_COMMENT':
+            const localTask = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
+            if (!localTask?.id) throw new Error("TASK_NOT_SYNCED: Comentário aguardando Task.");
 
-        case 'DELETE_ACCOUNT':
-            try {
-                serverId = task.payload.id;
-                if (!serverId) return;
-                await api.delete(`/accounts/${serverId}`);
-                return;
-            } catch (error) {
-                if (error.response && error.response.status === 404) return;
-                throw error;
-            }
+            response = await api.post(`/kanban/tasks/${localTask.id}/comments`, {
+                content: task.payload.content,
+                created_at: task.payload.created_at
+            });
+            const commentLocalId = task.payload.local_id || task.entity_id;
+            await kanbanRepository.update_local_comment_state(task.payload.task_local_id, commentLocalId, { id: response.data.id });
+            break;
 
         case 'UPDATE_TASK_COMMENT':
             const lTaskUpd = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
             if (!lTaskUpd) return;
-
             const commToUpdate = lTaskUpd.comments.find(c => c.local_id === task.payload.comment_local_id);
-
-            if (commToUpdate && !commToUpdate.id) {
-                throw new Error("COMMENT_NOT_SYNCED: Edição aguardando ID do servidor.");
-            }
+            if (commToUpdate && !commToUpdate.id) throw new Error("COMMENT_NOT_SYNCED: Edição aguardando ID do servidor.");
             if (!commToUpdate) return;
 
-            await api.put(`/kanban/comments/${commToUpdate.id}`, {
-                content: task.payload.content
-            });
-            return;
+            await api.put(`/kanban/comments/${commToUpdate.id}`, { content: task.payload.content });
+            break;
 
         case 'DELETE_TASK_COMMENT':
             serverId = task.payload.server_id;
-
             if (serverId) {
-                try {
-                    await api.delete(`/kanban/comments/${serverId}`);
-                } catch (error) {
-                    if (error.response && error.response.status === 404) return;
-                    throw error;
-                }
-            } else {
-                console.log("[Sync] Comentário local deletado antes de subir pro servidor.");
+                try { await api.delete(`/kanban/comments/${serverId}`); }
+                catch (error) { if (error.response && error.response.status === 404) return; throw error; }
             }
-            return;
+            break;
 
-        case 'CREATE_OCCUPATION':
-            return await api.post('/users/occupations', task.payload);
+        case 'TOGGLE_COMMENT_LIKE':
+            const lTaskLike = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
+            if (!lTaskLike) return;
+            const targetComment = lTaskLike.comments.find(c => c.local_id === task.payload.comment_local_id);
+            if (!targetComment?.id) throw new Error("COMMENT_NOT_SYNCED: Like aguardando comentário.");
+            try { await api.post(`/kanban/comments/${targetComment.id}/like`); }
+            catch (e) { if (e.response?.status !== 404) throw e; }
+            break;
+    }
+}
 
-        case 'DELETE_OCCUPATION':
-            return await api.delete(`/users/occupations/${task.payload.id}`);
+async function _handleRadioTask(task) {
+    let serverId, response;
 
-        case 'REMOVE_PROJECT_MEMBER':
-            try {
-                await api.delete(`/projects/${task.payload.projectId}/members/${task.payload.targetUserId}`);
-                console.log(`[SyncService] Membro ${task.payload.targetUserId} removido do projeto ${task.payload.projectId}.`);
-                return Promise.resolve();
-            } catch (error) {
-                console.error(`[SyncService] Falha ao remover membro:`, error);
-                throw error;
-            }
-
-        case 'REVOKE_PROJECT_INVITE':
-            try {
-                const encodedEmail = encodeURIComponent(task.payload.targetEmail);
-                await api.delete(`/projects/${task.payload.projectId}/invites/${encodedEmail}`);
-                console.log(`[SyncService] Convite para ${task.payload.targetEmail} cancelado.`);
-                return Promise.resolve();
-            } catch (error) {
-                console.error(`[SyncService] Falha ao cancelar convite:`, error);
-                throw error;
-            }
-
+    switch (task.type) {
         case 'CREATE_PLAYLIST':
-            try {
-                const { localId, ...playlistData } = task.payload;
-                response = await api.post('/radio/playlists', playlistData);
-                const serverData = response.data;
+            const { localId, ...playlistData } = task.payload;
+            response = await api.post('/radio/playlists', playlistData);
+            const serverData = response.data;
 
-                await radioRepository.updateLocalPlaylist(localId, {
-                    id: serverData.id,
-                    updated_at: serverData.updated_at
-                });
-            } catch (error) {
-                console.error("Erro CREATE_PLAYLIST:", error);
-                throw error;
-            }
-            return;
+            await radioRepository.updateLocalPlaylist(localId, {
+                id: serverData.id,
+                updated_at: serverData.updated_at
+            });
+            break;
 
         case 'DELETE_PLAYLIST':
             serverId = task.payload.id;
@@ -385,7 +413,7 @@ async function processTaskItem(task) {
                 try { await api.delete(`/radio/playlists/${serverId}`); }
                 catch (e) { if (e.response?.status !== 404) throw e; }
             }
-            return;
+            break;
 
         case 'SYNC_PLAYLIST_CHANGE':
             serverId = task.payload.playlist_id;
@@ -402,7 +430,7 @@ async function processTaskItem(task) {
                     }]
                 });
             }
-            return;
+            break;
 
         case 'ADD_TRACK':
             let parentPlaylistId = task.payload.playlist_id;
@@ -419,7 +447,7 @@ async function processTaskItem(task) {
             response = await api.post(`/radio/playlists/${parentPlaylistId}/tracks`, trackPayload);
 
             await radioRepository.updateLocalTrack(task.payload.localId, { id: response.data.id });
-            return;
+            break;
 
         case 'DELETE_TRACK':
             serverId = task.payload.id;
@@ -427,35 +455,54 @@ async function processTaskItem(task) {
                 try { await api.delete(`/radio/playlists/0/tracks/${serverId}`); }
                 catch (e) { if (e.response?.status !== 404) throw e; }
             }
-            return;
-
-        default:
-            if (task.type === 'CREATE_TASK_COMMENT') {
-                const localTask = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
-                if (!localTask?.id) throw new Error("TASK_NOT_SYNCED: Comentário aguardando Task.");
-                response = await api.post(`/kanban/tasks/${localTask.id}/comments`, {
-                    content: task.payload.content,
-                    created_at: task.payload.created_at
-                });
-                const commentLocalId = task.payload.local_id || task.entity_id;
-                await kanbanRepository.update_local_comment_state(task.payload.task_local_id, commentLocalId, { id: response.data.id });
-                return;
-            }
-            if (task.type === 'TOGGLE_COMMENT_LIKE') {
-                const lTask = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
-                if (!lTask) return;
-                const targetComment = lTask.comments.find(c => c.local_id === task.payload.comment_local_id);
-                if (!targetComment?.id) throw new Error("COMMENT_NOT_SYNCED: Like aguardando comentário.");
-                try { await api.post(`/kanban/comments/${targetComment.id}/like`); }
-                catch (e) { if (e.response?.status !== 404) throw e; }
-                return;
-            }
-            console.warn(`[SyncService] Tarefa desconhecida: ${task.type}`);
-            return;
+            break;
     }
 }
 
-// --- FILA PRINCIPAL (MESCLADA) ---
+async function _handleAccountTask(task) {
+    if (task.type === 'CREATE_ACCOUNT') {
+        const response = await api.post('/accounts', { data: task.payload.data });
+        await accountsRepository.setServerId(task.payload.localId, response.data.id);
+    } else if (task.type === 'DELETE_ACCOUNT') {
+        const serverId = task.payload.id;
+        if (!serverId) return;
+        try { await api.delete(`/accounts/${serverId}`); }
+        catch (error) { if (error.response && error.response.status === 404) return; throw error; }
+    }
+}
+
+async function _handleUserTask(task) {
+    if (task.type === 'CREATE_OCCUPATION') {
+        await api.post('/users/occupations', task.payload);
+    } else if (task.type === 'DELETE_OCCUPATION') {
+        await api.delete(`/users/occupations/${task.payload.id}`);
+    }
+}
+
+// ============================================================================
+// MAIN PROCESSOR
+// ============================================================================
+
+async function processTaskItem(task) {
+    if (['CREATE_PROJECT', 'DELETE_PROJECT', 'REMOVE_PROJECT_MEMBER', 'REVOKE_PROJECT_INVITE'].includes(task.type)) {
+        await _handleProjectTask(task);
+    }
+    else if (task.type.includes('COLUMN') || task.type.includes('TASK') || task.type.includes('COMMENT')) {
+        await _handleKanbanTask(task);
+    }
+    else if (task.type.includes('ACCOUNT')) {
+        await _handleAccountTask(task);
+    }
+    else if (task.type.includes('OCCUPATION')) {
+        await _handleUserTask(task);
+    }
+    else if (task.type.includes('PLAYLIST') || task.type.includes('TRACK')) {
+        await _handleRadioTask(task);
+    }
+    else {
+        console.warn(`[SyncService] Tarefa desconhecida: ${task.type}`);
+    }
+}
 
 export const syncService = {
     async processSyncQueue(force = false) {
@@ -471,6 +518,7 @@ export const syncService = {
 
             console.log(`[SyncService] Iniciando sincronização de ${allTasks.length} tarefas...`);
 
+            // Separa tarefas de lote (Batch)
             const profileTasks = allTasks.filter(t => t.type === 'SYNC_PROFILE_CHANGE');
             const projectFieldTasks = allTasks.filter(t => t.type === 'SYNC_PROJECT_CHANGE');
             const accountSyncTasks = allTasks.filter(t => t.type === 'UPDATE_ACCOUNT');
@@ -481,10 +529,12 @@ export const syncService = {
                 t.type !== 'UPDATE_ACCOUNT'
             );
 
+            // Processa Lotes
             await processProfileSync(profileTasks);
             await processProjectSync(projectFieldTasks);
             await processAccountsSync(accountSyncTasks);
 
+            // Ordena tarefas individuais por dependência lógica
             const creationOrder = { 'CREATE_PROJECT': 1, 'CREATE_COLUMN': 2, 'CREATE_TASK': 3, 'CREATE_PLAYLIST': 4, 'ADD_TRACK': 5 };
             const sortedTasks = individualTasks.sort((a, b) => {
                 const orderA = creationOrder[a.type] || 10;
@@ -493,6 +543,7 @@ export const syncService = {
                 return a.timestamp - b.timestamp;
             });
 
+            // Processa Individualmente
             for (const task of sortedTasks) {
                 try {
                     await processTaskItem(task);
@@ -502,6 +553,11 @@ export const syncService = {
                     if (error.response && error.response.status === 403) {
                         console.error(`[Security] Acesso negado ao processar ${task.type}.`);
                         await syncQueueRepository.deleteTask(task.id);
+
+                        if (task.payload && task.payload.projectId) {
+                            const projectStore = useProjectStore();
+                            projectStore.forceLocalProjectRemoval(task.payload.projectId);
+                        }
                         continue;
                     }
 
