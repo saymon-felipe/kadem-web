@@ -8,7 +8,7 @@
                 </div>
 
                 <div class="modal-header">
-                    <h3>{{ message }}</h3>
+                    <h3 v-html="sanitize(message)"></h3>
                 </div>
 
                 <div class="modal-body">
@@ -19,7 +19,7 @@
                     <button class="btn" @click="cancel">
                         Cancelar
                     </button>
-                    <button class="btn" :class="confirmText == 'Excluir' ? 'btn-red' : 'btn-primary'" @click="confirm">
+                    <button class="btn" :class="confirmText == 'Excluir' || confirmText == 'Remover' ? 'btn-red' : 'btn-primary'" @click="confirm">
                         {{ confirmText }}
                     </button>
                 </div>

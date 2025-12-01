@@ -2,12 +2,20 @@
     <div class="radio-flow-wrapper">
         <div class="layout-grid" :style="layout_grid_style">
 
-            <PlaylistSidebar :playlists="playlists" :selected_playlist_id="selected_playlist?.local_id"
-                :current_playing_playlist_id="current_playlist?.local_id" :is_playing="is_playing"
-                :default_cover="default_cover" :default_avatar="default_avatar" :collapsed="is_sidebar_collapsed"
-                @select-playlist="select_playlist" @create-playlist="handle_create_playlist"
-                @toggle-collapse="toggle_sidebar" @rename-playlist="handle_rename_playlist"
-                @delete-playlist="handle_delete_playlist" />
+            <PlaylistSidebar
+                :playlists="playlists"
+                :selected_playlist_id="selected_playlist?.local_id"
+                :current_playing_playlist_id="current_playlist?.local_id"
+                :is_playing="is_playing"
+                :default_cover="default_cover"
+                :default_avatar="default_avatar"
+                :collapsed="is_sidebar_collapsed"
+                @select-playlist="select_playlist"
+                @create-playlist="handle_create_playlist"
+                @toggle-collapse="toggle_sidebar"
+                @rename-playlist="handle_rename_playlist"
+                @delete-playlist="handle_delete_playlist"
+            />
 
             <div class="main-content glass">
 
@@ -15,23 +23,37 @@
                     <div class="search-header">
                         <div class="search-input-wrapper">
                             <div class="form-group">
-                                <input type="text" v-model="search_query" @keyup.enter="perform_search" placeholder=" "
-                                    id="search-input" class="search-input" />
+                                <input
+                                    type="text"
+                                    v-model="search_query"
+                                    @keyup.enter="perform_search"
+                                    placeholder=" "
+                                    id="search-input"
+                                    class="search-input"
+                                />
                                 <label for="search-input">O que você quer ouvir?</label>
                             </div>
                         </div>
-                        <button v-if="view_mode === 'search'" @click="close_search"
-                            class="btn btn-secondary exit-search-btn">
+                        <button
+                            v-if="view_mode === 'search'"
+                            @click="close_search"
+                            class="btn btn-secondary exit-search-btn"
+                        >
                             Sair da Pesquisa
                         </button>
                     </div>
 
                     <div class="content-scrollable">
                         <template v-if="view_mode === 'playlist'">
-                            <PlaylistHeader :playlist="selected_playlist" :track_count="tracks.length"
-                                :total_duration_seconds="playlist_total_duration" :default_cover="default_cover"
-                                :default_avatar="default_avatar" @rename-playlist="handle_rename_playlist"
-                                @delete-playlist="handle_delete_playlist" />
+                            <PlaylistHeader
+                                :playlist="selected_playlist"
+                                :track_count="tracks.length"
+                                :total_duration_seconds="playlist_total_duration"
+                                :default_cover="default_cover"
+                                :default_avatar="default_avatar"
+                                @rename-playlist="handle_rename_playlist"
+                                @delete-playlist="handle_delete_playlist"
+                            />
 
                             <div class="playlist-controls">
                                 <div class="play-actions">
@@ -44,9 +66,14 @@
                                 </div>
                             </div>
 
-                            <TrackList mode="playlist" :tracks="tracks" :current_music_id="current_music?.youtube_id"
-                                @play-track="play_specific_track" @delete-track="handle_delete_track"
-                                @add-to-queue="add_to_queue" />
+                            <TrackList
+                                mode="playlist"
+                                :tracks="tracks"
+                                :current_music_id="current_music?.youtube_id"
+                                @play-track="play_specific_track"
+                                @delete-track="handle_delete_track"
+                                @add-to-queue="add_to_queue"
+                            />
                         </template>
 
                         <template v-else-if="view_mode === 'search'">
@@ -54,9 +81,14 @@
                                 <h3>Resultados para "{{ search_query }}"</h3>
                             </div>
                             <loading-spinner v-if="is_searching" style="margin: 50px auto;" />
-                            <TrackList v-else mode="search" :tracks="search_results"
-                                :current_music_id="current_music?.youtube_id" @play-track="play_preview"
-                                @request-add="open_playlist_selector" />
+                            <TrackList
+                                v-else
+                                mode="search"
+                                :tracks="search_results"
+                                :current_music_id="current_music?.youtube_id"
+                                @play-track="play_preview"
+                                @request-add="open_playlist_selector"
+                            />
                         </template>
                     </div>
                 </template>
@@ -85,12 +117,22 @@
 
         <div id="youtube-player-container" class="ghost-player"></div>
 
-        <PlaylistSelector v-if="show_playlist_selector" :playlists="playlists" :position="selector_position"
-            :default_avatar="default_avatar" @close="show_playlist_selector = false" @select="verify_and_add_track" />
+        <PlaylistSelector
+            v-if="show_playlist_selector"
+            :playlists="playlists"
+            :position="selector_position"
+            :default_avatar="default_avatar"
+            @close="show_playlist_selector = false"
+            @select="verify_and_add_track"
+        />
 
-        <ConfirmationModal v-model="show_duplicate_modal" title="Música já existente"
-            message="Esta música já está na playlist selecionada." @cancelled="show_duplicate_modal = false"
-            description=" " confirmText="Ok" @confirmed="show_duplicate_modal = false" />
+        <ConfirmationModal
+            v-model="confirmationState.show"
+            :message="confirmationState.message"
+            :confirmText="confirmationState.confirmText"
+            @cancelled="confirmationState.show = false"
+            @confirmed="execute_confirmation_action"
+        />
     </div>
 </template>
 
@@ -115,12 +157,17 @@ import defaultAvatar from '@/assets/images/kadem-default-playlist.jpg';
 
 export default {
     components: {
-        PlaylistSidebar, PlaylistHeader, TrackList, PlayerWrapper,
-        QueueSidebar, LoadingSpinner, PlaylistSelector, ConfirmationModal
+        PlaylistSidebar,
+        PlaylistHeader,
+        TrackList,
+        PlayerWrapper,
+        QueueSidebar,
+        LoadingSpinner,
+        PlaylistSelector,
+        ConfirmationModal
     },
     data() {
         return {
-            // Estado Local da UI
             selected_playlist: null,
             tracks: [],
             default_cover: defaultCover,
@@ -128,7 +175,7 @@ export default {
             yt_player: null,
 
             is_sidebar_collapsed: false,
-            view_mode: 'playlist', // 'playlist' | 'search'
+            view_mode: 'playlist',
             search_query: '',
             search_results: [],
             is_searching: false,
@@ -138,22 +185,19 @@ export default {
             selector_position: { x: 0, y: 0 },
             track_being_added: null,
             target_playlist_for_add: null,
-            show_duplicate_modal: false
+
+            // Estado Genérico de Confirmação (Multimodal)
+            confirmationState: {
+                show: false,
+                message: '',
+                confirmText: 'Confirmar',
+                action: null // Função a ser executada ao confirmar
+            }
         }
     },
     computed: {
-        // --- PLAYER STORE (Áudio) ---
-        ...mapState(usePlayerStore, [
-            'current_music',
-            'is_playing',
-            'current_playlist',
-            'is_shuffle'
-        ]),
-
-        // --- RADIO STORE (Dados) ---
-        ...mapState(useRadioStore, {
-            playlists: 'playlists'
-        }),
+        ...mapState(usePlayerStore, ['current_music', 'is_playing', 'current_playlist', 'is_shuffle']),
+        ...mapState(useRadioStore, { playlists: 'playlists' }),
 
         play_button_icon() {
             if (this.is_current_playlist_active && this.is_playing) return 'circle-pause';
@@ -173,13 +217,10 @@ export default {
         layout_grid_style() {
             const left = this.is_sidebar_collapsed ? '80px' : '250px';
             const right = '300px';
-            return {
-                'grid-template-columns': `${left} minmax(0, 1fr) ${right}`
-            };
+            return { 'grid-template-columns': `${left} minmax(0, 1fr) ${right}` };
         }
     },
     methods: {
-        // --- PLAYER ACTIONS ---
         ...mapActions(usePlayerStore, [
             'play_track',
             'register_yt_instance',
@@ -189,8 +230,6 @@ export default {
             'add_to_queue',
             'restorePlayerConnection'
         ]),
-
-        // --- RADIO ACTIONS ---
         ...mapActions(useRadioStore, [
             'pullPlaylists',
             'createPlaylist',
@@ -200,12 +239,32 @@ export default {
             'removeTrackFromPlaylist'
         ]),
 
+        // --- HELPER DE CONFIRMAÇÃO ---
+        openConfirmation({ title, message, confirmText, action }) {
+            this.confirmationState = {
+                show: true,
+                title: title || 'Atenção',
+                message: message,
+                confirmText: confirmText || 'Confirmar',
+                action: action
+            };
+        },
+
+        async execute_confirmation_action() {
+            if (this.confirmationState.action) {
+                await this.confirmationState.action();
+            }
+            this.confirmationState.show = false;
+        },
+        // -----------------------------
+
         async handle_rename_playlist(playlist, newName) {
             if (!newName || newName.trim() === '') return;
             await this.renamePlaylist(playlist, newName.trim());
         },
 
         async handle_delete_playlist(playlist) {
+            // A confirmação da playlist já é feita no PlaylistHeader, então aqui executamos direto
             await this.deletePlaylist(playlist.local_id, playlist.id);
 
             if (this.selected_playlist && this.selected_playlist.local_id === playlist.local_id) {
@@ -218,20 +277,15 @@ export default {
             }
         },
 
-        // --- INICIALIZAÇÃO ---
         async load_data() {
             await this.pullPlaylists();
-
             if (this.playlists.length > 0) {
                 if (!this.selected_playlist) {
                     this.select_playlist(this.playlists[0]);
                 } else {
                     const stillExists = this.playlists.find(p => p.local_id === this.selected_playlist.local_id);
-                    if (!stillExists) {
-                        this.select_playlist(this.playlists[0]);
-                    } else {
-                        this.select_playlist(stillExists);
-                    }
+                    if (!stillExists) this.select_playlist(this.playlists[0]);
+                    else this.select_playlist(stillExists);
                 }
             } else {
                 this.selected_playlist = null;
@@ -245,22 +299,23 @@ export default {
             this.tracks = await radioRepository.getLocalTracks(playlist.local_id);
         },
 
-        // --- CRIAÇÃO E EDIÇÃO (Chama a Store) ---
-
         async handle_create_playlist() {
             const newId = await this.createPlaylist("Nova Playlist", "");
-
-            // Atualiza seleção
             await this.load_data();
             const created = this.playlists.find(p => p.local_id === newId);
             if (created) this.select_playlist(created);
         },
 
-        async handle_delete_track(track) {
-            if (confirm("Remover esta música da playlist?")) {
-                await this.removeTrackFromPlaylist(track);
-                this.tracks = this.tracks.filter(t => t.local_id !== track.local_id);
-            }
+        // --- ALTERADO: DELETAR TRACK COM MODAL ---
+        handle_delete_track(track) {
+            this.openConfirmation({
+                message: `Tem certeza que deseja remover <br> ${track.title} da playlist?`,
+                confirmText: 'Remover',
+                action: async () => {
+                    await this.removeTrackFromPlaylist(track);
+                    this.tracks = this.tracks.filter(t => t.local_id !== track.local_id);
+                }
+            });
         },
 
         async execute_add_track() {
@@ -276,8 +331,6 @@ export default {
             this.target_playlist_for_add = null;
             this.track_being_added = null;
         },
-
-        // --- BUSCA E UI AUXILIAR ---
 
         async perform_search() {
             if (!this.search_query.trim()) return;
@@ -300,29 +353,30 @@ export default {
             this.search_results = [];
         },
 
-        // --- ADICIONAR MÚSICA (Fluxo de UI) ---
         open_playlist_selector(track, event) {
             this.track_being_added = track;
             this.selector_position = { x: event.clientX, y: event.clientY };
             this.show_playlist_selector = true;
         },
 
+        // --- ALTERADO: DUPLICIDADE COM MODAL ---
         async verify_and_add_track(playlist) {
             this.target_playlist_for_add = playlist;
             this.show_playlist_selector = false;
 
-            // Verifica duplicidade
             const existing_tracks = await radioRepository.getLocalTracks(playlist.local_id);
             const exists = existing_tracks.some(t => t.youtube_id === this.track_being_added.youtube_id);
 
             if (exists) {
-                this.show_duplicate_modal = true;
+                this.openConfirmation({
+                    message: 'Esta música já está na playlist selecionada.',
+                    confirmText: 'Ok'
+                });
             } else {
                 await this.execute_add_track();
             }
         },
 
-        // --- PLAYBACK ---
         handle_play_playlist_btn() {
             if (this.tracks.length === 0) return;
             if (this.is_current_playlist_active) {
@@ -340,13 +394,13 @@ export default {
             this.play_track(video_obj, null);
         },
 
-        // --- UTILS ---
         toggle_sidebar() {
             this.is_sidebar_collapsed = !this.is_sidebar_collapsed;
         },
 
+        // Proxy para o método handle_delete_track
         async delete_track(track) {
-            await this.handle_delete_track(track);
+            this.handle_delete_track(track);
         },
 
         init_youtube_api() {
@@ -378,8 +432,9 @@ export default {
                     'onReady': (event) => {
                         console.log("[RadioFlow] YouTube Player Pronto.");
                         this.register_yt_instance(event.target);
-
-                        this.restorePlayerConnection();
+                        if (typeof this.restorePlayerConnection === 'function') {
+                            this.restorePlayerConnection();
+                        }
                     },
                     'onStateChange': (event) => {
                         if (event.data === 0) {
@@ -393,9 +448,10 @@ export default {
     mounted() {
         this.load_data();
         this.init_youtube_api();
-
         if (this.player_mode === 'native' || !this.current_music) {
-            this.restorePlayerConnection();
+            if (typeof this.restorePlayerConnection === 'function') {
+                this.restorePlayerConnection();
+            }
         }
     }
 }
@@ -415,7 +471,7 @@ export default {
     height: 100%;
     gap: var(--space-3);
     box-sizing: border-box;
-    transition: grid-template-columns 0.3s ease;
+    transition: grid-template-columns 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 @media (max-width: 1024px) {
@@ -434,7 +490,6 @@ export default {
     background: rgba(255, 255, 255, 0.05);
 }
 
-/* Header de Busca */
 .search-header {
     padding: var(--space-4);
     display: flex;
@@ -450,11 +505,6 @@ export default {
     position: relative;
     width: 100%;
     max-width: 400px;
-}
-
-.form-group {
-    position: relative;
-    width: 100%;
 }
 
 .exit-search-btn {
