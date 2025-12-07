@@ -27,9 +27,13 @@ export const usePlayerStore = defineStore("player", {
     is_initialized: false,
     yt_player_instance: null,
     native_audio_instance: markRaw(new Audio()),
+    mobile_tab: "playlists",
   }),
 
   actions: {
+    set_mobile_tab(tab_name) {
+      this.mobile_tab = tab_name;
+    },
     async play_playlist_context(playlist, tracks, start_track = null) {
       this.current_playlist = playlist;
       let new_queue = [...tracks];
@@ -435,6 +439,7 @@ export const usePlayerStore = defineStore("player", {
       "volume",
       "is_shuffle",
       "active_app",
+      "mobile_tab"
     ],
 
     afterRestore: (ctx) => {

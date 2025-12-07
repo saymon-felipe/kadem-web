@@ -407,5 +407,9 @@ export default {
   color: var(--gray-400);
   display: block !important;
   color: var(--gray-100);
+
+  &:last-child {
+    display: none !important;
+  }
 }
 </style>

@@ -204,16 +204,16 @@ h1 {
 }
 
 .title-input {
-  font-size: 2.5rem;
   font-weight: 700;
   color: var(--white);
   background: rgba(0, 0, 0, 0.2);
   border: none;
-  border-bottom: 2px solid var(--white);
-  width: 100%;
+  width: 98%;
+  margin-left: 4px;
   outline: none;
-  padding: 0;
-  margin-bottom: var(--space-2);
+  padding: 0 var(--space-3);
+  height: 35px;
+  margin-bottom: 7px;
 }
 
 .meta-row {
@@ -287,5 +287,26 @@ h1 {
 
 .dropdown-item.danger {
   color: var(--red);
+}
+
+@container (max-width: 600px) {
+  .playlist-hero {
+    flex-direction: column;
+    height: 213px;
+    align-items: start;
+  }
+
+  .hero-cover {
+    width: 100px;
+    height: 100px;
+  }
+
+  .hero-details,
+  .hero-details h1 {
+    width: 100%;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
 }
 </style>

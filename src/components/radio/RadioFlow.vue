@@ -1,22 +1,30 @@
 <template>
-  <div class="radio-flow-wrapper">
-    <div class="layout-grid" :style="layout_grid_style">
-      <PlaylistSidebar
-        :playlists="playlists"
-        :selected_playlist_id="selected_playlist?.local_id"
-        :current_playing_playlist_id="current_playlist?.local_id"
-        :is_playing="is_playing"
-        :default_cover="default_cover"
-        :default_avatar="default_avatar"
-        :collapsed="is_sidebar_collapsed"
-        @select-playlist="select_playlist"
-        @create-playlist="handle_create_playlist"
-        @toggle-collapse="toggle_sidebar"
-        @rename-playlist="handle_rename_playlist"
-        @delete-playlist="handle_delete_playlist"
-      />
+  <div class="radio-flow-wrapper" ref="containerRef">
+    <div class="layout-grid" :style="computed_layout_style">
+      <div
+        class="grid-area-sidebar"
+        v-show="!is_mobile_mode || mobile_tab === 'playlists'"
+      >
+        <PlaylistSidebar
+          :playlists="playlists"
+          :selected_playlist_id="selected_playlist?.local_id"
+          :current_playing_playlist_id="current_playlist?.local_id"
+          :is_playing="is_playing"
+          :default_cover="default_cover"
+          :default_avatar="default_avatar"
+          :collapsed="is_sidebar_collapsed && !is_mobile_mode"
+          @select-playlist="handle_mobile_select_playlist"
+          @create-playlist="handle_create_playlist"
+          @toggle-collapse="toggle_sidebar"
+          @rename-playlist="handle_rename_playlist"
+          @delete-playlist="handle_delete_playlist"
+        />
+      </div>
 
-      <div class="main-content glass">
+      <div
+        class="grid-area-main main-content glass"
+        v-show="!is_mobile_mode || mobile_tab === 'content'"
+      >
         <template v-if="selected_playlist">
           <div class="search-header">
             <div class="search-input-wrapper">
@@ -49,6 +57,7 @@
                 :total_duration_seconds="playlist_total_duration"
                 :default_cover="default_cover"
                 :default_avatar="default_avatar"
+                :is_mobile="is_mobile_mode"
                 @rename-playlist="handle_rename_playlist"
                 @delete-playlist="handle_delete_playlist"
               />
@@ -72,6 +81,7 @@
                 mode="playlist"
                 :tracks="tracks"
                 :current_music_id="current_music?.youtube_id"
+                :is_mobile="is_mobile_mode"
                 @play-track="play_specific_track"
                 @delete-track="handle_delete_track"
                 @add-to-queue="add_to_queue"
@@ -106,18 +116,49 @@
           <p class="instruction" v-if="playlists.length === 0">
             Crie uma nova playlist para começar.
           </p>
-          <p class="instruction" v-else>Selecione uma playlist ao lado.</p>
+          <p class="instruction" v-else>Selecione uma playlist no menu.</p>
         </div>
       </div>
 
-      <QueueSidebar
-        :current_music="current_music"
-        :next_tracks="queue || []"
-        @remove-track="remove_from_queue"
-        @play-track="play_from_queue"
-        @update:queue="handle_update_queue"
-      />
+      <div class="grid-area-queue" v-show="!is_mobile_mode || mobile_tab === 'queue'">
+        <QueueSidebar
+          :current_music="current_music"
+          :next_tracks="queue || []"
+          @remove-track="remove_from_queue"
+          @play-track="play_from_queue"
+          @update:queue="handle_update_queue"
+        />
+      </div>
     </div>
+
+    <nav class="mobile-bottom-nav glass" v-if="is_mobile_mode">
+      <button
+        class="nav-item"
+        :class="{ active: mobile_tab === 'playlists' }"
+        @click="mobile_tab = 'playlists'"
+      >
+        <font-awesome-icon icon="list-ul" />
+        <span>Playlists</span>
+      </button>
+
+      <button
+        class="nav-item"
+        :class="{ active: mobile_tab === 'content' }"
+        @click="mobile_tab = 'content'"
+      >
+        <font-awesome-icon icon="music" />
+        <span>Músicas</span>
+      </button>
+
+      <button
+        class="nav-item"
+        :class="{ active: mobile_tab === 'queue' }"
+        @click="mobile_tab = 'queue'"
+      >
+        <font-awesome-icon icon="layer-group" />
+        <span>Fila</span>
+      </button>
+    </nav>
 
     <div id="youtube-player-container" class="ghost-player"></div>
 
@@ -197,8 +238,11 @@ export default {
         show: false,
         message: "",
         confirmText: "Confirmar",
-        action: null, 
+        action: null,
       },
+
+      resizeObserver: null,
+      is_mobile_mode: window.innerWidth < 850,
     };
   },
   computed: {
@@ -210,6 +254,7 @@ export default {
       "current_music",
       "queue",
       "next",
+      "mobile_tab",
     ]),
     ...mapState(useRadioStore, { playlists: "playlists" }),
 
@@ -233,10 +278,15 @@ export default {
       );
     },
 
-    layout_grid_style() {
+    computed_layout_style() {
+      if (this.is_mobile_mode) return {};
+
       const left = this.is_sidebar_collapsed ? "80px" : "250px";
       const right = "300px";
-      return { "grid-template-columns": `${left} minmax(0, 1fr) ${right}` };
+      return {
+        "--sidebar-width": left,
+        "--queue-width": right,
+      };
     },
   },
   methods: {
@@ -252,6 +302,7 @@ export default {
       "play_from_queue",
       "add_to_queue_at",
       "set_queue",
+      "set_mobile_tab",
     ]),
     ...mapActions(useRadioStore, [
       "pullPlaylists",
@@ -261,6 +312,26 @@ export default {
       "addTrackToPlaylist",
       "removeTrackFromPlaylist",
     ]),
+
+    initResizeObserver() {
+      this.resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const isMobile = entry.contentRect.width < 850;
+
+          if (this.is_mobile_mode !== isMobile) {
+            this.is_mobile_mode = isMobile;
+
+            if (isMobile && this.selected_playlist) {
+              this.set_mobile_tab("content");
+            }
+          }
+        }
+      });
+
+      if (this.$refs.containerRef) {
+        this.resizeObserver.observe(this.$refs.containerRef);
+      }
+    },
 
     openConfirmation({ title, message, confirmText, action }) {
       this.confirmationState = {
@@ -326,11 +397,18 @@ export default {
       this.tracks = await radioRepository.getLocalTracks(playlist.local_id);
     },
 
+    handle_mobile_select_playlist(playlist) {
+      this.select_playlist(playlist);
+      if (this.is_mobile_mode) {
+        this.set_mobile_tab("content");
+      }
+    },
+
     async handle_create_playlist() {
       const newId = await this.createPlaylist("Nova Playlist", "");
       await this.load_data();
       const created = this.playlists.find((p) => p.local_id === newId);
-      if (created) this.select_playlist(created);
+      if (created) this.handle_mobile_select_playlist(created);
     },
 
     handle_delete_track(track) {
@@ -401,7 +479,6 @@ export default {
       this.show_playlist_selector = true;
     },
 
-    // --- ALTERADO: DUPLICIDADE COM MODAL ---
     async verify_and_add_track(playlist) {
       this.target_playlist_for_add = playlist;
       this.show_playlist_selector = false;
@@ -446,7 +523,6 @@ export default {
       this.is_sidebar_collapsed = !this.is_sidebar_collapsed;
     },
 
-    // Proxy para o método handle_delete_track
     async delete_track(track) {
       this.handle_delete_track(track);
     },
@@ -498,12 +574,18 @@ export default {
     },
   },
   mounted() {
+    this.initResizeObserver();
     this.load_data();
     this.init_youtube_api();
     if (this.player_mode === "native" || !this.current_music) {
       if (typeof this.restorePlayerConnection === "function") {
         this.restorePlayerConnection();
       }
+    }
+  },
+  beforeUnmount() {
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
     }
   },
 };
@@ -518,17 +600,11 @@ export default {
 
 .layout-grid {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr) 300px;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--queue-width);
   height: 100%;
   gap: var(--space-3);
   box-sizing: border-box;
-  transition: grid-template-columns 0.3s cubic-bezier(0.25, 1, 0.5, 1);
-}
-
-@media (max-width: 1024px) {
-  .layout-grid {
-    grid-template-columns: 80px minmax(0, 1fr) 250px !important;
-  }
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .main-content {
@@ -539,12 +615,18 @@ export default {
   position: relative;
 }
 
-.sidebar,
-.main-content,
-.queue-sidebar {
+.grid-area-sidebar,
+.grid-area-main,
+.grid-area-queue {
   height: calc(100% - 89px);
   min-height: calc(100% - 89px);
   max-height: calc(100% - 89px);
+  overflow: hidden;
+}
+
+.grid-area-sidebar > aside,
+.grid-area-queue > aside {
+  height: 100%;
 }
 
 .search-header {
@@ -691,5 +773,69 @@ export default {
   height: 1px;
   opacity: 0;
   pointer-events: none;
+}
+
+/* Mobile Navigation */
+.mobile-bottom-nav {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: var(--space-3);
+  position: absolute;
+  bottom: 142px;
+  width: 100%;
+  z-index: 100;
+  border-radius: var(--radius-md);
+  border-bottom: none;
+}
+
+.nav-item {
+  background: none;
+  border: none;
+  color: var(--gray-400);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.nav-item svg {
+  font-size: 1.2rem;
+}
+
+.nav-item.active {
+  color: var(--blue);
+}
+
+/* --- Container Queries Logic --- */
+
+@container (max-width: 850px) {
+  .layout-grid {
+    display: block; /* Remove o grid, v-show cuida do resto */
+    position: relative;
+    height: calc(100% - 52px);
+    overflow: hidden;
+  }
+
+  .grid-area-sidebar,
+  .grid-area-main,
+  .grid-area-queue {
+    width: 100%;
+    height: calc(100% - 150px); /* Espaço para player + nav */
+    max-height: calc(100% - 150px);
+  }
+
+  /* Queue Sidebar adaptação */
+  .queue-sidebar {
+    width: 100% !important;
+  }
+
+  .grid-area-sidebar > aside,
+  .grid-area-queue > aside {
+    padding-bottom: 69px;
+  }
 }
 </style>

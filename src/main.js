@@ -66,7 +66,8 @@ import {
   faTrash,
   faTriangleExclamation,
   faCircleInfo,
-  faLink
+  faLink,
+  faLayerGroup
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -125,7 +126,8 @@ library.add(
   faTrash,
   faTriangleExclamation,
   faCircleInfo,
-  faLink
+  faLink,
+  faLayerGroup
 );
 
 const app = createApp(App);

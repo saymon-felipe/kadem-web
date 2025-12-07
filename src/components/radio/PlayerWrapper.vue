@@ -1,76 +1,78 @@
 <template>
-  <div class="player-wrapper">
-    <div class="music-element" :style="'opacity: ' + (current_music ? 1 : 0)">
-      <img :src="current_music?.thumbnail" />
-      <div class="music-info">
-        <strong :title="current_music?.title">{{ current_music?.title }}</strong>
-        <small :title="current_music?.channel">{{ current_music?.channel }}</small>
-      </div>
-    </div>
-
-    <div class="controls-center">
-      <div class="controls-left" :class="{ 'disabled-area': is_disabled }">
-        <button
-          class="btn-control"
-          @click="!is_disabled && prev()"
-          :disabled="is_disabled"
-        >
-          <font-awesome-icon icon="backward-step" />
-        </button>
-
-        <button
-          class="btn-control play-btn"
-          @click="!is_disabled && toggle_play()"
-          :disabled="is_disabled"
-        >
-          <font-awesome-icon :icon="is_playing ? 'circle-pause' : 'circle-play'" />
-        </button>
-
-        <button
-          class="btn-control"
-          @click="!is_disabled && next()"
-          :disabled="is_disabled"
-        >
-          <font-awesome-icon icon="forward-step" />
-        </button>
+  <div class="player-wrapper-container">
+    <div class="player-wrapper">
+      <div class="music-element" :style="'opacity: ' + (current_music ? 1 : 0)">
+        <img :src="current_music?.thumbnail" />
+        <div class="music-info">
+          <strong :title="current_music?.title">{{ current_music?.title }}</strong>
+          <small :title="current_music?.channel">{{ current_music?.channel }}</small>
+        </div>
       </div>
 
-      <div class="progress-container" :class="{ 'disabled-area': is_disabled }">
-        <span>{{ formatted_current_time }}</span>
-        <input
-          type="range"
-          min="0"
-          :max="duration"
-          v-model="ui_current_time"
-          @input="on_seek_input"
-          @change="on_seek_change"
-          class="slider progress-slider"
-          :style="progress_style"
-          :disabled="is_disabled"
-        />
-        <span>{{ formatted_duration }}</span>
-      </div>
-    </div>
+      <div class="controls-center">
+        <div class="controls-left" :class="{ 'disabled-area': is_disabled }">
+          <button
+            class="btn-control"
+            @click="!is_disabled && prev()"
+            :disabled="is_disabled"
+          >
+            <font-awesome-icon icon="backward-step" />
+          </button>
 
-    <div class="controls-right" :class="{ 'disabled-area': is_disabled }">
-      <div class="volume-control">
-        <button class="btn-icon" @click="toggle_mute">
-          <font-awesome-icon :icon="volume_icon" />
+          <button
+            class="btn-control play-btn"
+            @click="!is_disabled && toggle_play()"
+            :disabled="is_disabled"
+          >
+            <font-awesome-icon :icon="is_playing ? 'circle-pause' : 'circle-play'" />
+          </button>
+
+          <button
+            class="btn-control"
+            @click="!is_disabled && next()"
+            :disabled="is_disabled"
+          >
+            <font-awesome-icon icon="forward-step" />
+          </button>
+        </div>
+
+        <div class="progress-container" :class="{ 'disabled-area': is_disabled }">
+          <span class="time-text">{{ formatted_current_time }}</span>
+          <input
+            type="range"
+            min="0"
+            :max="duration"
+            v-model="ui_current_time"
+            @input="on_seek_input"
+            @change="on_seek_change"
+            class="slider progress-slider"
+            :style="progress_style"
+            :disabled="is_disabled"
+          />
+          <span class="time-text">{{ formatted_duration }}</span>
+        </div>
+      </div>
+
+      <div class="controls-right" :class="{ 'disabled-area': is_disabled }">
+        <div class="volume-control">
+          <button class="btn-icon" @click="toggle_mute">
+            <font-awesome-icon :icon="volume_icon" />
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            v-model="ui_volume"
+            @input="update_volume"
+            class="slider volume-slider"
+            :style="volume_style"
+          />
+        </div>
+
+        <button class="btn-icon list-btn">
+          <font-awesome-icon icon="list-ul" />
         </button>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          v-model="ui_volume"
-          @input="update_volume"
-          class="slider volume-slider"
-          :style="volume_style"
-        />
       </div>
-
-      <button class="btn-icon">
-        <font-awesome-icon icon="list-ul" />
-      </button>
     </div>
   </div>
 </template>
@@ -183,6 +185,10 @@ export default {
 </script>
 
 <style scoped>
+.player-wrapper-container {
+  width: 100%;
+}
+
 .player-wrapper {
   height: 80px;
   transform: translateY(-100px);
@@ -196,11 +202,13 @@ export default {
   color: var(--deep-blue);
   gap: var(--space-4);
   transition: opacity 0.3s;
+  align-items: center;
 }
 
 /* Área desabilitada visualmente */
 .disabled-area {
   pointer-events: none;
+  opacity: 0.8;
 }
 
 /* Esquerda */
@@ -218,6 +226,7 @@ export default {
   cursor: pointer;
   color: inherit;
   transition: transform 0.2s;
+  padding: 0;
 }
 
 .btn-control:hover {
@@ -371,6 +380,42 @@ export default {
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;
+  }
+}
+
+/* Responsividade do Player */
+@container (max-width: 600px) {
+  .player-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    padding: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  /* Esconde volume e botão de lista no mobile para simplificar */
+  .controls-right,
+  .volume-control {
+    display: none !important;
+  }
+
+  .music-element {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .controls-center {
+    width: 100%;
+  }
+
+  .progress-container {
+    width: 100%;
+  }
+
+  .controls-left {
+    justify-content: center;
+    width: 100%;
+    margin-top: var(--space-2);
   }
 }
 </style>
