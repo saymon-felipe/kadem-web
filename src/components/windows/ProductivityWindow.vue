@@ -145,7 +145,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-5);
   width: fit-content;
   transition: transform 0.2s;
 }

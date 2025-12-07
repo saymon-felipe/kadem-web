@@ -7,7 +7,7 @@
 }
 
 html, body, #app, main {
-  font-size: 100%; 
+  font-size: 100%;
   overflow: hidden;
   height: 100dvh;
   width: 100dvw;
@@ -20,7 +20,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .custom-scrollbar {
-  scrollbar-width: thin; 
+  scrollbar-width: thin;
   scrollbar-color: var(--deep-blue) transparent;
 }
 
@@ -77,7 +77,7 @@ h1, h2, h3, h4, h5, h6 {
 .glass {
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2), 
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2),
               inset 0 4px 20px rgba(255, 255, 255, 0.3);
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(5px) saturate(180%);
@@ -208,13 +208,13 @@ input {
   height: 50px;
 }
 
-input:focus ~ label, 
+input:focus ~ label,
 textarea:focus ~ label,
-input:not(:placeholder-shown):valid ~ label, 
+input:not(:placeholder-shown):valid ~ label,
 textarea:not(:placeholder-shown):valid ~ label,
-input:not(:placeholder-shown):invalid ~ label, 
+input:not(:placeholder-shown):invalid ~ label,
 textarea:not(:placeholder-shown):invalid ~ label,
-input:not(:placeholder-shown):disabled ~ label, 
+input:not(:placeholder-shown):disabled ~ label,
 textarea:not(:placeholder-shown):disabled ~ label {
   transform: translateY(-11px);
   font-size: var(--fontsize-xs);
@@ -226,7 +226,7 @@ textarea:not(:placeholder-shown):invalid ~ label {
   left: 0;
 }
 
-input:not(:placeholder-shown):invalid ~ label, 
+input:not(:placeholder-shown):invalid ~ label,
 textarea:not(:placeholder-shown):invalid ~ label {
   color: var(--red) !important;
 }
@@ -244,10 +244,10 @@ textarea {
   height: 50px;
   border-radius: var(--radius-sm);
   font-size: var(--fontsize-sm);
-  transition: 
-    background-position 0.4s ease-in-out, 
-    color 0.2s ease-in-out, 
-    background 0.2s ease-in-out, 
+  transition:
+    background-position 0.4s ease-in-out,
+    color 0.2s ease-in-out,
+    background 0.2s ease-in-out,
     filter 0.2s ease-in-out;
   background-color: var(--background-gray);
   color: var(--black);
@@ -262,7 +262,7 @@ textarea {
     background-image: var(--deep-blue-gradient);
     color: var(--white);
     background-size: 200% auto;
-    background-position: left center; 
+    background-position: left center;
 
     &:hover {
       background-position: right center;
@@ -339,7 +339,7 @@ input:not([type="range"]), textarea {
   width: 100%;
   border: none;
   border-radius: var(--radius-sm);
-  box-shadow: 3px 3px 4px rgba(0, 0, 0, 0.25), 
+  box-shadow: 3px 3px 4px rgba(0, 0, 0, 0.25),
               inset 3px 3px 4px rgba(0, 0, 0, 0.25);
   background: var(--white);
   padding: 1.4rem var(--space-7) 12px 1.2rem;
@@ -351,5 +351,13 @@ input:not([type="range"]), textarea {
 
 textarea {
   padding: 1.4rem var(--space-7) 12px 1.9rem;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-center {
+  text-align: center;
 }
 

@@ -15,9 +15,19 @@
       <h1 v-else @dblclick="start_rename">{{ playlist.name }}</h1>
 
       <div class="meta-row">
-        <span>{{ track_count }} músicas</span>
-        <span v-if="total_duration_formatted" class="separator">•</span>
-        <span>{{ total_duration_formatted }}</span>
+        <span>{{
+          track_count > 1
+            ? track_count + " músicas"
+            : track_count == 0
+            ? "Nenhuma música"
+            : "1 música"
+        }}</span>
+        <span
+          v-if="total_duration_formatted && total_duration_seconds > 0"
+          class="separator"
+          >•</span
+        >
+        <span v-if="total_duration_seconds > 0">{{ total_duration_formatted }}</span>
       </div>
     </div>
 
@@ -89,10 +99,9 @@ export default {
   computed: {
     hero_background() {
       const cover = this.playlist.cover || this.default_cover;
-      return `background: linear-gradient(to right, var(--deep-blue), transparent), url(${cover}) no-repeat right center; background-size: cover;`;
+      return `background: linear-gradient(to top, rgba(255, 255, 255, 0.7), transparent), url(${cover}) no-repeat right center; background-size: cover;`;
     },
     total_duration_formatted() {
-      // Nota: Certifique-se de que este método está disponível globalmente ou via mixin
       return this.format_total_duration_verbose(this.total_duration_seconds);
     },
   },
@@ -212,6 +221,7 @@ h1 {
   gap: var(--space-2);
   font-size: 0.9rem;
   opacity: 0.9;
+  color: var(--deep-blue-2);
 }
 
 .separator {
@@ -263,7 +273,7 @@ h1 {
   border: none;
   text-align: left;
   cursor: pointer;
-  color: var(--gray-700);
+  color: var(--deep-blue);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -272,14 +282,10 @@ h1 {
 }
 
 .dropdown-item:hover {
-  background: var(--gray-100);
+  background: var(--background-gray);
 }
 
 .dropdown-item.danger {
   color: var(--red);
-}
-
-.dropdown-item.danger:hover {
-  background: #fee2e2;
 }
 </style>
