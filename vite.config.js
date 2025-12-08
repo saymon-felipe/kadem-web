@@ -40,10 +40,27 @@ export default defineConfig({
             urlPattern: ({ url }) => url.hostname === "img.logo.dev",
             handler: 'CacheFirst',
             options: {
-              cacheName: 'placeholder-images-cache',
+              cacheName: 'logos-images-cache',
               expiration: {
                 maxEntries: 20,
                 maxAgeSeconds: 30 * 24 * 60 * 60
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          {
+            urlPattern: ({ url }) => url.hostname === "i.ytimg.com",
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'youtube-images-cache',
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 30 * 24 * 60 * 60
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
               }
             }
           },
@@ -55,6 +72,9 @@ export default defineConfig({
               expiration: {
                 maxEntries: 20,
                 maxAgeSeconds: 30 * 24 * 60 * 60
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
               }
             }
           }

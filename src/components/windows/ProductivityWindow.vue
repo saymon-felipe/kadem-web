@@ -14,7 +14,7 @@
           <div class="icon-wrapper gradient-gray">
             <font-awesome-icon icon="list-check" />
           </div>
-          <span>Kadem Tasks</span>
+          <span>Time Manager</span>
           <p>Em breve.</p>
         </div>
       </div>

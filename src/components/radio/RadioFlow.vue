@@ -36,8 +36,20 @@
                   placeholder=" "
                   id="search-input"
                   class="search-input"
+                  :disabled="!connection.connected"
+                  :title="
+                    !connection.connected
+                      ? 'Busca indisponível offline'
+                      : 'Buscar músicas'
+                  "
                 />
-                <label for="search-input">O que você quer ouvir?</label>
+                <label for="search-input" class="floating-label">
+                  {{
+                    !connection.connected
+                      ? "Busca Offline (Indisponível)"
+                      : "O que você quer ouvir?"
+                  }}
+                </label>
               </div>
             </div>
             <button
@@ -54,6 +66,7 @@
               <PlaylistHeader
                 :playlist="selected_playlist"
                 :track_count="tracks.length"
+                :tracks="tracks"
                 :total_duration_seconds="playlist_total_duration"
                 :default_cover="default_cover"
                 :default_avatar="default_avatar"
@@ -67,10 +80,12 @@
                   <button class="btn-circle play" @click="handle_play_playlist_btn">
                     <font-awesome-icon :icon="play_button_icon" />
                   </button>
+
                   <button
                     class="btn-icon"
                     :class="{ active: is_shuffle }"
                     @click="toggle_shuffle"
+                    title="Ordem Aleatória"
                   >
                     <font-awesome-icon icon="shuffle" />
                   </button>
@@ -84,7 +99,7 @@
                 :is_mobile="is_mobile_mode"
                 @play-track="play_specific_track"
                 @delete-track="handle_delete_track"
-                @add-to-queue="add_to_queue"
+                @add-to-queue="handle_manual_add_queue"
               />
             </template>
 
@@ -124,9 +139,11 @@
         <QueueSidebar
           :current_music="current_music"
           :next_tracks="queue || []"
+          :collapsed="is_queue_collapsed && !is_mobile_mode"
           @remove-track="remove_from_queue"
           @play-track="play_from_queue"
           @update:queue="handle_update_queue"
+          @toggle-collapse="toggle_queue"
         />
       </div>
     </div>
@@ -135,7 +152,7 @@
       <button
         class="nav-item"
         :class="{ active: mobile_tab === 'playlists' }"
-        @click="mobile_tab = 'playlists'"
+        @click="set_mobile_tab('playlists')"
       >
         <font-awesome-icon icon="list-ul" />
         <span>Playlists</span>
@@ -144,7 +161,7 @@
       <button
         class="nav-item"
         :class="{ active: mobile_tab === 'content' }"
-        @click="mobile_tab = 'content'"
+        @click="set_mobile_tab('content')"
       >
         <font-awesome-icon icon="music" />
         <span>Músicas</span>
@@ -153,7 +170,7 @@
       <button
         class="nav-item"
         :class="{ active: mobile_tab === 'queue' }"
-        @click="mobile_tab = 'queue'"
+        @click="set_mobile_tab('queue')"
       >
         <font-awesome-icon icon="layer-group" />
         <span>Fila</span>
@@ -177,6 +194,7 @@
       v-model="confirmationState.show"
       :message="confirmationState.message"
       :confirmText="confirmationState.confirmText"
+      :description="confirmationState.description"
       @cancelled="confirmationState.show = false"
       @confirmed="execute_confirmation_action"
     />
@@ -189,6 +207,7 @@
 import { mapState, mapActions } from "pinia";
 import { usePlayerStore } from "@/stores/player";
 import { useRadioStore } from "@/stores/radio";
+import { useUtilsStore } from "@/stores/utils";
 import { radioRepository } from "@/services/localData/radioRepository";
 import { api } from "@/plugins/api";
 
@@ -205,6 +224,7 @@ import defaultCover from "@/assets/images/fundo-auth.webp";
 import defaultAvatar from "@/assets/images/kadem-default-playlist.jpg";
 
 export default {
+  name: "RadioFlow",
   components: {
     PlaylistSidebar,
     PlaylistHeader,
@@ -218,12 +238,13 @@ export default {
   data() {
     return {
       selected_playlist: null,
-      tracks: [],
+      tracks: [], // Faixas da playlist selecionada na visualização
       default_cover: defaultCover,
       default_avatar: defaultAvatar,
       yt_player: null,
 
       is_sidebar_collapsed: false,
+      is_queue_collapsed: false,
       view_mode: "playlist",
       search_query: "",
       search_results: [],
@@ -251,12 +272,12 @@ export default {
       "is_playing",
       "current_playlist",
       "is_shuffle",
-      "current_music",
       "queue",
       "next",
       "mobile_tab",
     ]),
     ...mapState(useRadioStore, { playlists: "playlists" }),
+    ...mapState(useUtilsStore, ["connection"]),
 
     play_button_icon() {
       if (this.is_current_playlist_active && this.is_playing) return "circle-pause";
@@ -282,7 +303,7 @@ export default {
       if (this.is_mobile_mode) return {};
 
       const left = this.is_sidebar_collapsed ? "80px" : "250px";
-      const right = "300px";
+      const right = this.is_queue_collapsed ? "80px" : "300px";
       return {
         "--sidebar-width": left,
         "--queue-width": right,
@@ -311,8 +332,12 @@ export default {
       "renamePlaylist",
       "addTrackToPlaylist",
       "removeTrackFromPlaylist",
+      "checkOfflineAvailability",
     ]),
 
+    /* -------------------------------------------------------------------------- */
+    /* Initialization & Observers                                                 */
+    /* -------------------------------------------------------------------------- */
     initResizeObserver() {
       this.resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
@@ -330,44 +355,6 @@ export default {
 
       if (this.$refs.containerRef) {
         this.resizeObserver.observe(this.$refs.containerRef);
-      }
-    },
-
-    openConfirmation({ title, message, confirmText, action }) {
-      this.confirmationState = {
-        show: true,
-        title: title || "Atenção",
-        message: message,
-        confirmText: confirmText || "Confirmar",
-        action: action,
-      };
-    },
-
-    async execute_confirmation_action() {
-      if (this.confirmationState.action) {
-        await this.confirmationState.action();
-      }
-      this.confirmationState.show = false;
-    },
-
-    async handle_rename_playlist(playlist, newName) {
-      if (!newName || newName.trim() === "") return;
-      await this.renamePlaylist(playlist, newName.trim());
-    },
-
-    async handle_delete_playlist(playlist) {
-      await this.deletePlaylist(playlist.local_id, playlist.id);
-
-      if (
-        this.selected_playlist &&
-        this.selected_playlist.local_id === playlist.local_id
-      ) {
-        this.selected_playlist = null;
-        this.tracks = [];
-      }
-
-      if (this.playlists.length > 0 && !this.selected_playlist) {
-        this.select_playlist(this.playlists[0]);
       }
     },
 
@@ -391,10 +378,23 @@ export default {
       }
     },
 
+    /* -------------------------------------------------------------------------- */
+    /* Playlist Management Logic                                                  */
+    /* -------------------------------------------------------------------------- */
     async select_playlist(playlist) {
       this.close_search();
       this.selected_playlist = playlist;
-      this.tracks = await radioRepository.getLocalTracks(playlist.local_id);
+
+      // Busca as músicas do banco local (Dexie)
+      const localTracks = await radioRepository.getLocalTracks(playlist.local_id);
+
+      // Atualiza o estado local
+      this.tracks = localTracks;
+
+      // Verifica disponibilidade offline para atualizar ícones
+      if (this.tracks.length > 0) {
+        await this.checkOfflineAvailability(this.tracks);
+      }
     },
 
     handle_mobile_select_playlist(playlist) {
@@ -411,38 +411,73 @@ export default {
       if (created) this.handle_mobile_select_playlist(created);
     },
 
-    handle_delete_track(track) {
-      this.openConfirmation({
-        message: `Tem certeza que deseja remover <br> ${track.title} da playlist?`,
-        confirmText: "Remover",
-        action: async () => {
-          await this.removeTrackFromPlaylist(track);
-          this.tracks = this.tracks.filter((t) => t.local_id !== track.local_id);
-        },
-      });
+    async handle_rename_playlist(playlist, newName) {
+      if (!newName || newName.trim() === "") return;
+      await this.renamePlaylist(playlist, newName.trim());
     },
 
-    async execute_add_track() {
-      if (!this.target_playlist_for_add || !this.track_being_added) return;
-
-      const newTrackId = await this.addTrackToPlaylist(
-        this.target_playlist_for_add,
-        this.track_being_added
-      );
+    async handle_delete_playlist(playlist) {
+      await this.deletePlaylist(playlist.local_id, playlist.id);
 
       if (
         this.selected_playlist &&
-        this.selected_playlist.local_id === this.target_playlist_for_add.local_id
+        this.selected_playlist.local_id === playlist.local_id
       ) {
-        const savedTrack = await radioRepository.getLocalTrack(newTrackId);
-        if (savedTrack) this.tracks.push(savedTrack);
+        this.selected_playlist = null;
+        this.tracks = [];
       }
 
-      this.target_playlist_for_add = null;
-      this.track_being_added = null;
+      if (this.playlists.length > 0 && !this.selected_playlist) {
+        this.select_playlist(this.playlists[0]);
+      }
     },
 
+    /* -------------------------------------------------------------------------- */
+    /* Track & Player Actions                                           */
+    /* -------------------------------------------------------------------------- */
+
+    handle_manual_add_queue(track) {
+      const exists = this.queue.some((t) => t.youtube_id === track.youtube_id);
+
+      if (exists) {
+        this.openConfirmation({
+          message: `A música <strong>${track.title}</strong> já está na fila de reprodução.`,
+          description: " ",
+          confirmText: "Entendi",
+        });
+        return;
+      }
+
+      this.add_to_queue(track);
+    },
+
+    handle_play_playlist_btn() {
+      if (!this.tracks || this.tracks.length === 0) return;
+
+      if (this.is_current_playlist_active) {
+        this.toggle_play();
+      } else {
+        this.play_playlist_context(this.selected_playlist, this.tracks);
+      }
+    },
+
+    play_specific_track(track) {
+      this.play_playlist_context(this.selected_playlist, this.tracks, track);
+    },
+
+    play_preview(video_obj) {
+      this.play_track(video_obj, null);
+    },
+
+    handle_update_queue(new_queue) {
+      this.set_queue(new_queue);
+    },
+
+    /* -------------------------------------------------------------------------- */
+    /* Search & Add Track Logic                                                   */
+    /* -------------------------------------------------------------------------- */
     async perform_search() {
+      if (!this.connection.connected) return;
       if (!this.search_query.trim()) return;
       this.view_mode = "search";
       this.is_searching = true;
@@ -491,6 +526,7 @@ export default {
       if (exists) {
         this.openConfirmation({
           message: "Esta música já está na playlist selecionada.",
+          description: "",
           confirmText: "Ok",
         });
       } else {
@@ -498,35 +534,72 @@ export default {
       }
     },
 
-    handle_play_playlist_btn() {
-      if (this.tracks.length === 0) return;
-      if (this.is_current_playlist_active) {
-        this.toggle_play();
-      } else {
-        this.play_playlist_context(this.selected_playlist, this.tracks);
+    async execute_add_track() {
+      if (!this.target_playlist_for_add || !this.track_being_added) return;
+
+      const newTrackId = await this.addTrackToPlaylist(
+        this.target_playlist_for_add,
+        this.track_being_added
+      );
+
+      // Se a playlist alvo é a que está sendo visualizada, atualiza a lista
+      if (
+        this.selected_playlist &&
+        this.selected_playlist.local_id === this.target_playlist_for_add.local_id
+      ) {
+        const savedTrack = await radioRepository.getLocalTrack(newTrackId);
+        if (savedTrack) this.tracks.push(savedTrack);
       }
+
+      this.target_playlist_for_add = null;
+      this.track_being_added = null;
     },
 
-    handle_update_queue(new_queue) {
-      this.set_queue(new_queue);
+    /* -------------------------------------------------------------------------- */
+    /* Modals, Deletion & UI Helpers                                              */
+    /* -------------------------------------------------------------------------- */
+    openConfirmation({ description, message, confirmText, action }) {
+      this.confirmationState = {
+        show: true,
+        message: message,
+        confirmText: confirmText || "Confirmar",
+        action: action,
+        description: description,
+      };
     },
 
-    play_specific_track(track) {
-      this.play_playlist_context(this.selected_playlist, this.tracks, track);
+    async execute_confirmation_action() {
+      if (this.confirmationState.action) {
+        await this.confirmationState.action();
+      }
+      this.confirmationState.show = false;
     },
 
-    play_preview(video_obj) {
-      this.play_track(video_obj, null);
+    handle_delete_track(track) {
+      this.openConfirmation({
+        message: `Tem certeza que deseja remover <br> ${track.title} da playlist?`,
+        confirmText: "Remover",
+        action: async () => {
+          await this.removeTrackFromPlaylist(track);
+          this.tracks = this.tracks.filter((t) => t.local_id !== track.local_id);
+        },
+      });
+    },
+
+    async delete_track(track) {
+      this.handle_delete_track(track);
+    },
+    toggle_queue() {
+      this.is_queue_collapsed = !this.is_queue_collapsed;
     },
 
     toggle_sidebar() {
       this.is_sidebar_collapsed = !this.is_sidebar_collapsed;
     },
 
-    async delete_track(track) {
-      this.handle_delete_track(track);
-    },
-
+    /* -------------------------------------------------------------------------- */
+    /* YouTube Player API Integration                                             */
+    /* -------------------------------------------------------------------------- */
     init_youtube_api() {
       if (!window.YT) {
         const tag = document.createElement("script");
@@ -545,7 +618,9 @@ export default {
       if (this.yt_player) {
         try {
           this.yt_player.destroy();
-        } catch (e) {}
+        } catch (e) {
+          console.warn("Erro ao destruir player antigo:", e);
+        }
       }
 
       this.yt_player = new window.YT.Player("youtube-player-container", {
@@ -577,6 +652,8 @@ export default {
     this.initResizeObserver();
     this.load_data();
     this.init_youtube_api();
+
+    // Restaura conexão se o player já estiver inicializado no estado global
     if (this.player_mode === "native" || !this.current_music) {
       if (typeof this.restorePlayerConnection === "function") {
         this.restorePlayerConnection();
@@ -644,6 +721,16 @@ export default {
   position: relative;
   width: 100%;
   max-width: 400px;
+}
+
+.search-input:disabled {
+  background-color: rgba(255, 255, 255, 0.05);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.search-input:disabled ~ .floating-label {
+  color: var(--gray-400);
 }
 
 .exit-search-btn {

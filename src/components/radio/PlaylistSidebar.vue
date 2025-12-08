@@ -1,7 +1,11 @@
 <template>
   <aside class="sidebar glass" :class="{ collapsed: collapsed }">
     <div class="sidebar-header">
-      <button class="toggle-btn" @click="$emit('toggle-collapse')">
+      <button
+        class="toggle-btn"
+        @click="$emit('toggle-collapse')"
+        :style="'margin: ' + (collapsed ? 'auto' : 'initial')"
+      >
         <font-awesome-icon :icon="collapsed ? 'chevron-right' : 'chevron-left'" />
       </button>
 
@@ -168,6 +172,8 @@ export default {
   font-size: 1rem;
   padding: 4px;
   transition: color 0.2s;
+  margin: auto;
+  color: var(--deep-blue);
 }
 .toggle-btn:hover {
   color: var(--text-gray);

@@ -20,8 +20,12 @@
         <template #item="{ element: track, index }">
           <div
             class="track-row"
-            :class="{ 'active-track': is_track_playing(track) }"
-            @dblclick="handle_dbl_click(track)"
+            :class="{
+              'active-track': is_track_playing(track),
+              'unavailable-track': is_track_unavailable(track),
+            }"
+            @click="handle_row_click(track)"
+            @dblclick="handle_desktop_dbl_click(track)"
             @dragstart="on_drag_start($event, track)"
           >
             <span v-if="is_track_playing(track)" class="playing-icon">
@@ -30,37 +34,76 @@
             <span v-else class="track-index">{{ index + 1 }}</span>
 
             <div class="track-title-col">
-              <img :src="track.thumbnail" class="mini-thumb" />
-              <div class="meta">
-                <strong :title="track.title">{{ track.title }}</strong>
-                <small class="mobile-only-artist">{{ track.channel }}</small>
-                <small
-                  v-if="mode === 'playlist'"
-                  class="desktop-only-artist"
-                  :title="track.channel"
-                  >{{ track.channel }}</small
+              <div class="thumb-wrapper">
+                <img
+                  :src="track.thumbnail"
+                  class="mini-thumb"
+                  :class="{ grayscale: is_track_unavailable(track) }"
+                />
+
+                <div
+                  v-if="!is_mobile && !is_track_unavailable(track)"
+                  class="play-overlay"
+                  @click.stop="play_track(track, null)"
                 >
+                  <font-awesome-icon
+                    icon="pause"
+                    v-if="is_track_playing(track) && is_playing"
+                  />
+                  <font-awesome-icon
+                    icon="play"
+                    v-if="!is_track_playing(track) || !is_playing"
+                  />
+                </div>
+              </div>
+
+              <div class="meta">
+                <div
+                  class="title-row"
+                  style="display: flex; align-items: center; gap: 6px"
+                >
+                  <strong :title="track.title">{{ track.title }}</strong>
+                </div>
+                <small class="mobile-only-artist">{{ track.channel }}</small>
+
+                <small v-if="is_track_unavailable(track)" class="offline-warning">
+                  Indisponível offline
+                </small>
+              </div>
+
+              <div class="status-icons">
+                <span
+                  v-if="active_downloads[track.local_id]"
+                  class="status-icon downloading"
+                  title="Baixando..."
+                >
+                  <font-awesome-icon icon="spinner" spin />
+                </span>
+
+                <span
+                  v-else-if="radioStore.isTrackOffline(track)"
+                  class="status-icon offline-ready"
+                  title="Disponível Offline"
+                >
+                  <font-awesome-icon icon="circle-check" />
+                </span>
               </div>
             </div>
 
-            <span
-              class="col-channel"
-              :title="mode === 'search' ? track.channel : format_date(track.created_at)"
-              >{{
-                mode === "search" ? track.channel : format_date(track.created_at)
-              }}</span
-            >
+            <div class="col-channel">
+              {{ mode === "search" ? track.channel : format_date(track.created_at) }}
+            </div>
 
-            <span class="text-center duration-text col-duration">
+            <div class="col-duration text-center">
               {{ format_duration(track.duration_seconds) }}
-            </span>
+            </div>
 
-            <div class="actions">
+            <div class="col-actions">
               <button
                 v-if="mode === 'playlist'"
-                @click.stop="open_options(track, $event)"
-                class="btn-circle options"
-                title="Mais opções"
+                class="btn-circle"
+                @click.stop="open_menu($event, track)"
+                :disabled="is_track_unavailable(track)"
               >
                 <font-awesome-icon icon="ellipsis-vertical" />
               </button>
@@ -93,18 +136,47 @@
 </template>
 
 <script>
-import TrackOptionsMenu from "./TrackOptionsMenu.vue";
 import draggable from "vuedraggable";
+import { mapState, mapActions } from "pinia";
+import { useRadioStore } from "@/stores/radio";
+import { useUtilsStore } from "@/stores/utils";
+import { usePlayerStore } from "@/stores/player";
+import TrackOptionsMenu from "./TrackOptionsMenu.vue";
 
 export default {
-  components: { TrackOptionsMenu, draggable },
-  props: {
-    tracks: { type: Array, required: true },
-    current_music_id: { type: String, default: null },
-    mode: { type: String, default: "playlist" },
-    is_mobile: { type: Boolean, default: false },
+  name: "TrackList",
+
+  components: {
+    TrackOptionsMenu,
+    draggable,
   },
+
+  props: {
+    tracks: {
+      type: Array,
+      required: true,
+    },
+    current_music_id: {
+      type: String,
+      default: null,
+    },
+    mode: {
+      type: String,
+      default: "playlist",
+    },
+    is_mobile: {
+      type: Boolean,
+      default: false,
+    },
+  },
+
   emits: ["play-track", "delete-track", "request-add", "add-to-queue"],
+
+  setup() {
+    const radioStore = useRadioStore();
+    return { radioStore };
+  },
+
   data() {
     return {
       show_options_menu: false,
@@ -112,23 +184,84 @@ export default {
       selected_track_for_menu: null,
     };
   },
+
+  computed: {
+    ...mapState(useRadioStore, ["active_downloads"]),
+    ...mapState(usePlayerStore, ["current_music", "is_playing"]),
+    ...mapState(useUtilsStore, ["connection"]),
+
+    is_offline_mode() {
+      return !this.connection.connected;
+    },
+  },
+
   methods: {
+    ...mapActions(usePlayerStore, ["play_track"]),
+    ...mapActions(useRadioStore, ["removeTrackFromPlaylist", "downloadTrack"]),
+
+    /* -------------------------------------------------------------------------- */
+    /* State Checks & Validation                                                  */
+    /* -------------------------------------------------------------------------- */
     is_track_playing(track) {
-      return this.current_music_id === track.youtube_id;
+      if (!this.current_music) return false;
+
+      // Compatibilidade para verificar por local_id ou youtube_id
+      if (track.local_id && this.current_music.local_id) {
+        return track.local_id === this.current_music.local_id;
+      }
+      return track.youtube_id === this.current_music.youtube_id;
     },
-    format_date(iso) {
-      if (!iso) return "-";
-      return new Date(iso).toLocaleDateString("pt-BR");
+
+    is_track_unavailable(track) {
+      // 1. Se tem internet, consideramos disponível (fallback para YouTube)
+      if (!this.is_offline_mode) return false;
+
+      // 2. Se não tem internet, verificamos na Store se o arquivo existe localmente
+      const isAvailable = this.radioStore.isTrackOffline(track);
+
+      return !isAvailable;
     },
-    format_duration(seconds) {
-      return this.format_seconds_to_time(seconds);
+
+    /* -------------------------------------------------------------------------- */
+    /* User Interactions (Click, Double Click)                                    */
+    /* -------------------------------------------------------------------------- */
+
+    handle_row_click(track) {
+      if (this.is_track_unavailable(track)) return;
+
+      if (this.is_mobile) {
+        this.play_track(track, null);
+      }
     },
-    handle_dbl_click(track) {
-      this.$emit("play-track", track);
+
+    handle_desktop_dbl_click(track) {
+      if (this.is_mobile) return;
+      if (this.is_track_unavailable(track)) return;
+
+      this.play_track(track, null);
     },
-    open_options(track, event) {
+
+    open_menu(event, track) {
       this.selected_track_for_menu = track;
-      this.options_position = { x: event.clientX - 30, y: event.clientY + 10 };
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const menuWidth = 150;
+
+      let finalX = rect.left;
+
+      if (finalX + menuWidth > window.innerWidth) {
+        finalX = rect.right - menuWidth;
+      }
+
+      if (this.is_mobile) {
+        finalX += menuWidth - 40;
+      }
+
+      this.options_position = {
+        x: finalX,
+        y: rect.bottom,
+      };
+
       this.show_options_menu = true;
     },
     handle_delete() {
@@ -156,13 +289,18 @@ export default {
 
       this.show_options_menu = false;
     },
+
+    /* -------------------------------------------------------------------------- */
+    /* Drag and Drop Logic (Custom Ghost)                                         */
+    /* -------------------------------------------------------------------------- */
     on_drag_start(event, track) {
-      if (this.is_mobile) {
-        return;
-      }
+      if (this.is_mobile) return;
+      if (this.is_track_unavailable(track)) return;
+      if (this.mode == "search") return;
 
       const originalImg = event.currentTarget.querySelector("img");
 
+      // Cria elemento fantasma customizado
       const ghost = document.createElement("div");
       Object.assign(ghost.style, {
         position: "absolute",
@@ -291,6 +429,18 @@ export default {
         '<svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M9 13c0 1.105-1.12 2-2.5 2S4 14.105 4 13s1.12-2 2.5-2 2.5.895 2.5 2z"/><path fill-rule="evenodd" d="M9 3v10H8V3h1z"/><path d="M8 2.82a1 1 0 0 1 .804-.98l3-.6A1 1 0 0 1 13 2.22V4L8 5V2.82z"/></svg>';
       return div;
     },
+
+    /* -------------------------------------------------------------------------- */
+    /* Formatters                                                                 */
+    /* -------------------------------------------------------------------------- */
+    format_date(iso) {
+      if (!iso) return "-";
+      return new Date(iso).toLocaleDateString("pt-BR");
+    },
+
+    format_duration(seconds) {
+      return this.format_seconds_to_time(seconds);
+    },
   },
 };
 </script>
@@ -315,7 +465,6 @@ export default {
 }
 
 .tracks-scroll-area {
-  overflow-y: auto;
   flex-grow: 1;
   padding-bottom: var(--space-4);
 }
@@ -335,35 +484,30 @@ export default {
   margin-bottom: 2px;
 }
 
+.unavailable-track {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.unavailable-track:hover {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+.unavailable-track img {
+  filter: grayscale(100%);
+}
+
+.offline-warning {
+  color: var(--red);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
 .mobile-only-artist {
   display: none;
   font-size: 0.75rem;
   color: var(--gray-400);
-}
-
-/* Container Queries para Responsividade */
-@container (max-width: 600px) {
-  .track-row {
-    /* Remove Coluna de Data/Canal e Duração, foca no Título */
-    grid-template-columns: 30px 1fr 40px;
-  }
-
-  .col-channel,
-  .col-duration,
-  .desktop-only-artist,
-  .track-row.header span:nth-child(3),
-  .track-row.header span:nth-child(4) {
-    display: none !important;
-  }
-
-  .mobile-only-artist {
-    display: block;
-  }
-
-  .tracks-table {
-    padding: 0 var(--space-2);
-    padding-bottom: 48px;
-  }
 }
 
 .track-row span {
@@ -378,13 +522,28 @@ export default {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Novo: Efeito de Hover no Desktop */
+/* Apenas aplica se o dispositivo suportar hover (exclui a maioria dos mobiles) */
+@media (hover: hover) {
+  .track-row:hover .play-overlay {
+    opacity: 1;
+  }
+
+  .track-row:hover .mini-thumb {
+    filter: brightness(0.6);
+  }
+}
+
 .track-row.header {
-  font-weight: bold;
+  font-weight: 600;
   color: var(--gray-400);
+  font-size: 0.8rem;
   text-transform: uppercase;
-  font-size: 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: var(--space-2);
+  letter-spacing: 0.5px;
+  background: transparent !important;
+  cursor: default;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 8px;
 }
 
 .track-row.active-track {
@@ -396,20 +555,57 @@ export default {
   color: var(--deep-blue);
 }
 
+.track-index,
+.col-channel,
+.col-duration {
+  font-size: 0.9rem;
+  color: var(--gray-300);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .track-title-col {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  flex-grow: 1;
-  min-width: 0;
+  overflow: hidden;
+}
+
+/* Wrapper da Imagem para posicionar o overlay */
+.thumb-wrapper {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
 }
 
 .mini-thumb {
-  width: 36px;
-  height: 36px;
+  width: 100%;
+  height: 100%;
   border-radius: 4px;
   object-fit: cover;
-  flex-shrink: 0;
+  transition: filter 0.2s ease;
+}
+
+/* Estilo do Overlay de Play */
+.play-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--white);
+  font-size: 0.9rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  cursor: pointer;
+  z-index: 5;
 }
 
 .meta {
@@ -425,10 +621,33 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: block;
 }
 
 .duration-text {
   font-variant-numeric: tabular-nums;
+}
+
+.status-icons {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  margin-left: 8px;
+}
+
+.status-icon {
+  font-size: 0.9rem;
+  display: flex;
+}
+
+.downloading {
+  color: var(--blue);
+}
+
+.offline-ready {
+  color: #4ade80;
 }
 
 .btn-circle {
@@ -479,10 +698,34 @@ export default {
   background: rgba(255, 255, 255, 0.2);
 }
 
-.empty-state {
-  text-align: center;
-  padding: var(--space-6);
-  color: var(--gray-400);
-  font-style: italic;
+/* Container Queries para Responsividade Mobile */
+@container (max-width: 600px) {
+  .track-row {
+    grid-template-columns: 30px 1fr 40px;
+  }
+
+  .col-channel,
+  .col-duration,
+  .desktop-only-artist,
+  .track-row.header span:nth-child(3),
+  .track-row.header span:nth-child(4) {
+    display: none !important;
+  }
+
+  .mobile-only-artist {
+    display: block;
+  }
+
+  .tracks-table {
+    padding: 0 var(--space-2);
+    padding-bottom: 48px;
+  }
+}
+
+@container (max-width: 768px) {
+  .col-channel,
+  .col-duration {
+    display: none;
+  }
 }
 </style>

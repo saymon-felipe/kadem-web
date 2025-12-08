@@ -68,10 +68,6 @@
             :style="volume_style"
           />
         </div>
-
-        <button class="btn-icon list-btn">
-          <font-awesome-icon icon="list-ul" />
-        </button>
       </div>
     </div>
   </div>
@@ -191,7 +187,7 @@ export default {
 
 .player-wrapper {
   height: 80px;
-  transform: translateY(-100px);
+  transform: translateY(-79px);
   background: #ffffff;
   border-radius: var(--radius-md);
   display: grid;

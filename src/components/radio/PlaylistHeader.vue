@@ -32,6 +32,21 @@
     </div>
 
     <div class="header-options">
+      <button
+        class="btn-options"
+        :class="{
+          'downloaded-state': is_fully_downloaded,
+          'downloading-state': is_downloading_playlist,
+        }"
+        @click.stop="handle_download_action"
+        :title="download_tooltip"
+        :disabled="is_downloading_playlist"
+      >
+        <font-awesome-icon v-if="is_downloading_playlist" icon="spinner" spin />
+        <font-awesome-icon v-else-if="is_fully_downloaded" icon="circle-check" />
+        <font-awesome-icon v-else icon="download" />
+      </button>
+
       <button class="btn-options" @click.stop="showMenu = !showMenu">
         <font-awesome-icon icon="ellipsis-vertical" />
       </button>
@@ -59,12 +74,18 @@
 </template>
 
 <script>
+import { mapState, mapActions } from "pinia";
+import { useRadioStore } from "@/stores/radio";
+import { useUtilsStore } from "@/stores/utils";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 
 export default {
+  name: "PlaylistHeader",
+
   components: {
     ConfirmationModal,
   },
+
   props: {
     playlist: {
       type: Object,
@@ -86,8 +107,14 @@ export default {
       type: String,
       required: true,
     },
+    tracks: {
+      type: Array,
+      default: () => [],
+    },
   },
+
   emits: ["rename-playlist", "delete-playlist"],
+
   data() {
     return {
       showMenu: false,
@@ -96,19 +123,53 @@ export default {
       showDeleteModal: false,
     };
   },
+
   computed: {
+    ...mapState(useRadioStore, ["active_downloads"]),
+    ...mapState(useUtilsStore, ["connection"]),
+
     hero_background() {
       const cover = this.playlist.cover || this.default_cover;
       return `background: linear-gradient(to top, rgba(255, 255, 255, 0.7), transparent), url(${cover}) no-repeat right center; background-size: cover;`;
     },
+
     total_duration_formatted() {
       return this.format_total_duration_verbose(this.total_duration_seconds);
     },
-  },
-  methods: {
-    closeMenu() {
-      this.showMenu = false;
+
+    is_fully_downloaded() {
+      if (!this.tracks || this.tracks.length === 0) return false;
+      return this.tracks.every((t) => this.isTrackOffline(t));
     },
+
+    is_downloading_playlist() {
+      if (!this.tracks) return false;
+      return this.tracks.some((t) => this.active_downloads[t.local_id]);
+    },
+
+    download_tooltip() {
+      if (this.is_downloading_playlist) return "Baixando músicas...";
+      if (this.is_fully_downloaded) return "Playlist baixada (Disponível Offline)";
+      return "Baixar músicas faltantes";
+    },
+  },
+
+  methods: {
+    ...mapActions(useRadioStore, ["downloadPlaylist", "isTrackOffline"]),
+
+    /* --- Download Logic --- */
+    handle_download_action() {
+      if (this.is_fully_downloaded) return;
+
+      if (!this.connection.connected) {
+        alert("Sem conexão com a internet para realizar o download.");
+        return;
+      }
+
+      this.downloadPlaylist(this.playlist);
+    },
+
+    /* --- Rename Logic --- */
     start_rename() {
       this.tempName = this.playlist.name;
       this.isEditing = true;
@@ -117,6 +178,7 @@ export default {
         if (this.$refs.titleInput) this.$refs.titleInput.focus();
       });
     },
+
     save_rename() {
       if (this.isEditing) {
         this.isEditing = false;
@@ -125,15 +187,24 @@ export default {
         }
       }
     },
+
+    /* --- Delete Logic --- */
     confirm_delete() {
       this.showMenu = false;
       this.showDeleteModal = true;
     },
+
     execute_delete() {
       this.showDeleteModal = false;
       this.$emit("delete-playlist", this.playlist);
     },
+
+    /* --- UI Helper Methods --- */
+    closeMenu() {
+      this.showMenu = false;
+    },
   },
+
   directives: {
     "click-outside": {
       mounted(el, binding) {
@@ -153,6 +224,27 @@ export default {
 </script>
 
 <style scoped>
+.text-green {
+  color: #4ade80;
+}
+
+.downloaded-state {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.15);
+  cursor: default;
+}
+
+.downloaded-state:hover {
+  background: rgba(74, 222, 128, 0.25);
+  transform: none;
+}
+
+/* Estado: Baixando (Azul) */
+.downloading-state {
+  color: var(--blue);
+  background: rgba(59, 130, 246, 0.15);
+}
+
 /* Transições */
 .menu-pop-enter-active,
 .menu-pop-leave-active {
@@ -233,6 +325,8 @@ h1 {
   position: absolute;
   top: var(--space-4);
   right: var(--space-4);
+  display: flex;
+  gap: var(--space-3);
 }
 
 .btn-options {
