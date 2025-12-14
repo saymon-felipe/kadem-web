@@ -1,3 +1,4 @@
+// api.js
 import axios from 'axios';
 import { useProjectStore } from '../stores/projects';
 
@@ -11,70 +12,86 @@ const prod_environment = ""; // Ambiente de produção.
 let ambient = (window.location.hostname.includes("localhost") || window.location.hostname.includes("192.168")) ? 0 : 1;
 
 if (window.location.hostname.includes("localhost") || window.location.hostname.includes("192.168")) {
-    ambient = 0;
+  ambient = 0;
 } else if (window.location.hostname.includes("dev")) {
-    ambient = 1;
+  ambient = 1;
 } else {
-    ambient = 2;
+  ambient = 2;
 }
 
 switch (ambient) {
-    case 0:
-        url_api = dev_environment;
-        break;
-    case 1:
-        url_api = test_environment;
-        break;
-    case 2:
-        url_api = prod_environment;
-        break;
+  case 0:
+    url_api = dev_environment;
+    break;
+  case 1:
+    url_api = test_environment;
+    break;
+  case 2:
+    url_api = prod_environment;
+    break;
 }
 
 const api = axios.create({
-    baseURL: url_api,
-    withCredentials: true
+  baseURL: url_api,
+  withCredentials: true
 });
 
 api.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-        const originalRequest = error.config;
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
 
-        if (error.response && error.response.status === 403) {
+    if (error.response && error.response.status === 403) {
 
-            let problematicProjectId = null;
+      let problematic_project_id = null;
 
-            const urlParts = originalRequest.url.split('/');
-            const projectsIndex = urlParts.indexOf('projects');
-            if (projectsIndex !== -1 && urlParts[projectsIndex + 1]) {
-                problematicProjectId = urlParts[projectsIndex + 1];
-            }
+      const url_parts = originalRequest.url.split('/');
+      const projects_index = url_parts.indexOf('projects');
+      if (projects_index !== -1 && url_parts[projects_index + 1]) {
+        problematic_project_id = url_parts[projects_index + 1];
+      }
 
-            if (!problematicProjectId && originalRequest.data) {
-                try {
-                    const data = JSON.parse(originalRequest.data);
-                    if (data.project_id) problematicProjectId = data.project_id;
-                } catch (e) { /* ignore parse error */ }
-            }
+      if (!problematic_project_id && originalRequest.data) {
+        try {
+          const data = JSON.parse(originalRequest.data);
+          if (data.project_id) problematic_project_id = data.project_id;
+        } catch (e) { /* ignore parse error */ }
+      }
 
-            if (!problematicProjectId && originalRequest.headers['X-Target-Project-ID']) {
-                problematicProjectId = originalRequest.headers['X-Target-Project-ID'];
-            }
+      if (!problematic_project_id && originalRequest.headers['X-Target-Project-ID']) {
+        problematic_project_id = originalRequest.headers['X-Target-Project-ID'];
+      }
 
-            if (problematicProjectId) {
-                const projectStore = useProjectStore();
-                projectStore.forceLocalProjectRemoval(problematicProjectId);
-            }
-        }
-
-        return Promise.reject(error);
+      if (problematic_project_id) {
+        const project_store = useProjectStore();
+        project_store.force_local_project_removal(problematic_project_id);
+      }
     }
+
+    return Promise.reject(error);
+  }
 );
 
-export { api };
+/**
+ * @description Função para verificar a saúde (liveness) do Kadem Core API.
+ * @returns {Promise<boolean>} Retorna true se a API estiver acessível e responder com sucesso (2xx);
+ */
+const check_system_health = async () => {
+  try {
+    const response = await api.get('/system');
+    return response.status >= 200 && response.status < 300;
+  } catch (error) {
+    return false;
+  };
+};
+
+export {
+  api,
+  check_system_health
+};
 
 export default {
-    install(app) {
-        app.config.globalProperties.api = api;
-    }
+  install(app) {
+    app.config.globalProperties.api = api;
+  }
 };

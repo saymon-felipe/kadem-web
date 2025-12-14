@@ -187,7 +187,7 @@ export default {
 
 .player-wrapper {
   height: 80px;
-  transform: translateY(-79px);
+  transform: translateY(-96px);
   background: #ffffff;
   border-radius: var(--radius-md);
   display: grid;

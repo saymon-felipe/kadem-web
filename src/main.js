@@ -9,6 +9,7 @@ import globalMixin from "./assets/scripts/global";
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import vAnimateHeight from './directives/v-animate-height.js';
+import { useUtilsStore } from '@/stores/utils';
 
 import {
   faForwardStep,
@@ -151,5 +152,8 @@ app.use(api);
 app.use(router);
 
 app.component('font-awesome-icon', FontAwesomeIcon);
+
+const utils_store = useUtilsStore();
+utils_store.init_connection_monitor();
 
 app.mount('#app');
