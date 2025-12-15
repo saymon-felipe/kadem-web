@@ -1,10 +1,7 @@
 <template>
   <div class="radio-flow-wrapper" ref="containerRef">
     <div class="layout-grid" :style="computed_layout_style">
-      <div
-        class="grid-area-sidebar"
-        v-show="!is_mobile_mode || mobile_tab === 'playlists'"
-      >
+      <div class="grid-area-sidebar" v-show="!is_mobile || mobile_tab === 'playlists'">
         <PlaylistSidebar
           :playlists="playlists"
           :selected_playlist_id="selected_playlist?.local_id"
@@ -12,7 +9,7 @@
           :is_playing="is_playing"
           :default_cover="default_cover"
           :default_avatar="default_avatar"
-          :collapsed="is_sidebar_collapsed && !is_mobile_mode"
+          :collapsed="is_sidebar_collapsed && !is_mobile"
           @select-playlist="handle_mobile_select_playlist"
           @create-playlist="handle_create_playlist"
           @toggle-collapse="toggle_sidebar"
@@ -23,7 +20,7 @@
 
       <div
         class="grid-area-main main-content glass"
-        v-show="!is_mobile_mode || mobile_tab === 'content'"
+        v-show="!is_mobile || mobile_tab === 'content'"
       >
         <template v-if="selected_playlist">
           <div class="search-header">
@@ -70,7 +67,7 @@
                 :total_duration_seconds="playlist_total_duration"
                 :default_cover="default_cover"
                 :default_avatar="default_avatar"
-                :is_mobile="is_mobile_mode"
+                :is_mobile="is_mobile"
                 @change-cover="handle_change_cover"
                 @rename-playlist="handle_rename_playlist"
                 @delete-playlist="handle_delete_playlist"
@@ -97,7 +94,7 @@
                 mode="playlist"
                 :tracks="tracks"
                 :current_music_id="current_music?.youtube_id"
-                :is_mobile="is_mobile_mode"
+                :is_mobile="is_mobile"
                 @play-track="play_specific_track"
                 @delete-track="handle_delete_track"
                 @add-to-queue="handle_manual_add_queue"
@@ -136,11 +133,11 @@
         </div>
       </div>
 
-      <div class="grid-area-queue" v-show="!is_mobile_mode || mobile_tab === 'queue'">
+      <div class="grid-area-queue" v-show="!is_mobile || mobile_tab === 'queue'">
         <QueueSidebar
           :current_music="current_music"
           :next_tracks="queue || []"
-          :collapsed="is_queue_collapsed && !is_mobile_mode"
+          :collapsed="is_queue_collapsed && !is_mobile"
           @remove-track="remove_from_queue"
           @play-track="play_from_queue"
           @update:queue="handle_update_queue"
@@ -149,7 +146,7 @@
       </div>
     </div>
 
-    <nav class="mobile-bottom-nav glass" v-if="is_mobile_mode">
+    <nav class="mobile-bottom-nav glass" v-if="is_mobile">
       <button
         class="nav-item"
         :class="{ active: mobile_tab === 'playlists' }"
@@ -209,6 +206,7 @@ import { mapState, mapActions } from "pinia";
 import { usePlayerStore } from "@/stores/player";
 import { useRadioStore } from "@/stores/radio";
 import { useUtilsStore } from "@/stores/utils";
+import { useWindowStore } from "@/stores/windows";
 import { radioRepository } from "@/services/localData/radioRepository";
 import { api } from "@/plugins/api";
 
@@ -262,9 +260,6 @@ export default {
         confirmText: "Confirmar",
         action: null,
       },
-
-      resizeObserver: null,
-      is_mobile_mode: window.innerWidth < 850,
     };
   },
   computed: {
@@ -279,6 +274,7 @@ export default {
     ]),
     ...mapState(useRadioStore, { playlists: "playlists" }),
     ...mapState(useUtilsStore, ["connection"]),
+    ...mapState(useWindowStore, ["_getOrCreateCurrentUserState"]),
 
     play_button_icon() {
       if (this.is_current_playlist_active && this.is_playing) return "circle-pause";
@@ -301,7 +297,7 @@ export default {
     },
 
     computed_layout_style() {
-      if (this.is_mobile_mode) return {};
+      if (this.is_mobile) return {};
 
       const left = this.is_sidebar_collapsed ? "80px" : "250px";
       const right = this.is_queue_collapsed ? "80px" : "300px";
@@ -309,6 +305,15 @@ export default {
         "--sidebar-width": left,
         "--queue-width": right,
       };
+    },
+    containerDimensions() {
+      const userState = this._getOrCreateCurrentUserState();
+      const win = userState?.openWindows["productivity"];
+      return win?.size || { width: 0, height: 0 };
+    },
+
+    is_mobile() {
+      return this.containerDimensions.width <= 1100;
     },
   },
   methods: {
@@ -337,29 +342,6 @@ export default {
       "checkOfflineAvailability",
       "update_playlist_cover",
     ]),
-
-    /* -------------------------------------------------------------------------- */
-    /* Initialization & Observers                                                 */
-    /* -------------------------------------------------------------------------- */
-    initResizeObserver() {
-      this.resizeObserver = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const isMobile = entry.contentRect.width < 1100;
-
-          if (this.is_mobile_mode !== isMobile) {
-            this.is_mobile_mode = isMobile;
-
-            if (isMobile && this.selected_playlist) {
-              this.set_mobile_tab("content");
-            }
-          }
-        }
-      });
-
-      if (this.$refs.containerRef) {
-        this.resizeObserver.observe(this.$refs.containerRef);
-      }
-    },
 
     async load_data() {
       await this.pullPlaylists();
@@ -402,7 +384,7 @@ export default {
 
     handle_mobile_select_playlist(playlist) {
       this.select_playlist(playlist);
-      if (this.is_mobile_mode) {
+      if (this.is_mobile) {
         this.set_mobile_tab("content");
       }
     },
@@ -661,7 +643,6 @@ export default {
     },
   },
   mounted() {
-    this.initResizeObserver();
     this.load_data();
     this.init_youtube_api();
 
@@ -670,11 +651,6 @@ export default {
       if (typeof this.restorePlayerConnection === "function") {
         this.restorePlayerConnection();
       }
-    }
-  },
-  beforeUnmount() {
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect();
     }
   },
 };

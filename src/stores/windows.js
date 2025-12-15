@@ -89,6 +89,17 @@ export const useWindowStore = defineStore('windows', {
 
       const open_windows_ids = Object.keys(user_state.openWindows);
       open_windows_ids.forEach(id => {
+        const win = user_state.openWindows[id];
+
+        if (win && win.isMaximized) {
+          const screen_w = window.innerWidth;
+          const screen_h = window.innerHeight;
+          win.size = {
+            width: screen_w,
+            height: screen_h - HEADER_OFFSET
+          };
+        }
+
         this.ensure_window_visibility(id);
       });
     },
@@ -186,24 +197,29 @@ export const useWindowStore = defineStore('windows', {
       if (!userState.windowPrefs[id]) userState.windowPrefs[id] = {};
 
       if (window.isMaximized) {
-        // RESTAURAR
         const prefs = userState.windowPrefs[id];
+
         window.position = window.previousPosition || prefs.pos || { x: 100, y: 100 };
         window.size = window.previousSize || prefs.size || { width: 500, height: 400 };
         window.isMaximized = false;
 
-        // Salva estado nas preferências
         userState.windowPrefs[id].isMaximized = false;
 
         this.clearPreviousState(id);
         this.ensure_window_visibility(id);
       } else {
-        // MAXIMIZAR
         window.previousPosition = { ...window.position };
         window.previousSize = { ...window.size };
         window.isMaximized = true;
 
-        // Salva estado nas preferências
+        const screen_w = window.innerWidth;
+        const screen_h = window.innerHeight;
+
+        window.size = {
+          width: screen_w,
+          height: screen_h - HEADER_OFFSET
+        };
+
         userState.windowPrefs[id].isMaximized = true;
       }
       this.focusWindow(id);
@@ -230,12 +246,18 @@ export const useWindowStore = defineStore('windows', {
         window.position = { x, y };
         if (!userState.windowPrefs[id]) userState.windowPrefs[id] = {};
 
-        // Só salvamos a posição como preferência se NÃO estiver maximizada
-        // Isso previne salvar "0,0" como a posição preferida
         if (!window.isMaximized) {
           userState.windowPrefs[id].pos = { x, y };
         }
       }
+    },
+    getWindowDimensions(windowId) {
+      const userState = this._getOrCreateCurrentUserState();
+      const win = userState?.openWindows[windowId];
+      if (win && win.size) {
+        return win.size;
+      }
+      return { width: 0, height: 0 };
     },
     updateWindowSize(id, { width, height }) {
       const userState = this._getOrCreateCurrentUserState();
@@ -244,7 +266,7 @@ export const useWindowStore = defineStore('windows', {
       if (window && !window.isMaximized) {
         window.size = { width, height };
         if (!userState.windowPrefs[id]) userState.windowPrefs[id] = {};
-        // Salva o tamanho nas preferências
+
         userState.windowPrefs[id].size = { width, height };
       }
     },

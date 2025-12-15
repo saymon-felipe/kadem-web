@@ -28,7 +28,7 @@
         ghost-class="column-ghost"
         drag-class="column-drag"
         group="columns"
-        direction="horizontal"
+        :direction="is_mobile ? 'vertical' : 'horizontal'"
       >
         <template #item="{ element }">
           <KanbanColumn
@@ -75,6 +75,7 @@ import draggable from "vuedraggable";
 import { mapActions, mapState } from "pinia";
 import { useProjectStore } from "@/stores/projects";
 import { useKanbanStore } from "@/stores/kanban";
+import { useWindowStore } from "@/stores/windows";
 
 import KanbanColumn from "./KanbanColumn.vue";
 import SideModal from "@/components/SideModal.vue";
@@ -106,8 +107,13 @@ export default {
       drag_ctx: {
         is_dragging: false,
         start_mouse_x: 0,
+        start_mouse_y: 0,
         current_mouse_x: 0,
+        current_mouse_y: 0,
         initial_top: 0,
+        initial_left: 0,
+        initial_width: 0,
+        initial_height: 0,
       },
       show_confirmation: false,
       item_to_delete: null,
@@ -128,6 +134,17 @@ export default {
     }),
 
     ...mapState(useKanbanStore, ["getColumns"]),
+    ...mapState(useWindowStore, ["_getOrCreateCurrentUserState"]),
+
+    containerDimensions() {
+      const userState = this._getOrCreateCurrentUserState();
+      const win = userState?.openWindows["projects"];
+      return win?.size || { width: 0, height: 0 };
+    },
+
+    is_mobile() {
+      return this.containerDimensions.width <= 1100;
+    },
 
     project_local_id_getter() {
       return JSON.parse(JSON.stringify(this.project_local_id));
@@ -248,33 +265,106 @@ export default {
     },
     track_mouse(e) {
       this.drag_ctx.current_mouse_x = e.clientX || (e.touches && e.touches[0].clientX);
+      this.drag_ctx.current_mouse_y = e.clientY || (e.touches && e.touches[0].clientY);
     },
     on_column_drag_start(evt) {
       this.drag_ctx.is_dragging = true;
+
       const client_x =
         evt.originalEvent.clientX ||
         (evt.originalEvent.touches && evt.originalEvent.touches[0].clientX);
+      const client_y =
+        evt.originalEvent.clientY ||
+        (evt.originalEvent.touches && evt.originalEvent.touches[0].clientY);
+
       this.drag_ctx.start_mouse_x = client_x;
       this.drag_ctx.current_mouse_x = client_x;
+      this.drag_ctx.start_mouse_y = client_y;
+      this.drag_ctx.current_mouse_y = client_y;
+
       const rect = evt.item.getBoundingClientRect();
+
       this.drag_ctx.initial_top = rect.top;
+      this.drag_ctx.initial_left = rect.left;
+      this.drag_ctx.initial_width = rect.width;
+      this.drag_ctx.initial_height = rect.height;
+
       window.addEventListener("mousemove", this.track_mouse);
       window.addEventListener("touchmove", this.track_mouse);
+
       const force_axis_loop = () => {
         if (!this.drag_ctx.is_dragging) return;
         const fallback_el = document.querySelector(".column-fallback");
+
         if (fallback_el) {
-          const delta_x = this.drag_ctx.current_mouse_x - this.drag_ctx.start_mouse_x;
           fallback_el.style.setProperty(
-            "top",
-            `${this.drag_ctx.initial_top}px`,
+            "width",
+            `${this.drag_ctx.initial_width}px`,
             "important"
           );
           fallback_el.style.setProperty(
-            "transform",
-            `translate3d(${delta_x}px, 0px, 0px)`,
+            "min-width",
+            `${this.drag_ctx.initial_width}px`,
             "important"
           );
+          fallback_el.style.setProperty(
+            "max-width",
+            `${this.drag_ctx.initial_width}px`,
+            "important"
+          );
+          fallback_el.style.setProperty(
+            "height",
+            `${this.drag_ctx.initial_height}px`,
+            "important"
+          );
+
+          fallback_el.style.setProperty("box-sizing", "border-box", "important");
+
+          if (this.is_mobile) {
+            const delta_y = this.drag_ctx.current_mouse_y - this.drag_ctx.start_mouse_y;
+
+            fallback_el.style.setProperty(
+              "left",
+              `${this.drag_ctx.initial_left}px`,
+              "important"
+            );
+            fallback_el.style.setProperty(
+              "transform",
+              `translate3d(0px, ${delta_y}px, 0px)`,
+              "important"
+            );
+
+            const taskListEl = fallback_el.querySelector(".task-list");
+            if (taskListEl) {
+              taskListEl.style.setProperty("display", "flex", "important");
+              taskListEl.style.setProperty("flex-direction", "row", "important");
+              taskListEl.style.setProperty("overflow-y", "hidden", "important");
+              taskListEl.style.setProperty("overflow-x", "auto", "important");
+            }
+
+            const taskEls = taskListEl.querySelectorAll(".kanban-task");
+            if (taskEls) {
+              taskEls.forEach((task) => {
+                task.style.setProperty("width", "200px", "important");
+                task.style.setProperty("min-width", "200px", "important");
+                task.style.setProperty("max-width", "200px", "important");
+                task.style.setProperty("height", "100%", "important");
+              });
+            }
+          } else {
+            const delta_x = this.drag_ctx.current_mouse_x - this.drag_ctx.start_mouse_x;
+
+            fallback_el.style.setProperty(
+              "top",
+              `${this.drag_ctx.initial_top}px`,
+              "important"
+            );
+            fallback_el.style.setProperty(
+              "transform",
+              `translate3d(${delta_x}px, 0px, 0px)`,
+              "important"
+            );
+          }
         }
         requestAnimationFrame(force_axis_loop);
       };
@@ -413,6 +503,12 @@ export default {
     width: 100%;
     min-width: 100%;
     max-width: 100%;
+  }
+
+  .column-fallback {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
   }
 }
 </style>

@@ -161,7 +161,7 @@
       drag-class="task-drag"
       :delay="0"
       :delay-on-touch-only="true"
-      :disabled="is_searching"
+      :disabled="is_searching || is_mobile"
     >
       <template #item="{ element }">
         <KanbanTask :task="element" @click="handle_task_click(element)" />
@@ -180,6 +180,7 @@
 import draggable from "vuedraggable";
 import { mapActions, mapState } from "pinia";
 import { useKanbanStore } from "@/stores/kanban";
+import { useWindowStore } from "@/stores/windows";
 import KanbanTask from "./KanbanTask.vue";
 import defaultAvatar from "@/assets/images/kadem-default-account.jpg";
 
@@ -230,6 +231,7 @@ export default {
   },
   computed: {
     ...mapState(useKanbanStore, { getTasks: "getTasks" }),
+    ...mapState(useWindowStore, ["_getOrCreateCurrentUserState"]),
 
     raw_column_tasks() {
       return this.getTasks(this.column.local_id);
@@ -247,6 +249,15 @@ export default {
         const resp_match = (task.responsible?.name || "").toLowerCase().includes(query);
         return id_match || desc_match || resp_match;
       });
+    },
+    containerDimensions() {
+      const userState = this._getOrCreateCurrentUserState();
+      const win = userState?.openWindows["projects"];
+      return win?.size || { width: 0, height: 0 };
+    },
+
+    is_mobile() {
+      return this.containerDimensions.width <= 1100;
     },
     selected_assignee_name() {
       if (this.selected_assignee === "all") return "Todos";
@@ -821,7 +832,8 @@ export default {
     }
   }
 
-  .kanban-column {
+  .kanban-column,
+  .column-fallback {
     width: 100%;
     height: 200px;
     min-width: 100%;
