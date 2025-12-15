@@ -54,7 +54,6 @@ export const useWindowStore = defineStore('windows', {
       if (!user_state || !user_state.openWindows[window_id]) return;
 
       const win = user_state.openWindows[window_id];
-
       // Se estiver minimizada ou maximizada, a lógica de posicionamento flutuante não se aplica
       if (win.isMinimized || win.isMaximized) return;
 
@@ -346,5 +345,13 @@ export const useWindowStore = defineStore('windows', {
       return this.windowStatesByUser[userId];
     },
   },
-  persist: true,
+  persist: {
+    paths: [
+      "windowStatesByUser",
+      "_zIndexCounter"
+    ],
+    afterRestore: (ctx) => {
+      ctx.store.snapTarget = null;
+    },
+  }
 });
