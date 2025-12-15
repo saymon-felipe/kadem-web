@@ -699,7 +699,7 @@ export default {
 }
 
 /* Container Queries para Responsividade Mobile */
-@container (max-width: 600px) {
+@container (max-width: 1100px) {
   .track-row {
     grid-template-columns: 30px 1fr 40px;
   }
@@ -718,14 +718,15 @@ export default {
 
   .tracks-table {
     padding: 0 var(--space-2);
-    padding-bottom: 48px;
   }
-}
 
-@container (max-width: 768px) {
   .col-channel,
   .col-duration {
     display: none;
+  }
+
+  .tracks-scroll-area {
+    padding-bottom: 60px;
   }
 }
 </style>

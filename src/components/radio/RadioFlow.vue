@@ -71,6 +71,7 @@
                 :default_cover="default_cover"
                 :default_avatar="default_avatar"
                 :is_mobile="is_mobile_mode"
+                @change-cover="handle_change_cover"
                 @rename-playlist="handle_rename_playlist"
                 @delete-playlist="handle_delete_playlist"
               />
@@ -324,6 +325,7 @@ export default {
       "add_to_queue_at",
       "set_queue",
       "set_mobile_tab",
+      "setCurrentPlaylist",
     ]),
     ...mapActions(useRadioStore, [
       "pullPlaylists",
@@ -333,6 +335,7 @@ export default {
       "addTrackToPlaylist",
       "removeTrackFromPlaylist",
       "checkOfflineAvailability",
+      "update_playlist_cover",
     ]),
 
     /* -------------------------------------------------------------------------- */
@@ -341,7 +344,7 @@ export default {
     initResizeObserver() {
       this.resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          const isMobile = entry.contentRect.width < 850;
+          const isMobile = entry.contentRect.width < 1100;
 
           if (this.is_mobile_mode !== isMobile) {
             this.is_mobile_mode = isMobile;
@@ -414,6 +417,15 @@ export default {
     async handle_rename_playlist(playlist, newName) {
       if (!newName || newName.trim() === "") return;
       await this.renamePlaylist(playlist, newName.trim());
+    },
+
+    async handle_change_cover(playlist, image) {
+      if (!image || image.trim() === "") return;
+
+      playlist.cover = image;
+      this.setCurrentPlaylist(playlist);
+
+      await this.update_playlist_cover(playlist.id || playlist.local_id, image);
     },
 
     async handle_delete_playlist(playlist) {
@@ -899,7 +911,7 @@ export default {
 
 /* --- Container Queries Logic --- */
 
-@container (max-width: 850px) {
+@container (max-width: 1100px) {
   .layout-grid {
     display: block; /* Remove o grid, v-show cuida do resto */
     position: relative;

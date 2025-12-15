@@ -12,330 +12,330 @@ import { useRadioStore } from './radio';
 import { usePlayerStore } from './player';
 
 import {
-    userRepository,
-    occupationRepository,
-    medalRepository,
-    syncQueueRepository,
-    projectRepository,
-    accountsRepository,
-    kanbanRepository,
-    radioRepository
+  userRepository,
+  occupationRepository,
+  medalRepository,
+  syncQueueRepository,
+  projectRepository,
+  accountsRepository,
+  kanbanRepository,
+  radioRepository
 } from '../services/localData';
 
 export const useAuthStore = defineStore('auth', {
-    state: () => ({
-        user: {},
-        isAuthenticated: null,
-        lastSyncTimestamp: localStorage.getItem('kadem_user_last_sync') || null
-    }),
-    getters: {
-        isLoggedIn: (state) => state.isAuthenticated === true,
+  state: () => ({
+    user: {},
+    isAuthenticated: null,
+    lastSyncTimestamp: localStorage.getItem('kadem_user_last_sync') || null
+  }),
+  getters: {
+    isLoggedIn: (state) => state.isAuthenticated === true,
+  },
+  actions: {
+    async requestPasswordReset(email) {
+      try {
+        const response = await api.post('/auth/request_reset_password', { email });
+
+        return response.data.message;
+      } catch (error) {
+        console.error('Erro ao solicitar redefinição de senha:', error);
+        throw error;
+      }
     },
-    actions: {
-        async requestPasswordReset(email) {
-            try {
-                const response = await api.post('/auth/request_reset_password', { email });
+    async login(email, password, invite_token) {
+      try {
+        const response = await api.post('/auth/login', { email, password, invite_token });
+        await this._saveUserData(response.data);
+        return response;
+      } catch (error) {
+        this.user = {};
+        this.isAuthenticated = false;
+        throw error;
+      }
+    },
 
-                return response.data.message;
-            } catch (error) {
-                console.error('Erro ao solicitar redefinição de senha:', error);
-                throw error;
-            }
-        },
-        async login(email, password, invite_token) {
-            try {
-                const response = await api.post('/auth/login', { email, password, invite_token });
-                await this._saveUserData(response.data);
-                return response;
-            } catch (error) {
-                this.user = {};
-                this.isAuthenticated = false;
-                throw error;
-            }
-        },
+    async register(userData) {
+      try {
+        let response = await api.post('/auth/register', userData);
+        return response;
+      } catch (error) {
+        throw error;
+      }
+    },
 
-        async register(userData) {
-            try {
-                let response = await api.post('/auth/register', userData);
-                return response;
-            } catch (error) {
-                throw error;
-            }
-        },
+    async checkPendingChanges() {
+      try {
+        const pending = await syncQueueRepository.getPendingTasks();
+        return {
+          hasPending: pending.length > 0,
+          count: pending.length
+        };
+      } catch (error) {
+        console.error("Erro ao verificar fila de sync:", error);
+        return { hasPending: false, count: 0 };
+      }
+    },
 
-        async checkPendingChanges() {
-            try {
-                const pending = await syncQueueRepository.getPendingTasks();
-                return {
-                    hasPending: pending.length > 0,
-                    count: pending.length
-                };
-            } catch (error) {
-                console.error("Erro ao verificar fila de sync:", error);
-                return { hasPending: false, count: 0 };
-            }
-        },
+    async logout(force = false) {
+      const windowStore = useWindowStore();
+      const appStore = useAppStore();
+      const projectStore = useProjectStore();
+      const kanbanStore = useProjectStore();
+      const vaultStore = useVaultStore();
+      const radioStore = useRadioStore();
+      const playerStore = usePlayerStore();
+      const userIdToClear = this.user?.id;
 
-        async logout(force = false) {
-            const windowStore = useWindowStore();
-            const appStore = useAppStore();
-            const projectStore = useProjectStore();
-            const kanbanStore = useProjectStore();
-            const vaultStore = useVaultStore();
-            const radioStore = useRadioStore();
-            const playerStore = usePlayerStore();
-            const userIdToClear = this.user?.id;
+      try {
+        if (!force) {
+          await api.post('/auth/logout');
+        }
+      } catch (error) {
+        console.warn('Erro ao chamar API de logout, deslogando localmente.', error);
+      } finally {
+        appStore.closeStartMenu();
 
-            try {
-                if (!force) {
-                    await api.post('/auth/logout');
-                }
-            } catch (error) {
-                console.warn('Erro ao chamar API de logout, deslogando localmente.', error);
-            } finally {
-                appStore.closeStartMenu();
+        if (userIdToClear) {
+          windowStore.clearWindowsForUser(userIdToClear);
+        }
 
-                if (userIdToClear) {
-                    windowStore.clearWindowsForUser(userIdToClear);
-                }
+        await Promise.all([
+          userRepository.clearLocalProfile(),
+          occupationRepository.clearLocalUserOccupations(),
+          medalRepository.clearLocalMedals(),
+          syncQueueRepository.clearSyncQueue(),
+          projectRepository.clearLocalProjects(),
+          accountsRepository.clearLocalAccounts(),
+          kanbanRepository.clearLocalKanban(),
+          radioRepository.clearLocalData()
+        ]);
 
-                await Promise.all([
-                    userRepository.clearLocalProfile(),
-                    occupationRepository.clearLocalUserOccupations(),
-                    medalRepository.clearLocalMedals(),
-                    syncQueueRepository.clearSyncQueue(),
-                    projectRepository.clearLocalProjects(),
-                    accountsRepository.clearLocalAccounts(),
-                    kanbanRepository.clearLocalKanban(),
-                    radioRepository.clearLocalData()
-                ]);
+        this.user = {};
+        this.isAuthenticated = false;
+        this.lastSyncTimestamp = null;
+        projectStore.projects = [];
+        projectStore.lastSyncTimestamp = null;
+        projectStore.active_project_id = null;
+        projectStore.is_populating_offline_cache = false;
+        projectStore.lastSyncTimestamp = null;
+        kanbanStore.columns = {};
+        kanbanStore.tasks = {};
+        kanbanStore.lastSyncs = null;
+        vaultStore.lockVault();
+        radioStore.clearState();
+        playerStore.clearState();
+        localStorage.removeItem('kadem_user_last_sync');
+        localStorage.removeItem('kadem_vault_last_sync');
+        localStorage.removeItem('kadem_projects_last_sync');
+        localStorage.removeItem('kadem_kanban_syncs');
 
-                this.user = {};
-                this.isAuthenticated = false;
-                this.lastSyncTimestamp = null;
-                projectStore.projects = [];
-                projectStore.lastSyncTimestamp = null;
-                projectStore.active_project_id = null;
-                projectStore.is_populating_offline_cache = false;
-                projectStore.lastSyncTimestamp = null;
-                kanbanStore.columns = {};
-                kanbanStore.tasks = {};
-                kanbanStore.lastSyncs = null;
-                vaultStore.lockVault();
-                radioStore.clearState();
-                playerStore.clearState();
-                localStorage.removeItem('kadem_user_last_sync');
-                localStorage.removeItem('kadem_vault_last_sync');
-                localStorage.removeItem('kadem_projects_last_sync');
-                localStorage.removeItem('kadem_kanban_syncs');
+        router.push("/auth");
+      }
+    },
+    async checkAuthStatus(recursive = false) {
+      try {
+        const localUser = await userRepository.getLocalUserProfile();
+        const utilsStore = useUtilsStore();
+        const projectStore = useProjectStore();
+        const vaultStore = useVaultStore();
+        const radioStore = useRadioStore();
+        const playerStore = usePlayerStore();
 
-                router.push("/auth");
-            }
-        },
-        async checkAuthStatus(recursive = false) {
-            try {
-                const localUser = await userRepository.getLocalUserProfile();
-                const utilsStore = useUtilsStore();
-                const projectStore = useProjectStore();
-                const vaultStore = useVaultStore();
-                const radioStore = useRadioStore();
-                const playerStore = usePlayerStore();
-
-                if (utilsStore.connection.connected) {
-                    try {
-                        await syncService.processSyncQueue();
-                        await this.syncProfile(recursive);
-
-                        if (recursive) {
-                            const kanbanStore = useKanbanStore();
-
-                            await projectStore.pullProjects();
-                            await vaultStore.pullAccounts();
-                            await kanbanStore.syncAllBoards();
-                            await radioStore.pullPlaylists();
-                            await playerStore.pullPlayerState();
-                        }
-                    } catch (syncError) {
-                        console.error("Falha na orquestração PUSH-PULL:", syncError);
-                    }
-                } else {
-                    if (localUser) {
-                        const localOccupations = await occupationRepository.getLocalUserOccupations();
-                        const localMedals = await medalRepository.getLocalMedals();
-
-                        await projectStore._loadProjectsFromDB();
-                        await vaultStore.loadAccountsFromDB();
-                        await radioStore._loadFromDB();
-
-                        this.user = {
-                            ...localUser,
-                            occupations: localOccupations,
-                            medals: localMedals
-                        };
-
-                        this.isAuthenticated = true;
-                    }
-                }
-            } catch (error) {
-                this.user = {};
-                this.isAuthenticated = false;
-            }
-        },
-        async _loadLocalUserToState() {
-            try {
-                const localUser = await userRepository.getLocalUserProfile();
-                if (localUser) {
-                    const localOccupations = await occupationRepository.getLocalUserOccupations();
-                    const localMedals = await medalRepository.getLocalMedals();
-
-                    this.user = {
-                        ...localUser,
-                        occupations: localOccupations,
-                        medals: localMedals
-                    };
-                    this.isAuthenticated = true;
-                    return true;
-                }
-            } catch (err) {
-                console.error("Erro ao carregar usuário local:", err);
-            }
-            return false;
-        },
-        async syncProfile(recursive = false) {
-            const hasLocalData = await this._loadLocalUserToState();
-
-            try {
-                const params = {};
-                if (this.lastSyncTimestamp) {
-                    params.since = this.lastSyncTimestamp;
-                }
-
-                const response = await api.get('/users/profile', { params });
-                const { user: remoteUser, server_timestamp } = response.data;
-
-                if (remoteUser) {
-                    await this._saveUserData(remoteUser);
-                } else if (!hasLocalData) {
-                    await this._loadLocalUserToState();
-                }
-
-                if (server_timestamp) {
-                    this.lastSyncTimestamp = server_timestamp;
-                    localStorage.setItem('kadem_user_last_sync', server_timestamp);
-                }
-            } catch (error) {
-                if (error.response && error.response.status === 401) {
-                    this.logout(true);
-                } else {
-                    console.warn('Falha ao sincronizar perfil. Usando dados locais.', error);
-                    await this._loadLocalUserToState();
-                }
-            }
+        if (utilsStore.connection.connected) {
+          try {
+            await syncService.processSyncQueue();
+            await this.syncProfile(recursive);
 
             if (recursive) {
-                setTimeout(() => {
-                    this.syncProfile();
-                }, 15 * 60 * 1000) // 15 minutos
+              const kanbanStore = useKanbanStore();
+
+              await projectStore.pullProjects();
+              await vaultStore.pullAccounts();
+              await kanbanStore.syncAllBoards();
+              await radioStore.pullPlaylists();
+              await playerStore.pullPlayerState();
             }
-        },
-        async _saveUserData(apiUserData) {
-            const { occupations, medals, ...profileData } = apiUserData;
+          } catch (syncError) {
+            console.error("Falha na orquestração PUSH-PULL:", syncError);
+          }
+        } else {
+          if (localUser) {
+            const localOccupations = await occupationRepository.getLocalUserOccupations();
+            const localMedals = await medalRepository.getLocalMedals();
 
-            await userRepository.saveLocalUserProfile(profileData);
-            await occupationRepository.mergeApiOccupations(occupations || []);
-            await medalRepository.setLocalMedals(medals || []);
-
-            const mergedOccupations = await occupationRepository.getLocalUserOccupations();
-            const mergedMedals = await medalRepository.getLocalMedals();
+            await projectStore._loadProjectsFromDB();
+            await vaultStore.loadAccountsFromDB();
+            await radioStore._loadFromDB();
 
             this.user = {
-                ...profileData,
-                occupations: mergedOccupations,
-                medals: mergedMedals
+              ...localUser,
+              occupations: localOccupations,
+              medals: localMedals
             };
+
             this.isAuthenticated = true;
-        },
-        async updateUserBio(newBio) {
-            const currentUser = this.user;
-            const { occupations, medals, ...profileData } = currentUser;
-            const updatedProfileData = { ...profileData, bio: newBio };
-            const updatedUserForState = { ...updatedProfileData, occupations, medals };
+          }
+        }
+      } catch (error) {
+        this.user = {};
+        this.isAuthenticated = false;
+      }
+    },
+    async _loadLocalUserToState() {
+      try {
+        const localUser = await userRepository.getLocalUserProfile();
+        if (localUser) {
+          const localOccupations = await occupationRepository.getLocalUserOccupations();
+          const localMedals = await medalRepository.getLocalMedals();
 
-            try {
-                await userRepository.saveLocalUserProfile(updatedProfileData);
-                this.setUser(updatedUserForState);
+          this.user = {
+            ...localUser,
+            occupations: localOccupations,
+            medals: localMedals
+          };
+          this.isAuthenticated = true;
+          return true;
+        }
+      } catch (err) {
+        console.error("Erro ao carregar usuário local:", err);
+      }
+      return false;
+    },
+    async syncProfile(recursive = false) {
+      const hasLocalData = await this._loadLocalUserToState();
 
-                await syncQueueRepository.addSyncQueueTask({
-                    type: 'SYNC_PROFILE_CHANGE',
-                    payload: {
-                        field: 'bio',
-                        value: newBio,
-                        timestamp: new Date().toISOString()
-                    },
-                    userId: currentUser.id,
-                    timestamp: new Date().toISOString()
-                });
+      try {
+        const params = {};
+        if (this.lastSyncTimestamp) {
+          params.since = this.lastSyncTimestamp;
+        }
 
-                syncService.processSyncQueue();
-            } catch (error) {
-                console.error("Falha ao salvar bio localmente:", error);
-            }
-        },
-        async addNewOccupation(occupationName) {
-            if (!occupationName || occupationName.trim() === '') return;
+        const response = await api.get('/users/profile', { params });
+        const { user: remoteUser, server_timestamp } = response.data;
 
-            const newOccupationData = {
-                name: occupationName,
-                id: null
-            };
+        if (remoteUser) {
+          await this._saveUserData(remoteUser);
+        } else if (!hasLocalData) {
+          await this._loadLocalUserToState();
+        }
 
-            try {
-                const newLocalId = await occupationRepository.addLocalUserOccupation(newOccupationData);
+        if (server_timestamp) {
+          this.lastSyncTimestamp = server_timestamp;
+          localStorage.setItem('kadem_user_last_sync', server_timestamp);
+        }
+      } catch (error) {
+        if (error.response && error.response.status === 401) {
+          this.logout(true);
+        } else {
+          console.warn('Falha ao sincronizar perfil. Usando dados locais.', error);
+          await this._loadLocalUserToState();
+        }
+      }
 
-                await syncQueueRepository.addSyncQueueTask({
-                    type: 'CREATE_OCCUPATION',
-                    payload: {
-                        name: occupationName
-                    },
-                    timestamp: new Date().toISOString()
-                });
+      if (recursive) {
+        setTimeout(() => {
+          this.syncProfile();
+        }, 15 * 60 * 1000) // 15 minutos
+      }
+    },
+    async _saveUserData(apiUserData) {
+      const { occupations, medals, ...profileData } = apiUserData;
 
-                this.user.occupations.push({
-                    ...newOccupationData,
-                    localId: newLocalId
-                });
+      await userRepository.saveLocalUserProfile(profileData);
+      await occupationRepository.mergeApiOccupations(occupations || []);
+      await medalRepository.setLocalMedals(medals || []);
 
-                syncService.processSyncQueue();
-            } catch (error) {
-                console.error("Falha ao adicionar ocupação local:", error);
-            }
-        },
+      const mergedOccupations = await occupationRepository.getLocalUserOccupations();
+      const mergedMedals = await medalRepository.getLocalMedals();
 
-        async removeOccupation(occupation) {
-            try {
-                await occupationRepository.deleteLocalUserOccupation(occupation.localId);
+      this.user = {
+        ...profileData,
+        occupations: mergedOccupations,
+        medals: mergedMedals
+      };
+      this.isAuthenticated = true;
+    },
+    async updateUserBio(newBio) {
+      const currentUser = this.user;
+      const { occupations, medals, ...profileData } = currentUser;
+      const updatedProfileData = { ...profileData, bio: newBio };
+      const updatedUserForState = { ...updatedProfileData, occupations, medals };
 
-                if (occupation.id) {
-                    await syncQueueRepository.addSyncQueueTask({
-                        type: 'DELETE_OCCUPATION',
-                        payload: {
-                            id: occupation.id
-                        },
-                        timestamp: new Date().toISOString()
-                    });
-                }
+      try {
+        await userRepository.saveLocalUserProfile(updatedProfileData);
+        this.setUser(updatedUserForState);
 
-                this.user.occupations = this.user.occupations.filter(
-                    o => o.localId !== occupation.localId
-                );
+        await syncQueueRepository.addSyncQueueTask({
+          type: 'SYNC_PROFILE_CHANGE',
+          payload: {
+            field: 'bio',
+            value: newBio,
+            timestamp: new Date().toISOString()
+          },
+          userId: currentUser.id,
+          timestamp: new Date().toISOString()
+        });
 
-                syncService.processSyncQueue();
-            } catch (error) {
-                console.error("Falha ao remover ocupação local:", error);
-            }
-        },
-        setUser(user) {
-            this.user = user;
-        },
-    }
+        syncService.processSyncQueue();
+      } catch (error) {
+        console.error("Falha ao salvar bio localmente:", error);
+      }
+    },
+    async addNewOccupation(occupationName) {
+      if (!occupationName || occupationName.trim() === '') return;
+
+      const newOccupationData = {
+        name: occupationName,
+        id: null
+      };
+
+      try {
+        const newLocalId = await occupationRepository.addLocalUserOccupation(newOccupationData);
+
+        await syncQueueRepository.addSyncQueueTask({
+          type: 'CREATE_OCCUPATION',
+          payload: {
+            name: occupationName
+          },
+          timestamp: new Date().toISOString()
+        });
+
+        this.user.occupations.push({
+          ...newOccupationData,
+          localId: newLocalId
+        });
+
+        syncService.processSyncQueue();
+      } catch (error) {
+        console.error("Falha ao adicionar ocupação local:", error);
+      }
+    },
+
+    async removeOccupation(occupation) {
+      try {
+        await occupationRepository.deleteLocalUserOccupation(occupation.localId);
+
+        if (occupation.id) {
+          await syncQueueRepository.addSyncQueueTask({
+            type: 'DELETE_OCCUPATION',
+            payload: {
+              id: occupation.id
+            },
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        this.user.occupations = this.user.occupations.filter(
+          o => o.localId !== occupation.localId
+        );
+
+        syncService.processSyncQueue();
+      } catch (error) {
+        console.error("Falha ao remover ocupação local:", error);
+      }
+    },
+    setUser(user) {
+      this.user = user;
+    },
+  }
 });

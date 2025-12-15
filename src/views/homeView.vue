@@ -98,7 +98,7 @@ export default {
     },
     init_connection_monitor() {
       const utilsStore = useUtilsStore();
-      utilsStore.init_connection_monitor();
+      utilsStore._start_smart_polling();
     },
     handleResize() {
       this.updateMobileStatus();

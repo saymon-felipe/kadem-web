@@ -89,10 +89,10 @@ export default {
     };
   },
   computed: {
-    ...mapState(usePlayerStore, ["current_music", "is_playing", "volume"]),
+    ...mapState(usePlayerStore, ["current_music", "is_playing", "volume", "is_loading"]),
 
     is_disabled() {
-      return !this.current_music;
+      return !this.current_music || this.is_loading;
     },
 
     formatted_current_time() {
@@ -269,13 +269,6 @@ export default {
   opacity: 0.7;
 }
 
-.progress-container {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
 .time-display {
   font-size: 0.75rem;
   color: var(--deep-blue);
@@ -315,41 +308,6 @@ export default {
   opacity: 1;
 }
 
-/* Sliders */
-.slider {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 6px;
-  background: #e0e0e0;
-  border-radius: 5px;
-  background-image: linear-gradient(var(--deep-blue), var(--deep-blue));
-  background-repeat: no-repeat;
-  cursor: pointer;
-}
-
-.progress-slider {
-  width: 100%;
-}
-
-.volume-slider {
-  width: 70px;
-}
-
-.slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  height: 12px;
-  width: 12px;
-  border-radius: 50%;
-  background: var(--deep-blue);
-  cursor: pointer;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
-  transition: transform 0.1s;
-}
-
-.slider::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-}
-
 .music-element {
   display: flex;
   align-items: center;
@@ -380,7 +338,7 @@ export default {
 }
 
 /* Responsividade do Player */
-@container (max-width: 600px) {
+@container (max-width: 1100px) {
   .player-wrapper {
     display: flex;
     flex-direction: column;
@@ -401,10 +359,6 @@ export default {
   }
 
   .controls-center {
-    width: 100%;
-  }
-
-  .progress-container {
     width: 100%;
   }
 

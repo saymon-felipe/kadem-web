@@ -23,6 +23,8 @@ export const usePlayerStore = defineStore("player", {
     queue: [],
     played_history: [],
 
+    is_loading: false,
+
     // Estado do Player
     is_playing: false,
     player_mode: "none", // 'native' | 'youtube' | 'none'
@@ -79,6 +81,10 @@ export const usePlayerStore = defineStore("player", {
       this.syncState();
     },
 
+    setCurrentPlaylist(playlist) {
+      this.current_playlist = playlist;
+    },
+
     /**
      * Toca uma faixa específica e gerencia a transição de blobs/URLs.
      */
@@ -89,18 +95,17 @@ export const usePlayerStore = defineStore("player", {
         this.queue = tracks;
       }
 
-      // [SEGURANÇA] Limpeza de URL anterior para evitar vazamento de memória
       if (this.current_audio_url) {
         URL.revokeObjectURL(this.current_audio_url);
         this.current_audio_url = null;
       }
 
-      // Sanitiza objeto para o state (evita guardar blobs pesados no Pinia/LocalStorage)
       const { audio_blob, ...cleanTrack } = track;
       this.current_music = cleanTrack;
-      this.is_playing = true;
 
-      await this._handle_media_source(track);
+      this.is_loading = true;
+
+      await this._handle_media_source(track, true);
       this._update_media_session(track);
 
       this.syncState();
@@ -110,8 +115,7 @@ export const usePlayerStore = defineStore("player", {
      * Centraliza a decisão entre tocar nativo (Offline) ou YouTube (Online).
      * [CRÍTICO] Lógica Offline-First implementada aqui.
      */
-    async _handle_media_source(track) {
-      // 1. Defesa de Instância (Limpeza prévia)
+    async _handle_media_source(track, should_play = true) {
       if (!this.native_audio_instance || typeof this.native_audio_instance.pause !== "function") {
         this.native_audio_instance = markRaw(new Audio());
       }
@@ -127,11 +131,9 @@ export const usePlayerStore = defineStore("player", {
         this.yt_player_instance.pauseVideo();
       }
 
-      // 2. Lógica de Recuperação de Áudio (Robustez Offline)
       let finalAudioBlob = track.audio_blob;
       let hasGlobalCache = false;
 
-      // Verifica existência no Cache Global (IndexedDB) se não veio diretamente no objeto
       if (!finalAudioBlob && track.youtube_id) {
         try {
           hasGlobalCache = await radioRepository.hasGlobalAudio(track.youtube_id);
@@ -140,11 +142,9 @@ export const usePlayerStore = defineStore("player", {
         }
       }
 
-      // 3. Decisão de Modo: Se tem blob explícito, flag offline ou confirmação no cache
       if (finalAudioBlob || track.is_offline || hasGlobalCache) {
         try {
           if (!finalAudioBlob && track.youtube_id) {
-            console.log(`[Player] Recuperando do Cache Global: ${track.title}`);
             finalAudioBlob = await radioRepository.getGlobalAudioBlob(track.youtube_id);
           }
         } catch (err) {
@@ -152,17 +152,16 @@ export const usePlayerStore = defineStore("player", {
         }
       }
 
-      // 4. Execução do Play
       if (finalAudioBlob) {
-        // --- MODO NATIVO (OFFLINE) ---
+        // --- MODO NATIVO ---
         console.log("[Player] Modo: Offline (Nativo)");
         this.player_mode = "native";
+        this.is_loading = true;
 
         if (finalAudioBlob.size < 1000) {
-          console.error("[Player] Blob recuperado é inválido/vazio. Tentando fallback.");
           if (navigator.onLine) {
             this.player_mode = "youtube";
-            this._playYoutube(track);
+            this._playYoutube(track, should_play);
           }
           return;
         }
@@ -172,40 +171,57 @@ export const usePlayerStore = defineStore("player", {
           this.native_audio_instance.src = this.current_audio_url;
           this.native_audio_instance.volume = this.volume / 100;
 
-          await this.native_audio_instance.play();
+          if (should_play) {
+            await this.native_audio_instance.play();
+            this.is_playing = true;
+          } else {
+            this.is_playing = false;
+          }
+
+          this.is_loading = false;
         } catch (e) {
           console.error("[PlayerStore] Erro play nativo:", e);
-          // Fallback para YouTube em caso de blob corrompido
           if (navigator.onLine) {
-            console.warn("[PlayerStore] Fallback para YouTube devido a erro no blob.");
             this.player_mode = "youtube";
-            this._playYoutube(track);
+            this._playYoutube(track, should_play);
           }
         }
 
-        // Configura callback para próxima música
         this.native_audio_instance.onended = () => this.next();
 
       } else {
-        // --- MODO YOUTUBE (ONLINE) ---
+        // --- MODO YOUTUBE ---
         if (!navigator.onLine) {
-          console.error("[PlayerStore] Sem conexão e sem cache local para esta faixa.");
+          this.is_loading = false;
           return;
         }
-
         console.log("[Player] Modo: Online (YouTube)");
         this.player_mode = "youtube";
-        this._playYoutube(track);
+        this._playYoutube(track, should_play);
       }
     },
 
-    _playYoutube(track) {
+    async _playYoutube(track, should_play = true) {
       if (this.yt_player_instance && typeof this.yt_player_instance.loadVideoById === "function") {
-        this.yt_player_instance.loadVideoById({
-          videoId: track.youtube_id,
-          startSeconds: 0,
-        });
-        this.yt_player_instance.setVolume(this.volume);
+        this.is_loading = true;
+
+        if (should_play) {
+          await this.yt_player_instance.loadVideoById({
+            videoId: track.youtube_id,
+            startSeconds: 0,
+          });
+          this.is_playing = true;
+        } else {
+          await this.yt_player_instance.cueVideoById({
+            videoId: track.youtube_id,
+            startSeconds: 0,
+          });
+          this.is_playing = false;
+        }
+
+        this.is_loading = false;
+      } else {
+        if (should_play) this.is_loading = true;
       }
     },
 
@@ -214,19 +230,25 @@ export const usePlayerStore = defineStore("player", {
 
       if (this.player_mode === "native") {
         if (this.native_audio_instance && typeof this.native_audio_instance.play === "function") {
-          this.is_playing
-            ? this.native_audio_instance.play()
-            : this.native_audio_instance.pause();
+          if (this.native_audio_instance.src) {
+            this.is_playing
+              ? this.native_audio_instance.play()
+              : this.native_audio_instance.pause();
+          }
         }
       } else if (this.player_mode === "youtube") {
         if (this.yt_player_instance && typeof this.yt_player_instance.playVideo === "function") {
           this.is_playing
             ? this.yt_player_instance.playVideo()
             : this.yt_player_instance.pauseVideo();
-        } else {
-          console.warn("[PlayerStore] Instância do YouTube inválida ou não pronta.");
+        } else if (this.is_playing) {
+          this.is_loading = true;
         }
       }
+    },
+
+    set_loading_state(state) {
+      this.is_loading = state;
     },
 
     next() {
@@ -461,20 +483,17 @@ export const usePlayerStore = defineStore("player", {
 
       if (this.current_music && this.player_mode === "youtube") {
         if (this.yt_player_instance && typeof this.yt_player_instance.cueVideoById === "function") {
-          console.log("[PlayerStore] Recarregando vídeo no YouTube:", this.current_music.title);
-          this.yt_player_instance.cueVideoById({
+          await this.yt_player_instance.cueVideoById({
             videoId: this.current_music.youtube_id,
             startSeconds: 0,
           });
-          this.yt_player_instance.setVolume(this.volume);
         }
       } else if (this.current_music && this.player_mode === "native") {
-        // Busca o blob novamente se necessário
-        await this._handle_media_source(this.current_music);
-        if (!this.is_playing) {
-          if (this.native_audio_instance) this.native_audio_instance.pause();
-        }
+        await this._handle_media_source(this.current_music, false);
       }
+
+      this.is_loading = false;
+      this.is_playing = false;
     },
 
     clearState() {
@@ -518,6 +537,12 @@ export const usePlayerStore = defineStore("player", {
 
     register_yt_instance(player) {
       this.yt_player_instance = markRaw(player);
+      console.log("[PlayerStore] Instância YouTube registrada.");
+
+      if (this.is_playing && this.current_music) {
+        console.log("[PlayerStore] Play pendente detectado. Iniciando vídeo...");
+        this._playYoutube(this.current_music, true);
+      }
     },
 
     _update_media_session(track) {
@@ -567,6 +592,8 @@ export const usePlayerStore = defineStore("player", {
 
     afterRestore: (ctx) => {
       ctx.store.yt_player_instance = null;
+      ctx.store.is_playing = false;
+      ctx.store.is_loading = false;
 
       // Restaura instância de áudio nativa após reload
       if (!ctx.store.native_audio_instance || typeof ctx.store.native_audio_instance.pause !== "function") {

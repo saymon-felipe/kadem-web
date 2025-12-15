@@ -72,7 +72,9 @@ import {
   faDownload,
   faSpinner,
   faCircleCheck,
-  faList
+  faList,
+  faImage,
+  faCloudArrowUp
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -136,7 +138,9 @@ library.add(
   faDownload,
   faSpinner,
   faCircleCheck,
-  faList
+  faList,
+  faImage,
+  faCloudArrowUp
 );
 
 const app = createApp(App);

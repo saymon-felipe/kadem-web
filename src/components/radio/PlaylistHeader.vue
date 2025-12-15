@@ -56,6 +56,9 @@
           <button @click="start_rename" class="dropdown-item">
             <font-awesome-icon icon="pen" /> Renomear
           </button>
+          <button @click="open_cover_modal" class="dropdown-item">
+            <font-awesome-icon icon="image" /> Alterar foto
+          </button>
           <button @click="confirm_delete" class="dropdown-item danger">
             <font-awesome-icon icon="trash" /> Excluir
           </button>
@@ -70,6 +73,14 @@
       @cancelled="showDeleteModal = false"
       @confirmed="execute_delete"
     />
+
+    <ImageCropperModal
+      v-model="is_crop_modal_open"
+      title="Alterar Capa da Playlist"
+      :aspect-ratio="1"
+      @close="is_crop_modal_open = false"
+      @save="handle_cover_save"
+    />
   </div>
 </template>
 
@@ -78,12 +89,14 @@ import { mapState, mapActions } from "pinia";
 import { useRadioStore } from "@/stores/radio";
 import { useUtilsStore } from "@/stores/utils";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
+import ImageCropperModal from "@/components/ImageCropperModal.vue";
 
 export default {
   name: "PlaylistHeader",
 
   components: {
     ConfirmationModal,
+    ImageCropperModal,
   },
 
   props: {
@@ -121,6 +134,7 @@ export default {
       isEditing: false,
       tempName: "",
       showDeleteModal: false,
+      is_crop_modal_open: false,
     };
   },
 
@@ -129,7 +143,7 @@ export default {
     ...mapState(useUtilsStore, ["connection"]),
 
     hero_background() {
-      const cover = this.playlist.cover || this.default_cover;
+      const cover = this.default_cover;
       return `background: linear-gradient(to top, rgba(255, 255, 255, 0.7), transparent), url(${cover}) no-repeat right center; background-size: cover;`;
     },
 
@@ -156,6 +170,17 @@ export default {
 
   methods: {
     ...mapActions(useRadioStore, ["downloadPlaylist", "isTrackOffline"]),
+
+    open_cover_modal() {
+      this.showMenu = false;
+      this.is_crop_modal_open = true;
+    },
+
+    async handle_cover_save(base64_image) {
+      this.$emit("change-cover", this.playlist, base64_image);
+
+      this.is_crop_modal_open = false;
+    },
 
     /* --- Download Logic --- */
     handle_download_action() {
@@ -383,7 +408,7 @@ h1 {
   color: var(--red);
 }
 
-@container (max-width: 600px) {
+@container (max-width: 1100px) {
   .playlist-hero {
     flex-direction: column;
     height: 213px;

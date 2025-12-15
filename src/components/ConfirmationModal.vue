@@ -1,7 +1,7 @@
 <template>
   <Transition name="slide-over-root">
     <div v-if="modelValue" class="modal-overlay" @click.self="cancel">
-      <div class="modal-content glass-panel" role="dialog" aria-modal="true">
+      <div class="modal-content glass" role="dialog" aria-modal="true">
         <div class="modal-icon-wrapper" :class="{ warning: isWarning }">
           <font-awesome-icon :icon="iconName" />
         </div>

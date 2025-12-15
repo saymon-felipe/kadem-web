@@ -58,6 +58,46 @@ export const useRadioStore = defineStore("radio", {
       localStorage.removeItem("kadem_radio_last_sync");
     },
 
+    async update_playlist_cover(playlist_id, cover_base64) {
+      const playlist_index = this.playlists.findIndex(p => p.id === playlist_id || p.local_id === playlist_id);
+      console.log(playlist_index)
+      if (playlist_index === -1) return;
+
+      const playlist = this.playlists[playlist_index];
+      const timestamp = new Date().toISOString();
+      const previous_cover = playlist.cover;
+
+      this.playlists[playlist_index] = {
+        ...playlist,
+        cover: cover_base64,
+        updated_at: timestamp
+      };
+
+      try {
+        if (playlist.local_id) {
+          await radioRepository.updateLocalPlaylist(playlist.local_id, { cover: cover_base64 });
+        }
+
+        await syncQueueRepository.addSyncQueueTask({
+          type: "SYNC_PLAYLIST_CHANGE",
+          payload: {
+            playlist_id: playlist.id,
+            localId: playlist.local_id,
+            field: "cover",
+            value: cover_base64,
+            timestamp: timestamp,
+          },
+          timestamp: timestamp,
+        });
+
+        syncService.processSyncQueue();
+
+      } catch (error) {
+        console.error("[RadioStore] Erro ao atualizar capa:", error);
+        this.playlists[playlist_index].cover = previous_cover;
+      }
+    },
+
     _updateLocalState(trackLocalId, changes) {
       // Atualiza nas playlists carregadas
       this.playlists.forEach(p => {
