@@ -87,8 +87,10 @@ export const usePlayerStore = defineStore("player", {
     },
 
     async _handle_media_source(track, should_play = true) {
-
-      if (!this.native_audio_instance || typeof this.native_audio_instance.pause !== "function") {
+      if (
+        !this.native_audio_instance ||
+        typeof this.native_audio_instance.pause !== "function"
+      ) {
         this.native_audio_instance = markRaw(new Audio());
       }
 
@@ -100,44 +102,35 @@ export const usePlayerStore = defineStore("player", {
         console.error("[PlayerStore] Erro ao limpar instância de áudio:", e);
       }
 
-      if (this.yt_player_instance && typeof this.yt_player_instance.pauseVideo === "function") {
+      if (
+        this.yt_player_instance &&
+        typeof this.yt_player_instance.pauseVideo === "function"
+      ) {
         this.yt_player_instance.pauseVideo();
       }
 
       let finalAudioBlob = track.audio_blob;
-      let hasGlobalCache = false;
 
       if (!finalAudioBlob && track.youtube_id) {
         try {
-          hasGlobalCache = await radioRepository.hasGlobalAudio(track.youtube_id);
-        } catch (error) {
-          console.error("[PlayerStore] Falha ao verificar cache global:", error);
-        }
-      }
+          const storedBlob = await radioRepository.getGlobalAudioBlob(track.youtube_id);
 
-      if (finalAudioBlob || track.is_offline || hasGlobalCache) {
-        try {
-          if (!finalAudioBlob && track.youtube_id) {
-            finalAudioBlob = await radioRepository.getGlobalAudioBlob(track.youtube_id);
+          if (storedBlob && storedBlob.size > 1000) {
+            finalAudioBlob = storedBlob;
           }
         } catch (err) {
-          console.error("[PlayerStore] Erro crítico I/O Cache Global:", err);
+          console.error(
+            "[PlayerStore] Erro ao recuperar áudio do armazenamento local:",
+            err
+          );
         }
       }
 
       if (finalAudioBlob) {
-        // --- MODO NATIVO ---
-        console.log("[Player] Modo: Offline (Nativo)");
+        // --- MODO NATIVO (OFFLINE) ---
+        console.log("[Player] Modo: Offline (Nativo) - Blob recuperado");
         this.player_mode = "native";
         this.is_loading = true;
-
-        if (finalAudioBlob.size < 1000) {
-          if (navigator.onLine) {
-            this.player_mode = "youtube";
-            this._playYoutube(track, should_play);
-          }
-          return;
-        }
 
         try {
           this.current_audio_url = URL.createObjectURL(finalAudioBlob);
@@ -146,34 +139,47 @@ export const usePlayerStore = defineStore("player", {
 
           // Sincronia fina para o Media Session
           this.native_audio_instance.ontimeupdate = () => {
+            // Atualiza a cada ~5s para performance, ou use debounce
             if (Math.floor(this.native_audio_instance.currentTime) % 5 === 0) {
               this._update_media_session_position();
             }
           };
 
           if (should_play) {
-            await this.native_audio_instance.play();
+            // Promise handling para evitar erros de "play() request was interrupted"
+            const playPromise = this.native_audio_instance.play();
+            if (playPromise !== undefined) {
+              await playPromise.catch((e) => {
+                console.warn("[PlayerStore] Autoplay bloqueado ou interrompido:", e);
+                this.is_playing = false;
+              });
+            }
             this.is_playing = true;
           } else {
             this.is_playing = false;
           }
           this.is_loading = false;
         } catch (e) {
-          console.error("[PlayerStore] Erro play nativo:", e);
+          console.error("[PlayerStore] Erro fatal no play nativo:", e);
+          // Fallback de emergência apenas se tiver internet
           if (navigator.onLine) {
+            console.warn("[PlayerStore] Fallback para YouTube devido a erro no blob.");
             this.player_mode = "youtube";
             this._playYoutube(track, should_play);
           }
         }
 
         this.native_audio_instance.onended = () => this.next();
-
       } else {
-        // --- MODO YOUTUBE ---
+        // --- MODO YOUTUBE (ONLINE) ---
+        // Se não temos blob e não temos internet, paramos aqui.
         if (!navigator.onLine) {
+          console.warn("[PlayerStore] Sem blob e sem internet. Reprodução impossível.");
           this.is_loading = false;
+          this.is_playing = false;
           return;
         }
+
         console.log("[Player] Modo: Online (YouTube)");
         this.player_mode = "youtube";
         this._playYoutube(track, should_play);
@@ -181,15 +187,24 @@ export const usePlayerStore = defineStore("player", {
     },
 
     async _playYoutube(track, should_play = true) {
-      if (this.yt_player_instance && typeof this.yt_player_instance.loadVideoById === "function") {
+      if (
+        this.yt_player_instance &&
+        typeof this.yt_player_instance.loadVideoById === "function"
+      ) {
         this.is_loading = true;
         this.yt_player_instance.setVolume(this.volume * 100);
 
         if (should_play) {
-          await this.yt_player_instance.loadVideoById({ videoId: track.youtube_id, startSeconds: 0 });
+          await this.yt_player_instance.loadVideoById({
+            videoId: track.youtube_id,
+            startSeconds: 0,
+          });
           this.is_playing = true;
         } else {
-          await this.yt_player_instance.cueVideoById({ videoId: track.youtube_id, startSeconds: 0 });
+          await this.yt_player_instance.cueVideoById({
+            videoId: track.youtube_id,
+            startSeconds: 0,
+          });
           this.is_playing = false;
         }
         this.is_loading = false;
@@ -209,19 +224,31 @@ export const usePlayerStore = defineStore("player", {
       if (this.player_mode === "native") {
         if (this.native_audio_instance && this.native_audio_instance.src) {
           this.native_audio_instance.volume = this.volume;
-          this.is_playing ? this.native_audio_instance.play() : this.native_audio_instance.pause();
+          this.is_playing
+            ? this.native_audio_instance.play()
+            : this.native_audio_instance.pause();
         }
       } else if (this.player_mode === "youtube") {
-        if (this.yt_player_instance && typeof this.yt_player_instance.playVideo === "function") {
-          this.is_playing ? this.yt_player_instance.playVideo() : this.yt_player_instance.pauseVideo();
+        if (
+          this.yt_player_instance &&
+          typeof this.yt_player_instance.playVideo === "function"
+        ) {
+          this.is_playing
+            ? this.yt_player_instance.playVideo()
+            : this.yt_player_instance.pauseVideo();
         }
       }
 
       this._update_media_session_position();
     },
-    set_loading_state(state) { this.is_loading = state; },
+    set_loading_state(state) {
+      this.is_loading = state;
+    },
     next() {
-      if (this.queue.length === 0) { this.is_playing = false; return; }
+      if (this.queue.length === 0) {
+        this.is_playing = false;
+        return;
+      }
       if (this.current_music) this.played_history.push(this.current_music);
       const next_track = this.queue.shift();
       this.play_track(next_track);
@@ -234,19 +261,41 @@ export const usePlayerStore = defineStore("player", {
       this.play_track(prev_track);
       this.syncState();
     },
-    track_exist_in_queue(id) { return this.queue.find(t => t.youtube_id === id); },
-    add_to_queue(track) { if (!this.track_exist_in_queue(track.youtube_id)) this.queue.push(track); this.syncState(); },
-    set_queue(q) { this.queue = [...q]; this.syncState(); },
-    add_to_queue_at(t, i) { if (!this.track_exist_in_queue(t.youtube_id)) this.queue.splice(i, 0, t); this.syncState(); },
-    remove_from_queue(i) { this.queue.splice(i, 1); this.syncState(); },
-    toggle_shuffle() { this.is_shuffle = !this.is_shuffle; this.syncState(); },
-    set_mobile_tab(t) { this.mobile_tab = t; },
-    setActiveApp(a) { this.active_app = a; },
+    track_exist_in_queue(id) {
+      return this.queue.find((t) => t.youtube_id === id);
+    },
+    add_to_queue(track) {
+      if (!this.track_exist_in_queue(track.youtube_id)) this.queue.push(track);
+      this.syncState();
+    },
+    set_queue(q) {
+      this.queue = [...q];
+      this.syncState();
+    },
+    add_to_queue_at(t, i) {
+      if (!this.track_exist_in_queue(t.youtube_id)) this.queue.splice(i, 0, t);
+      this.syncState();
+    },
+    remove_from_queue(i) {
+      this.queue.splice(i, 1);
+      this.syncState();
+    },
+    toggle_shuffle() {
+      this.is_shuffle = !this.is_shuffle;
+      this.syncState();
+    },
+    set_mobile_tab(t) {
+      this.mobile_tab = t;
+    },
+    setActiveApp(a) {
+      this.active_app = a;
+    },
     set_volume(val) {
       let clean_val = Math.min(Math.max(val, 0), 1);
       this.volume = clean_val;
       if (this.native_audio_instance) this.native_audio_instance.volume = clean_val;
-      if (this.yt_player_instance?.setVolume) this.yt_player_instance.setVolume(clean_val * 100);
+      if (this.yt_player_instance?.setVolume)
+        this.yt_player_instance.setVolume(clean_val * 100);
       this.syncState();
     },
 
@@ -270,12 +319,14 @@ export const usePlayerStore = defineStore("player", {
     },
 
     get_duration() {
-      if (this.current_music?.duration_seconds) return this.current_music.duration_seconds;
-      if (this.player_mode === "native" && this.native_audio_instance) return this.native_audio_instance.duration || 0;
-      if (this.player_mode === "youtube" && this.yt_player_instance) return this.yt_player_instance.getDuration() || 0;
+      if (this.current_music?.duration_seconds)
+        return this.current_music.duration_seconds;
+      if (this.player_mode === "native" && this.native_audio_instance)
+        return this.native_audio_instance.duration || 0;
+      if (this.player_mode === "youtube" && this.yt_player_instance)
+        return this.yt_player_instance.getDuration() || 0;
       return 0;
     },
-
 
     /* ==========================================================================
        SECTION 4: SYSTEM, SYNC & INITIALIZATION
@@ -296,15 +347,21 @@ export const usePlayerStore = defineStore("player", {
 
           // Restaura Playlist
           if (prefs.current_playlist_id) {
-            let pl = await radioRepository.getLocalPlaylistByServerId(prefs.current_playlist_id);
-            if (!pl) pl = await radioRepository.getLocalPlaylist(prefs.current_playlist_id);
+            let pl = await radioRepository.getLocalPlaylistByServerId(
+              prefs.current_playlist_id
+            );
+            if (!pl)
+              pl = await radioRepository.getLocalPlaylist(prefs.current_playlist_id);
             if (pl) this.current_playlist = pl;
           }
 
           // Restaura Track e define modo
           if (prefs.current_track_id) {
-            let track = await radioRepository.getLocalTrackByServerId(prefs.current_track_id);
-            if (!track) track = await radioRepository.getLocalTrack(prefs.current_track_id);
+            let track = await radioRepository.getLocalTrackByServerId(
+              prefs.current_track_id
+            );
+            if (!track)
+              track = await radioRepository.getLocalTrack(prefs.current_track_id);
 
             if (!track && this.queue.length > 0) {
               track = this.queue.find((t) => t.id === prefs.current_track_id);
@@ -313,7 +370,8 @@ export const usePlayerStore = defineStore("player", {
             if (track) {
               this.current_music = track;
               // Ajuste importante: verifica se é offline
-              this.player_mode = (track.is_offline || track.audio_blob) ? "native" : "youtube";
+              this.player_mode =
+                track.is_offline || track.audio_blob ? "native" : "youtube";
               this.is_playing = false;
             }
           }
@@ -339,7 +397,9 @@ export const usePlayerStore = defineStore("player", {
         if (this.current_playlist.id) {
           plId = this.current_playlist.id;
         } else if (this.current_playlist.local_id) {
-          const freshPl = await radioRepository.getLocalPlaylist(this.current_playlist.local_id);
+          const freshPl = await radioRepository.getLocalPlaylist(
+            this.current_playlist.local_id
+          );
           if (freshPl && freshPl.id) {
             plId = freshPl.id;
             this.current_playlist.id = freshPl.id;
@@ -351,7 +411,9 @@ export const usePlayerStore = defineStore("player", {
         if (this.current_music.id) {
           trId = this.current_music.id;
         } else if (this.current_music.local_id) {
-          const freshTr = await radioRepository.getLocalTrack(this.current_music.local_id);
+          const freshTr = await radioRepository.getLocalTrack(
+            this.current_music.local_id
+          );
           if (freshTr && freshTr.id) {
             trId = freshTr.id;
             this.current_music.id = freshTr.id;
@@ -360,7 +422,7 @@ export const usePlayerStore = defineStore("player", {
       }
 
       // Sanitização: Remove blobs da queue antes de enviar
-      const sanitizedQueue = this.queue.map(t => {
+      const sanitizedQueue = this.queue.map((t) => {
         const { audio_blob, ...rest } = t;
         return rest;
       });
@@ -388,7 +450,10 @@ export const usePlayerStore = defineStore("player", {
       console.log("[PlayerStore] Restaurando conexão com UI...");
 
       if (this.current_music && this.player_mode === "youtube") {
-        if (this.yt_player_instance && typeof this.yt_player_instance.cueVideoById === "function") {
+        if (
+          this.yt_player_instance &&
+          typeof this.yt_player_instance.cueVideoById === "function"
+        ) {
           await this.yt_player_instance.cueVideoById({
             videoId: this.current_music.youtube_id,
             startSeconds: 0,
@@ -404,7 +469,10 @@ export const usePlayerStore = defineStore("player", {
 
     clearState() {
       // 1. Parar Execução (YouTube)
-      if (this.yt_player_instance && typeof this.yt_player_instance.stopVideo === "function") {
+      if (
+        this.yt_player_instance &&
+        typeof this.yt_player_instance.stopVideo === "function"
+      ) {
         try {
           this.yt_player_instance.stopVideo();
           this.yt_player_instance.clearVideo();
@@ -414,7 +482,10 @@ export const usePlayerStore = defineStore("player", {
       }
 
       // 2. Parar Execução (Nativo) e Limpar Memória
-      if (this.native_audio_instance && typeof this.native_audio_instance.pause === "function") {
+      if (
+        this.native_audio_instance &&
+        typeof this.native_audio_instance.pause === "function"
+      ) {
         this.native_audio_instance.pause();
         this.native_audio_instance.currentTime = 0;
         this.native_audio_instance.src = "";
@@ -436,15 +507,16 @@ export const usePlayerStore = defineStore("player", {
       this.native_audio_instance = markRaw(new Audio());
     },
 
-
     /* ==========================================================================
        SECTION 5: HELPERS & UTILS
        ========================================================================== */
 
     register_yt_instance(player) {
       this.yt_player_instance = markRaw(player);
-      if (this.yt_player_instance?.setVolume) this.yt_player_instance.setVolume(this.volume * 100);
-      if (this.is_playing && this.current_music) this._playYoutube(this.current_music, true);
+      if (this.yt_player_instance?.setVolume)
+        this.yt_player_instance.setVolume(this.volume * 100);
+      if (this.is_playing && this.current_music)
+        this._playYoutube(this.current_music, true);
     },
 
     _update_media_session(track) {
@@ -475,7 +547,8 @@ export const usePlayerStore = defineStore("player", {
       const duration = this.get_duration();
       const position = this.get_current_time();
 
-      if (!Number.isFinite(duration) || !Number.isFinite(position) || duration <= 0) return;
+      if (!Number.isFinite(duration) || !Number.isFinite(position) || duration <= 0)
+        return;
 
       try {
         navigator.mediaSession.setPositionState({
@@ -490,10 +563,20 @@ export const usePlayerStore = defineStore("player", {
   },
 
   persist: {
-    paths: ["current_music", "current_playlist", "queue", "played_history", "volume", "is_shuffle", "active_app", "mobile_tab"],
+    paths: [
+      "current_music",
+      "current_playlist",
+      "queue",
+      "played_history",
+      "volume",
+      "is_shuffle",
+      "active_app",
+      "mobile_tab",
+    ],
     serializer: {
-      serialize: (state) => JSON.stringify(state, (key, value) => key === 'audio_blob' ? undefined : value),
-      deserialize: (value) => JSON.parse(value)
+      serialize: (state) =>
+        JSON.stringify(state, (key, value) => (key === "audio_blob" ? undefined : value)),
+      deserialize: (value) => JSON.parse(value),
     },
     afterRestore: (ctx) => {
       ctx.store.yt_player_instance = null;
@@ -501,7 +584,10 @@ export const usePlayerStore = defineStore("player", {
       ctx.store.is_loading = false;
       if (ctx.store.volume > 1) ctx.store.volume = ctx.store.volume / 100;
 
-      if (!ctx.store.native_audio_instance || typeof ctx.store.native_audio_instance.pause !== "function") {
+      if (
+        !ctx.store.native_audio_instance ||
+        typeof ctx.store.native_audio_instance.pause !== "function"
+      ) {
         ctx.store.native_audio_instance = markRaw(new Audio());
       }
       if (ctx.store.native_audio_instance) {

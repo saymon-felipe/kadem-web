@@ -55,6 +55,8 @@
         item-key="youtube_id"
         class="next-list"
         ghost-class="queue-ghost"
+        drag-class="queue-drag"
+        animation="200"
         :move="check_move"
         @start="drag = true"
         @end="drag = false"
@@ -128,20 +130,26 @@ export default {
   },
   methods: {
     check_move(evt) {
-      const draggedTrack = evt.draggedContext.element;
-
-      const exists = this.next_tracks.some(
-        (t) => t.youtube_id === draggedTrack.youtube_id
+      const dragged_track = evt.draggedContext.element;
+      const is_internal_item = this.next_tracks.some(
+        (t) => t.youtube_id === dragged_track.youtube_id
       );
 
-      return !exists;
+      if (is_internal_item) {
+        return true;
+      }
+
+      return !is_internal_item;
     },
+
     on_drag_over(e) {
       this.is_drag_over = true;
     },
+
     on_drag_leave() {
       this.is_drag_over = false;
     },
+
     on_drop() {
       this.is_drag_over = false;
     },
@@ -357,6 +365,35 @@ export default {
 }
 
 /* Draggable Ghost */
+
+:deep(.queue-ghost) {
+  opacity: 0.4;
+  background: var(
+    --dark-yellow-2,
+    #rgba(255, 200, 0, 0.1)
+  );
+  border: 1px dashed var(--yellow, #ffc107);
+  border-radius: var(--radius-sm);
+
+  & .q-info,
+  & .q-cover,
+  & .actions {
+    opacity: 0.5;
+  }
+}
+
+:deep(.queue-drag) {
+  opacity: 1;
+  background: var(--deep-blue, #0d1b2a);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: grabbing;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+}
 
 :deep(.queue-ghost.track-row) {
   display: flex !important;
