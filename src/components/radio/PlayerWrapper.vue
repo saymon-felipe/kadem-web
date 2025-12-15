@@ -58,10 +58,12 @@
           <button class="btn-icon" @click="toggle_mute">
             <font-awesome-icon :icon="volume_icon" />
           </button>
+
           <input
             type="range"
             min="0"
-            max="100"
+            max="1"
+            step="0.01"
             v-model="ui_volume"
             @input="update_volume"
             class="slider volume-slider"
@@ -69,32 +71,64 @@
           />
         </div>
       </div>
+      <button
+        class="btn-icon pip-btn"
+        @click="handle_pip_toggle"
+        :disabled="!is_playing"
+        :title="pip_is_active ? 'Fechar Mini Player' : 'Abrir Mini Player'"
+        :class="{ active: pip_is_active }"
+      >
+        <font-awesome-icon icon="up-right-from-square" />
+      </button>
     </div>
+
+    <PipManager
+      ref="pip_manager"
+      :current_music="current_music"
+      :is_playing="is_playing"
+      :current_time="ui_current_time"
+      :duration="duration"
+      :volume="ui_volume"
+      :current_playlist="current_playlist"
+      @toggle-play="handle_pip_play_toggle"
+      @set-volume="update_volume_from_external"
+    />
   </div>
 </template>
 
 <script>
 import { mapState, mapActions } from "pinia";
 import { usePlayerStore } from "@/stores/player";
+import PipManager from "./PipManager.vue";
+import MediaSessionManager from "@/services/MediaSessionManager";
 
 export default {
+  components: {
+    PipManager,
+  },
   data() {
     return {
       ui_current_time: 0,
       duration: 0,
-      ui_volume: 50,
+      ui_volume: 0.5,
       is_dragging: false,
       timer_interval: null,
-      last_volume: 50,
+      last_volume: 0.5,
+      pip_is_active: false,
     };
   },
   computed: {
-    ...mapState(usePlayerStore, ["current_music", "is_playing", "volume", "is_loading"]),
+    ...mapState(usePlayerStore, [
+      "current_music",
+      "is_playing",
+      "volume",
+      "is_loading",
+      "current_playlist",
+    ]),
 
     is_disabled() {
       return !this.current_music || this.is_loading;
     },
-
     formatted_current_time() {
       return this.format_seconds_to_time(this.ui_current_time);
     },
@@ -103,7 +137,7 @@ export default {
     },
     volume_icon() {
       if (this.ui_volume == 0) return "volume-xmark";
-      if (this.ui_volume < 50) return "volume-low";
+      if (this.ui_volume < 0.5) return "volume-low";
       return "volume-high";
     },
     progress_style() {
@@ -112,7 +146,7 @@ export default {
       return { backgroundSize: `${percent}% 100%` };
     },
     volume_style() {
-      return { backgroundSize: `${this.ui_volume}% 100%` };
+      return { backgroundSize: `${this.ui_volume * 100}% 100%` };
     },
   },
   methods: {
@@ -125,6 +159,13 @@ export default {
       "get_current_time",
       "get_duration",
     ]),
+
+    format_seconds_to_time(seconds) {
+      if (isNaN(seconds)) return "00:00";
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return `${m}:${s.toString().padStart(2, "0")}`;
+    },
 
     start_ticker() {
       this.timer_interval = setInterval(() => {
@@ -143,25 +184,71 @@ export default {
       this.seek_to(this.ui_current_time);
       this.is_dragging = false;
     },
+
+    // Atualização vinda da UI Local (Slider)
     update_volume() {
+      this.ui_volume = parseFloat(this.ui_volume);
       this.set_volume(this.ui_volume);
     },
+
+    // Atualização vinda do PiP ou Atalhos
+    update_volume_from_external(vol) {
+      this.ui_volume = parseFloat(vol);
+      this.set_volume(this.ui_volume);
+    },
+
     toggle_mute() {
       if (this.ui_volume > 0) {
         this.last_volume = this.ui_volume;
         this.ui_volume = 0;
       } else {
-        this.ui_volume = this.last_volume || 50;
+        this.ui_volume = this.last_volume || 0.5;
       }
       this.update_volume();
+    },
+
+    // Handler específico para o PiP para garantir sincronia explícita
+    handle_pip_play_toggle(should_play) {
+      if (should_play !== this.is_playing) {
+        this.toggle_play();
+      }
+    },
+
+    async handle_pip_toggle() {
+      if (!this.$refs.pip_manager) return;
+      this.pip_is_active = await this.$refs.pip_manager.toggle_pip();
+    },
+
+    on_pip_closed() {
+      this.pip_is_active = false;
+    },
+
+    setup_media_session() {
+      MediaSessionManager.set_action_handlers({
+        onPlay: () => {
+          if (!this.is_playing) this.toggle_play();
+        },
+        onPause: () => {
+          if (this.is_playing) this.toggle_play();
+        },
+        onNext: () => this.next(),
+        onPrev: () => this.prev(),
+        onSeek: (details) => {
+          if (details.seekTime && this.duration) {
+            this.seek_to(details.seekTime);
+            this.ui_current_time = details.seekTime;
+          }
+        },
+      });
     },
   },
   watch: {
     current_music: {
-      handler(newVal) {
-        if (newVal) {
+      handler(new_val) {
+        if (new_val) {
           this.ui_current_time = 0;
-          this.duration = newVal.duration_seconds || 0;
+          this.duration = new_val.duration_seconds || 0;
+          MediaSessionManager.set_metadata(new_val);
         } else {
           this.ui_current_time = 0;
           this.duration = 0;
@@ -169,10 +256,23 @@ export default {
       },
       immediate: true,
     },
+    is_playing: {
+      handler(is_playing) {
+        MediaSessionManager.set_playback_state(is_playing);
+      },
+      immediate: true,
+    },
+    volume: {
+      handler(new_vol) {
+        this.ui_volume = new_vol;
+      },
+      immediate: true,
+    },
   },
   mounted() {
     this.start_ticker();
     this.ui_volume = this.volume;
+    this.setup_media_session();
   },
   beforeUnmount() {
     if (this.timer_interval) clearInterval(this.timer_interval);
@@ -199,6 +299,8 @@ export default {
   gap: var(--space-4);
   transition: opacity 0.3s;
   align-items: center;
+  position: relative;
+  padding-right: 50px;
 }
 
 /* Área desabilitada visualmente */
@@ -337,6 +439,32 @@ export default {
   }
 }
 
+.pip-btn {
+  margin-left: 10px;
+  transition: all 0.2s ease;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  margin: auto;
+  right: var(--space-5);
+}
+
+.pip-btn:hover {
+  color: var(--blue);
+  transform: scale(1.1);
+}
+
+.pip-btn.active {
+  color: var(--blue);
+  filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5));
+}
+
+.pip-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* Responsividade do Player */
 @container (max-width: 1100px) {
   .player-wrapper {
@@ -366,6 +494,13 @@ export default {
     justify-content: center;
     width: 100%;
     margin-top: var(--space-2);
+  }
+
+  .pip-btn {
+    top: var(--space-5);
+    bottom: initial;
+    right: var(--space-5);
+    margin-left: 0;
   }
 }
 </style>

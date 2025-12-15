@@ -1,0 +1,540 @@
+<template>
+  <div class="hidden-pip-elements">
+    <canvas ref="pip_canvas" width="350" height="250"></canvas>
+    <video
+      ref="pip_video"
+      playsinline
+      @play="on_native_play"
+      @pause="on_native_pause"
+      @volumechange="on_native_volume_change"
+    ></video>
+  </div>
+</template>
+
+<script>
+import system_icon from "@/assets/images/icons/system.png";
+import background_image_src from "@/assets/images/fundo-auth.webp";
+
+export default {
+  name: "PipPlayer",
+  props: {
+    current_music: { type: Object, required: true },
+    current_playlist: { type: Object, required: true },
+    is_playing: { type: Boolean, required: true },
+    current_time: { type: Number, default: 0 },
+    duration: { type: Number, default: 1 },
+    volume: { type: Number, required: true },
+  },
+  data() {
+    return {
+      ctx: null,
+
+      album_art_img: new Image(),
+      system_icon_img: new Image(),
+      background_img: new Image(),
+
+      system_icon_src: system_icon,
+      background_src: background_image_src,
+
+      is_stream_initialized: false,
+      is_pip_ready: false,
+      is_internal_update: false,
+      is_initializing: false,
+
+      audio_ctx: null,
+      silent_stream_destination: null,
+      oscillator: null,
+    };
+  },
+  async mounted() {
+    this.album_art_img.crossOrigin = "anonymous";
+    this.background_img.crossOrigin = "anonymous";
+    this.ctx = this.$refs.pip_canvas.getContext("2d");
+    await this.load_assets();
+  },
+  watch: {
+    "current_music.thumbnail": {
+      handler(new_cover_url) {
+        if (new_cover_url) {
+          this.album_art_img.src = new_cover_url;
+          this.album_art_img.onload = () => this.draw_canvas_content();
+        } else {
+          this.draw_canvas_content();
+        }
+      },
+      immediate: true,
+    },
+
+    is_playing: {
+      handler(should_play) {
+        const video_el = this.$refs.pip_video;
+        if (!video_el || !this.is_pip_ready) return;
+
+        if (should_play && !video_el.paused) return;
+
+        // Se a ordem for pausar e o vídeo já estiver pausado, força atualização visual
+        if (!should_play && video_el.paused) {
+          if (document.pictureInPictureElement) {
+            this.draw_canvas_content();
+            this.force_frame_update();
+          }
+          return;
+        }
+
+        this.is_internal_update = true;
+
+        if (should_play) {
+          video_el
+            .play()
+            .catch(() => {})
+            .finally(() => {
+              setTimeout(() => {
+                this.is_internal_update = false;
+              }, 50);
+            });
+        } else {
+          // Renderiza o pause visualmente antes de parar o vídeo
+          this.draw_canvas_content();
+
+          setTimeout(() => {
+            if (video_el && !video_el.paused) {
+              video_el.pause();
+            }
+            this.is_internal_update = false;
+          }, 60);
+        }
+      },
+      immediate: true,
+    },
+
+    current_time() {
+      if (document.pictureInPictureElement && !this.$refs.pip_video.paused) {
+        this.draw_canvas_content();
+      }
+    },
+
+    volume: {
+      handler(new_val) {
+        const video_el = this.$refs.pip_video;
+        if (!video_el) return;
+
+        if (Math.abs(video_el.volume - new_val) > 0.01) {
+          this.is_internal_update = true;
+          video_el.volume = Math.min(Math.max(new_val, 0), 1);
+          video_el.muted = new_val === 0;
+          setTimeout(() => {
+            this.is_internal_update = false;
+          }, 50);
+        }
+      },
+      immediate: true,
+    },
+  },
+  methods: {
+    force_frame_update() {
+      if (!document.pictureInPictureElement) return;
+      if (this.is_internal_update) return;
+
+      this.is_internal_update = true;
+      const video_el = this.$refs.pip_video;
+
+      video_el
+        .play()
+        .then(() => {
+          setTimeout(() => {
+            video_el.pause();
+            setTimeout(() => {
+              this.is_internal_update = false;
+            }, 50);
+          }, 20);
+        })
+        .catch(() => {
+          this.is_internal_update = false;
+        });
+    },
+
+    on_native_play() {
+      if (this.is_internal_update || this.is_initializing) return;
+      this.$emit("toggle-play", true);
+    },
+
+    on_native_pause() {
+      if (this.is_internal_update || this.is_initializing) return;
+      if (document.visibilityState === "hidden" && document.pictureInPictureElement)
+        return;
+      this.$emit("toggle-play", false);
+    },
+
+    on_native_volume_change() {
+      if (this.is_internal_update || this.is_initializing) return;
+      const video_el = this.$refs.pip_video;
+      const vol = video_el.muted ? 0 : video_el.volume;
+      this.$emit("set-volume", vol);
+    },
+
+    async load_assets() {
+      try {
+        await Promise.all([
+          new Promise((resolve) => {
+            this.system_icon_img.src = this.system_icon_src;
+            this.system_icon_img.onload = resolve;
+            this.system_icon_img.onerror = resolve;
+          }),
+          new Promise((resolve) => {
+            this.background_img.src = this.background_src;
+            this.background_img.onload = resolve;
+            this.background_img.onerror = resolve;
+          }),
+        ]);
+        this.draw_canvas_content();
+      } catch (error) {
+        console.error("KADEM: Erro assets PiP:", error);
+      }
+    },
+
+    // --- Ícones Vetoriais Atualizados ---
+
+    draw_play_icon(ctx, x, y, size) {
+      // Ajuste de Geometria para Suavização e Centralização Óptica
+      const w = size;
+      const h = size * 0.9;
+      const r = 3; // Raio de arredondamento das bordas
+
+      // Offset Óptico: Empurra o triângulo para a direita para compensar o peso da base
+      // Se w=16, offset ~2.5px
+      const x_offset = w * 0.15;
+      const cx = x + x_offset;
+
+      ctx.fillStyle = "#FFFFFF";
+      ctx.beginPath();
+
+      // Definindo os 3 vértices
+      const p1 = { x: cx + w / 2, y: y }; // Ponta (Direita)
+      const p2 = { x: cx - w / 2, y: y + h / 2 }; // Base Inferior
+      const p3 = { x: cx - w / 2, y: y - h / 2 }; // Base Superior
+
+      // Começa no meio da base esquerda
+      ctx.moveTo(p3.x, (p3.y + p2.y) / 2);
+
+      // Desenha usando arcTo para arredondar as quinas
+      // 1. Linha até o topo esquerdo -> curva em direção à ponta
+      ctx.arcTo(p3.x, p3.y, p1.x, p1.y, r);
+
+      // 2. Linha até a ponta -> curva em direção a baixo
+      ctx.arcTo(p1.x, p1.y, p2.x, p2.y, r);
+
+      // 3. Linha até baixo esquerdo -> curva para fechar na base
+      ctx.arcTo(p2.x, p2.y, p3.x, p3.y, r);
+
+      ctx.closePath();
+      ctx.fill();
+    },
+
+    draw_pause_icon(ctx, x, y, size) {
+      const bar_width = size * 0.28; // Levemente mais larga para visual moderno
+      const bar_height = size;
+      const gap = size * 0.25;
+      const start_x = x - (bar_width * 2 + gap) / 2;
+
+      ctx.fillStyle = "#FFFFFF";
+
+      this.draw_round_rect(ctx, start_x, y - bar_height / 2, bar_width, bar_height, 2);
+      ctx.fill();
+
+      this.draw_round_rect(
+        ctx,
+        start_x + bar_width + gap,
+        y - bar_height / 2,
+        bar_width,
+        bar_height,
+        2
+      );
+      ctx.fill();
+    },
+
+    draw_image_cover(ctx, img, x, y, w, h, radius = 0) {
+      if (!img.complete || img.naturalHeight === 0) return;
+
+      const ratio = img.naturalWidth / img.naturalHeight;
+      let draw_w = w;
+      let draw_h = draw_w / ratio;
+
+      if (draw_h < h) {
+        draw_h = h;
+        draw_w = draw_h * ratio;
+      }
+
+      const offset_x = x + (w - draw_w) / 2;
+      const offset_y = y + (h - draw_h) / 2;
+
+      ctx.save();
+      if (radius > 0) {
+        this.draw_round_rect(ctx, x, y, w, h, radius);
+        ctx.clip();
+      } else {
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+      }
+
+      ctx.drawImage(img, offset_x, offset_y, draw_w, draw_h);
+      ctx.restore();
+    },
+
+    draw_canvas_content() {
+      if (!this.ctx) return;
+      const canvas = this.$refs.pip_canvas;
+      const W = canvas.width;
+      const H = canvas.height;
+      const PADDING = 15;
+
+      this.ctx.textAlign = "left";
+      this.ctx.textBaseline = "alphabetic";
+
+      // 1. Fundo
+      this.ctx.fillStyle = "#121212";
+      this.ctx.fillRect(0, 0, W, H);
+
+      if (this.background_img.complete) {
+        this.draw_image_cover(this.ctx, this.background_img, 0, 0, W, H, 0);
+      }
+
+      // 2. Overlay
+      this.ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+      this.ctx.fillRect(0, 0, W, H);
+
+      if (!this.current_music) return;
+
+      // --- Layout ---
+      const cover_h = 150;
+      const target_w = W - PADDING * 2;
+      const target_h = cover_h - PADDING * 2;
+      const cover_x = PADDING;
+      const cover_y = PADDING;
+
+      // 3. Capa
+      this.draw_image_cover(
+        this.ctx,
+        this.album_art_img,
+        cover_x,
+        cover_y,
+        target_w,
+        target_h,
+        8
+      );
+
+      // --- Botão Play/Pause (Centralizado na Capa) ---
+      const cover_center_x = cover_x + target_w / 2;
+      const cover_center_y = cover_y + target_h / 2;
+      const btn_radius = 20;
+
+      this.ctx.beginPath();
+      this.ctx.arc(cover_center_x, cover_center_y, btn_radius, 0, 2 * Math.PI);
+      this.ctx.save();
+      this.ctx.globalAlpha = 0.85;
+      this.ctx.fillStyle = "#1F274C";
+      this.ctx.fill();
+      this.ctx.restore();
+
+      // Ícone (Branco)
+      if (this.is_playing) {
+        this.draw_pause_icon(this.ctx, cover_center_x, cover_center_y, 16);
+      } else {
+        // draw_play_icon agora cuida da centralização visual internamente
+        this.draw_play_icon(this.ctx, cover_center_x, cover_center_y, 18);
+      }
+
+      // 4. Ícone do Sistema
+      const icon_sz = 30;
+      this.ctx.save();
+      this.ctx.globalAlpha = 0.9;
+      this.ctx.fillStyle = "#CEB386";
+      this.draw_round_rect(this.ctx, PADDING + 8, 146 - icon_sz - 8, icon_sz, icon_sz, 6);
+      this.ctx.fill();
+      this.ctx.restore();
+
+      if (this.system_icon_img.complete) {
+        this.ctx.drawImage(this.system_icon_img, PADDING + 14, 146 - icon_sz - 2, 18, 18);
+      }
+
+      // 5. Textos
+      const text_y = 165;
+      const max_w = W - PADDING * 2;
+
+      this.ctx.textAlign = "left";
+
+      this.ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+      this.ctx.font = "13px Roboto, sans-serif";
+      const playlistName = this.current_playlist.name || "";
+      this.fill_text_with_ellipsis(playlistName, PADDING, text_y, max_w);
+
+      this.ctx.fillStyle = "#FFFFFF";
+      this.ctx.font = "bold 16px Roboto, sans-serif";
+      this.fill_text_with_ellipsis(
+        this.current_music.title || "Unknown",
+        PADDING,
+        text_y + 19,
+        max_w
+      );
+
+      this.ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+      this.ctx.font = "13px Roboto, sans-serif";
+      const artist = this.current_music.artist || this.current_music.channel || "";
+      this.fill_text_with_ellipsis(artist, PADDING, text_y + 36, max_w);
+
+      const time_y = 148;
+      this.ctx.font = "11px Roboto, sans-serif";
+      this.ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+
+      this.ctx.textAlign = "left";
+      this.ctx.fillText(this.format_time(this.current_time), PADDING + 263, time_y);
+
+      this.ctx.fillText("/", PADDING + 290, time_y);
+
+      this.ctx.textAlign = "right";
+      this.ctx.fillText(this.format_time(this.duration), W - PADDING, time_y);
+    },
+
+    initialize_stream() {
+      if (this.is_stream_initialized && this.$refs.pip_video.readyState >= 1) {
+        return Promise.resolve();
+      }
+
+      this.is_initializing = true;
+
+      return new Promise(async (resolve) => {
+        const video_el = this.$refs.pip_video;
+
+        if (this.background_img.complete) {
+          this.draw_canvas_content();
+        } else {
+          this.background_img.onload = () => this.draw_canvas_content();
+        }
+
+        const canvas_stream = this.$refs.pip_canvas.captureStream(30);
+
+        if (!this.audio_ctx) {
+          this.audio_ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        if (this.audio_ctx.state === "suspended") {
+          await this.audio_ctx.resume();
+        }
+
+        this.oscillator = this.audio_ctx.createOscillator();
+        const gain_node = this.audio_ctx.createGain();
+        gain_node.gain.value = 0;
+
+        this.silent_stream_destination = this.audio_ctx.createMediaStreamDestination();
+        this.oscillator.connect(gain_node);
+        gain_node.connect(this.silent_stream_destination);
+        this.oscillator.start();
+
+        const combined_stream = new MediaStream([
+          ...canvas_stream.getVideoTracks(),
+          ...this.silent_stream_destination.stream.getAudioTracks(),
+        ]);
+
+        video_el.srcObject = combined_stream;
+        video_el.volume = this.volume;
+        video_el.muted = this.volume === 0;
+
+        this.is_stream_initialized = true;
+
+        video_el.onloadedmetadata = () => {
+          this.is_pip_ready = true;
+          if (this.is_playing) {
+            video_el.play().catch((e) => console.warn("Autoplay PiP blocked", e));
+          }
+          this.is_initializing = false;
+          resolve();
+        };
+      });
+    },
+
+    async toggle_pip() {
+      const video_el = this.$refs.pip_video;
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+          return false;
+        } else {
+          this.is_initializing = true;
+          await this.initialize_stream();
+          if (this.is_playing && video_el.paused) {
+            await video_el.play();
+          }
+          await video_el.requestPictureInPicture();
+          this.is_initializing = false;
+          return true;
+        }
+      } catch (error) {
+        console.error("KADEM: Erro PiP:", error);
+        this.is_initializing = false;
+        return false;
+      }
+    },
+
+    format_time(seconds) {
+      if (isNaN(seconds)) return "00:00";
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return `${m}:${s.toString().padStart(2, "0")}`;
+    },
+
+    draw_round_rect(ctx, x, y, width, height, radius) {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.arcTo(x + width, y, x + width, y + radius, radius);
+      ctx.lineTo(x + width, y + height - radius);
+      ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+      ctx.lineTo(x + radius, y + height);
+      ctx.arcTo(x, y + height, x, y + height - radius, radius);
+      ctx.lineTo(x, y + radius);
+      ctx.arcTo(x, y, x + radius, y, radius);
+      ctx.closePath();
+    },
+
+    fill_text_with_ellipsis(text, x, y, max_width) {
+      let truncated = text;
+      if (this.ctx.measureText(text).width > max_width) {
+        while (
+          this.ctx.measureText(truncated + "...").width > max_width &&
+          truncated.length > 0
+        ) {
+          truncated = truncated.slice(0, -1);
+        }
+        truncated += "...";
+      }
+      this.ctx.fillText(truncated, x, y);
+    },
+  },
+  beforeUnmount() {
+    if (this.$refs.pip_video && this.$refs.pip_video.srcObject) {
+      const stream = this.$refs.pip_video.srcObject;
+      stream.getTracks().forEach((track) => track.stop());
+      this.$refs.pip_video.srcObject = null;
+    }
+    if (this.oscillator) {
+      try {
+        this.oscillator.stop();
+      } catch (e) {}
+      this.oscillator.disconnect();
+    }
+    if (this.audio_ctx) this.audio_ctx.close();
+  },
+};
+</script>
+
+<style scoped>
+.hidden-pip-elements {
+  position: absolute;
+  top: -9999px;
+  left: -9999px;
+  visibility: hidden;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+</style>

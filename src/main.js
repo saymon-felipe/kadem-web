@@ -74,7 +74,8 @@ import {
   faCircleCheck,
   faList,
   faImage,
-  faCloudArrowUp
+  faCloudArrowUp,
+  faUpRightFromSquare
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -140,7 +141,8 @@ library.add(
   faCircleCheck,
   faList,
   faImage,
-  faCloudArrowUp
+  faCloudArrowUp,
+  faUpRightFromSquare
 );
 
 const app = createApp(App);
