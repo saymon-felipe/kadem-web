@@ -39,60 +39,32 @@ export const radioRepository = {
     });
   },
 
-
   /* ========================================================================
      SECTION 2: TRACKS MANAGEMENT
      ======================================================================== */
 
   async getLocalTracks(playlistLocalId) {
+    if (!db.tracks) return [];
     return await db.tracks.where('playlist_local_id').equals(playlistLocalId).toArray();
   },
 
-  async getLocalTrack(localId) {
-    return await db.tracks.get(localId);
-  },
+  async getLocalTrack(id) { return await db.tracks.get(id); },
 
   async getLocalTrackByServerId(serverId) {
     if (!serverId) return null;
     return await db.tracks.where('id').equals(serverId).first();
   },
 
-  async addLocalTrack(trackData) {
-    return await db.tracks.add(trackData);
-  },
+  async addLocalTrack(data) { return await db.tracks.add(data); },
 
-  async updateLocalTrack(localId, updates) {
-    return await db.tracks.update(localId, updates);
-  },
+  async updateLocalTrack(id, updates) { return await db.tracks.update(id, updates); },
 
-  async update_tracks_playlist_id(old_local_playlist_id, new_server_playlist_id) {
-    return await db.tracks
-      .where('playlist_local_id')
-      .equals(old_local_playlist_id)
-      .modify({ playlist_id: new_server_playlist_id });
-  },
-
-  async deleteLocalTrack(localId) {
-    return await db.tracks.delete(localId);
-  },
-
-  /**
-   * @deprecated Utilize saveTrackAudio para usar o Global Cache.
-   * Mantido para compatibilidade com versões antigas, se necessário.
-   */
-  async saveLocalTrackAudio(localId, audio_blob) {
-    return await db.tracks.update(localId, { audio_blob });
-  },
-
+  async deleteLocalTrack(id) { return await db.tracks.delete(id); },
 
   /* ========================================================================
-     SECTION 3: OFFLINE AUDIO & GLOBAL CACHE STRATEGY
+     SECTION 3: GLOBAL CACHE (APENAS AUDIO)
      ======================================================================== */
 
-  /**
-   * Salva o binário na tabela global e marca a track do usuário como offline.
-   * Contém validações de segurança para impedir arquivos corrompidos.
-   */
   async saveTrackAudio(trackLocalId, youtubeId, audioBlob) {
     // [CORREÇÃO SÊNIOR] Validação de Integridade do Binário
     if (!audioBlob) {
@@ -125,9 +97,6 @@ export const radioRepository = {
     });
   },
 
-  /**
-   * Busca o binário diretamente do cache global
-   */
   async getGlobalAudioBlob(youtubeId) {
     if (!youtubeId) return null;
     const record = await db.global_audio_cache.get(youtubeId);
@@ -159,9 +128,6 @@ export const radioRepository = {
     return count > 0;
   },
 
-  /**
-   * Otimizado para verificar múltiplos IDs de uma vez (Bulk)
-   */
   async filterExistingAudioIds(youtubeIds) {
     if (!youtubeIds || youtubeIds.length === 0) return [];
     const uniqueIds = [...new Set(youtubeIds)];
@@ -171,21 +137,18 @@ export const radioRepository = {
       .map(item => item.youtube_id);
   },
 
-  /**
-   * Remove o download (para liberar espaço) mantendo a faixa na playlist
-   */
-  async removeTrackAudio(localId) {
-    return await db.tracks.update(localId, {
-      audio_blob: null,
-      is_offline: false
-    });
+  async getAllDownloadedVideoIds() {
+    try {
+      const files = await db.global_audio_cache.toArray();
+      return files.map(f => f.youtube_id);
+    } catch (e) {
+      return [];
+    }
   },
 
-
   /* ========================================================================
-     SECTION 4: SYNCHRONIZATION & SYSTEM MAINTENANCE
+     SECTION 4: SYNC HELPERS (SMART MERGE IMPLEMENTADO)
      ======================================================================== */
-
   async mergeApiPlaylists(apiData) {
     if (!db.playlists) return;
 
@@ -280,5 +243,5 @@ export const radioRepository = {
       await db.tracks.clear();
       await db.playlists.clear();
     });
-  },
+  }
 };

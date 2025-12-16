@@ -1,34 +1,41 @@
-// api.js
 import axios from 'axios';
 import { useProjectStore } from '../stores/projects';
 
+const dev_environment = import.meta.env.VITE_API_DEV;
+const homolog_environment = import.meta.env.VITE_API_HOMOLOG;
+const prod_environment = import.meta.env.VITE_API_PROD;
+
 let url_api;
 
-const dev_environment = "http://localhost:3000/api"; // Ambiente de desenvolvimento.
-const test_environment = ""; // Ambiente de teste.
-const prod_environment = ""; // Ambiente de produção.
+let ambient = 2;
 
-// Detecta ambiente automaticamente
-let ambient = (window.location.hostname.includes("localhost") || window.location.hostname.includes("192.168")) ? 0 : 1;
+const hostname = window.location.hostname;
 
-if (window.location.hostname.includes("localhost") || window.location.hostname.includes("192.168")) {
-  ambient = 0;
-} else if (window.location.hostname.includes("dev")) {
-  ambient = 1;
+if (hostname.includes("localhost") || hostname.includes("192.168")) {
+  ambient = 0; // Local
+} else if (hostname.includes("dev") || hostname.includes("homolog") || hostname.includes("staging")) {
+  ambient = 1; // Homologação
 } else {
-  ambient = 2;
+  ambient = 2; // Produção
 }
 
 switch (ambient) {
   case 0:
-    url_api = dev_environment;
+    url_api = dev_environment || "http://localhost:3000/api";
+    console.log("[Kadem] Ambiente: Desenvolvimento (Local)");
     break;
   case 1:
-    url_api = test_environment;
+    url_api = homolog_environment;
+    console.log("[Kadem] Ambiente: Homologação");
     break;
   case 2:
     url_api = prod_environment;
+    console.log("[Kadem] Ambiente: Produção");
     break;
+}
+
+if (!url_api) {
+  console.error("[Kadem Critical] URL da API não definida para este ambiente!");
 }
 
 const api = axios.create({
@@ -82,13 +89,10 @@ const check_system_health = async () => {
     return response.status >= 200 && response.status < 300;
   } catch (error) {
     return false;
-  };
+  }
 };
 
-export {
-  api,
-  check_system_health
-};
+export { api, check_system_health };
 
 export default {
   install(app) {

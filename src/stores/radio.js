@@ -2,36 +2,32 @@ import { defineStore } from "pinia";
 import { api } from "../plugins/api";
 import { syncService } from "../services/syncService";
 import { radioRepository, syncQueueRepository } from "../services/localData";
-import { usePlayerStore } from './player';
+import { usePlayerStore } from "./player";
 import { apiServices } from "../plugins/apiServices";
+import { useUtilsStore } from "./utils";
 
 export const useRadioStore = defineStore("radio", {
   state: () => ({
     playlists: [],
     lastSyncTimestamp: localStorage.getItem("kadem_radio_last_sync") || null,
     loading: false,
-
-    // Controles de Estado Volátil (Memória)
     active_downloads: {},
-    offline_synced_ids: {},     // IDs locais sincronizados recentemente
-    downloaded_youtube_ids: {}  // IDs do YouTube confirmados no cache
+    offline_synced_ids: {},
+    downloaded_youtube_ids: {}
   }),
 
   getters: {
     isTrackOffline: (state) => (track) => {
       if (!track) return false;
 
-      // Prioridade 1: O cache em memória da sessão atual (Verdade Absoluta)
       if (track.youtube_id && state.downloaded_youtube_ids[track.youtube_id]) {
         return true;
       }
 
-      // Prioridade 2: Blob em memória (acabou de baixar)
       if (track.audio_blob) {
         return true;
       }
 
-      // Prioridade 3: Flag do banco de dados (Confiança secundária)
       return !!track.is_offline;
     }
   },
@@ -42,9 +38,24 @@ export const useRadioStore = defineStore("radio", {
        SECTION 1: STATE MANAGEMENT & HELPERS
        ========================================================================== */
 
+    getPlaylistByMusic(track) {
+      if (!track.playlist_local_id) return null;
+      return this.playlists.find((p) => p.local_id === track.playlist_local_id) || null;
+    },
+
     async _loadFromDB() {
       try {
         this.playlists = await radioRepository.getLocalPlaylists();
+
+        const offlineIds = await radioRepository.getAllDownloadedVideoIds();
+
+        this.downloaded_youtube_ids = {};
+        offlineIds.forEach(id => {
+          this.downloaded_youtube_ids[id] = true;
+        });
+
+        console.log(`[RadioStore] Sistema Offline Inicializado: ${offlineIds.length} faixas disponíveis.`);
+
       } catch (error) {
         console.error("[RadioStore] Falha ao carregar do Dexie:", error);
       }
@@ -59,8 +70,10 @@ export const useRadioStore = defineStore("radio", {
     },
 
     async update_playlist_cover(playlist_id, cover_base64) {
-      const playlist_index = this.playlists.findIndex(p => p.id === playlist_id || p.local_id === playlist_id);
-      console.log(playlist_index)
+      const playlist_index = this.playlists.findIndex(
+        (p) => p.id === playlist_id || p.local_id === playlist_id
+      );
+
       if (playlist_index === -1) return;
 
       const playlist = this.playlists[playlist_index];
@@ -70,12 +83,14 @@ export const useRadioStore = defineStore("radio", {
       this.playlists[playlist_index] = {
         ...playlist,
         cover: cover_base64,
-        updated_at: timestamp
+        updated_at: timestamp,
       };
 
       try {
         if (playlist.local_id) {
-          await radioRepository.updateLocalPlaylist(playlist.local_id, { cover: cover_base64 });
+          await radioRepository.updateLocalPlaylist(playlist.local_id, {
+            cover: cover_base64,
+          });
         }
 
         await syncQueueRepository.addSyncQueueTask({
@@ -91,7 +106,6 @@ export const useRadioStore = defineStore("radio", {
         });
 
         syncService.processSyncQueue();
-
       } catch (error) {
         console.error("[RadioStore] Erro ao atualizar capa:", error);
         this.playlists[playlist_index].cover = previous_cover;
@@ -100,23 +114,22 @@ export const useRadioStore = defineStore("radio", {
 
     _updateLocalState(trackLocalId, changes) {
       // Atualiza nas playlists carregadas
-      this.playlists.forEach(p => {
+      this.playlists.forEach((p) => {
         if (p.tracks) {
-          const t = p.tracks.find(x => x.local_id === trackLocalId);
+          const t = p.tracks.find((x) => x.local_id === trackLocalId);
           if (t) Object.assign(t, changes);
         }
       });
 
       // Atualiza no Player (Queue e Música Atual) se necessário
       const playerStore = usePlayerStore();
-      const qTrack = playerStore.queue.find(t => t.local_id === trackLocalId);
+      const qTrack = playerStore.queue.find((t) => t.local_id === trackLocalId);
       if (qTrack) Object.assign(qTrack, changes);
 
       if (playerStore.current_music?.local_id === trackLocalId) {
         Object.assign(playerStore.current_music, changes);
       }
     },
-
 
     /* ==========================================================================
        SECTION 2: SYNCHRONIZATION (PULL)
@@ -149,18 +162,16 @@ export const useRadioStore = defineStore("radio", {
       }
     },
 
-
     /* ==========================================================================
        SECTION 3: OFFLINE ENGINE & DOWNLOADS
        ========================================================================== */
 
-    /**
-     * Verifica e corrige inconsistências entre a flag 'is_offline' e o cache real.
-     */
     async checkOfflineAvailability(tracks) {
       if (!tracks || tracks.length === 0) return;
 
-      const allYoutubeIds = [...new Set(tracks.filter(t => t.youtube_id).map(t => t.youtube_id))];
+      const allYoutubeIds = [
+        ...new Set(tracks.filter((t) => t.youtube_id).map((t) => t.youtube_id)),
+      ];
       if (allYoutubeIds.length === 0) return;
 
       try {
@@ -168,7 +179,7 @@ export const useRadioStore = defineStore("radio", {
         const foundSet = new Set(foundIds);
         const corrections = [];
 
-        tracks.forEach(track => {
+        tracks.forEach((track) => {
           const existsReal = foundSet.has(track.youtube_id);
           const flagLocal = track.is_offline;
 
@@ -176,22 +187,23 @@ export const useRadioStore = defineStore("radio", {
             this.downloaded_youtube_ids[track.youtube_id] = true;
             if (!flagLocal) track.is_offline = true;
           } else {
-            // Correção de Integridade: Flag True mas Arquivo Inexistente
             if (flagLocal) {
               console.warn(`[RadioStore] Inconsistência: ${track.title} sem binário.`);
               track.is_offline = false;
               delete this.downloaded_youtube_ids[track.youtube_id];
 
-              corrections.push(radioRepository.updateLocalTrack(track.local_id, {
-                is_offline: false,
-                audio_blob: null
-              }));
+              corrections.push(
+                radioRepository.updateLocalTrack(track.local_id, {
+                  is_offline: false,
+                  audio_blob: null,
+                })
+              );
             }
           }
         });
 
         if (corrections.length > 0) {
-          Promise.all(corrections).catch(err =>
+          Promise.all(corrections).catch((err) =>
             console.error("[RadioStore] Falha ao persistir correções:", err)
           );
         }
@@ -205,7 +217,7 @@ export const useRadioStore = defineStore("radio", {
       if (!tracks || tracks.length === 0) return;
 
       console.log(`[RadioStore] Download Playlist: ${playlist.name}`);
-      const tracksToDownload = tracks.filter(t => !this.isTrackOffline(t));
+      const tracksToDownload = tracks.filter((t) => !this.isTrackOffline(t));
 
       for (const track of tracksToDownload) {
         await this.downloadTrack(track);
@@ -215,8 +227,8 @@ export const useRadioStore = defineStore("radio", {
     async downloadTrack(track) {
       if (this.active_downloads[track.local_id]) return;
 
-      if (this.downloaded_youtube_ids[track.youtube_id]) {
-        console.log(`[RadioStore] Track já em cache: ${track.title}`);
+      const has_audio = this.downloaded_youtube_ids[track.youtube_id];
+      if (has_audio) {
         track.is_offline = true;
         return;
       }
@@ -224,31 +236,25 @@ export const useRadioStore = defineStore("radio", {
       this.active_downloads[track.local_id] = true;
 
       try {
-        const isCached = await radioRepository.hasGlobalAudio(track.youtube_id);
-        let blobData = null;
+        const is_audio_cached = await radioRepository.hasGlobalAudio(track.youtube_id);
+        let audio_blob = null;
 
-        if (isCached) {
-          console.log(`[RadioStore] Hit Cache Global: ${track.title}`);
-        } else {
-          console.log(`[RadioStore] Baixando API: ${track.title}`);
-
-          // Cache Busting para evitar arquivos corrompidos
+        if (!is_audio_cached) {
+          console.log(`[RadioStore] Baixando Áudio: ${track.title}`);
           const endpoint = `${apiServices.MEDIA_ENGINE}/stream/${track.youtube_id}?nocache=${Date.now()}`;
-
           const response = await api.get(endpoint, {
             responseType: 'blob',
             timeout: 120000,
-            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+            headers: { 'Cache-Control': 'no-cache' }
           });
-
-          blobData = response.data;
+          audio_blob = response.data;
         }
 
-        await radioRepository.saveTrackAudio(track.local_id, track.youtube_id, blobData);
+        if (audio_blob) {
+          await radioRepository.saveTrackAudio(track.local_id, track.youtube_id, audio_blob);
+        }
 
-        this.offline_synced_ids[track.local_id] = true;
         this.downloaded_youtube_ids[track.youtube_id] = true;
-        track.is_offline = true;
 
         this._updateLocalState(track.local_id, { is_offline: true });
 
@@ -259,7 +265,6 @@ export const useRadioStore = defineStore("radio", {
         delete this.active_downloads[track.local_id];
       }
     },
-
 
     /* ==========================================================================
        SECTION 4: CRUD OPERATIONS & PUSH SYNC
@@ -341,6 +346,7 @@ export const useRadioStore = defineStore("radio", {
 
     async addTrackToPlaylist(playlist, trackObj) {
       const timestamp = new Date().toISOString();
+
       const trackData = {
         title: trackObj.title,
         youtube_id: trackObj.youtube_id,
@@ -353,8 +359,8 @@ export const useRadioStore = defineStore("radio", {
 
       try {
         const trackId = await radioRepository.addLocalTrack(trackData);
-        const pl = this.playlists.find((p) => p.local_id === playlist.local_id);
 
+        const pl = this.playlists.find((p) => p.local_id === playlist.local_id);
         if (pl) pl.track_count = (pl.track_count || 0) + 1;
 
         await syncQueueRepository.addSyncQueueTask({

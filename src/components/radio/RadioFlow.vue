@@ -527,7 +527,6 @@ export default {
         await this.execute_add_track();
       }
     },
-
     async execute_add_track() {
       if (!this.target_playlist_for_add || !this.track_being_added) return;
 
@@ -857,7 +856,7 @@ export default {
   align-items: center;
   padding: var(--space-3);
   position: absolute;
-  bottom: 142px;
+  bottom: 156px;
   width: 100%;
   z-index: 100;
   border-radius: var(--radius-md);
@@ -888,10 +887,24 @@ export default {
 /* --- Container Queries Logic --- */
 
 @container (max-width: 1100px) {
+  .radio-flow-wrapper {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+
+    & iframe {
+      position: absolute;
+      top: -999vh;
+      left: -999vw;
+    }
+  }
+
   .layout-grid {
     display: block; /* Remove o grid, v-show cuida do resto */
     position: relative;
-    height: calc(100% - 52px);
+    flex-grow: 1;
+    min-height: 0;
     overflow: hidden;
   }
 
@@ -899,8 +912,8 @@ export default {
   .grid-area-main,
   .grid-area-queue {
     width: 100%;
-    height: calc(100% - 150px); /* Espaço para player + nav */
-    max-height: calc(100% - 150px);
+    height: 100% !important;
+    max-height: 100% !important;
   }
 
   /* Queue Sidebar adaptação */

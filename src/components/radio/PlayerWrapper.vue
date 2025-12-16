@@ -287,7 +287,7 @@ export default {
 
 .player-wrapper {
   height: 80px;
-  transform: translateY(-96px);
+  transform: translateY(-95px);
   background: #ffffff;
   border-radius: var(--radius-md);
   display: grid;
@@ -467,12 +467,17 @@ export default {
 
 /* Responsividade do Player */
 @container (max-width: 1100px) {
+  .player-wrapper-container {
+    flex-shrink: 0;
+  }
+
   .player-wrapper {
     display: flex;
     flex-direction: column;
     height: auto;
     padding: var(--space-3);
     gap: var(--space-2);
+    transform: initial;
   }
 
   /* Esconde volume e botão de lista no mobile para simplificar */
@@ -501,6 +506,10 @@ export default {
     bottom: initial;
     right: var(--space-5);
     margin-left: 0;
+  }
+
+  .music-info {
+    max-width: 83%;
   }
 }
 </style>

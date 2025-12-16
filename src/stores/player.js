@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { markRaw } from "vue";
 import { radioRepository } from "../services/localData";
 import { api } from "../plugins/api";
+import { useRadioStore } from "./radio.js";
 
 function debounce(func, wait) {
   let timeout;
@@ -28,7 +29,7 @@ export const usePlayerStore = defineStore("player", {
     is_initialized: false,
     yt_player_instance: null,
     native_audio_instance: markRaw(new Audio()),
-    current_audio_url: null,
+    current_audio_url: null
   }),
 
   actions: {
@@ -53,7 +54,7 @@ export const usePlayerStore = defineStore("player", {
 
       if (this.queue.length > 0) {
         const first_track = this.queue.shift();
-        await this.play_track(first_track);
+        await this.play_track(first_track, playlist);
       }
       this.syncState();
     },
@@ -79,18 +80,13 @@ export const usePlayerStore = defineStore("player", {
       this.is_loading = true;
 
       await this._handle_media_source(track, true);
-
       this._update_media_session(track);
       this._update_media_session_position();
-
       this.syncState();
     },
 
     async _handle_media_source(track, should_play = true) {
-      if (
-        !this.native_audio_instance ||
-        typeof this.native_audio_instance.pause !== "function"
-      ) {
+      if (!this.native_audio_instance || typeof this.native_audio_instance.pause !== "function") {
         this.native_audio_instance = markRaw(new Audio());
       }
 
@@ -98,14 +94,12 @@ export const usePlayerStore = defineStore("player", {
         this.native_audio_instance.pause();
         this.native_audio_instance.src = "";
         this.native_audio_instance.ontimeupdate = null;
+        this.native_audio_instance.onended = null; // Limpa listener anterior
       } catch (e) {
         console.error("[PlayerStore] Erro ao limpar instância de áudio:", e);
       }
 
-      if (
-        this.yt_player_instance &&
-        typeof this.yt_player_instance.pauseVideo === "function"
-      ) {
+      if (this.yt_player_instance && typeof this.yt_player_instance.pauseVideo === "function") {
         this.yt_player_instance.pauseVideo();
       }
 
@@ -119,10 +113,7 @@ export const usePlayerStore = defineStore("player", {
             finalAudioBlob = storedBlob;
           }
         } catch (err) {
-          console.error(
-            "[PlayerStore] Erro ao recuperar áudio do armazenamento local:",
-            err
-          );
+          console.error("[PlayerStore] Erro ao recuperar áudio do armazenamento local:", err);
         }
       }
 
@@ -139,14 +130,16 @@ export const usePlayerStore = defineStore("player", {
 
           // Sincronia fina para o Media Session
           this.native_audio_instance.ontimeupdate = () => {
-            // Atualiza a cada ~5s para performance, ou use debounce
             if (Math.floor(this.native_audio_instance.currentTime) % 5 === 0) {
               this._update_media_session_position();
             }
           };
 
+          this.native_audio_instance.onended = () => {
+            this.next();
+          };
+
           if (should_play) {
-            // Promise handling para evitar erros de "play() request was interrupted"
             const playPromise = this.native_audio_instance.play();
             if (playPromise !== undefined) {
               await playPromise.catch((e) => {
@@ -161,7 +154,7 @@ export const usePlayerStore = defineStore("player", {
           this.is_loading = false;
         } catch (e) {
           console.error("[PlayerStore] Erro fatal no play nativo:", e);
-          // Fallback de emergência apenas se tiver internet
+          // Fallback para YouTube se tiver internet
           if (navigator.onLine) {
             console.warn("[PlayerStore] Fallback para YouTube devido a erro no blob.");
             this.player_mode = "youtube";
@@ -169,10 +162,8 @@ export const usePlayerStore = defineStore("player", {
           }
         }
 
-        this.native_audio_instance.onended = () => this.next();
       } else {
         // --- MODO YOUTUBE (ONLINE) ---
-        // Se não temos blob e não temos internet, paramos aqui.
         if (!navigator.onLine) {
           console.warn("[PlayerStore] Sem blob e sem internet. Reprodução impossível.");
           this.is_loading = false;
@@ -215,6 +206,9 @@ export const usePlayerStore = defineStore("player", {
     },
 
     toggle_play() {
+      // Se não há música carregada, não faz nada
+      if (!this.current_music) return;
+
       this.is_playing = !this.is_playing;
 
       if ("mediaSession" in navigator) {
@@ -225,7 +219,7 @@ export const usePlayerStore = defineStore("player", {
         if (this.native_audio_instance && this.native_audio_instance.src) {
           this.native_audio_instance.volume = this.volume;
           this.is_playing
-            ? this.native_audio_instance.play()
+            ? this.native_audio_instance.play().catch(e => console.warn("Play interrompido", e))
             : this.native_audio_instance.pause();
         }
       } else if (this.player_mode === "youtube") {
@@ -241,26 +235,33 @@ export const usePlayerStore = defineStore("player", {
 
       this._update_media_session_position();
     },
+
     set_loading_state(state) {
       this.is_loading = state;
     },
+
     next() {
       if (this.queue.length === 0) {
         this.is_playing = false;
         return;
       }
       if (this.current_music) this.played_history.push(this.current_music);
+
       const next_track = this.queue.shift();
-      this.play_track(next_track);
+      this.play_track(next_track, this.current_playlist);
       this.syncState();
     },
+
     prev() {
       if (this.played_history.length === 0) return;
+
       if (this.current_music) this.queue.unshift(this.current_music);
+
       const prev_track = this.played_history.pop();
-      this.play_track(prev_track);
+      this.play_track(prev_track, this.current_playlist);
       this.syncState();
     },
+
     track_exist_in_queue(id) {
       return this.queue.find((t) => t.youtube_id === id);
     },
@@ -294,8 +295,10 @@ export const usePlayerStore = defineStore("player", {
       let clean_val = Math.min(Math.max(val, 0), 1);
       this.volume = clean_val;
       if (this.native_audio_instance) this.native_audio_instance.volume = clean_val;
-      if (this.yt_player_instance?.setVolume)
+      if (this.yt_player_instance?.setVolume) {
         this.yt_player_instance.setVolume(clean_val * 100);
+      }
+
       this.syncState();
     },
 
@@ -369,9 +372,9 @@ export const usePlayerStore = defineStore("player", {
 
             if (track) {
               this.current_music = track;
-              // Ajuste importante: verifica se é offline
-              this.player_mode =
-                track.is_offline || track.audio_blob ? "native" : "youtube";
+
+              const hasBlob = await radioRepository.hasGlobalAudio(track.youtube_id);
+              this.player_mode = hasBlob ? "native" : "youtube";
               this.is_playing = false;
             }
           }
@@ -421,7 +424,6 @@ export const usePlayerStore = defineStore("player", {
         }
       }
 
-      // Sanitização: Remove blobs da queue antes de enviar
       const sanitizedQueue = this.queue.map((t) => {
         const { audio_blob, ...rest } = t;
         return rest;
@@ -575,13 +577,18 @@ export const usePlayerStore = defineStore("player", {
     ],
     serializer: {
       serialize: (state) =>
-        JSON.stringify(state, (key, value) => (key === "audio_blob" ? undefined : value)),
+        JSON.stringify(state, (key, value) => {
+          if (key === "audio_blob") return undefined;
+          return value;
+        }),
       deserialize: (value) => JSON.parse(value),
     },
     afterRestore: (ctx) => {
       ctx.store.yt_player_instance = null;
       ctx.store.is_playing = false;
       ctx.store.is_loading = false;
+      ctx.store.current_audio_url = null;
+
       if (ctx.store.volume > 1) ctx.store.volume = ctx.store.volume / 100;
 
       if (

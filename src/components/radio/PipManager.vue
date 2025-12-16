@@ -4,9 +4,12 @@
     <video
       ref="pip_video"
       playsinline
+      autoplay
+      muted
       @play="on_native_play"
       @pause="on_native_pause"
       @volumechange="on_native_volume_change"
+      @leavepictureinpicture="on_leave_pip"
     ></video>
   </div>
 </template>
@@ -37,7 +40,7 @@ export default {
       background_src: background_image_src,
 
       is_stream_initialized: false,
-      is_pip_ready: false,
+      is_pip_ready: false, // Controla se o PiP já abriu
       is_internal_update: false,
       is_initializing: false,
 
@@ -49,22 +52,36 @@ export default {
   async mounted() {
     this.album_art_img.crossOrigin = "anonymous";
     this.background_img.crossOrigin = "anonymous";
-    this.ctx = this.$refs.pip_canvas.getContext("2d");
+
+    this.ctx = this.$refs.pip_canvas.getContext("2d", { alpha: false });
     await this.load_assets();
   },
   watch: {
     "current_music.thumbnail": {
       handler(new_cover_url) {
         if (new_cover_url) {
-          this.album_art_img.src = new_cover_url;
-          this.album_art_img.onload = () => this.draw_canvas_content();
+          // Truque para "quebrar" cache de imagens sem CORS do navegador
+          const separator = new_cover_url.includes("?") ? "&" : "?";
+          const safeUrl = `${new_cover_url}${separator}pip_request=true`;
+
+          this.album_art_img.src = safeUrl;
+
+          this.album_art_img.onload = () => {
+            this.draw_canvas_content();
+          };
+
+          this.album_art_img.onerror = (e) => {
+            console.warn("Falha ao carregar capa no PiP com CORS:", e);
+            // Evita loop ou imagem quebrada
+            this.album_art_img.removeAttribute("src");
+            this.draw_canvas_content();
+          };
         } else {
           this.draw_canvas_content();
         }
       },
       immediate: true,
     },
-
     is_playing: {
       handler(should_play) {
         const video_el = this.$refs.pip_video;
@@ -72,7 +89,6 @@ export default {
 
         if (should_play && !video_el.paused) return;
 
-        // Se a ordem for pausar e o vídeo já estiver pausado, força atualização visual
         if (!should_play && video_el.paused) {
           if (document.pictureInPictureElement) {
             this.draw_canvas_content();
@@ -93,9 +109,7 @@ export default {
               }, 50);
             });
         } else {
-          // Renderiza o pause visualmente antes de parar o vídeo
           this.draw_canvas_content();
-
           setTimeout(() => {
             if (video_el && !video_el.paused) {
               video_el.pause();
@@ -106,18 +120,16 @@ export default {
       },
       immediate: true,
     },
-
     current_time() {
       if (document.pictureInPictureElement && !this.$refs.pip_video.paused) {
         this.draw_canvas_content();
       }
     },
-
     volume: {
       handler(new_val) {
         const video_el = this.$refs.pip_video;
         if (!video_el) return;
-
+        // Só atualiza o elemento de vídeo se a mudança for significativa
         if (Math.abs(video_el.volume - new_val) > 0.01) {
           this.is_internal_update = true;
           video_el.volume = Math.min(Math.max(new_val, 0), 1);
@@ -165,11 +177,32 @@ export default {
       this.$emit("toggle-play", false);
     },
 
+    // --- CORREÇÃO DO BUG DE VOLUME ZERO ---
     on_native_volume_change() {
+      // 1. Bloqueio de Segurança:
+      // Se o PiP não estiver ativo E não estivermos no meio da inicialização explícita,
+      // ignoramos o evento. Isso evita que o 'muted' do template zere o volume da store.
+      if (
+        !this.is_pip_ready &&
+        !document.pictureInPictureElement &&
+        !this.is_initializing
+      ) {
+        return;
+      }
+
       if (this.is_internal_update || this.is_initializing) return;
+
       const video_el = this.$refs.pip_video;
+      // Se estiver mutado, considera 0, senão pega o volume real
       const vol = video_el.muted ? 0 : video_el.volume;
       this.$emit("set-volume", vol);
+    },
+
+    on_leave_pip() {
+      this.is_pip_ready = false;
+      // Garante que o vídeo oculto pare de consumir recursos
+      const video_el = this.$refs.pip_video;
+      if (video_el) video_el.pause();
     },
 
     async load_assets() {
@@ -192,55 +225,34 @@ export default {
       }
     },
 
-    // --- Ícones Vetoriais Atualizados ---
-
+    // ... (draw_play_icon, draw_pause_icon, draw_image_cover mantidos iguais) ...
     draw_play_icon(ctx, x, y, size) {
-      // Ajuste de Geometria para Suavização e Centralização Óptica
       const w = size;
       const h = size * 0.9;
-      const r = 3; // Raio de arredondamento das bordas
-
-      // Offset Óptico: Empurra o triângulo para a direita para compensar o peso da base
-      // Se w=16, offset ~2.5px
+      const r = 3;
       const x_offset = w * 0.15;
       const cx = x + x_offset;
-
       ctx.fillStyle = "#FFFFFF";
       ctx.beginPath();
-
-      // Definindo os 3 vértices
-      const p1 = { x: cx + w / 2, y: y }; // Ponta (Direita)
-      const p2 = { x: cx - w / 2, y: y + h / 2 }; // Base Inferior
-      const p3 = { x: cx - w / 2, y: y - h / 2 }; // Base Superior
-
-      // Começa no meio da base esquerda
+      const p1 = { x: cx + w / 2, y: y };
+      const p2 = { x: cx - w / 2, y: y + h / 2 };
+      const p3 = { x: cx - w / 2, y: y - h / 2 };
       ctx.moveTo(p3.x, (p3.y + p2.y) / 2);
-
-      // Desenha usando arcTo para arredondar as quinas
-      // 1. Linha até o topo esquerdo -> curva em direção à ponta
       ctx.arcTo(p3.x, p3.y, p1.x, p1.y, r);
-
-      // 2. Linha até a ponta -> curva em direção a baixo
       ctx.arcTo(p1.x, p1.y, p2.x, p2.y, r);
-
-      // 3. Linha até baixo esquerdo -> curva para fechar na base
       ctx.arcTo(p2.x, p2.y, p3.x, p3.y, r);
-
       ctx.closePath();
       ctx.fill();
     },
 
     draw_pause_icon(ctx, x, y, size) {
-      const bar_width = size * 0.28; // Levemente mais larga para visual moderno
+      const bar_width = size * 0.28;
       const bar_height = size;
       const gap = size * 0.25;
       const start_x = x - (bar_width * 2 + gap) / 2;
-
       ctx.fillStyle = "#FFFFFF";
-
       this.draw_round_rect(ctx, start_x, y - bar_height / 2, bar_width, bar_height, 2);
       ctx.fill();
-
       this.draw_round_rect(
         ctx,
         start_x + bar_width + gap,
@@ -254,19 +266,15 @@ export default {
 
     draw_image_cover(ctx, img, x, y, w, h, radius = 0) {
       if (!img.complete || img.naturalHeight === 0) return;
-
       const ratio = img.naturalWidth / img.naturalHeight;
       let draw_w = w;
       let draw_h = draw_w / ratio;
-
       if (draw_h < h) {
         draw_h = h;
         draw_w = draw_h * ratio;
       }
-
       const offset_x = x + (w - draw_w) / 2;
       const offset_y = y + (h - draw_h) / 2;
-
       ctx.save();
       if (radius > 0) {
         this.draw_round_rect(ctx, x, y, w, h, radius);
@@ -276,8 +284,11 @@ export default {
         ctx.rect(x, y, w, h);
         ctx.clip();
       }
-
-      ctx.drawImage(img, offset_x, offset_y, draw_w, draw_h);
+      try {
+        ctx.drawImage(img, offset_x, offset_y, draw_w, draw_h);
+      } catch (e) {
+        console.warn(e);
+      }
       ctx.restore();
     },
 
@@ -313,17 +324,30 @@ export default {
       const cover_y = PADDING;
 
       // 3. Capa
-      this.draw_image_cover(
-        this.ctx,
-        this.album_art_img,
-        cover_x,
-        cover_y,
-        target_w,
-        target_h,
-        8
-      );
+      if (this.album_art_img.complete && this.album_art_img.naturalWidth > 0) {
+        this.draw_image_cover(
+          this.ctx,
+          this.album_art_img,
+          cover_x,
+          cover_y,
+          target_w,
+          target_h,
+          8
+        );
+      } else {
+        // Placeholder
+        this.ctx.save();
+        this.draw_round_rect(this.ctx, cover_x, cover_y, target_w, target_h, 8);
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+        this.ctx.fill();
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+        this.ctx.font = "40px Arial";
+        this.ctx.textAlign = "center";
+        this.ctx.fillText("🎵", cover_x + target_w / 2, cover_y + target_h / 2 + 15);
+        this.ctx.restore();
+      }
 
-      // --- Botão Play/Pause (Centralizado na Capa) ---
+      // --- Botão Play/Pause ---
       const cover_center_x = cover_x + target_w / 2;
       const cover_center_y = cover_y + target_h / 2;
       const btn_radius = 20;
@@ -336,11 +360,9 @@ export default {
       this.ctx.fill();
       this.ctx.restore();
 
-      // Ícone (Branco)
       if (this.is_playing) {
         this.draw_pause_icon(this.ctx, cover_center_x, cover_center_y, 16);
       } else {
-        // draw_play_icon agora cuida da centralização visual internamente
         this.draw_play_icon(this.ctx, cover_center_x, cover_center_y, 18);
       }
 
@@ -365,13 +387,13 @@ export default {
 
       this.ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
       this.ctx.font = "13px Roboto, sans-serif";
-      const playlistName = this.current_playlist.name || "";
+      const playlistName = this.current_playlist?.name || "Kadem Radio";
       this.fill_text_with_ellipsis(playlistName, PADDING, text_y, max_w);
 
       this.ctx.fillStyle = "#FFFFFF";
       this.ctx.font = "bold 16px Roboto, sans-serif";
       this.fill_text_with_ellipsis(
-        this.current_music.title || "Unknown",
+        this.current_music?.title || "Sem Título",
         PADDING,
         text_y + 19,
         max_w
@@ -379,20 +401,34 @@ export default {
 
       this.ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
       this.ctx.font = "13px Roboto, sans-serif";
-      const artist = this.current_music.artist || this.current_music.channel || "";
+      const artist = this.current_music?.artist || this.current_music?.channel || "";
       this.fill_text_with_ellipsis(artist, PADDING, text_y + 36, max_w);
 
       const time_y = 148;
+      const gap = 7;
+
       this.ctx.font = "11px Roboto, sans-serif";
       this.ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
 
-      this.ctx.textAlign = "left";
-      this.ctx.fillText(this.format_time(this.current_time), PADDING + 263, time_y);
-
-      this.ctx.fillText("/", PADDING + 290, time_y);
+      const current_text = this.format_time(this.current_time);
+      const total_text = this.format_time(this.duration);
+      const separator = "/";
 
       this.ctx.textAlign = "right";
-      this.ctx.fillText(this.format_time(this.duration), W - PADDING, time_y);
+
+      let cursor_x = W - PADDING;
+
+      this.ctx.fillText(total_text, cursor_x, time_y);
+
+      const total_width = this.ctx.measureText(total_text).width;
+      cursor_x -= total_width + gap;
+
+      this.ctx.fillText(separator, cursor_x, time_y);
+
+      const sep_width = this.ctx.measureText(separator).width;
+      cursor_x -= sep_width + gap;
+
+      this.ctx.fillText(current_text, cursor_x, time_y);
     },
 
     initialize_stream() {
@@ -465,7 +501,7 @@ export default {
             await video_el.play();
           }
           await video_el.requestPictureInPicture();
-          this.is_initializing = false;
+          // is_initializing será setado false no onloadedmetadata
           return true;
         }
       } catch (error) {
@@ -497,10 +533,11 @@ export default {
     },
 
     fill_text_with_ellipsis(text, x, y, max_width) {
+      if (!text) return;
       let truncated = text;
       if (this.ctx.measureText(text).width > max_width) {
         while (
-          this.ctx.measureText(truncated + "...").width > max_width &&
+          this.ctx.measureText(truncated + " ...").width > max_width &&
           truncated.length > 0
         ) {
           truncated = truncated.slice(0, -1);
@@ -516,6 +553,7 @@ export default {
       stream.getTracks().forEach((track) => track.stop());
       this.$refs.pip_video.srcObject = null;
     }
+
     if (this.oscillator) {
       try {
         this.oscillator.stop();

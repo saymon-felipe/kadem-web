@@ -65,10 +65,6 @@
                   <strong :title="track.title">{{ track.title }}</strong>
                 </div>
                 <small class="mobile-only-artist">{{ track.channel }}</small>
-
-                <small v-if="is_track_unavailable(track)" class="offline-warning">
-                  Indisponível offline
-                </small>
               </div>
 
               <div class="status-icons">

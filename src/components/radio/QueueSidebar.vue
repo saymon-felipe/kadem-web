@@ -368,10 +368,7 @@ export default {
 
 :deep(.queue-ghost) {
   opacity: 0.4;
-  background: var(
-    --dark-yellow-2,
-    #rgba(255, 200, 0, 0.1)
-  );
+  background: var(--dark-yellow-2, #rgba(255, 200, 0, 0.1));
   border: 1px dashed var(--yellow, #ffc107);
   border-radius: var(--radius-sm);
 
