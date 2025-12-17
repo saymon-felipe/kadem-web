@@ -100,7 +100,6 @@
 import { mapState, mapActions } from "pinia";
 import { usePlayerStore } from "@/stores/player";
 import PipManager from "./PipManager.vue";
-import MediaSessionManager from "@/services/MediaSessionManager";
 
 export default {
   components: {
@@ -159,14 +158,12 @@ export default {
       "get_current_time",
       "get_duration",
     ]),
-
     format_seconds_to_time(seconds) {
       if (isNaN(seconds)) return "00:00";
       const m = Math.floor(seconds / 60);
       const s = Math.floor(seconds % 60);
       return `${m}:${s.toString().padStart(2, "0")}`;
     },
-
     start_ticker() {
       this.timer_interval = setInterval(() => {
         if (!this.is_dragging && this.is_playing) {
@@ -182,21 +179,18 @@ export default {
     },
     on_seek_change() {
       this.seek_to(this.ui_current_time);
-      this.is_dragging = false;
+      setTimeout(() => {
+        this.is_dragging = false;
+      }, 50);
     },
-
-    // Atualização vinda da UI Local (Slider)
     update_volume() {
       this.ui_volume = parseFloat(this.ui_volume);
       this.set_volume(this.ui_volume);
     },
-
-    // Atualização vinda do PiP ou Atalhos
     update_volume_from_external(vol) {
       this.ui_volume = parseFloat(vol);
       this.set_volume(this.ui_volume);
     },
-
     toggle_mute() {
       if (this.ui_volume > 0) {
         this.last_volume = this.ui_volume;
@@ -206,8 +200,6 @@ export default {
       }
       this.update_volume();
     },
-
-    // Handler específico para o PiP para garantir sincronia explícita
     handle_pip_play_toggle(should_play) {
       if (should_play !== this.is_playing) {
         this.toggle_play();
@@ -222,25 +214,6 @@ export default {
     on_pip_closed() {
       this.pip_is_active = false;
     },
-
-    setup_media_session() {
-      MediaSessionManager.set_action_handlers({
-        onPlay: () => {
-          if (!this.is_playing) this.toggle_play();
-        },
-        onPause: () => {
-          if (this.is_playing) this.toggle_play();
-        },
-        onNext: () => this.next(),
-        onPrev: () => this.prev(),
-        onSeek: (details) => {
-          if (details.seekTime && this.duration) {
-            this.seek_to(details.seekTime);
-            this.ui_current_time = details.seekTime;
-          }
-        },
-      });
-    },
   },
   watch: {
     current_music: {
@@ -248,7 +221,6 @@ export default {
         if (new_val) {
           this.ui_current_time = 0;
           this.duration = new_val.duration_seconds || 0;
-          MediaSessionManager.set_metadata(new_val);
         } else {
           this.ui_current_time = 0;
           this.duration = 0;
@@ -258,7 +230,20 @@ export default {
     },
     is_playing: {
       handler(is_playing) {
-        MediaSessionManager.set_playback_state(is_playing);
+        if (is_playing) {
+          this.is_dragging = false;
+
+          this.$nextTick(() => {
+            try {
+              const currentTime = this.get_current_time();
+              if (!isNaN(currentTime)) {
+                this.ui_current_time = currentTime;
+              }
+            } catch (e) {
+              console.warn("Erro ao sincronizar tempo UI no play:", e);
+            }
+          });
+        }
       },
       immediate: true,
     },
@@ -272,7 +257,6 @@ export default {
   mounted() {
     this.start_ticker();
     this.ui_volume = this.volume;
-    this.setup_media_session();
   },
   beforeUnmount() {
     if (this.timer_interval) clearInterval(this.timer_interval);

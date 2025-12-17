@@ -103,6 +103,22 @@ export const radioRepository = {
     return record ? record.audio_blob : null;
   },
 
+  async getTrackBlob(trackLocalId) {
+    const track = await db.tracks.get(trackLocalId);
+
+    if (!track) return null;
+
+    if (track.audio_blob) {
+      return track.audio_blob;
+    }
+
+    if (track.youtube_id) {
+      return await this.getGlobalAudioBlob(track.youtube_id);
+    }
+
+    return null;
+  },
+
   /**
    * Verifica se uma música já possui o áudio baixado (Local ou Global)
    */
