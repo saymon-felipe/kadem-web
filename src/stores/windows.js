@@ -127,13 +127,22 @@ export const useWindowStore = defineStore('windows', {
       const savedPos = prefs.pos || { x: 100, y: 100 };
       const savedMaximized = !!prefs.isMaximized;
 
+      let initialSize = savedSize;
+
+      if (savedMaximized && !start_minimized) {
+        initialSize = {
+          width: window.innerWidth,
+          height: window.innerHeight - HEADER_OFFSET
+        };
+      }
+
       const newWindow = {
         id,
         title,
         componentId,
         zIndex: this._zIndexCounter++,
         position: savedPos,
-        size: savedSize,
+        size: initialSize,
         isOpen: true,
         isMinimized: start_minimized,
         isMaximized: savedMaximized,
