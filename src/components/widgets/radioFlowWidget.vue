@@ -136,7 +136,6 @@ export default {
     ...mapActions(useWindowStore, ["openWindow"]),
 
     handle_play_interaction() {
-      console.log("is_loading: ", this.is_loading);
       if (this.is_loading) return;
 
       if (!this.is_playing) {

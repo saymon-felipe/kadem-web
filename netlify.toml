@@ -1,4 +1,30 @@
 [[redirects]]
-  from = "/check_connection/*" # A URL que seu Vue chama
-  to = "https://httpbin.org/:splat" # A API de destino
-  status = 200 # Responde como um proxy (não um redirecionamento 301)
+  from = "/check_connection/*"
+  to = "https://httpbin.org/:splat"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Definição Robusta de CSP para Aplicação Vue.js + Media Blob
+    # script-src: permite 'unsafe-eval' (necessário para Vue Devtools/Vite) e 'unsafe-inline'
+    # img-src/media-src: permite blob: e data: (CRUCIAL para o Player do Kadem e Thumbnails)
+    # connect-src: permite conexões com sua API e WebSockets (wss:) para o Vite HMR
+    Content-Security-Policy = """
+      default-src 'self';
+      script-src 'self' 'unsafe-eval' 'unsafe-inline';
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' data: https://fonts.gstatic.com;
+      img-src 'self' data: blob: https:;
+      media-src 'self' data: blob: https:;
+      connect-src 'self' https: wss:;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+      frame-ancestors 'none';
+    """
+    
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
