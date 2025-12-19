@@ -213,7 +213,17 @@ export const usePlayerStore = defineStore("player", {
     },
 
     async play_track(track, playlist = null) {
-      // Gestão de Contexto: Preserva Shuffle se estiver na mesma playlist
+      const isSameTrack = this.current_music && (
+        (track.youtube_id && track.youtube_id === this.current_music.youtube_id) ||
+        (track.id && track.id === this.current_music.id) ||
+        (track.local_id && track.local_id === this.current_music.local_id)
+      );
+
+      if (isSameTrack) {
+        this.toggle_play();
+        return;
+      }
+
       if (playlist) {
         const current_pl_id = this.current_playlist?.local_id;
         const new_pl_id = playlist.local_id;
@@ -227,41 +237,66 @@ export const usePlayerStore = defineStore("player", {
         }
       }
 
-      // Remove a música atual da fila (para não repetir logo em seguida)
       this.queue = this.queue.filter((t) => t.youtube_id !== track.youtube_id);
 
-      // Limpeza de recursos
       if (this.current_audio_url) {
         URL.revokeObjectURL(this.current_audio_url);
         this.current_audio_url = null;
       }
-
       this._reset_native_player();
 
-      const { audio_blob, ...cleanTrack } = track;
+      let targetTrack = track;
+      try {
+        let freshTrack = null;
+
+        if (track.local_id) {
+          freshTrack = await radioRepository.getLocalTrack(track.local_id);
+        }
+
+        if (!freshTrack && track.id) {
+          freshTrack = await radioRepository.getLocalTrackByServerId(track.id);
+        }
+
+        if (freshTrack) {
+          targetTrack = freshTrack;
+        }
+      } catch (err) {
+        console.warn("[PlayerStore] Aviso: Falha ao hidratar metadados da track:", err);
+      }
+
+      const { audio_blob, ...cleanTrack } = targetTrack;
       this.current_music = cleanTrack;
+
       this.is_loading = true;
       this.is_playing = false;
 
-      // Setup inicial da Sessão
-      this._refresh_media_session(track, false);
+      this._refresh_media_session(targetTrack, false);
 
-      // Decisão de Fonte: Offline (Blob) vs Online (YouTube)
-      let finalAudioBlob = track.audio_blob;
+      let finalAudioBlob = targetTrack.audio_blob;
+
       if (!finalAudioBlob) {
         try {
-          finalAudioBlob = await radioRepository.getTrackBlob(track.local_id);
+          if (targetTrack.local_id) {
+            finalAudioBlob = await radioRepository.getTrackBlob(targetTrack.local_id);
+          }
+
+          if (!finalAudioBlob && targetTrack.youtube_id) {
+            finalAudioBlob = await radioRepository.getGlobalAudioBlob(targetTrack.youtube_id);
+          }
         } catch (e) {
           console.warn("[PlayerStore] Blob não encontrado:", e);
         }
       }
 
       if (finalAudioBlob) {
-        console.log("[Player] Modo: Offline (Nativo)");
+        console.log("[Player] Modo: Offline (Nativo) - Recurso validado.");
         this.player_mode = "native";
+
         if (this.yt_player_instance?.pauseVideo) this.yt_player_instance.pauseVideo();
-        await this._handle_native_playback(track, finalAudioBlob, true);
-      } else if (track.youtube_id) {
+
+        await this._handle_native_playback(targetTrack, finalAudioBlob, true);
+
+      } else if (targetTrack.youtube_id) {
         if (!navigator.onLine) {
           console.warn("Sem internet e sem arquivo local. Pulando...");
           this.is_loading = false;
@@ -272,18 +307,18 @@ export const usePlayerStore = defineStore("player", {
         this.player_mode = "youtube";
 
         await this._activate_silent_anchor();
-        await this._playYoutube(track, true);
+        await this._playYoutube(targetTrack, true);
+
       } else {
         this.next();
         return;
       }
 
-      // Atualização final da sessão
-      this._refresh_media_session(track, true);
+      this._refresh_media_session(targetTrack, true);
       this.syncState();
     },
 
-    toggle_play() {
+    async toggle_play() {
       if (!this.current_music) return;
 
       this.$patch((state) => {
@@ -292,14 +327,36 @@ export const usePlayerStore = defineStore("player", {
 
       const should_play = this.is_playing;
 
-      // Reconstrói a sessão para garantir sincronia visual
+      if (should_play && this.player_mode === "youtube") {
+        try {
+          const blob = await radioRepository.getTrackBlob(this.current_music.local_id);
+
+          if (blob) {
+            console.debug("[PlayerStore] Upgrade para modo Offline detectado no toggle_play.");
+
+            if (this.yt_player_instance?.pauseVideo) {
+              this.yt_player_instance.pauseVideo();
+            }
+
+            this.player_mode = "native";
+            await this._handle_native_playback(this.current_music, blob, true);
+
+            this._refresh_media_session(this.current_music, true);
+            this.syncState();
+            return;
+          }
+        } catch (error) {
+          console.warn("[PlayerStore] Falha na verificação JIT de blob:", error);
+        }
+      }
+
       this._refresh_media_session(this.current_music, should_play);
       this._ensure_audio_instance();
 
       if (this.player_mode === "native") {
         if (this.native_audio_instance.src) {
           should_play
-            ? this.native_audio_instance.play().catch(() => { })
+            ? this.native_audio_instance.play().catch((e) => console.error("Erro playback nativo:", e))
             : this.native_audio_instance.pause();
         }
       } else if (this.player_mode === "youtube") {
@@ -370,8 +427,10 @@ export const usePlayerStore = defineStore("player", {
     set_volume(val) {
       this.volume = Math.min(Math.max(val, 0), 1);
       if (this.native_audio_instance) this.native_audio_instance.volume = this.volume;
-      if (this.yt_player_instance?.setVolume)
+      if (this.yt_player_instance?.setVolume) {
         this.yt_player_instance.setVolume(this.volume * 100);
+        this.syncState();
+      }
     },
 
     register_yt_instance(player) {
@@ -401,6 +460,11 @@ export const usePlayerStore = defineStore("player", {
 
     setActiveApp(appName) {
       this.active_app = appName;
+      this.syncState();
+    },
+
+    set_mobile_tab(t) {
+      this.mobile_tab = t;
     },
 
     /* ==========================================================================
