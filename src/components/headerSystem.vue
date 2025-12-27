@@ -2,6 +2,15 @@
   <div class="header-wrapper">
     <header class="glass">
       <button
+        class="plan-pill"
+        @click="open_plan_modal"
+        :class="{ 'is-pro': is_pro }"
+        title="Gerenciar Plano"
+      >
+        <span class="status-dot"></span>
+        {{ plan_label }}
+      </button>
+      <button
         class="header-button home"
         @click="openSystem"
         :class="{ opened: isStartMenuOpen }"
@@ -51,15 +60,18 @@
         @menu-click="handleMenuClick"
       />
     </Transition>
+    <SubscriptionModal v-model="show_plan_modal" @close="show_plan_modal = false" />
   </div>
 </template>
 
 <script>
 import { mapState, mapActions } from "pinia";
+import { useAuthStore } from "@/stores/auth";
 import { useWindowStore } from "@/stores/windows";
 import { useAppStore } from "@/stores/app";
 import ContextMenu from "./ContextMenu.vue";
 import StartMenu from "./startMenu/StartMenu.vue";
+import SubscriptionModal from "./SubscriptionModal.vue";
 
 const ANIMATION_DURATION = 150;
 
@@ -67,6 +79,7 @@ export default {
   components: {
     ContextMenu,
     StartMenu,
+    SubscriptionModal,
   },
   data() {
     return {
@@ -78,11 +91,21 @@ export default {
         target: null,
       },
       contextMenuTimer: null,
+      show_plan_modal: false,
     };
   },
   computed: {
     ...mapState(useWindowStore, ["currentUserWindows", "activeWindowId"]),
     ...mapState(useAppStore, ["isStartMenuOpen"]),
+    ...mapState(useAuthStore, ["user"]),
+    is_pro() {
+      if (!this.user) return false;
+      return this.user.plan_tier && this.user.plan_tier !== "core";
+    },
+
+    plan_label() {
+      return this.is_pro ? "Pro" : "Free";
+    },
   },
   methods: {
     ...mapActions(useAppStore, ["toggleStartMenu", "closeStartMenu"]),
@@ -93,6 +116,9 @@ export default {
       "minimizeWindow",
       "closeWindow",
     ]),
+    open_plan_modal() {
+      this.show_plan_modal = true;
+    },
     handleRightClick(event, id, title, componentId) {
       if (this.contextMenuTimer) {
         clearTimeout(this.contextMenuTimer);
@@ -191,6 +217,45 @@ export default {
 };
 </script>
 <style>
+.plan-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--deep-blue);
+  transition: all 0.2s ease;
+  height: 36px;
+  margin-right: 8px;
+}
+
+.plan-pill:hover {
+  background: rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
+}
+
+.plan-pill .status-dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--gray-600);
+  border-radius: 50%;
+}
+
+.plan-pill.is-pro {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 255, 255, 0.4));
+  border-color: rgba(212, 175, 55, 0.3);
+}
+
+.plan-pill.is-pro .status-dot {
+  background-color: #d4af37;
+  box-shadow: 0 0 5px rgba(212, 175, 55, 0.6);
+}
+
 .popup-anim-enter-active,
 .popup-anim-leave-active {
   transition: opacity 0.15s ease, max-height 0.15s ease;

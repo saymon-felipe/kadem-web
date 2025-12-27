@@ -149,33 +149,4 @@ export default {
   gap: var(--space-3);
   width: 100%;
 }
-
-.slide-over-root-enter-active,
-.slide-over-root-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.slide-over-root-enter-active .modal-content,
-.slide-over-root-leave-active .modal-content {
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275),
-    opacity 0.3s ease-out;
-}
-
-.slide-over-root-enter-active .modal-overlay,
-.slide-over-root-leave-active .modal-overlay {
-  transition: opacity 0.3s ease;
-}
-
-.slide-over-root-enter-from,
-.slide-over-root-leave-to {
-  opacity: 0;
-}
-
-.slide-over-root-enter-from .modal-content {
-  transform: translateY(20px);
-}
-
-.slide-over-root-leave-to .modal-content {
-  transform: translateY(20px);
-}
 </style>

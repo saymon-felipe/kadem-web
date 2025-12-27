@@ -1,3 +1,7 @@
+import moment from 'moment/min/moment-with-locales';
+
+moment.locale('pt-br');
+
 export default {
   data() {
     return {
@@ -46,6 +50,9 @@ export default {
 
       if (h > 0) return `${h}h ${m}m`;
       return `${m}:${Math.floor(seconds % 60).toString().padStart(2, '0')} minutos`;
+    },
+    format_date: (date, format) => {
+      return moment(date).locale("pt-br").format(format || "LLLL");
     }
   },
   created() {
