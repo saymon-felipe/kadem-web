@@ -113,7 +113,6 @@ export default {
             this.showAddModal = true;
         },
         handleRequestEdit(account) {
-            console.log(account)
             this.accountToEdit = account;
             this.showAddModal = true;
         },

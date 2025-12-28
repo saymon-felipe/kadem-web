@@ -212,6 +212,11 @@ export const usePlayerStore = defineStore("player", {
       this.syncState();
     },
 
+    remove_from_queue(i) {
+      this.queue.splice(i, 1);
+      this.syncState();
+    },
+
     async play_track(track, playlist = null) {
       const isSameTrack = this.current_music && (
         (track.youtube_id && track.youtube_id === this.current_music.youtube_id) ||

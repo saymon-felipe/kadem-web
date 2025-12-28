@@ -163,10 +163,11 @@
                   :class="{ error: cpf_error }"
                   ref="cpfInput"
                   id="cpfInput"
+                  :disabled="bill_sended"
                 />
                 <label for="cpfInput">CPF do Titular (000.000.000-00)</label>
               </div>
-              <span v-if="cpf_error" class="error-msg">CPF inválido</span>
+              <span class="msg" :class="error ? 'error' : 'success'">{{ msg }}</span>
 
               <div class="secure-badge">
                 <font-awesome-icon icon="lock" /> Ambiente Seguro
@@ -175,7 +176,7 @@
               <button
                 class="btn btn-primary"
                 @click="handle_checkout"
-                :disabled="loading || cpf_input.length < 14"
+                :disabled="loading || cpf_input.length < 14 || bill_sended"
               >
                 <span v-if="loading">
                   <font-awesome-icon icon="circle-notch" spin /> Processando...
@@ -226,10 +227,10 @@ export default {
       cancel_description:
         "Você retornará ao plano <strong>Free</strong> assim que o período atual da assinatura acabar.",
       confirm_text: "Confirmar Cancelamento",
+      msg: "",
+      error: false,
+      bill_sended: false,
     };
-  },
-  mounted: function () {
-    console.log(this.user);
   },
   computed: {
     ...mapState(useAuthStore, ["user"]),
@@ -341,14 +342,15 @@ export default {
       v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 
       this.cpf_input = v;
-      this.cpf_error = false;
+      this.msg = "";
     },
 
     check_cpf() {
       const raw_cpf = this.cpf_input.replace(/\D/g, "");
 
       if (raw_cpf.length !== 11) {
-        this.cpf_error = true;
+        this.msg = "CPF inválido";
+        this.error = true;
         return;
       }
     },
@@ -371,8 +373,9 @@ export default {
           window.open(paymentLink, "_blank");
           this.$emit("close");
         } else {
-          alert("Fatura enviada para seu e-mail.");
-          this.$emit("close");
+          this.error = false;
+          this.msg = "Fatura enviada para seu e-mail.";
+          this.bill_sended = true;
         }
       } catch (error) {
         this.cpf_error = error.response?.data?.message || "Erro ao iniciar checkout.";
@@ -504,6 +507,7 @@ export default {
   gap: var(--space-4);
   padding: var(--space-5);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .plan-card {
@@ -671,8 +675,7 @@ export default {
   color: white;
 }
 
-.error-msg {
-  color: var(--red);
+.msg {
   transform: translateY(-10px);
   display: inline-block;
 }

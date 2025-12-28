@@ -15,7 +15,6 @@
     <div class="kanban-columns-container">
       <draggable
         v-model="columns"
-        @change="on_column_change"
         @start="on_column_drag_start"
         @end="on_column_drag_end"
         item-key="local_id"
@@ -374,9 +373,6 @@ export default {
       this.drag_ctx.is_dragging = false;
       window.removeEventListener("mousemove", this.track_mouse);
       window.removeEventListener("touchmove", this.track_mouse);
-    },
-    on_column_change(event) {
-      console.log(event);
     },
     open_task_modal(task) {
       if (!task || !task.local_id) return;

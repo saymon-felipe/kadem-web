@@ -36,9 +36,9 @@
             @keyup.enter="addMemberToList"
             placeholder=" "
             required
-            :disabled="!isConnected"
+            :disabled="!connection.connected"
             :title="
-              !isConnected
+              !connection.connected
                 ? 'A funcionalidade de convidar membros para o grupo só está disponível offline.'
                 : ''
             "
@@ -48,19 +48,19 @@
 
         <div class="pending-members">
           <span
-            v-for="(member, index) in project.members"
+            v-for="(item, index) in displayList"
             :key="index"
-            :class="getMemberBadgeClass(member)"
-            :title="member.status === 'pending' ? 'Convite Pendente' : 'Membro Ativo'"
+            :class="getBadgeClass(item)"
+            :title="getBadgeTitle(item)"
           >
-            {{ member.email || member.name }}
+            {{ item.displayName }} {{ item.isOwner ? "(Admin)" : "" }}
 
             <button
-              @click="handleRemoveMemberOrInvite(member, index)"
+              @click="handleRemoveItem(item)"
               class="remove-member-btn"
               title="Remover"
               :disabled="isCreating"
-              v-if="canEditProject && !isMemberOwner(member)"
+              v-if="canEditProject && !item.isOwner"
             >
               &times;
             </button>
@@ -139,6 +139,7 @@
         </div>
       </div>
     </div>
+
     <ConfirmationModal
       v-model="showDeleteProjectModal"
       message="Tem certeza que deseja excluir este projeto?"
@@ -179,7 +180,8 @@ export default {
         name: "",
         description: "",
         image: "",
-        members: [],
+        members: [], // Objetos completos {id, name, email, role}
+        invites: [], // Strings de email ["a@a.com", "b@b.com"]
       },
       originalProject: null,
       projectImageBase64: defaultProjectImage,
@@ -191,7 +193,47 @@ export default {
   },
   computed: {
     ...mapState(useAuthStore, ["user"]),
-    ...mapState(useUtilsStore, ["isConnected"]),
+    ...mapState(useUtilsStore, ["connection"]),
+
+    // Computed para unificar a exibição
+    displayList() {
+      const list = [];
+
+      // 1. Membros confirmados (objetos)
+      if (this.project.members && Array.isArray(this.project.members)) {
+        this.project.members.forEach((m) => {
+          list.push({
+            type: "member",
+            data: m,
+            displayName: m.name || m.email,
+            isOwner: this.isMemberOwner(m),
+            status: m.status || "active",
+          });
+        });
+      }
+
+      // 2. Convites pendentes (strings ou objetos parciais)
+      if (this.project.invites && Array.isArray(this.project.invites)) {
+        this.project.invites.forEach((email) => {
+          // Evita duplicatas visuais se o email já estiver na lista de membros (ex: convite aceito mas lista não limpa)
+          const exists = list.some(
+            (item) => item.data.email === email || item.displayName === email
+          );
+
+          if (!exists) {
+            list.push({
+              type: "invite",
+              data: email, // Aqui é a string do email
+              displayName: email,
+              isOwner: false,
+              status: "pending",
+            });
+          }
+        });
+      }
+
+      return list;
+    },
 
     isEditMode() {
       return !!this.projectToEdit;
@@ -244,11 +286,20 @@ export default {
             members: newProject.members
               ? JSON.parse(JSON.stringify(newProject.members))
               : [],
+            invites: newProject.invites
+              ? JSON.parse(JSON.stringify(newProject.invites))
+              : [],
           };
           this.originalProject = newProject;
           this.projectImageBase64 = newProject.image || defaultProjectImage;
         } else {
-          this.project = { name: "", description: "", image: "", members: [] };
+          this.project = {
+            name: "",
+            description: "",
+            image: "",
+            members: [],
+            invites: [],
+          };
           this.originalProject = null;
           this.projectImageBase64 = defaultProjectImage;
         }
@@ -265,10 +316,17 @@ export default {
       "removeProjectMember",
       "revokeProjectInvite",
     ]),
-    getMemberBadgeClass(member) {
-      if (member.status === "pending") return "badge-pending";
-      return "badge-active";
+
+    getBadgeClass(item) {
+      if (item.type === "member" && item.status !== "pending") return "badge-active";
+      return "badge-pending";
     },
+
+    getBadgeTitle(item) {
+      if (item.type === "member") return "Membro do Grupo";
+      return "Convite Enviado (Pendente)";
+    },
+
     isMemberOwner(member) {
       if (member.role === "admin") return true;
 
@@ -285,86 +343,25 @@ export default {
       }
       return false;
     },
-    async handleRemoveMemberOrInvite(member, index) {
-      if (this.isCreating) return;
-
-      if (this.isMemberOwner(member)) {
-        return;
-      }
-
-      if (!this.isEditMode || !member.status) {
-        this.project.members.splice(index, 1);
-        if (this.isEditMode && member.email) {
-          this.newlyAddedEmails = this.newlyAddedEmails.filter((e) => e !== member.email);
-        }
-        return;
-      }
-
-      if (this.isEditMode) {
-        this.isCreating = true;
-        try {
-          if (member.status === "active" && member.id) {
-            await this.removeProjectMember(
-              this.originalProject.id,
-              this.originalProject.localId,
-              member.id
-            );
-          } else if (member.status === "pending" && member.email) {
-            await this.revokeProjectInvite(
-              this.originalProject.id,
-              this.originalProject.localId,
-              member.email
-            );
-          }
-
-          this.project.members.splice(index, 1);
-
-          if (this.originalProject && this.originalProject.members) {
-            this.originalProject.members = this.originalProject.members.filter(
-              (m) => (m.id && m.id !== member.id) || (m.email && m.email !== member.email)
-            );
-          }
-        } catch (error) {
-          console.error("Erro ao remover membro:", error);
-          alert("Falha ao remover membro.");
-        } finally {
-          this.isCreating = false;
-        }
-      }
-    },
-    triggerImageUpload() {
-      if (this.canEditProject) {
-        this.$refs.imageInput.click();
-      }
-    },
-
-    handleImageUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      if (!["image/png", "image/jpeg"].includes(file.type)) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        this.project.image = e.target.result;
-        this.projectImageBase64 = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    },
 
     addMemberToList() {
       if (!this.memberEmail) return;
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(this.memberEmail)) return;
 
-      const exists = this.project.members.some(
-        (m) => m.email === this.memberEmail || m.name === this.memberEmail
+      const existsInMembers = this.project.members.some(
+        (m) => m.email === this.memberEmail
       );
-      if (exists) {
+      const existsInInvites = this.project.invites.some(
+        (email) => email === this.memberEmail
+      );
+
+      if (existsInMembers || existsInInvites) {
         this.memberEmail = "";
         return;
       }
 
-      this.project.members.push({ email: this.memberEmail });
+      this.project.invites.push(this.memberEmail);
 
       if (this.isEditMode) {
         this.newlyAddedEmails.push(this.memberEmail);
@@ -373,14 +370,58 @@ export default {
       this.memberEmail = "";
     },
 
-    removeMemberFromList(index) {
-      const memberToRemove = this.project.members[index];
-      this.project.members.splice(index, 1);
+    async handleRemoveItem(item) {
+      if (this.isCreating) return;
 
-      if (this.isEditMode && memberToRemove.email) {
-        this.newlyAddedEmails = this.newlyAddedEmails.filter(
-          (e) => e !== memberToRemove.email
-        );
+      if (item.type === "member") {
+        if (this.isEditMode) {
+          this.isCreating = true;
+          try {
+            await this.removeProjectMember(
+              this.originalProject.id,
+              this.originalProject.localId,
+              item.data.id
+            );
+
+            this.project.members = this.project.members.filter(
+              (m) => m.id !== item.data.id
+            );
+          } catch (e) {
+            console.error(e);
+          } finally {
+            this.isCreating = false;
+          }
+        } else {
+          this.project.members = this.project.members.filter((m) => m !== item.data);
+        }
+      } else if (item.type === "invite") {
+        const targetEmail = item.data;
+
+        if (this.isEditMode) {
+          if (this.newlyAddedEmails.includes(targetEmail)) {
+            this.newlyAddedEmails = this.newlyAddedEmails.filter(
+              (e) => e !== targetEmail
+            );
+            this.project.invites = this.project.invites.filter((e) => e !== targetEmail);
+            return;
+          }
+
+          this.isCreating = true;
+          try {
+            await this.revokeProjectInvite(
+              this.originalProject.id,
+              this.originalProject.localId,
+              targetEmail
+            );
+            this.project.invites = this.project.invites.filter((e) => e !== targetEmail);
+          } catch (e) {
+            console.error(e);
+          } finally {
+            this.isCreating = false;
+          }
+        } else {
+          this.project.invites = this.project.invites.filter((e) => e !== targetEmail);
+        }
       }
     },
 
@@ -399,16 +440,7 @@ export default {
       this.isCreating = true;
 
       try {
-        const invitesList = this.project.members
-          .map((m) => m.email)
-          .filter((email) => email);
-
-        const payload = {
-          ...this.project,
-          invites: invitesList,
-        };
-
-        await this.createProject(payload);
+        await this.createProject(this.project);
         this.$emit("cancel-new-group");
       } catch (error) {
         console.error("Falha ao criar projeto:", error);
@@ -430,11 +462,18 @@ export default {
         if (this.project.image !== this.originalProject.image)
           changes.image = this.project.image;
 
+        if (
+          JSON.stringify(this.project.invites) !==
+          JSON.stringify(this.originalProject.invites)
+        ) {
+          changes.invites = this.project.invites;
+        }
+
         if (Object.keys(changes).length > 0) {
           await this.updateProject(this.originalProject, changes);
         }
 
-        if (this.newlyAddedEmails.length > 0 && this.isConnected) {
+        if (this.newlyAddedEmails.length > 0 && this.connection.connected) {
           await api.post(`/projects/${this.originalProject.id}/invite/batch`, {
             emails: this.newlyAddedEmails,
           });
@@ -447,6 +486,24 @@ export default {
         this.isCreating = false;
         this.newlyAddedEmails = [];
       }
+    },
+    triggerImageUpload() {
+      if (this.canEditProject) {
+        this.$refs.imageInput.click();
+      }
+    },
+
+    handleImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (!["image/png", "image/jpeg"].includes(file.type)) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        this.project.image = e.target.result;
+        this.projectImageBase64 = e.target.result;
+      };
+      reader.readAsDataURL(file);
     },
 
     handleDeleteImage() {

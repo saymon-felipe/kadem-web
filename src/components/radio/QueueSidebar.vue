@@ -46,7 +46,7 @@
       <div class="section-title mt-4" v-if="!collapsed">Próximas</div>
 
       <div v-if="next_tracks.length === 0 && !collapsed" class="empty-msg">
-        Fila vazia.
+        Fila vazia
       </div>
 
       <draggable
@@ -220,14 +220,6 @@ export default {
 
 .mt-4 {
   margin-top: var(--space-4);
-}
-
-.empty-msg {
-  font-size: 0.85rem;
-  color: var(--gray-500);
-  font-style: italic;
-  text-align: center;
-  padding: var(--space-4) 0;
 }
 
 /* Itens da Fila */

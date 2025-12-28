@@ -18,6 +18,9 @@
 
     <div class="playlist-list-container">
       <transition-group name="playlist-anim" tag="div" class="playlist-list">
+        <div v-if="playlists.length === 0 && !collapsed" class="empty-msg">
+          Nenhuma playlist.
+        </div>
         <div
           v-for="pl in playlists"
           :key="pl.local_id"
@@ -62,9 +65,6 @@ export default {
     default_cover: { type: String, required: true },
     default_avatar: { type: String, required: true },
     collapsed: { type: Boolean, default: false },
-  },
-  mounted() {
-    console.log(this.playlists);
   },
   computed: {
     playlist_id() {

@@ -1,15 +1,15 @@
-import { defineStore } from 'pinia';
+import { defineStore } from "pinia";
 import { api } from "../plugins/api";
 import router from "../router/index";
-import { useWindowStore } from './windows';
-import { useUtilsStore } from './utils';
-import { syncService } from '../services/syncService';
-import { useProjectStore } from './projects';
-import { useVaultStore } from './vault';
-import { useAppStore } from './app';
-import { useKanbanStore } from './kanban';
-import { useRadioStore } from './radio';
-import { usePlayerStore } from './player';
+import { useWindowStore } from "./windows";
+import { useUtilsStore } from "./utils";
+import { syncService } from "../services/syncService";
+import { useProjectStore } from "./projects";
+import { useVaultStore } from "./vault";
+import { useAppStore } from "./app";
+import { useKanbanStore } from "./kanban";
+import { useRadioStore } from "./radio";
+import { usePlayerStore } from "./player";
 
 import {
   userRepository,
@@ -19,14 +19,14 @@ import {
   projectRepository,
   accountsRepository,
   kanbanRepository,
-  radioRepository
-} from '../services/localData';
+  radioRepository,
+} from "../services/localData";
 
-export const useAuthStore = defineStore('auth', {
+export const useAuthStore = defineStore("auth", {
   state: () => ({
     user: {},
     isAuthenticated: null,
-    lastSyncTimestamp: localStorage.getItem('kadem_user_last_sync') || null
+    lastSyncTimestamp: localStorage.getItem("kadem_user_last_sync") || null,
   }),
   getters: {
     isLoggedIn: (state) => state.isAuthenticated === true,
@@ -34,17 +34,17 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     async requestPasswordReset(email) {
       try {
-        const response = await api.post('/auth/request_reset_password', { email });
+        const response = await api.post("/auth/request_reset_password", { email });
 
         return response.data.message;
       } catch (error) {
-        console.error('Erro ao solicitar redefinição de senha:', error);
+        console.error("Erro ao solicitar redefinição de senha:", error);
         throw error;
       }
     },
     async login(email, password, invite_token) {
       try {
-        const response = await api.post('/auth/login', { email, password, invite_token });
+        const response = await api.post("/auth/login", { email, password, invite_token });
         await this._saveUserData(response.data);
         return response;
       } catch (error) {
@@ -56,7 +56,7 @@ export const useAuthStore = defineStore('auth', {
 
     async register(userData) {
       try {
-        let response = await api.post('/auth/register', userData);
+        let response = await api.post("/auth/register", userData);
         return response;
       } catch (error) {
         throw error;
@@ -68,7 +68,7 @@ export const useAuthStore = defineStore('auth', {
         const pending = await syncQueueRepository.getPendingTasks();
         return {
           hasPending: pending.length > 0,
-          count: pending.length
+          count: pending.length,
         };
       } catch (error) {
         console.error("Erro ao verificar fila de sync:", error);
@@ -76,7 +76,7 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async logout(force = false) {
+    async logout(force = false, not_redirect = false) {
       const windowStore = useWindowStore();
       const appStore = useAppStore();
       const projectStore = useProjectStore();
@@ -88,10 +88,10 @@ export const useAuthStore = defineStore('auth', {
 
       try {
         if (!force) {
-          await api.post('/auth/logout');
+          await api.post("/auth/logout");
         }
       } catch (error) {
-        console.warn('Erro ao chamar API de logout, deslogando localmente.', error);
+        console.warn("Erro ao chamar API de logout, deslogando localmente.", error);
       } finally {
         appStore.closeStartMenu();
 
@@ -107,7 +107,7 @@ export const useAuthStore = defineStore('auth', {
           projectRepository.clearLocalProjects(),
           accountsRepository.clearLocalAccounts(),
           kanbanRepository.clearLocalKanban(),
-          radioRepository.clearLocalData()
+          radioRepository.clearLocalData(),
         ]);
 
         this.user = {};
@@ -124,12 +124,14 @@ export const useAuthStore = defineStore('auth', {
         vaultStore.lockVault();
         radioStore.clearState();
         playerStore.clearState();
-        localStorage.removeItem('kadem_user_last_sync');
-        localStorage.removeItem('kadem_vault_last_sync');
-        localStorage.removeItem('kadem_projects_last_sync');
-        localStorage.removeItem('kadem_kanban_syncs');
+        localStorage.removeItem("kadem_user_last_sync");
+        localStorage.removeItem("kadem_vault_last_sync");
+        localStorage.removeItem("kadem_projects_last_sync");
+        localStorage.removeItem("kadem_kanban_syncs");
 
-        router.push("/auth");
+        if (!not_redirect) {
+          router.push("/auth");
+        }
       }
     },
     async checkAuthStatus(recursive = false) {
@@ -170,7 +172,7 @@ export const useAuthStore = defineStore('auth', {
             this.user = {
               ...localUser,
               occupations: localOccupations,
-              medals: localMedals
+              medals: localMedals,
             };
 
             this.isAuthenticated = true;
@@ -191,7 +193,7 @@ export const useAuthStore = defineStore('auth', {
           this.user = {
             ...localUser,
             occupations: localOccupations,
-            medals: localMedals
+            medals: localMedals,
           };
           this.isAuthenticated = true;
           return true;
@@ -210,7 +212,7 @@ export const useAuthStore = defineStore('auth', {
           params.since = this.lastSyncTimestamp;
         }
 
-        const response = await api.get('/users/profile', { params });
+        const response = await api.get("/users/profile", { params });
         const { user: remoteUser, server_timestamp } = response.data;
 
         if (remoteUser) {
@@ -221,13 +223,13 @@ export const useAuthStore = defineStore('auth', {
 
         if (server_timestamp) {
           this.lastSyncTimestamp = server_timestamp;
-          localStorage.setItem('kadem_user_last_sync', server_timestamp);
+          localStorage.setItem("kadem_user_last_sync", server_timestamp);
         }
       } catch (error) {
         if (error.response && error.response.status === 401) {
           this.logout(true);
         } else {
-          console.warn('Falha ao sincronizar perfil. Usando dados locais.', error);
+          console.warn("Falha ao sincronizar perfil. Usando dados locais.", error);
           await this._loadLocalUserToState();
         }
       }
@@ -235,7 +237,7 @@ export const useAuthStore = defineStore('auth', {
       if (recursive) {
         setTimeout(() => {
           this.syncProfile();
-        }, 15 * 60 * 1000) // 15 minutos
+        }, 15 * 60 * 1000); // 15 minutos
       }
     },
     async _saveUserData(apiUserData) {
@@ -251,7 +253,7 @@ export const useAuthStore = defineStore('auth', {
       this.user = {
         ...profileData,
         occupations: mergedOccupations,
-        medals: mergedMedals
+        medals: mergedMedals,
       };
       this.isAuthenticated = true;
     },
@@ -266,14 +268,14 @@ export const useAuthStore = defineStore('auth', {
         this.setUser(updatedUserForState);
 
         await syncQueueRepository.addSyncQueueTask({
-          type: 'SYNC_PROFILE_CHANGE',
+          type: "SYNC_PROFILE_CHANGE",
           payload: {
-            field: 'bio',
+            field: "bio",
             value: newBio,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           },
           userId: currentUser.id,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
 
         syncService.processSyncQueue();
@@ -282,27 +284,29 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     async addNewOccupation(occupationName) {
-      if (!occupationName || occupationName.trim() === '') return;
+      if (!occupationName || occupationName.trim() === "") return;
 
       const newOccupationData = {
         name: occupationName,
-        id: null
+        id: null,
       };
 
       try {
-        const newLocalId = await occupationRepository.addLocalUserOccupation(newOccupationData);
+        const newLocalId = await occupationRepository.addLocalUserOccupation(
+          newOccupationData
+        );
 
         await syncQueueRepository.addSyncQueueTask({
-          type: 'CREATE_OCCUPATION',
+          type: "CREATE_OCCUPATION",
           payload: {
-            name: occupationName
+            name: occupationName,
           },
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
 
         this.user.occupations.push({
           ...newOccupationData,
-          localId: newLocalId
+          localId: newLocalId,
         });
 
         syncService.processSyncQueue();
@@ -317,16 +321,16 @@ export const useAuthStore = defineStore('auth', {
 
         if (occupation.id) {
           await syncQueueRepository.addSyncQueueTask({
-            type: 'DELETE_OCCUPATION',
+            type: "DELETE_OCCUPATION",
             payload: {
-              id: occupation.id
+              id: occupation.id,
             },
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
         }
 
         this.user.occupations = this.user.occupations.filter(
-          o => o.localId !== occupation.localId
+          (o) => o.localId !== occupation.localId
         );
 
         syncService.processSyncQueue();
@@ -337,5 +341,5 @@ export const useAuthStore = defineStore('auth', {
     setUser(user) {
       this.user = user;
     },
-  }
+  },
 });

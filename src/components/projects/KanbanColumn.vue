@@ -102,6 +102,7 @@
           <div class="assignee-selector-wrapper">
             <button
               class="btn-assignee"
+              ref="assigneeTrigger"
               @click.stop="toggle_assignee_menu"
               :title="selected_assignee_name"
             >
@@ -111,37 +112,40 @@
               }}</span>
             </button>
 
-            <transition name="fade-switch">
-              <div
-                v-if="show_assignee_menu"
-                class="assignee-dropdown glass"
-                v-click-outside="close_assignee_menu"
-              >
-                <ul>
-                  <li @click="select_assignee('all')">
-                    <div class="avatar-placeholder all-icon">
-                      <font-awesome-icon icon="users" />
-                    </div>
-                    <span>Todos</span>
-                  </li>
-                  <li @click="select_assignee('any')">
-                    <div class="avatar-placeholder any-icon">
-                      <font-awesome-icon icon="dice" />
-                    </div>
-                    <span>Qualquer</span>
-                  </li>
-                  <hr class="divider" v-if="members && members.length > 0" />
-                  <li
-                    v-for="member in members"
-                    :key="member.id"
-                    @click="select_assignee(member)"
-                  >
-                    <img :src="member.avatar || default_avatar" class="avatar-xs" />
-                    <span>{{ member.name }}</span>
-                  </li>
-                </ul>
-              </div>
-            </transition>
+            <Teleport to="body">
+              <transition name="fade">
+                <div
+                  v-if="show_assignee_menu"
+                  class="assignee-dropdown glass"
+                  v-click-outside="close_assignee_menu"
+                  :style="dropdown_position_style"
+                >
+                  <ul>
+                    <li @click="select_assignee('all')">
+                      <div class="avatar-placeholder all-icon">
+                        <font-awesome-icon icon="users" />
+                      </div>
+                      <span>Todos</span>
+                    </li>
+                    <li @click="select_assignee('any')">
+                      <div class="avatar-placeholder any-icon">
+                        <font-awesome-icon icon="dice" />
+                      </div>
+                      <span>Qualquer</span>
+                    </li>
+                    <hr class="divider" v-if="members && members.length > 0" />
+                    <li
+                      v-for="member in members"
+                      :key="member.id"
+                      @click="select_assignee(member)"
+                    >
+                      <img :src="member.avatar || default_avatar" class="avatar-xs" />
+                      <span>{{ member.name }}</span>
+                    </li>
+                  </ul>
+                </div>
+              </transition>
+            </Teleport>
           </div>
         </div>
       </div>
@@ -227,6 +231,11 @@ export default {
       selected_assignee: "any",
       show_assignee_menu: false,
       default_avatar: defaultAvatar,
+      dropdown_position_style: {
+        top: "0px",
+        left: "0px",
+        width: "auto",
+      },
     };
   },
   computed: {
@@ -359,7 +368,7 @@ export default {
       this.show_assignee_menu = false;
     },
     handle_click_outside_creation(event) {
-      const dropdown = this.$el.querySelector(".assignee-dropdown");
+      const dropdown = document.querySelector(".assignee-dropdown");
       if (dropdown && dropdown.contains(event.target)) {
         return;
       }
@@ -378,6 +387,21 @@ export default {
 
     toggle_assignee_menu() {
       this.show_assignee_menu = !this.show_assignee_menu;
+      if (this.show_assignee_menu) {
+        this.calculate_dropdown_position();
+      }
+    },
+    calculate_dropdown_position() {
+      if (!this.$refs.assigneeTrigger) return;
+
+      const rect = this.$refs.assigneeTrigger.getBoundingClientRect();
+
+      this.dropdown_position_style = {
+        position: "fixed",
+        top: `${rect.bottom + 5}px`,
+        left: `${rect.left}px`,
+        zIndex: "9999",
+      };
     },
     close_assignee_menu() {
       this.show_assignee_menu = false;

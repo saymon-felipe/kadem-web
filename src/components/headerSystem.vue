@@ -100,7 +100,7 @@ export default {
     ...mapState(useAuthStore, ["user"]),
     is_pro() {
       if (!this.user) return false;
-      return this.user.plan_tier && this.user.plan_tier !== "core";
+      return this.user.plan_tier && this.user.plan_tier !== "free";
     },
 
     plan_label() {

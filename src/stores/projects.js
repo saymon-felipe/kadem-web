@@ -1,27 +1,30 @@
 // src/stores/projects.js
-import { defineStore } from 'pinia';
+import { defineStore } from "pinia";
 import { api } from "../plugins/api";
-import { syncService } from '../services/syncService';
+import { syncService } from "../services/syncService";
+import { useAuthStore } from "../stores/auth";
 import {
   projectRepository,
   syncQueueRepository,
-  kanbanRepository
-} from '../services/localData';
+  kanbanRepository,
+} from "../services/localData";
 
-export const useProjectStore = defineStore('projects', {
+export const useProjectStore = defineStore("projects", {
   state: () => ({
     projects: [],
     active_project_id: null,
     is_populating_offline_cache: false,
-    lastSyncTimestamp: localStorage.getItem('kadem_projects_last_sync') || null
+    lastSyncTimestamp: localStorage.getItem("kadem_projects_last_sync") || null,
   }),
 
   getters: {
     active_project: (state) => {
       if (!state.active_project_id) return null;
 
-      return state.projects.find(p => String(p.localId) === String(state.active_project_id));
-    }
+      return state.projects.find(
+        (p) => String(p.localId) === String(state.active_project_id)
+      );
+    },
   },
 
   actions: {
@@ -39,7 +42,7 @@ export const useProjectStore = defineStore('projects', {
 
     async markProjectAsAccessed(localId) {
       const pid = Number(localId) || localId;
-      const project = this.projects.find(p => p.localId == pid);
+      const project = this.projects.find((p) => p.localId == pid);
 
       if (project) {
         const now = new Date().toISOString();
@@ -55,8 +58,11 @@ export const useProjectStore = defineStore('projects', {
         }
 
         if (project.id) {
-          api.post(`/projects/${project.id}/access`).catch(err => {
-            console.warn("[ProjectStore] Falha silenciosa ao registrar acesso na API:", err.message);
+          api.post(`/projects/${project.id}/access`).catch((err) => {
+            console.warn(
+              "[ProjectStore] Falha silenciosa ao registrar acesso na API:",
+              err.message
+            );
           });
         }
       }
@@ -71,14 +77,17 @@ export const useProjectStore = defineStore('projects', {
           params.since = this.lastSyncTimestamp;
         }
 
-        const response = await api.get('/projects', { params });
+        const response = await api.get("/projects", { params });
 
-        const isDeltaFormat = response.data && !Array.isArray(response.data) && 'items' in response.data;
+        const isDeltaFormat =
+          response.data && !Array.isArray(response.data) && "items" in response.data;
         const remoteProjects = isDeltaFormat ? response.data.items : response.data;
         const serverTime = isDeltaFormat ? response.data.server_timestamp : null;
 
         if (Array.isArray(remoteProjects) && remoteProjects.length > 0) {
-          console.log(`[Projects] ${remoteProjects.length} alterações recebidas. Atualizando banco local...`);
+          console.log(
+            `[Projects] ${remoteProjects.length} alterações recebidas. Atualizando banco local...`
+          );
 
           await projectRepository.mergeApiProjects(remoteProjects);
 
@@ -89,9 +98,8 @@ export const useProjectStore = defineStore('projects', {
 
         if (serverTime) {
           this.lastSyncTimestamp = serverTime;
-          localStorage.setItem('kadem_projects_last_sync', serverTime);
+          localStorage.setItem("kadem_projects_last_sync", serverTime);
         }
-
       } catch (error) {
         console.warn("[Projects] Pull falhou ou offline:", error);
       }
@@ -101,8 +109,8 @@ export const useProjectStore = defineStore('projects', {
       if (this.is_populating_offline_cache) return;
 
       const queue = projects_list
-        .filter(p => p.id)
-        .map(p => ({ id: p.id, localId: p.localId }));
+        .filter((p) => p.id)
+        .map((p) => ({ id: p.id, localId: p.localId }));
 
       if (queue.length === 0) return;
 
@@ -128,7 +136,10 @@ export const useProjectStore = defineStore('projects', {
           console.debug(`[OfflineCache] Projeto ${current_project.id} cacheado.`);
         }
       } catch (error) {
-        console.warn(`[OfflineCache] Falha ao cachear projeto ${current_project.id}:`, error);
+        console.warn(
+          `[OfflineCache] Falha ao cachear projeto ${current_project.id}:`,
+          error
+        );
       }
 
       setTimeout(() => {
@@ -143,71 +154,100 @@ export const useProjectStore = defineStore('projects', {
 
       await projectRepository.saveLocalProject(updatedProject);
 
-      const projectInState = this.projects.find(p => p.localId === originalProject.localId);
+      const projectInState = this.projects.find(
+        (p) => p.localId === originalProject.localId
+      );
       if (projectInState) {
         Object.assign(projectInState, changes);
+
+        console.log("updated project in memory: ", projectInState)
       }
+
+      delete cleanChanges.invites;
 
       const timestamp = new Date().toISOString();
       for (const fieldName in cleanChanges) {
         await syncQueueRepository.addSyncQueueTask({
-          type: 'SYNC_PROJECT_CHANGE',
+          type: "SYNC_PROJECT_CHANGE",
           payload: {
             project_id: cleanOriginal.id,
             localId: cleanOriginal.localId,
             field: fieldName,
             value: cleanChanges[fieldName],
-            timestamp: timestamp
+            timestamp: timestamp,
           },
-          timestamp: timestamp
+          timestamp: timestamp,
         });
       }
       syncService.processSyncQueue();
     },
 
     async createProject(projectData) {
+      const authStore = useAuthStore();
+      const currentUser = authStore.user;
+
       const cleanProjectData = JSON.parse(JSON.stringify(projectData));
 
       const localProject = {
         ...cleanProjectData,
-        status: 'em_andamento',
-        last_accessed_at: new Date().toISOString()
+        status: "active",
+        last_accessed_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        is_synced: false,
+        members: cleanProjectData.members && cleanProjectData.members.length > 0
+          ? cleanProjectData.members
+          : [{
+            id: currentUser.id,
+            name: currentUser.name,
+            avatar: currentUser.avatar,
+            role: 'admin'
+          }]
       };
 
       delete localProject.id;
 
       try {
         const localId = await projectRepository.addLocalProject(localProject);
-        this.projects.push({ ...projectData, localId });
+
+        const projectWithId = { ...localProject, localId };
+
+        this.projects.push(projectWithId);
 
         this.selectProject(localId);
 
         await syncQueueRepository.addSyncQueueTask({
-          type: 'CREATE_PROJECT',
+          type: "CREATE_PROJECT",
           payload: {
             ...cleanProjectData,
-            localId: localId
+            localId: localId,
           },
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
+
         syncService.processSyncQueue();
+
+        return localId;
+
       } catch (error) {
         console.error("Falha ao criar projeto localmente:", error);
+        throw error;
       }
     },
 
     async deleteProject(projectId, localId) {
-      console.log(`[deleteProject] Iniciando exclusão. ID: ${projectId}, LocalID: ${localId}`);
+      console.log(
+        `[deleteProject] Iniciando exclusão. ID: ${projectId}, LocalID: ${localId}`
+      );
       if (!localId) return;
 
       try {
         await syncQueueRepository.addSyncQueueTask({
-          type: 'DELETE_PROJECT',
+          type: "DELETE_PROJECT",
           payload: { id: projectId, localId: localId },
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
         await projectRepository.deleteLocalProject(localId);
-        this.projects = this.projects.filter(p => p.localId !== localId);
+        this.projects = this.projects.filter((p) => p.localId !== localId);
 
         if (this.active_project_id === localId) {
           this.active_project_id = null;
@@ -221,64 +261,64 @@ export const useProjectStore = defineStore('projects', {
 
     async syncProjectChange(projectId, localId, field, value) {
       let cleanValue = value;
-      if (typeof value === 'object' && value !== null) {
+      if (typeof value === "object" && value !== null) {
         cleanValue = JSON.parse(JSON.stringify(value));
       }
       await projectRepository.saveLocalProject({
         localId: localId,
-        [field]: cleanValue
+        [field]: cleanValue,
       });
-      const projectInState = this.projects.find(p => p.localId === localId);
+      const projectInState = this.projects.find((p) => p.localId === localId);
       if (projectInState) {
         projectInState[field] = value;
       }
       await syncQueueRepository.addSyncQueueTask({
-        type: 'SYNC_PROJECT_CHANGE',
+        type: "SYNC_PROJECT_CHANGE",
         payload: {
           project_id: projectId,
           localId: localId,
           field: field,
           value: cleanValue,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
       syncService.processSyncQueue();
     },
 
     async removeProjectMember(projectId, localId, targetUserId) {
-      const project = this.projects.find(p => p.localId === localId);
+      const project = this.projects.find((p) => p.localId === localId);
       if (project) {
-        project.members = project.members.filter(m => m.id !== targetUserId);
+        project.members = project.members.filter((m) => m.id !== targetUserId);
         await projectRepository.saveLocalProject(JSON.parse(JSON.stringify(project)));
       }
 
       await syncQueueRepository.addSyncQueueTask({
-        type: 'REMOVE_PROJECT_MEMBER',
+        type: "REMOVE_PROJECT_MEMBER",
         payload: {
           projectId: projectId,
-          targetUserId: targetUserId
+          targetUserId: targetUserId,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       syncService.processSyncQueue();
     },
 
     async revokeProjectInvite(projectId, localId, targetEmail) {
-      const project = this.projects.find(p => p.localId === localId);
+      const project = this.projects.find((p) => p.localId === localId);
       if (project) {
-        project.members = project.members.filter(m => m.email !== targetEmail);
+        project.invites = project.invites.filter((email) => email !== targetEmail);
         await projectRepository.saveLocalProject(JSON.parse(JSON.stringify(project)));
       }
 
       await syncQueueRepository.addSyncQueueTask({
-        type: 'REVOKE_PROJECT_INVITE',
+        type: "REVOKE_PROJECT_INVITE",
         payload: {
           projectId: projectId,
-          targetEmail: targetEmail
+          targetEmail: targetEmail,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       syncService.processSyncQueue();
@@ -289,24 +329,30 @@ export const useProjectStore = defineStore('projects', {
      * Chamada quando o servidor retorna 403 Forbidden para um projeto.
      */
     async forceLocalProjectRemoval(projectId) {
-      console.warn(`[Security] Acesso revogado para o projeto ${projectId}. Iniciando remoção local.`);
+      console.warn(
+        `[Security] Acesso revogado para o projeto ${projectId}. Iniciando remoção local.`
+      );
 
       try {
-        this.projects = this.projects.filter(p => String(p.id) !== String(projectId) && String(p.localId) !== String(projectId));
+        this.projects = this.projects.filter(
+          (p) =>
+            String(p.id) !== String(projectId) && String(p.localId) !== String(projectId)
+        );
 
         await projectRepository.deleteProjectByRemoteId(projectId);
 
         await syncQueueRepository.removeTasksByProjectId(projectId);
 
-        window.dispatchEvent(new CustomEvent('project-access-revoked', { detail: { projectId } }));
-
+        window.dispatchEvent(
+          new CustomEvent("project-access-revoked", { detail: { projectId } })
+        );
       } catch (error) {
         console.error(`[Security] Erro ao limpar projeto revogado ${projectId}:`, error);
       }
-    }
+    },
   },
 
   persist: {
-    paths: ['active_project_id'],
-  }
+    paths: ["active_project_id"],
+  },
 });

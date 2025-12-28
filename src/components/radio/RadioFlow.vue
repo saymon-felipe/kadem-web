@@ -119,7 +119,7 @@
         </template>
 
         <div v-else class="welcome-state">
-          <div class="welcome-card">
+          <div class="welcome-card glass">
             <div class="brand-logo">
               <font-awesome-icon icon="radio" />
             </div>
@@ -793,14 +793,10 @@ export default {
 }
 
 .welcome-card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
   padding: var(--space-6);
-  border-radius: var(--radius-lg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   margin-bottom: var(--space-4);
   max-width: 400px;
+  background: var(--dark-yellow);
 }
 
 .brand-logo {
@@ -817,6 +813,7 @@ export default {
 .welcome-card p {
   opacity: 0.8;
   margin-bottom: var(--space-4);
+  color: var(--deep-blue);
 }
 
 .youtube-tag {
