@@ -4,7 +4,7 @@
   </div>
   <div class="main" :style="background">
     <headerSystem />
-    <SyncIndicator :syncing="isSyncing" />
+    <SyncIndicator :syncing="is_syncing" />
     <homeWidgets />
     <DesktopWindowManager />
   </div>
@@ -31,7 +31,7 @@ export default {
   },
   computed: {
     ...mapState(useAuthStore, ["user", "checkAuthStatus"]),
-    ...mapState(useUtilsStore, ["isSyncing"]),
+    ...mapState(useUtilsStore, ["is_syncing"]),
     ...mapState(useAppStore, ["system"]),
     finalImageUrl() {
       if (this.system && this.system.background && this.system.background != "") {
