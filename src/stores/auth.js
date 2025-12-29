@@ -26,10 +26,12 @@ export const useAuthStore = defineStore("auth", {
   state: () => ({
     user: {},
     isAuthenticated: null,
+    token: null,
     lastSyncTimestamp: localStorage.getItem("kadem_user_last_sync") || null,
   }),
   getters: {
     isLoggedIn: (state) => state.isAuthenticated === true,
+    getToken: (state) => state.token
   },
   actions: {
     async requestPasswordReset(email) {
@@ -45,7 +47,13 @@ export const useAuthStore = defineStore("auth", {
     async login(email, password, invite_token) {
       try {
         const response = await api.post("/auth/login", { email, password, invite_token });
-        await this._saveUserData(response.data);
+        const { token, user } = response.data;
+
+        if (token) {
+          this.token = token;
+        }
+
+        await this._saveUserData(user);
         return response;
       } catch (error) {
         this.user = {};

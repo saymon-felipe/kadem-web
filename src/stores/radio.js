@@ -5,6 +5,7 @@ import { radioRepository, syncQueueRepository } from "../services/localData";
 import { usePlayerStore } from "./player";
 import { apiServices } from "../plugins/apiServices";
 import { useUtilsStore } from "./utils";
+import { useAuthStore } from '@/stores/auth';
 
 export const useRadioStore = defineStore("radio", {
   state: () => ({
@@ -241,11 +242,17 @@ export const useRadioStore = defineStore("radio", {
 
         if (!is_audio_cached) {
           console.log(`[RadioStore] Baixando Áudio: ${track.title}`);
+          const authStore = useAuthStore();
+          const token = authStore.getToken;
+
           const endpoint = `${apiServices.MEDIA_ENGINE}/stream/${track.youtube_id}?nocache=${Date.now()}`;
           const response = await api.get(endpoint, {
             responseType: 'blob',
             timeout: 120000,
-            headers: { 'Cache-Control': 'no-cache' }
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Authorization': `Bearer ${token}`
+            }
           });
           audio_blob = response.data;
         }
