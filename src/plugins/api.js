@@ -74,9 +74,6 @@ api.interceptors.response.use(
         const project_store = useProjectStore();
         project_store.forceLocalProjectRemoval(problematic_project_id);
       }
-    } else if (error.response && error.response.status === 401) {
-      const auth_store = useAuthStore();
-      auth_store.logout();
     }
 
     return Promise.reject(error);
