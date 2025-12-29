@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useProjectStore } from '../stores/projects';
+import { useAuthStore } from '../stores/auth';
 
 const dev_environment = "http://localhost:3000/api";
 const homolog_environment = "https://coretest-kadem-d8b86a10b9e8.herokuapp.com/api";
@@ -73,6 +74,9 @@ api.interceptors.response.use(
         const project_store = useProjectStore();
         project_store.forceLocalProjectRemoval(problematic_project_id);
       }
+    } else if (error.response && error.response.status === 401) {
+      const auth_store = useAuthStore();
+      auth_store.logout();
     }
 
     return Promise.reject(error);
