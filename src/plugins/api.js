@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { useProjectStore } from '../stores/projects';
 
-const dev_environment = import.meta.env.VITE_API_DEV;
-const homolog_environment = import.meta.env.VITE_API_HOMOLOG;
-const prod_environment = import.meta.env.VITE_API_PROD;
+const dev_environment = import.meta.env.API_DEV;
+const homolog_environment = import.meta.env.API_HOMOLOG;
+const prod_environment = import.meta.env.API_PROD;
 
 let url_api;
 

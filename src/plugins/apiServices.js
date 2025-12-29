@@ -1,6 +1,6 @@
-const media_dev = import.meta.env.VITE_MEDIA_DEV;
-const media_homolog = import.meta.env.VITE_MEDIA_HOMOLOG;
-const media_prod = import.meta.env.VITE_MEDIA_PROD;
+const media_dev = import.meta.env.MEDIA_DEV;
+const media_homolog = import.meta.env.MEDIA_HOMOLOG;
+const media_prod = import.meta.env.MEDIA_PROD;
 
 let current_ambient = 2;
 
