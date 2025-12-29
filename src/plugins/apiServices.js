@@ -1,6 +1,6 @@
-const media_dev = import.meta.env.MEDIA_DEV;
-const media_homolog = import.meta.env.MEDIA_HOMOLOG;
-const media_prod = import.meta.env.MEDIA_PROD;
+const media_dev = "http://localhost:3001/api/v1";
+const media_homolog = "https://kadem-media-engine-e16f2f36157e.herokuapp.com/";
+const media_prod = "https://kadem-media-engine-e16f2f36157e.herokuapp.com/";
 
 let current_ambient = 2;
 

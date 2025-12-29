@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { useProjectStore } from '../stores/projects';
 
-const dev_environment = import.meta.env.API_DEV;
-const homolog_environment = import.meta.env.API_HOMOLOG;
-const prod_environment = import.meta.env.API_PROD;
+const dev_environment = "http://localhost:3000/api";
+const homolog_environment = "https://coretest-kadem-d8b86a10b9e8.herokuapp.com/";
+const prod_environment = "https://core-kadem-a06ada9519bc.herokuapp.com/";
 
 let url_api;
 
