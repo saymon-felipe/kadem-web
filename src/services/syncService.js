@@ -506,14 +506,17 @@ async function processTaskItem(task) {
 }
 
 export const syncService = {
-  async processSyncQueue(force = false) {
+  async processSyncQueue() {
+    if (isProcessing) return;
+
     const utilsStore = useUtilsStore();
-    if ((isProcessing && !force) || !utilsStore.connection.connected) return;
+    if (!utilsStore.connection.connected) return;
+
     isProcessing = true;
 
     try {
-      const allTasks = await syncQueueRepository.getPendingTasks();
-      if (allTasks.length === 0) {
+      const pendingTasks = await syncQueueRepository.getPendingTasks();
+      if (pendingTasks.length === 0) {
         isProcessing = false;
         return;
       }
@@ -551,12 +554,13 @@ export const syncService = {
           await processTaskItem(task);
           await syncQueueRepository.deleteTask(task.id);
           console.log(`[SyncService] OK: ${task.type} (${task.id})`);
+
         } catch (error) {
-          if (error.response && error.response.status === 403) {
-            console.error(`[Security] Acesso negado ao processar ${task.type}.`);
+          if (error.response && (error.response.status === 403 || error.response.status === 404)) {
+            console.warn(`[SyncService] Erro Fatal (${error.response.status}). Removendo tarefa ${task.type}.`);
             await syncQueueRepository.deleteTask(task.id);
 
-            if (task.payload && task.payload.projectId) {
+            if (error.response.status === 403 && task.payload && task.payload.projectId) {
               const projectStore = useProjectStore();
               projectStore.forceLocalProjectRemoval(task.payload.projectId);
             }
@@ -565,19 +569,30 @@ export const syncService = {
 
           const msg = error.message || "";
           if (msg.includes("NOT_SYNCED")) {
-            console.warn(`[SyncService] Adiado: ${task.type} (Dependência)`);
-          } else if (error.response && error.response.status === 404) {
-            console.warn(`[SyncService] 404 (Não Encontrado). Limpando tarefa ${task.type}.`);
+            console.warn(`[SyncService] Adiado: ${task.type} (Dependência não resolvida)`);
+            continue;
+          }
+
+          const current_retries = task.retry_count || 0;
+          const max_retries = 5;
+
+          if (current_retries >= max_retries) {
+            console.error(`[SyncService] FALHA FINAL: Tarefa ${task.id} excedeu ${max_retries} tentativas. Removendo.`);
             await syncQueueRepository.deleteTask(task.id);
           } else {
-            console.error(`[SyncService] Erro em ${task.type}:`, error);
+            const new_count = current_retries + 1;
+            console.warn(`[SyncService] Falha na tarefa ${task.type}. Tentativa ${new_count}/${max_retries}.`);
+
+            await syncQueueRepository.updateTask(task.id, {
+              retry_count: new_count
+            });
           }
         }
       }
     } catch (globalError) {
-      console.error("[SyncService] Erro fatal no loop:", globalError);
+      console.error("[SyncService] Erro Crítico na Fila:", globalError);
     } finally {
       isProcessing = false;
     }
-  }
+  },
 };
