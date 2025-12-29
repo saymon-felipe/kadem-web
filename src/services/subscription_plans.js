@@ -38,8 +38,8 @@ export const SUBSCRIPTION_PLANS = {
     cycle: "MONTHLY",
     description: "Assinatura Kadem Enterprise - Para equipes e colaboração avançada.",
     limits: {
-      max_projects: 20,
-      max_members_by_project: 20,
+      max_projects: 999,
+      max_members_by_project: 999,
       can_use_offline_radio: true,
     },
     features: [
