@@ -30,9 +30,9 @@
         <span v-if="total_duration_seconds > 0">{{ total_duration_formatted }}</span>
       </div>
     </div>
-
     <div class="header-options">
       <button
+        v-if="connection.connected && allow_offline"
         class="btn-options"
         :class="{
           'downloaded-state': is_fully_downloaded,
@@ -88,8 +88,10 @@
 import { mapState, mapActions } from "pinia";
 import { useRadioStore } from "@/stores/radio";
 import { useUtilsStore } from "@/stores/utils";
+import { useAuthStore } from "@/stores/auth";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import ImageCropperModal from "@/components/ImageCropperModal.vue";
+import { getPlanLimits } from "@/services/subscription_plans.js";
 
 export default {
   name: "PlaylistHeader",
@@ -135,11 +137,12 @@ export default {
       tempName: "",
       showDeleteModal: false,
       is_crop_modal_open: false,
+      allow_offline: getPlanLimits(useAuthStore().user.plan_tier).can_use_offline_radio,
     };
   },
 
   computed: {
-    ...mapState(useRadioStore, ["active_downloads"]),
+    ...mapState(useRadioStore, ["active_downloads", "allow_offline"]),
     ...mapState(useUtilsStore, ["connection"]),
 
     hero_background() {

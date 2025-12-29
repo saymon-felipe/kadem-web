@@ -124,7 +124,7 @@
             Excluir projeto
           </button>
 
-          <button class="btn" @click="$emit('cancel-new-group')">
+          <button class="btn" @click="handleCancelNewGroup">
             {{ canEditProject ? "Cancelar" : "Fechar" }}
           </button>
 
@@ -195,11 +195,9 @@ export default {
     ...mapState(useAuthStore, ["user"]),
     ...mapState(useUtilsStore, ["connection"]),
 
-    // Computed para unificar a exibição
     displayList() {
       const list = [];
 
-      // 1. Membros confirmados (objetos)
       if (this.project.members && Array.isArray(this.project.members)) {
         this.project.members.forEach((m) => {
           list.push({
@@ -212,10 +210,8 @@ export default {
         });
       }
 
-      // 2. Convites pendentes (strings ou objetos parciais)
       if (this.project.invites && Array.isArray(this.project.invites)) {
         this.project.invites.forEach((email) => {
-          // Evita duplicatas visuais se o email já estiver na lista de membros (ex: convite aceito mas lista não limpa)
           const exists = list.some(
             (item) => item.data.email === email || item.displayName === email
           );
@@ -223,7 +219,7 @@ export default {
           if (!exists) {
             list.push({
               type: "invite",
-              data: email, // Aqui é a string do email
+              data: email,
               displayName: email,
               isOwner: false,
               status: "pending",
@@ -316,6 +312,26 @@ export default {
       "removeProjectMember",
       "revokeProjectInvite",
     ]),
+
+    handleCancelNewGroup() {
+      (this.project = {
+        name: "",
+        description: "",
+        image: "",
+        members: [],
+        invites: [],
+      }),
+        (this.originalProject = null);
+      this.projectImageBase64 = defaultProjectImage;
+      this.memberEmail = "";
+      this.isCreating = false;
+      this.showDeleteProjectModal = false;
+      this.newlyAddedEmails = [];
+      this.response = "";
+      this.responseType = "";
+
+      this.$emit("cancel-new-group");
+    },
 
     getBadgeClass(item) {
       if (item.type === "member" && item.status !== "pending") return "badge-active";
@@ -438,12 +454,21 @@ export default {
     async handleCreateProject() {
       if (this.isCreating || !this.project.name) return;
       this.isCreating = true;
+      this.response = "";
 
       try {
-        await this.createProject(this.project);
-        this.$emit("cancel-new-group");
+        const result = await this.createProject(this.project);
+
+        if (result.invites_status && result.invites_status.length > 0) {
+          const hasErrors = this.checkInviteErrors(result.invites_status);
+          if (hasErrors) return;
+        }
+
+        this.handleCancelNewGroup();
       } catch (error) {
-        console.error("Falha ao criar projeto:", error);
+        this.response =
+          error?.response?.data?.message || error.message || "Falha ao criar projeto.";
+        this.responseType = "error";
       } finally {
         this.isCreating = false;
       }
@@ -452,40 +477,64 @@ export default {
     async handleUpdateProject() {
       if (this.isCreating) return;
       this.isCreating = true;
+      this.response = "";
+
+      let changes = {};
+      if (this.project.name !== this.originalProject.name)
+        changes.name = this.project.name;
+      if (this.project.description !== this.originalProject.description)
+        changes.description = this.project.description;
+      if (this.project.image !== this.originalProject.image)
+        changes.image = this.project.image;
+
+      if (
+        JSON.stringify(this.project.invites) !==
+        JSON.stringify(this.originalProject.invites)
+      ) {
+        changes.invites = this.project.invites;
+      }
 
       try {
-        const changes = {};
-        if (this.project.name !== this.originalProject.name)
-          changes.name = this.project.name;
-        if (this.project.description !== this.originalProject.description)
-          changes.description = this.project.description;
-        if (this.project.image !== this.originalProject.image)
-          changes.image = this.project.image;
-
-        if (
-          JSON.stringify(this.project.invites) !==
-          JSON.stringify(this.originalProject.invites)
-        ) {
-          changes.invites = this.project.invites;
-        }
-
         if (Object.keys(changes).length > 0) {
-          await this.updateProject(this.originalProject, changes);
+          const result = await this.updateProject(this.originalProject, changes);
+
+          if (result.invites_status && result.invites_status.length > 0) {
+            const hasErrors = this.checkInviteErrors(result.invites_status);
+            if (hasErrors) {
+              this.newlyAddedEmails = [];
+              return;
+            }
+          }
         }
 
-        if (this.newlyAddedEmails.length > 0 && this.connection.connected) {
-          await api.post(`/projects/${this.originalProject.id}/invite/batch`, {
-            emails: this.newlyAddedEmails,
-          });
-        }
-
-        this.$emit("cancel-new-group");
+        this.handleCancelNewGroup();
       } catch (error) {
-        console.error("Falha ao atualizar projeto:", error);
+        this.response =
+          error?.response?.data?.message || error.message || "Erro ao atualizar projeto.";
+        this.responseType = "error";
       } finally {
         this.isCreating = false;
-        this.newlyAddedEmails = [];
+        if (this.responseType !== "error") this.newlyAddedEmails = [];
       }
+    },
+    checkInviteErrors(details) {
+      const failedItems = details.filter((d) => d.status === "error");
+
+      if (failedItems.length > 0) {
+        const failedEmails = failedItems.map((d) => d.email);
+        this.project.members = this.project.members.filter(
+          (m) => !failedEmails.includes(m.email)
+        );
+        this.project.invites = this.project.invites.filter(
+          (e) => !failedEmails.includes(e)
+        );
+
+        const firstError = failedItems[0].error || "Alguns convites falharam.";
+        this.response = firstError;
+        this.responseType = "error";
+        return true;
+      }
+      return false;
     },
     triggerImageUpload() {
       if (this.canEditProject) {
@@ -527,7 +576,7 @@ export default {
       this.isCreating = true;
       try {
         await this.deleteProject(this.originalProject.id, this.originalProject.localId);
-        this.$emit("cancel-new-group");
+        this.handleCancelNewGroup();
       } catch (error) {
         console.error("Erro ao deletar projeto:", error);
       } finally {

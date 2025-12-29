@@ -71,7 +71,7 @@ api.interceptors.response.use(
 
       if (problematic_project_id) {
         const project_store = useProjectStore();
-        project_store.force_local_project_removal(problematic_project_id);
+        project_store.forceLocalProjectRemoval(problematic_project_id);
       }
     }
 

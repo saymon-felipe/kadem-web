@@ -291,10 +291,8 @@ export default {
     ...mapActions(useAuthStore, ["syncProfile"]),
 
     requestClose() {
+      this.resetState();
       this.$emit("close");
-      this.$nextTick(() => {
-        this.resetState();
-      });
     },
 
     get_plan_name(id) {
@@ -362,25 +360,21 @@ export default {
 
       this.loading = true;
       try {
-        const response = await api.post("/subscriptions/checkout", {
+        await api.post("/subscriptions/checkout", {
           plan_tier: this.selected_plan_id,
           cpf: raw_cpf,
         });
 
-        const { paymentLink } = response.data.data || response.data;
-
-        if (paymentLink) {
-          window.open(paymentLink, "_blank");
-          this.$emit("close");
-        } else {
-          this.error = false;
-          this.msg = "Fatura enviada para seu e-mail.";
-          this.bill_sended = true;
-        }
+        this.error = false;
+        this.msg = "Fatura enviada para seu e-mail.";
+        this.bill_sended = true;
       } catch (error) {
         this.cpf_error = error.response?.data?.message || "Erro ao iniciar checkout.";
       } finally {
         this.loading = false;
+        setTimeout(() => {
+          this.requestClose();
+        }, 5000);
       }
     },
 
@@ -400,6 +394,9 @@ export default {
       this.cpf_error = false;
       this.selected_plan_id = null;
       this.show_cancel_modal = false;
+      this.error = false;
+      this.msg = "";
+      this.bill_sended = false;
     },
 
     async confirm_cancellation() {

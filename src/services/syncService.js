@@ -12,6 +12,7 @@ import {
 
 import { useProjectStore } from '../stores/projects';
 import { useAuthStore } from '../stores/auth';
+import { useUtilsStore } from '../stores/utils';
 
 let isProcessing = false;
 
@@ -506,7 +507,8 @@ async function processTaskItem(task) {
 
 export const syncService = {
   async processSyncQueue(force = false) {
-    if ((isProcessing && !force) || !navigator.onLine) return;
+    const utilsStore = useUtilsStore();
+    if ((isProcessing && !force) || !utilsStore.connection.connected) return;
     isProcessing = true;
 
     try {

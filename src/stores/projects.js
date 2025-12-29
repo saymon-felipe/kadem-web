@@ -3,6 +3,8 @@ import { defineStore } from "pinia";
 import { api } from "../plugins/api";
 import { syncService } from "../services/syncService";
 import { useAuthStore } from "../stores/auth";
+import { useUtilsStore } from '../stores/utils';
+import { getPlanLimits } from '../services/subscription_plans';
 import {
   projectRepository,
   syncQueueRepository,
@@ -148,46 +150,102 @@ export const useProjectStore = defineStore("projects", {
     },
 
     async updateProject(originalProject, changes) {
+      const utilsStore = useUtilsStore();
+      const authStore = useAuthStore();
+
       const cleanOriginal = JSON.parse(JSON.stringify(originalProject));
       const cleanChanges = JSON.parse(JSON.stringify(changes));
-      const updatedProject = { ...cleanOriginal, ...cleanChanges };
 
+      let newlyAddedEmails = [];
+      if (changes.invites && Array.isArray(changes.invites)) {
+        const oldInvites = cleanOriginal.invites || [];
+        const oldMembersEmails = (cleanOriginal.members || []).map(m => m.email);
+        newlyAddedEmails = changes.invites.filter(email =>
+          !oldInvites.includes(email) && !oldMembersEmails.includes(email)
+        );
+      }
+
+      const updatedProject = { ...cleanOriginal, ...cleanChanges };
       await projectRepository.saveLocalProject(updatedProject);
 
-      const projectInState = this.projects.find(
-        (p) => p.localId === originalProject.localId
-      );
+      const projectInState = this.projects.find((p) => p.localId === originalProject.localId);
       if (projectInState) {
         Object.assign(projectInState, changes);
-
-        console.log("updated project in memory: ", projectInState)
       }
 
-      delete cleanChanges.invites;
+      const changesForQueue = { ...cleanChanges };
+      delete changesForQueue.invites;
 
-      const timestamp = new Date().toISOString();
-      for (const fieldName in cleanChanges) {
-        await syncQueueRepository.addSyncQueueTask({
-          type: "SYNC_PROJECT_CHANGE",
-          payload: {
-            project_id: cleanOriginal.id,
-            localId: cleanOriginal.localId,
-            field: fieldName,
-            value: cleanChanges[fieldName],
+      if (Object.keys(changesForQueue).length > 0) {
+        const timestamp = new Date().toISOString();
+        for (const fieldName in changesForQueue) {
+          await syncQueueRepository.addSyncQueueTask({
+            type: "SYNC_PROJECT_CHANGE",
+            payload: {
+              project_id: cleanOriginal.id,
+              localId: cleanOriginal.localId,
+              field: fieldName,
+              value: changesForQueue[fieldName],
+              timestamp: timestamp,
+            },
             timestamp: timestamp,
-          },
-          timestamp: timestamp,
-        });
+          });
+        }
       }
+
+      let resultStatus = { success: true, invites_status: [] };
+
+      if (newlyAddedEmails.length > 0) {
+        if (utilsStore.connection.connected && cleanOriginal.id) {
+          try {
+            const res = await api.post(`/projects/${cleanOriginal.id}/invite/batch`, {
+              emails: newlyAddedEmails
+            });
+
+            const result = res.data;
+            if (result && result.details) {
+              resultStatus.invites_status = result.details;
+
+              const failedItems = result.details.filter(d => d.status === 'error');
+              if (failedItems.length > 0) {
+                const failedEmails = failedItems.map(d => d.email);
+
+                updatedProject.members = updatedProject.members.filter(m => !failedEmails.includes(m.email));
+                updatedProject.invites = updatedProject.invites.filter(e => !failedEmails.includes(e));
+
+                await projectRepository.saveLocalProject(updatedProject);
+
+                if (projectInState) {
+                  projectInState.members = updatedProject.members;
+                  projectInState.invites = updatedProject.invites;
+                }
+              }
+            }
+          } catch (error) {
+            console.error("[UpdateProject] Falha ao enviar convites:", error);
+            resultStatus.success = false;
+            throw error;
+          }
+        }
+      }
+
       syncService.processSyncQueue();
+      return resultStatus;
     },
 
     async createProject(projectData) {
       const authStore = useAuthStore();
+      const utilsStore = useUtilsStore();
       const currentUser = authStore.user;
+
+      const limits = getPlanLimits(currentUser.plan_tier);
+      if (this.projects.length >= limits.max_projects) {
+        throw new Error("Seu plano não permite a criação de mais projetos.");
+      }
 
       const cleanProjectData = JSON.parse(JSON.stringify(projectData));
 
+      // 2. Criação Otimista Local
       const localProject = {
         ...cleanProjectData,
         status: "active",
@@ -203,33 +261,63 @@ export const useProjectStore = defineStore("projects", {
             role: 'admin'
           }]
       };
-
       delete localProject.id;
 
       try {
         const localId = await projectRepository.addLocalProject(localProject);
-
         const projectWithId = { ...localProject, localId };
 
         this.projects.push(projectWithId);
-
         this.selectProject(localId);
 
-        await syncQueueRepository.addSyncQueueTask({
-          type: "CREATE_PROJECT",
-          payload: {
-            ...cleanProjectData,
-            localId: localId,
-          },
-          timestamp: new Date().toISOString(),
-        });
+        let resultStatus = { success: true, localId, invites_status: [] };
 
-        syncService.processSyncQueue();
+        if (utilsStore.connection.connected) {
+          try {
+            const response = await api.post('/projects', {
+              ...cleanProjectData,
+              localId: localId
+            });
 
-        return localId;
+            const { project: serverProject, invites_status } = response.data;
+            resultStatus.invites_status = invites_status || [];
+
+            const syncedProject = {
+              ...serverProject,
+              localId: localId,
+              is_synced: true,
+              last_accessed_at: new Date().toISOString()
+            };
+
+            await projectRepository.saveLocalProject(syncedProject);
+
+            const index = this.projects.findIndex(p => p.localId === localId);
+            if (index !== -1) {
+              this.projects[index] = syncedProject;
+            }
+
+          } catch (apiError) {
+            console.error("[CreateProject] Erro na API, revertendo criação local:", apiError.message);
+
+            await projectRepository.deleteLocalProject(localId);
+            this.projects = this.projects.filter(p => p.localId !== localId);
+            if (this.active_project_id === localId) this.active_project_id = null;
+
+            throw apiError;
+          }
+        } else {
+          await syncQueueRepository.addSyncQueueTask({
+            type: "CREATE_PROJECT",
+            payload: { ...cleanProjectData, localId: localId },
+            timestamp: new Date().toISOString(),
+          });
+          syncService.processSyncQueue();
+        }
+
+        return resultStatus;
 
       } catch (error) {
-        console.error("Falha ao criar projeto localmente:", error);
+        console.error("Falha ao criar projeto:", error);
         throw error;
       }
     },
@@ -340,8 +428,6 @@ export const useProjectStore = defineStore("projects", {
         );
 
         await projectRepository.deleteProjectByRemoteId(projectId);
-
-        await syncQueueRepository.removeTasksByProjectId(projectId);
 
         window.dispatchEvent(
           new CustomEvent("project-access-revoked", { detail: { projectId } })

@@ -3,6 +3,7 @@ import { markRaw } from "vue";
 import { radioRepository } from "../services/localData";
 import { api } from "../plugins/api";
 import { useRadioStore } from "./radio.js";
+import { useUtilsStore } from '../stores/utils';
 import MediaSessionManager from "../services/MediaSessionManager";
 import silentAudioUrl from "@/assets/audios/silent-audio.mp3";
 
@@ -31,7 +32,7 @@ export const usePlayerStore = defineStore("player", {
     is_initialized: false,
     yt_player_instance: null,
     native_audio_instance: markRaw(new Audio()),
-    current_audio_url: null,
+    current_audio_url: null
   }),
 
   actions: {
@@ -302,7 +303,9 @@ export const usePlayerStore = defineStore("player", {
         await this._handle_native_playback(targetTrack, finalAudioBlob, true);
 
       } else if (targetTrack.youtube_id) {
-        if (!navigator.onLine) {
+        const utilsStore = useUtilsStore();
+
+        if (!utilsStore.connection.connected) {
           console.warn("Sem internet e sem arquivo local. Pulando...");
           this.is_loading = false;
           this.next();
