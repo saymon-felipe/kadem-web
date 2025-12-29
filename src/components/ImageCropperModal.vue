@@ -76,7 +76,7 @@ export default {
     };
   },
   watch: {
-    show(val) {
+    modelValue(val) {
       if (!val) this.reset_state();
     },
   },
