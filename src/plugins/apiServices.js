@@ -1,6 +1,6 @@
 const media_dev = "http://localhost:3001/api/v1";
-const media_homolog = "https://kadem-media-engine-e16f2f36157e.herokuapp.com/";
-const media_prod = "https://kadem-media-engine-e16f2f36157e.herokuapp.com/";
+const media_homolog = "https://kadem-media-engine-e16f2f36157e.herokuapp.com/api/v1";
+const media_prod = "https://kadem-media-engine-e16f2f36157e.herokuapp.com/api/v1";
 
 let current_ambient = 2;
 
