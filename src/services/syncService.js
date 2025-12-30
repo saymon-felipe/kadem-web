@@ -521,14 +521,14 @@ export const syncService = {
         return;
       }
 
-      console.log(`[SyncService] Iniciando sincronização de ${allTasks.length} tarefas...`);
+      console.log(`[SyncService] Iniciando sincronização de ${pendingTasks.length} tarefas...`);
 
       // Separa tarefas de lote (Batch)
-      const profileTasks = allTasks.filter(t => t.type === 'SYNC_PROFILE_CHANGE');
-      const projectFieldTasks = allTasks.filter(t => t.type === 'SYNC_PROJECT_CHANGE');
-      const accountSyncTasks = allTasks.filter(t => t.type === 'UPDATE_ACCOUNT');
+      const profileTasks = pendingTasks.filter(t => t.type === 'SYNC_PROFILE_CHANGE');
+      const projectFieldTasks = pendingTasks.filter(t => t.type === 'SYNC_PROJECT_CHANGE');
+      const accountSyncTasks = pendingTasks.filter(t => t.type === 'UPDATE_ACCOUNT');
 
-      const individualTasks = allTasks.filter(t =>
+      const individualTasks = pendingTasks.filter(t =>
         t.type !== 'SYNC_PROFILE_CHANGE' &&
         t.type !== 'SYNC_PROJECT_CHANGE' &&
         t.type !== 'UPDATE_ACCOUNT'
