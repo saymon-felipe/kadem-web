@@ -344,7 +344,10 @@ export default {
     ]),
 
     async load_data() {
-      await this.pullPlaylists();
+      if (this.connection.connected) {
+        await this.pullPlaylists();
+      }
+
       if (this.playlists.length > 0) {
         if (!this.selected_playlist && !this.current_playlist) {
           this.select_playlist(this.playlists[0]);
