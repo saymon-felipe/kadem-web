@@ -86,70 +86,86 @@
       </button>
     </div>
 
-    <div v-if="is_creating_task" class="new-task-wrapper">
-      <div class="new-task-card" v-click-outside="handle_click_outside_creation">
-        <textarea
-          v-model="new_task_content"
-          placeholder="Descreva a tarefa..."
-          ref="new_task_input"
-          rows="3"
-          class="task-textarea"
-          @keydown.enter.exact.prevent="handle_create_task"
-          @keydown.esc="cancel_create_task"
-        ></textarea>
+    <transition name="task-expand">
+      <div v-if="is_creating_task" class="new-task-wrapper">
+        <div class="new-task-card" v-click-outside="handle_click_outside_creation">
+          <textarea
+            v-model="new_task_content"
+            placeholder="Descreva a tarefa..."
+            ref="new_task_input"
+            rows="3"
+            class="task-textarea"
+            @keydown.enter.exact.prevent="handle_create_task"
+            @keydown.esc="cancel_create_task"
+          ></textarea>
 
-        <div class="new-task-footer">
-          <div class="assignee-selector-wrapper">
-            <button
-              class="btn-assignee"
-              ref="assigneeTrigger"
-              @click.stop="toggle_assignee_menu"
-              :title="selected_assignee_name"
-            >
-              <img :src="selected_assignee_avatar" class="avatar-xs" alt="Responsável" />
-              <span class="assignee-label" v-if="selected_assignee_label">{{
-                selected_assignee_label
-              }}</span>
-            </button>
-
-            <Teleport to="body">
-              <transition name="fade">
+          <div class="new-task-footer">
+            <div class="assignee-selector-wrapper">
+              <button
+                class="btn-assignee"
+                ref="assigneeTrigger"
+                @click.stop="toggle_assignee_menu"
+                :title="selected_assignee_name"
+              >
                 <div
-                  v-if="show_assignee_menu"
-                  class="assignee-dropdown glass"
-                  v-click-outside="close_assignee_menu"
-                  :style="dropdown_position_style"
+                  v-if="is_special_assignee"
+                  class="avatar-placeholder"
+                  :class="special_assignee_class"
                 >
-                  <ul>
-                    <li @click="select_assignee('all')">
-                      <div class="avatar-placeholder all-icon">
-                        <font-awesome-icon icon="users" />
-                      </div>
-                      <span>Todos</span>
-                    </li>
-                    <li @click="select_assignee('any')">
-                      <div class="avatar-placeholder any-icon">
-                        <font-awesome-icon icon="dice" />
-                      </div>
-                      <span>Qualquer</span>
-                    </li>
-                    <hr class="divider" v-if="members && members.length > 0" />
-                    <li
-                      v-for="member in members"
-                      :key="member.id"
-                      @click="select_assignee(member)"
-                    >
-                      <img :src="member.avatar || default_avatar" class="avatar-xs" />
-                      <span>{{ member.name }}</span>
-                    </li>
-                  </ul>
+                  <font-awesome-icon :icon="special_assignee_icon" />
                 </div>
-              </transition>
-            </Teleport>
+
+                <img
+                  v-else
+                  :src="selected_assignee_avatar"
+                  class="avatar-xs"
+                  alt="Responsável"
+                />
+
+                <span class="assignee-label" v-if="selected_assignee_label">
+                  {{ selected_assignee_label }}
+                </span>
+              </button>
+
+              <Teleport to="body">
+                <transition name="fade">
+                  <div
+                    v-if="show_assignee_menu"
+                    class="assignee-dropdown glass"
+                    v-click-outside="close_assignee_menu"
+                    :style="dropdown_position_style"
+                  >
+                    <ul>
+                      <li @click="select_assignee('all')">
+                        <div class="avatar-placeholder all-icon">
+                          <font-awesome-icon icon="users" />
+                        </div>
+                        <span>Todos</span>
+                      </li>
+                      <li @click="select_assignee('any')">
+                        <div class="avatar-placeholder any-icon">
+                          <font-awesome-icon icon="dice" />
+                        </div>
+                        <span>Qualquer</span>
+                      </li>
+                      <hr class="divider" v-if="members && members.length > 0" />
+                      <li
+                        v-for="member in members"
+                        :key="member.id"
+                        @click="select_assignee(member)"
+                      >
+                        <img :src="member.avatar || default_avatar" class="avatar-xs" />
+                        <span>{{ member.name }}</span>
+                      </li>
+                    </ul>
+                  </div>
+                </transition>
+              </Teleport>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </transition>
 
     <draggable
       :list="filtered_tasks"
@@ -268,6 +284,19 @@ export default {
     is_mobile() {
       return this.containerDimensions.width <= 1100;
     },
+    is_special_assignee() {
+      return this.selected_assignee === "all" || this.selected_assignee === "any";
+    },
+    special_assignee_icon() {
+      if (this.selected_assignee === "all") return "users";
+      if (this.selected_assignee === "any") return "dice";
+      return "";
+    },
+    special_assignee_class() {
+      if (this.selected_assignee === "all") return "all-icon";
+      if (this.selected_assignee === "any") return "any-icon";
+      return "";
+    },
     selected_assignee_name() {
       if (this.selected_assignee === "all") return "Todos";
       if (this.selected_assignee === "any") return "Qualquer um";
@@ -353,6 +382,7 @@ export default {
     },
 
     show_new_task_form() {
+      this.close_options();
       this.close_search();
       this.is_creating_task = true;
       this.new_task_content = "";
@@ -840,6 +870,23 @@ export default {
 
 .any-icon {
   background-color: var(--orange);
+}
+
+.task-expand-enter-active,
+.task-expand-leave-active {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1);
+  max-height: 300px;
+  opacity: 1;
+  overflow: hidden;
+}
+
+.task-expand-enter-from,
+.task-expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-10px);
+  padding-bottom: 0;
+  margin-bottom: 0;
 }
 
 @container (max-width: 1100px) {

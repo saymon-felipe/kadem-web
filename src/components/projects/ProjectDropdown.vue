@@ -57,7 +57,10 @@
             @click="handleSelectProject(project)"
           >
             <div class="row-left">
-              <span class="status-dot bg-gray"></span>
+              <span
+                class="status-dot"
+                :class="getCurrentStatusClass(project.status)"
+              ></span>
 
               <div class="list-project-img">
                 <img :src="project.image || defaultProjectImage" />
@@ -121,6 +124,12 @@ export default {
       searchQuery: "",
       defaultProjectImage,
       defaultAccountImage,
+      available_statuses: {
+        em_andamento: { label: "Em Andamento", color_class: "bg-green" },
+        em_risco: { label: "Em Risco", color_class: "bg-red" },
+        em_espera: { label: "Em Espera", color_class: "bg-yellow" },
+        cancelado: { label: "Cancelado", color_class: "bg-gray" },
+      },
     };
   },
 
@@ -139,6 +148,9 @@ export default {
   },
 
   methods: {
+    getCurrentStatusClass(status) {
+      return this.available_statuses[status].color_class;
+    },
     toggleDropdown() {
       this.isOpen = !this.isOpen;
     },
@@ -160,6 +172,7 @@ export default {
   max-width: 400px;
   font-family: "Roboto", sans-serif;
   user-select: none;
+  min-width: 300px;
 }
 
 .project-trigger {
@@ -424,6 +437,12 @@ export default {
 @container (max-width: 1100px) {
   .project-dropdown-wrapper {
     max-width: 100%;
+  }
+}
+
+@container (max-width: 530px) {
+  .project-dropdown-wrapper {
+    min-width: initial !important;
   }
 }
 </style>

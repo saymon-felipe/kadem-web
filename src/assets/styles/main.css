@@ -82,6 +82,22 @@ h6 {
   }
 }
 
+.bg-green {
+  background-color: #2ecc71;
+  box-shadow: 0 0 4px #2ecc7180;
+}
+.bg-red {
+  background-color: #e74c3c;
+  box-shadow: 0 0 4px #e74c3c80;
+}
+.bg-yellow {
+  background-color: #f1c40f;
+  box-shadow: 0 0 4px #f1c40f80;
+}
+.bg-gray {
+  background-color: #95a5a6;
+}
+
 .glass {
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: var(--radius-md);

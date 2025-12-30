@@ -30,6 +30,42 @@ export const useProjectStore = defineStore("projects", {
   },
 
   actions: {
+    async updateProjectStatus({ project_id, local_id, status }) {
+      const projectIndex = this.projects.findIndex(
+        (p) => String(p.localId) === String(local_id)
+      );
+
+      console.log("projectIndex: ", projectIndex)
+
+      if (projectIndex !== -1) {
+        const updatedProject = { ...this.projects[projectIndex], status: status };
+        this.projects.splice(projectIndex, 1, updatedProject);
+
+        try {
+          await projectRepository.saveLocalProject(JSON.parse(JSON.stringify(updatedProject)));
+        } catch (e) {
+          console.error("Erro ao salvar status localmente:", e);
+        }
+      }
+
+      console.log("project_id: ", project_id)
+      if (project_id) {
+        const timestamp = new Date().toISOString();
+        await syncQueueRepository.addSyncQueueTask({
+          type: "SYNC_PROJECT_CHANGE",
+          payload: {
+            project_id: project_id,
+            localId: local_id,
+            field: "status",
+            value: status,
+            timestamp: timestamp,
+          },
+          timestamp: new Date().toISOString(),
+        });
+
+        syncService.processSyncQueue();
+      }
+    },
     async _loadProjectsFromDB() {
       try {
         this.projects = await projectRepository.getLocalProjects();

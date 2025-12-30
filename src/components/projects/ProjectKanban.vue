@@ -5,11 +5,21 @@
         <font-awesome-icon icon="chevron-left" />
       </button>
 
-      <ProjectDropdown
-        :projects="projects"
-        v-model="project_local_id_getter"
-        @switch-project="handleSwitchProject"
-      />
+      <div class="header-controls">
+        <ProjectDropdown
+          :projects="projects"
+          v-model="project_local_id_getter"
+          @switch-project="handleSwitchProject"
+        />
+
+        <div class="divider-vertical"></div>
+
+        <ProjectStatusDropdown
+          v-model="project.status"
+          :is_admin="is_project_admin"
+          @change="handle_status_change"
+        />
+      </div>
     </div>
 
     <div class="kanban-columns-container">
@@ -75,12 +85,14 @@ import { mapActions, mapState } from "pinia";
 import { useProjectStore } from "@/stores/projects";
 import { useKanbanStore } from "@/stores/kanban";
 import { useWindowStore } from "@/stores/windows";
+import { useAuthStore } from "@/stores/auth";
 
 import KanbanColumn from "./KanbanColumn.vue";
 import SideModal from "@/components/SideModal.vue";
 import TaskDetailForm from "./TaskDetailForm.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import ProjectDropdown from "./ProjectDropdown.vue";
+import ProjectStatusDropdown from "./ProjectStatusDropdown.vue";
 
 export default {
   name: "ProjectKanban",
@@ -91,6 +103,7 @@ export default {
     TaskDetailForm,
     ConfirmationModal,
     ProjectDropdown,
+    ProjectStatusDropdown,
   },
   props: {
     project_local_id: {
@@ -134,6 +147,12 @@ export default {
 
     ...mapState(useKanbanStore, ["getColumns"]),
     ...mapState(useWindowStore, ["_getOrCreateCurrentUserState"]),
+    ...mapState(useAuthStore, ["user"]),
+
+    is_project_admin() {
+      if (!this.project || !this.user) return false;
+      return this.project.current_user_role == "admin";
+    },
 
     containerDimensions() {
       const userState = this._getOrCreateCurrentUserState();
@@ -200,7 +219,26 @@ export default {
       "deleteColumn",
       "pullProjectKanban",
       "deleteTaskComment",
+      "updateProjectStatus",
     ]),
+    ...mapActions(useProjectStore, ["updateProjectStatus"]),
+
+    async handle_status_change(new_status) {
+      if (!this.project) return;
+
+      console.log(`[ProjectKanban] Atualizando status para: ${new_status}`);
+
+      console.log(this.project);
+      try {
+        await this.updateProjectStatus({
+          project_id: this.project.id,
+          local_id: this.project.localId,
+          status: new_status,
+        });
+      } catch (error) {
+        console.error("Falha ao atualizar status:", error);
+      }
+    },
 
     handleSwitchProject(newProjectId) {
       this.$emit("switch-project", newProjectId);
@@ -423,6 +461,18 @@ export default {
   display: flex;
   gap: var(--space-6);
   height: 100%;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.divider-vertical {
+  width: 1px;
+  height: 24px;
+  background-color: rgba(0, 0, 0, 0.1);
 }
 
 .kanban-columns-container {
