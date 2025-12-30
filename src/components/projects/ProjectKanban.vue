@@ -557,4 +557,16 @@ export default {
     max-width: 100% !important;
   }
 }
+
+@container (max-width: 564px) {
+  .header-controls {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .divider-vertical {
+    display: none;
+  }
+}
 </style>

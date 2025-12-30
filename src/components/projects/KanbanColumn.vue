@@ -481,6 +481,7 @@ export default {
   min-width: 320px;
   max-width: 320px;
   height: fit-content;
+  max-height: 100%;
   background: rgba(206, 179, 134, 0.15);
   display: flex;
   flex-direction: column;
@@ -677,7 +678,8 @@ export default {
 }
 
 .task-list {
-  flex-grow: 1;
+  flex-grow: 0;
+  flex-shrink: 1;
   padding: var(--space-3);
   overflow-y: auto;
   overflow-x: hidden;

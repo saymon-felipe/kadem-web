@@ -169,7 +169,7 @@ export default {
 .project-dropdown-wrapper {
   position: relative;
   width: 100%;
-  max-width: 400px;
+  max-width: 350px;
   font-family: "Roboto", sans-serif;
   user-select: none;
   min-width: 300px;
@@ -198,7 +198,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 15px;
-  flex-grow: 1;
+  flex: 1;
   min-width: 0;
   margin-right: var(--space-5);
 }
@@ -227,7 +227,7 @@ export default {
 .current-project-name {
   font-size: 1.2rem;
   font-weight: 500;
-  flex-grow: 1;
+  flex: 1;
   min-width: 0;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -337,19 +337,26 @@ export default {
 /* Item Ativo (Selecionado) */
 .project-row.active {
   background-color: #eef2ff;
-  /* Azulzinho claro do print */
 }
 
 .row-left {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.row-right {
+  flex-shrink: 0;
+  margin-left: 10px;
 }
 
 .status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .bg-green {
@@ -358,6 +365,10 @@ export default {
 
 .bg-gray {
   background-color: #ccc;
+}
+
+.list-project-img {
+  flex-shrink: 0;
 }
 
 .list-project-img img {
@@ -370,16 +381,24 @@ export default {
 .project-informations {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-width: 0;
 }
 
 .list-project-name {
   font-weight: 500;
   color: var(--deep-blue);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .list-project-description {
   font-size: var(--fontsize-xs);
   color: var(--text-gray);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .list-members-stack {
@@ -393,6 +412,7 @@ export default {
   overflow: hidden;
   margin-left: -14px;
   border: 2px solid white;
+  flex-shrink: 0;
 }
 
 .list-avatar img {
@@ -401,7 +421,6 @@ export default {
   object-fit: cover;
 }
 
-/* Botão Novo Projeto na lista */
 .new-project {
   color: #666;
   font-weight: 500;
@@ -434,14 +453,9 @@ export default {
   transform: translateY(-10px);
 }
 
-@container (max-width: 1100px) {
+@container (max-width: 564px) {
   .project-dropdown-wrapper {
     max-width: 100%;
-  }
-}
-
-@container (max-width: 530px) {
-  .project-dropdown-wrapper {
     min-width: initial !important;
   }
 }

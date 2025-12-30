@@ -200,11 +200,4 @@ export default {
   opacity: 0;
   transform: translateY(-5px);
 }
-
-@container (max-width: 500px) {
-  .status-label {
-    opacity: 0;
-    width: 1px;
-  }
-}
 </style>
