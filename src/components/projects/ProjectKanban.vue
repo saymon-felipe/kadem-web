@@ -228,7 +228,6 @@ export default {
 
       console.log(`[ProjectKanban] Atualizando status para: ${new_status}`);
 
-      console.log(this.project);
       try {
         await this.updateProjectStatus({
           project_id: this.project.id,

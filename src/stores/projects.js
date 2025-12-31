@@ -3,8 +3,8 @@ import { defineStore } from "pinia";
 import { api } from "../plugins/api";
 import { syncService } from "../services/syncService";
 import { useAuthStore } from "../stores/auth";
-import { useUtilsStore } from '../stores/utils';
-import { getPlanLimits } from '../services/subscription_plans';
+import { useUtilsStore } from "../stores/utils";
+import { getPlanLimits } from "../services/subscription_plans";
 import {
   projectRepository,
   syncQueueRepository,
@@ -35,20 +35,19 @@ export const useProjectStore = defineStore("projects", {
         (p) => String(p.localId) === String(local_id)
       );
 
-      console.log("projectIndex: ", projectIndex)
-
       if (projectIndex !== -1) {
         const updatedProject = { ...this.projects[projectIndex], status: status };
         this.projects.splice(projectIndex, 1, updatedProject);
 
         try {
-          await projectRepository.saveLocalProject(JSON.parse(JSON.stringify(updatedProject)));
+          await projectRepository.saveLocalProject(
+            JSON.parse(JSON.stringify(updatedProject))
+          );
         } catch (e) {
           console.error("Erro ao salvar status localmente:", e);
         }
       }
 
-      console.log("project_id: ", project_id)
       if (project_id) {
         const timestamp = new Date().toISOString();
         await syncQueueRepository.addSyncQueueTask({
@@ -195,16 +194,18 @@ export const useProjectStore = defineStore("projects", {
       let newlyAddedEmails = [];
       if (changes.invites && Array.isArray(changes.invites)) {
         const oldInvites = cleanOriginal.invites || [];
-        const oldMembersEmails = (cleanOriginal.members || []).map(m => m.email);
-        newlyAddedEmails = changes.invites.filter(email =>
-          !oldInvites.includes(email) && !oldMembersEmails.includes(email)
+        const oldMembersEmails = (cleanOriginal.members || []).map((m) => m.email);
+        newlyAddedEmails = changes.invites.filter(
+          (email) => !oldInvites.includes(email) && !oldMembersEmails.includes(email)
         );
       }
 
       const updatedProject = { ...cleanOriginal, ...cleanChanges };
       await projectRepository.saveLocalProject(updatedProject);
 
-      const projectInState = this.projects.find((p) => p.localId === originalProject.localId);
+      const projectInState = this.projects.find(
+        (p) => p.localId === originalProject.localId
+      );
       if (projectInState) {
         Object.assign(projectInState, changes);
       }
@@ -235,19 +236,23 @@ export const useProjectStore = defineStore("projects", {
         if (utilsStore.connection.connected && cleanOriginal.id) {
           try {
             const res = await api.post(`/projects/${cleanOriginal.id}/invite/batch`, {
-              emails: newlyAddedEmails
+              emails: newlyAddedEmails,
             });
 
             const result = res.data;
             if (result && result.details) {
               resultStatus.invites_status = result.details;
 
-              const failedItems = result.details.filter(d => d.status === 'error');
+              const failedItems = result.details.filter((d) => d.status === "error");
               if (failedItems.length > 0) {
-                const failedEmails = failedItems.map(d => d.email);
+                const failedEmails = failedItems.map((d) => d.email);
 
-                updatedProject.members = updatedProject.members.filter(m => !failedEmails.includes(m.email));
-                updatedProject.invites = updatedProject.invites.filter(e => !failedEmails.includes(e));
+                updatedProject.members = updatedProject.members.filter(
+                  (m) => !failedEmails.includes(m.email)
+                );
+                updatedProject.invites = updatedProject.invites.filter(
+                  (e) => !failedEmails.includes(e)
+                );
 
                 await projectRepository.saveLocalProject(updatedProject);
 
@@ -288,14 +293,17 @@ export const useProjectStore = defineStore("projects", {
         last_accessed_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
         is_synced: false,
-        members: cleanProjectData.members && cleanProjectData.members.length > 0
-          ? cleanProjectData.members
-          : [{
-            id: currentUser.id,
-            name: currentUser.name,
-            avatar: currentUser.avatar,
-            role: 'admin'
-          }]
+        members:
+          cleanProjectData.members && cleanProjectData.members.length > 0
+            ? cleanProjectData.members
+            : [
+                {
+                  id: currentUser.id,
+                  name: currentUser.name,
+                  avatar: currentUser.avatar,
+                  role: "admin",
+                },
+              ],
       };
       delete localProject.id;
 
@@ -310,9 +318,9 @@ export const useProjectStore = defineStore("projects", {
 
         if (utilsStore.connection.connected) {
           try {
-            const response = await api.post('/projects', {
+            const response = await api.post("/projects", {
               ...cleanProjectData,
-              localId: localId
+              localId: localId,
             });
 
             const { project: serverProject, invites_status } = response.data;
@@ -322,21 +330,23 @@ export const useProjectStore = defineStore("projects", {
               ...serverProject,
               localId: localId,
               is_synced: true,
-              last_accessed_at: new Date().toISOString()
+              last_accessed_at: new Date().toISOString(),
             };
 
             await projectRepository.saveLocalProject(syncedProject);
 
-            const index = this.projects.findIndex(p => p.localId === localId);
+            const index = this.projects.findIndex((p) => p.localId === localId);
             if (index !== -1) {
               this.projects[index] = syncedProject;
             }
-
           } catch (apiError) {
-            console.error("[CreateProject] Erro na API, revertendo criação local:", apiError.message);
+            console.error(
+              "[CreateProject] Erro na API, revertendo criação local:",
+              apiError.message
+            );
 
             await projectRepository.deleteLocalProject(localId);
-            this.projects = this.projects.filter(p => p.localId !== localId);
+            this.projects = this.projects.filter((p) => p.localId !== localId);
             if (this.active_project_id === localId) this.active_project_id = null;
 
             throw apiError;
@@ -351,7 +361,6 @@ export const useProjectStore = defineStore("projects", {
         }
 
         return resultStatus;
-
       } catch (error) {
         console.error("Falha ao criar projeto:", error);
         throw error;

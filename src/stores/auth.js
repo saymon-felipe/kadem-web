@@ -145,13 +145,12 @@ export const useAuthStore = defineStore("auth", {
     async checkAuthStatus(recursive = false) {
       try {
         const localUser = await userRepository.getLocalUserProfile();
-        const utilsStore = useUtilsStore();
         const projectStore = useProjectStore();
         const vaultStore = useVaultStore();
         const radioStore = useRadioStore();
         const playerStore = usePlayerStore();
 
-        if (utilsStore.connection.connected) {
+        if (navigator.onLine) {
           try {
             await this.syncProfile(recursive);
             await syncService.processSyncQueue();
@@ -221,7 +220,9 @@ export const useAuthStore = defineStore("auth", {
         }
 
         const response = await api.get("/users/profile", { params });
-        const { user: remoteUser, server_timestamp } = response.data;
+        const { user: remoteUser, server_timestamp, token } = response.data;
+
+        this.token = token;
 
         if (remoteUser) {
           await this._saveUserData(remoteUser);
