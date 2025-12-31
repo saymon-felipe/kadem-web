@@ -226,7 +226,7 @@ export const useRadioStore = defineStore("radio", {
     },
 
     async downloadTrack(track) {
-      if (this.active_downloads[track.local_id]) return;
+      if (this.active_downloads[track.local_id] !== undefined) return;
 
       const has_audio = this.downloaded_youtube_ids[track.youtube_id];
       if (has_audio) {
@@ -234,7 +234,11 @@ export const useRadioStore = defineStore("radio", {
         return;
       }
 
-      this.active_downloads[track.local_id] = true;
+      this.active_downloads[track.local_id] = 0;
+
+      const BYTES_PER_SECOND = 16000;
+
+      const estimatedTotal = (track.duration_seconds || 0) * BYTES_PER_SECOND;
 
       try {
         const is_audio_cached = await radioRepository.hasGlobalAudio(track.youtube_id);
@@ -246,12 +250,25 @@ export const useRadioStore = defineStore("radio", {
           const token = authStore.getToken;
 
           const endpoint = `${apiServices.MEDIA_ENGINE}/stream/${track.youtube_id}?nocache=${Date.now()}`;
+
           const response = await api.get(endpoint, {
             responseType: 'blob',
-            timeout: 120000,
+            timeout: 0,
             headers: {
               'Cache-Control': 'no-cache',
               'Authorization': `Bearer ${token}`
+            },
+            onDownloadProgress: (progressEvent) => {
+              const total = progressEvent.total || estimatedTotal;
+              const current = progressEvent.loaded;
+
+              if (total > 0) {
+                let percent = Math.floor((current / total) * 100);
+
+                if (percent >= 100) percent = 99;
+
+                this.active_downloads[track.local_id] = percent;
+              }
             }
           });
           audio_blob = response.data;
@@ -261,14 +278,17 @@ export const useRadioStore = defineStore("radio", {
           await radioRepository.saveTrackAudio(track.local_id, track.youtube_id, audio_blob);
         }
 
-        this.downloaded_youtube_ids[track.youtube_id] = true;
+        this.active_downloads[track.local_id] = 100;
 
-        this._updateLocalState(track.local_id, { is_offline: true });
+        setTimeout(() => {
+          delete this.active_downloads[track.local_id];
+          this.downloaded_youtube_ids[track.youtube_id] = true;
+          this._updateLocalState(track.local_id, { is_offline: true });
+        }, 500);
 
       } catch (error) {
         console.error(`[RadioStore] Erro download:`, error);
         track.is_offline = false;
-      } finally {
         delete this.active_downloads[track.local_id];
       }
     },

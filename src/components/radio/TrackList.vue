@@ -68,13 +68,48 @@
               </div>
 
               <div class="status-icons">
-                <span
-                  v-if="active_downloads[track.local_id]"
-                  class="status-icon downloading"
-                  title="Baixando..."
+                <div
+                  v-if="active_downloads[track.local_id] !== undefined"
+                  class="progress-ring-container"
+                  :title="
+                    active_downloads[track.local_id] === 0
+                      ? 'Iniciando download...'
+                      : `Baixando: ${active_downloads[track.local_id]}%`
+                  "
                 >
-                  <font-awesome-icon icon="spinner" spin />
-                </span>
+                  <svg
+                    class="progress-ring"
+                    width="20"
+                    height="20"
+                    :class="{
+                      'is-indeterminate': active_downloads[track.local_id] === 0,
+                    }"
+                  >
+                    <circle
+                      class="progress-ring__circle--bg"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      fill="transparent"
+                      r="8"
+                      cx="10"
+                      cy="10"
+                    />
+
+                    <circle
+                      class="progress-ring__circle"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      fill="transparent"
+                      r="8"
+                      cx="10"
+                      cy="10"
+                      stroke-dasharray="50.26"
+                      :stroke-dashoffset="
+                        get_progress_offset(active_downloads[track.local_id])
+                      "
+                    />
+                  </svg>
+                </div>
 
                 <span
                   v-else-if="radioStore.isTrackOffline(track)"
@@ -194,6 +229,16 @@ export default {
   methods: {
     ...mapActions(usePlayerStore, ["play_track"]),
     ...mapActions(useRadioStore, ["removeTrackFromPlaylist", "downloadTrack"]),
+
+    get_progress_offset(progress) {
+      const circumference = 50.26;
+
+      if (progress === 0) {
+        return circumference * 0.75;
+      }
+
+      return circumference - (circumference * progress) / 100;
+    },
 
     /* -------------------------------------------------------------------------- */
     /* State Checks & Validation                                                  */
@@ -624,12 +669,48 @@ export default {
   font-variant-numeric: tabular-nums;
 }
 
+.progress-ring {
+  transform-origin: center;
+}
+
+.is-indeterminate {
+  animation: spin 1s linear infinite;
+}
+
+.progress-ring-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--blue);
+}
+
+.progress-ring__circle--bg {
+  opacity: 0.2;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.progress-ring__circle {
+  transition: stroke-dashoffset 0.35s ease;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  color: var(--blue);
+}
+
 .status-icons {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 24px;
+  height: 24px;
   margin-left: 8px;
 }
 
