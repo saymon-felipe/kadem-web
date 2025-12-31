@@ -1,5 +1,5 @@
 <template>
-  <div class="kanban-column">
+  <div class="kanban-column" :class="{ searching: show_search }">
     <header class="column-header">
       <div class="header-left">
         <span class="column-drag-handle" title="Arrastar coluna">
@@ -491,6 +491,7 @@ export default {
   border-radius: var(--radius-md);
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2), inset 0 4px 20px rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(5px) saturate(180%);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1);
 }
 
 .column-header {
@@ -908,9 +909,15 @@ export default {
   .kanban-column,
   .column-fallback {
     width: 100%;
-    height: 200px;
+    height: 215px;
     min-width: 100%;
     max-width: 100%;
+  }
+
+  .kanban-column.searching {
+    height: 280px;
+    z-index: 10;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
   .task-list {

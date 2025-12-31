@@ -45,7 +45,6 @@
           <font-awesome-icon icon="pencil" />
         </button>
       </div>
-
       <transition name="fade-switch" mode="out-in">
         <p v-if="!isEditingBio" class="biography-text" key="bio-text">
           {{ user.bio || "Escreva sobre você..." }}
@@ -73,7 +72,6 @@
         <p>Meus projetos</p>
         <button
           class="icon-button"
-          id="create-group"
           title="Adicionar Projeto"
           @click="$emit('request-new-group')"
         >
@@ -81,34 +79,30 @@
         </button>
       </div>
 
-      <div class="projects-grid" v-if="my_projects.length > 0">
-        <div
-          class="project-card"
-          v-for="project in projects"
-          :key="project.id || project.localId"
-          @click="$emit('request-edit-group', project)"
-        >
-          <img :src="project.image || defaultProjectImage" :alt="project.name" />
-          <span :data-name="project.name">&nbsp;</span>
-        </div>
-      </div>
-      <p v-else class="empty-state">Você ainda não criou nenhum projeto.</p>
-    </section>
-    <section class="info-section" v-if="participating_projects.length > 0">
-      <div class="section-header">
-        <p>Projetos que eu faço parte</p>
-      </div>
-
       <div class="projects-grid">
-        <div
-          class="project-card"
+        <ProjectCard
           v-for="project in projects"
           :key="project.id || project.localId"
-          @click="$emit('request-edit-group', project)"
-        >
-          <img :src="project.image || defaultProjectImage" :alt="project.name" />
-          <span :data-name="project.name">&nbsp;</span>
-        </div>
+          :project="project"
+          @click_card="open_project_edit"
+        />
+      </div>
+    </section>
+
+    <section
+      class="info-section"
+      v-if="participating_projects && participating_projects.length > 0"
+    >
+      <div class="section-header">
+        <p>Projetos que participo</p>
+      </div>
+      <div class="projects-grid">
+        <ProjectCard
+          v-for="project in participating_projects"
+          :key="project.id || project.localId"
+          :project="project"
+          @click_card="open_project_edit"
+        />
       </div>
     </section>
   </div>
@@ -118,16 +112,18 @@
 import { mapState, mapActions } from "pinia";
 import { useAuthStore } from "@/stores/auth";
 import { useProjectStore } from "@/stores/projects";
-import defaultProjectImage from "@/assets/images/kadem-default-project.jpg";
+import ProjectCard from "./ProjectCard.vue"; // Importação do novo componente
 
 export default {
   name: "MainInformations",
+  components: {
+    ProjectCard,
+  },
   emits: ["request-new-group", "request-edit-group"],
   data() {
     return {
       isAddingOccupation: false,
       newOccupationName: "",
-      defaultProjectImage: defaultProjectImage,
       isEditingBio: false,
       editableBio: "",
     };
@@ -135,27 +131,8 @@ export default {
   computed: {
     ...mapState(useAuthStore, ["user"]),
     ...mapState(useProjectStore, ["projects"]),
-    my_projects() {
-      if (!this.user || !this.user.id) return [];
-
-      return this.projects.filter((project) => {
-        if (!Array.isArray(project.members)) return false;
-
-        const me = project.members.find((member) => member.id === this.user.id);
-
-        return me && me.role === "admin";
-      });
-    },
     participating_projects() {
-      if (!this.user || !this.user.id) return [];
-
-      return this.projects.filter((project) => {
-        if (!Array.isArray(project.members)) return false;
-
-        const me = project.members.find((member) => member.id === this.user.id);
-
-        return me && me.role !== "admin";
-      });
+      return this.projects.filter((p) => p.user_role === "member");
     },
   },
   methods: {
@@ -164,6 +141,10 @@ export default {
       "removeOccupation",
       "updateUserBio",
     ]),
+    open_project_edit(project) {
+      this.$emit("request-edit-group", project);
+    },
+
     toggleBioEdit(isEditing) {
       this.isEditingBio = isEditing;
       if (isEditing) {
@@ -173,7 +154,6 @@ export default {
         }, 300);
       }
     },
-
     async handleSaveBio() {
       if (this.editableBio === this.user.bio) {
         this.toggleBioEdit(false);
@@ -354,53 +334,9 @@ export default {
 }
 
 .projects-grid {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: var(--space-5);
-  flex-wrap: wrap;
-}
-
-.project-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  cursor: pointer;
-  position: relative;
-  min-width: 180px;
-
-  & img {
-    width: 100%;
-    height: 120px;
-    object-fit: cover;
-  }
-
-  & span {
-    font-weight: 500;
-    color: var(--deep-blue);
-    padding-bottom: var(--space-2);
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    width: 100%;
-    display: inline-block;
-    color: var(--white);
-
-    &::after {
-      content: attr(data-name);
-      width: 100%;
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      background-image: linear-gradient(to top, rgba(46, 46, 46, 0.6) 60%, transparent);
-      height: 120%;
-      display: flex;
-      align-items: center;
-      padding-left: var(--space-6);
-      padding-bottom: var(--space-3);
-      padding-top: var(--space-3);
-    }
-  }
 }
 
 .fade-switch-enter-active,
@@ -434,11 +370,5 @@ export default {
 .tag-anim-leave-active {
   position: absolute;
   z-index: -1;
-}
-
-@media (max-width: 600px) {
-  .project-card {
-    width: 100%;
-  }
 }
 </style>
