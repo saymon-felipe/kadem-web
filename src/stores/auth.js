@@ -153,8 +153,8 @@ export const useAuthStore = defineStore("auth", {
 
         if (utilsStore.connection.connected) {
           try {
-            await syncService.processSyncQueue();
             await this.syncProfile(recursive);
+            await syncService.processSyncQueue();
 
             if (recursive) {
               const kanbanStore = useKanbanStore();

@@ -89,7 +89,7 @@ export default {
     },
   },
   methods: {
-    ...mapActions(useAuthStore, ["setUser"]),
+    ...mapActions(useAuthStore, ["setUser", "checkAuthStatus"]),
     ...mapActions(useAppStore, ["setSystem", "updateMobileStatus"]),
     returnSystem: function () {
       this.api.get("/system").then((response) => {
