@@ -142,12 +142,12 @@ export default {
         date.toLocaleDateString("pt-BR")
       );
     },
-    accountTypeImage() {
-      if (!this.form.logo_url) {
+    returnAccountTypeImage(account) {
+      if (!account.logo_url) {
         return defaultAccount;
       }
 
-      return this.form.logo_url;
+      return account.logo_url;
     },
     inputStyle(localId, isPassword) {
       const isRevealed = this.vault.revealedPasswords[localId];
