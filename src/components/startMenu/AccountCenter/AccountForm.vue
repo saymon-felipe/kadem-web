@@ -61,6 +61,7 @@ export default {
         id: null,
         lastAccess: null,
         logo_url: "",
+        domain: "",
       },
       search_timer: null,
       api_secret_key: "pk_PAz0kI4nRd6KqTrziA6zdw",
@@ -71,11 +72,11 @@ export default {
       return !!this.accountToEdit;
     },
     accountTypeImage() {
-      if (!this.form.logo_url) {
+      if (!this.form.domain) {
         return defaultAccount;
       }
 
-      return this.form.logo_url;
+      return this.form.domain;
     },
   },
   watch: {
@@ -126,7 +127,7 @@ export default {
         const result_data = response.data;
 
         if (result_data && result_data.length > 0 && result_data[0].logo_url) {
-          this.form.logo_url = result_data[0].logo_url;
+          this.form.domain = result_data[0].logo_url;
         }
       } catch (error) {
         console.warn("[AccountForm] Não foi possível buscar o domínio da logo:", error);

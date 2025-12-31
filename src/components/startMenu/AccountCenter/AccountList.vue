@@ -143,13 +143,13 @@ export default {
       );
     },
     returnAccountTypeImage(account) {
-      if (!account.logo_url) {
+      if (!account.domain) {
         return defaultAccount;
       }
 
-      return account.logo_url;
+      return account.domain;
     },
-    inputStyle(localId, isPassword) {
+    inputStyle(localId) {
       const isRevealed = this.vault.revealedPasswords[localId];
 
       const blur = isRevealed ? "0px" : "4px";
