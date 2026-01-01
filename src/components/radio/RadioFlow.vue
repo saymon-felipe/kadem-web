@@ -103,11 +103,12 @@
 
             <template v-else-if="view_mode === 'search'">
               <div class="search-results-header">
-                <h3>Resultados para "{{ search_query }}"</h3>
+                <h3>Resultados para "{{ last_search_term }}"</h3>
               </div>
               <loading-spinner v-if="is_searching" style="margin: 50px auto" />
               <TrackList
                 v-else
+                ref="searchTrackList"
                 mode="search"
                 :tracks="search_results"
                 :current_music_id="current_music?.youtube_id"
@@ -181,6 +182,7 @@
       <PlaylistSelector
         v-model="show_playlist_selector"
         :playlists="playlists"
+        :existing_in_playlists="target_track_playlist_ids"
         :position="selector_position"
         :default_avatar="default_avatar"
         @close="show_playlist_selector = false"
@@ -222,6 +224,8 @@ import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import defaultCover from "@/assets/images/fundo-auth.webp";
 import defaultAvatar from "@/assets/images/kadem-default-playlist.jpg";
 
+import { db } from "@/db";
+
 export default {
   name: "RadioFlow",
   components: {
@@ -237,7 +241,7 @@ export default {
   data() {
     return {
       selected_playlist: null,
-      tracks: [], // Faixas da playlist selecionada na visualização
+      tracks: [],
       default_cover: defaultCover,
       default_avatar: defaultAvatar,
       yt_player: null,
@@ -246,6 +250,7 @@ export default {
       is_queue_collapsed: false,
       view_mode: "playlist",
       search_query: "",
+      last_search_term: "",
       search_results: [],
       is_searching: false,
 
@@ -476,9 +481,13 @@ export default {
     async perform_search() {
       if (!this.connection.connected) return;
       if (!this.search_query.trim()) return;
+
+      this.last_search_term = this.search_query;
+
       this.view_mode = "search";
       this.is_searching = true;
       this.search_results = [];
+
       try {
         const response = await api.get("/radio/search", {
           params: { q: this.search_query },
@@ -494,11 +503,24 @@ export default {
     close_search() {
       this.view_mode = "playlist";
       this.search_query = "";
+      this.last_search_term = "";
       this.search_results = [];
     },
 
-    open_playlist_selector(track, event) {
+    async open_playlist_selector(track, event) {
       this.track_being_added = track;
+      this.target_track_playlist_ids = [];
+
+      try {
+        const existing_entries = await db.tracks
+          .where("youtube_id")
+          .equals(track.youtube_id)
+          .toArray();
+
+        this.target_track_playlist_ids = existing_entries.map((t) => t.playlist_local_id);
+      } catch (error) {
+        console.error("Erro ao verificar duplicatas:", error);
+      }
 
       const targetElement = event.target.closest("button") || event.target;
       const rect = targetElement.getBoundingClientRect();
@@ -538,13 +560,16 @@ export default {
         this.track_being_added
       );
 
-      // Se a playlist alvo é a que está sendo visualizada, atualiza a lista
       if (
         this.selected_playlist &&
         this.selected_playlist.local_id === this.target_playlist_for_add.local_id
       ) {
         const savedTrack = await radioRepository.getLocalTrack(newTrackId);
         if (savedTrack) this.tracks.push(savedTrack);
+      }
+
+      if (this.view_mode === "search" && this.$refs.searchTrackList) {
+        this.$refs.searchTrackList.trigger_add_feedback(this.track_being_added);
       }
 
       this.target_playlist_for_add = null;
@@ -888,10 +913,12 @@ export default {
 
 @container (max-width: 1100px) {
   .radio-flow-wrapper {
-    height: 100%;
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
+    flex-grow: 1;
+    min-height: 0;
+    height: auto;
 
     & iframe {
       position: absolute;
@@ -901,7 +928,7 @@ export default {
   }
 
   .layout-grid {
-    display: block; /* Remove o grid, v-show cuida do resto */
+    display: block;
     position: relative;
     flex-grow: 1;
     min-height: 0;
@@ -916,7 +943,6 @@ export default {
     max-height: 100% !important;
   }
 
-  /* Queue Sidebar adaptação */
   .queue-sidebar {
     width: 100% !important;
   }

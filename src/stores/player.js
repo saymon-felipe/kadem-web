@@ -243,6 +243,25 @@ export const usePlayerStore = defineStore("player", {
         }
       }
 
+      let resolved_playlist = playlist;
+
+      if (!resolved_playlist) {
+        const radioStore = useRadioStore();
+
+        if (track.playlist_local_id) {
+          resolved_playlist = radioStore.playlists.find(p => p.local_id === track.playlist_local_id);
+        }
+        else if (track.playlist_id) {
+          resolved_playlist = radioStore.playlists.find(p => p.id === track.playlist_id);
+        }
+      }
+
+      if (resolved_playlist) {
+        this.current_playlist = resolved_playlist;
+      } else if (!this.current_playlist) {
+        this.current_playlist = null;
+      }
+
       this.queue = this.queue.filter((t) => t.youtube_id !== track.youtube_id);
 
       if (this.current_audio_url) {

@@ -494,6 +494,9 @@ export default {
 
   .music-info {
     max-width: 83%;
+    display: flex;
+    flex-direction: column;
+    padding-right: 40px;
   }
 }
 </style>

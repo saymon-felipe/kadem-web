@@ -6,10 +6,20 @@
           <font-awesome-icon icon="trash-can" />
           <span>Excluir</span>
         </button>
-        <button class="menu-item" @click="$emit('add-queue')">
-          <font-awesome-icon icon="plus" />
-          <span>Adicionar à fila</span>
+
+        <button
+          class="menu-item"
+          @click="!isInQueue && $emit('add-queue')"
+          :class="{ 'disabled-item': isInQueue }"
+          :disabled="isInQueue"
+        >
+          <font-awesome-icon
+            :icon="isInQueue ? 'check' : 'plus'"
+            :class="{ 'success-icon': isInQueue }"
+          />
+          <span>{{ isInQueue ? "Na fila" : "Adicionar à fila" }}</span>
         </button>
+
         <button class="menu-item" @click="$emit('copy-link')">
           <font-awesome-icon icon="link" />
           <span>Copiar link</span>
@@ -24,6 +34,7 @@ export default {
   props: {
     modelValue: { type: Boolean, required: true },
     position: { type: Object, default: () => ({ x: 0, y: 0 }) },
+    isInQueue: { type: Boolean, default: false },
   },
   emits: ["update:modelValue", "delete", "add-queue", "copy-link"],
   computed: {
@@ -62,6 +73,16 @@ export default {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
+}
+
+.disabled-item {
+  cursor: default !important;
+  color: var(--gray-400) !important;
+  background: none !important;
+}
+
+.success-icon {
+  color: var(--green);
 }
 
 .menu-item {

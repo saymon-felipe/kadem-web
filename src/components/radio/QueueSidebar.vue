@@ -382,6 +382,17 @@ export default {
   gap: var(--space-3);
   padding: var(--space-2);
   border-radius: var(--radius-sm);
+  color: white;
+}
+
+@container (max-width: 1100px) {
+  :deep(.queue-drag) {
+    transform: translateY(-100px);
+  }
+
+  .remove-btn {
+    opacity: 1 !important;
+  }
 }
 
 :deep(.queue-ghost.track-row) {

@@ -40,7 +40,7 @@ export default {
       background_src: background_image_src,
 
       is_stream_initialized: false,
-      is_pip_ready: false, // Controla se o PiP já abriu
+      is_pip_ready: false,
       is_internal_update: false,
       is_initializing: false,
 
@@ -60,7 +60,6 @@ export default {
     "current_music.thumbnail": {
       handler(new_cover_url) {
         if (new_cover_url) {
-          // Truque para "quebrar" cache de imagens sem CORS do navegador
           const separator = new_cover_url.includes("?") ? "&" : "?";
           const safeUrl = `${new_cover_url}${separator}pip_request=true`;
 
@@ -72,7 +71,7 @@ export default {
 
           this.album_art_img.onerror = (e) => {
             console.warn("Falha ao carregar capa no PiP com CORS:", e);
-            // Evita loop ou imagem quebrada
+
             this.album_art_img.removeAttribute("src");
             this.draw_canvas_content();
           };
@@ -88,7 +87,6 @@ export default {
         if (!video_el || !this.is_pip_ready) return;
 
         if (should_play && !video_el.paused) return;
-
         if (!should_play && video_el.paused) {
           if (document.pictureInPictureElement) {
             this.draw_canvas_content();
@@ -102,20 +100,20 @@ export default {
         if (should_play) {
           video_el
             .play()
-            .catch(() => {})
+            .catch((e) => {
+              if (e.name !== "AbortError") console.warn(e);
+            })
             .finally(() => {
-              setTimeout(() => {
-                this.is_internal_update = false;
-              }, 50);
+              this.is_internal_update = false;
             });
         } else {
           this.draw_canvas_content();
-          setTimeout(() => {
-            if (video_el && !video_el.paused) {
-              video_el.pause();
-            }
+
+          video_el.pause();
+
+          this.$nextTick(() => {
             this.is_internal_update = false;
-          }, 60);
+          });
         }
       },
       immediate: true,
@@ -129,7 +127,6 @@ export default {
       handler(new_val) {
         const video_el = this.$refs.pip_video;
         if (!video_el) return;
-        // Só atualiza o elemento de vídeo se a mudança for significativa
         if (Math.abs(video_el.volume - new_val) > 0.01) {
           this.is_internal_update = true;
           video_el.volume = Math.min(Math.max(new_val, 0), 1);
@@ -167,21 +164,22 @@ export default {
 
     on_native_play() {
       if (this.is_internal_update || this.is_initializing) return;
+      if (this.is_playing) return;
+
       this.$emit("toggle-play", true);
     },
 
     on_native_pause() {
       if (this.is_internal_update || this.is_initializing) return;
+
       if (document.visibilityState === "hidden" && document.pictureInPictureElement)
         return;
+
+      if (!this.is_playing) return;
+
       this.$emit("toggle-play", false);
     },
-
-    // --- CORREÇÃO DO BUG DE VOLUME ZERO ---
     on_native_volume_change() {
-      // 1. Bloqueio de Segurança:
-      // Se o PiP não estiver ativo E não estivermos no meio da inicialização explícita,
-      // ignoramos o evento. Isso evita que o 'muted' do template zere o volume da store.
       if (
         !this.is_pip_ready &&
         !document.pictureInPictureElement &&
@@ -193,14 +191,12 @@ export default {
       if (this.is_internal_update || this.is_initializing) return;
 
       const video_el = this.$refs.pip_video;
-      // Se estiver mutado, considera 0, senão pega o volume real
       const vol = video_el.muted ? 0 : video_el.volume;
       this.$emit("set-volume", vol);
     },
 
     on_leave_pip() {
       this.is_pip_ready = false;
-      // Garante que o vídeo oculto pare de consumir recursos
       const video_el = this.$refs.pip_video;
       if (video_el) video_el.pause();
     },
@@ -224,8 +220,6 @@ export default {
         console.error("KADEM: Erro assets PiP:", error);
       }
     },
-
-    // ... (draw_play_icon, draw_pause_icon, draw_image_cover mantidos iguais) ...
     draw_play_icon(ctx, x, y, size) {
       const w = size;
       const h = size * 0.9;
@@ -501,7 +495,6 @@ export default {
             await video_el.play();
           }
           await video_el.requestPictureInPicture();
-          // is_initializing será setado false no onloadedmetadata
           return true;
         }
       } catch (error) {

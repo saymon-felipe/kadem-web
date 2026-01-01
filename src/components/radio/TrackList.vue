@@ -16,6 +16,7 @@
         item-key="youtube_id"
         :sort="false"
         ghost-class="track-ghost"
+        :disabled="is_mobile"
       >
         <template #item="{ element: track, index }">
           <div
@@ -23,6 +24,7 @@
             :class="{
               'active-track': is_track_playing(track),
               'unavailable-track': is_track_unavailable(track),
+              'row-blink-success': success_feedback_map[track.youtube_id],
             }"
             @click="handle_row_click(track)"
             @dblclick="handle_desktop_dbl_click(track)"
@@ -143,9 +145,16 @@
                 v-else
                 @click.stop="$emit('request-add', track, $event)"
                 class="btn-circle add"
-                title="Adicionar à Playlist"
+                :class="{ 'success-state': success_feedback_map[track.youtube_id] }"
+                :title="
+                  success_feedback_map[track.youtube_id]
+                    ? 'Adicionado!'
+                    : 'Adicionar à Playlist'
+                "
               >
-                <font-awesome-icon icon="circle-plus" />
+                <font-awesome-icon
+                  :icon="success_feedback_map[track.youtube_id] ? 'check' : 'circle-plus'"
+                />
               </button>
             </div>
           </div>
@@ -156,6 +165,7 @@
         <TrackOptionsMenu
           v-model="show_options_menu"
           :position="options_position"
+          :is-in-queue="is_in_queue(selected_track_for_menu)"
           @close="show_options_menu = false"
           @copy-link="handle_copy_link"
           @delete="handle_delete"
@@ -213,12 +223,13 @@ export default {
       show_options_menu: false,
       options_position: { x: 0, y: 0 },
       selected_track_for_menu: null,
+      success_feedback_map: {},
     };
   },
 
   computed: {
     ...mapState(useRadioStore, ["active_downloads"]),
-    ...mapState(usePlayerStore, ["current_music", "is_playing"]),
+    ...mapState(usePlayerStore, ["current_music", "is_playing", "queue"]),
     ...mapState(useUtilsStore, ["connection"]),
 
     is_offline_mode() {
@@ -229,6 +240,26 @@ export default {
   methods: {
     ...mapActions(usePlayerStore, ["play_track"]),
     ...mapActions(useRadioStore, ["removeTrackFromPlaylist", "downloadTrack"]),
+
+    is_in_queue(track) {
+      if (!this.queue || !track) return false;
+
+      return this.queue.some(
+        (t) =>
+          (t.local_id && t.local_id === track.local_id) ||
+          t.youtube_id === track.youtube_id
+      );
+    },
+
+    trigger_add_feedback(track) {
+      if (!track || !track.youtube_id) return;
+
+      this.success_feedback_map[track.youtube_id] = true;
+
+      setTimeout(() => {
+        delete this.success_feedback_map[track.youtube_id];
+      }, 2500);
+    },
 
     get_progress_offset(progress) {
       const circumference = 50.26;
@@ -313,6 +344,8 @@ export default {
     },
     handle_add_queue() {
       if (this.selected_track_for_menu) {
+        this.trigger_add_feedback(this.selected_track_for_menu);
+
         this.$emit("add-to-queue", this.selected_track_for_menu);
       }
       this.show_options_menu = false;
@@ -775,6 +808,25 @@ export default {
   background: rgba(255, 255, 255, 0.2);
 }
 
+.row-blink-success {
+  animation: blink-bg 0.6s ease-in-out 2;
+}
+
+@keyframes blink-bg {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+  50% {
+    background-color: rgba(74, 222, 128, 0.2);
+  }
+}
+
+.btn-circle.add.success-state {
+  color: #4ade80 !important;
+  transform: scale(1.1);
+}
+
 /* Container Queries para Responsividade Mobile */
 @container (max-width: 1100px) {
   .track-row {
@@ -804,6 +856,10 @@ export default {
 
   .tracks-scroll-area {
     padding-bottom: 60px;
+  }
+
+  .status-icons {
+    display: none;
   }
 }
 </style>

@@ -11,7 +11,14 @@
             @click="select_playlist(pl)"
           >
             <img :src="pl.cover || default_avatar" class="mini-cover" />
-            <span>{{ pl.name }}</span>
+            <span style="flex-grow: 1">{{ pl.name }}</span>
+
+            <font-awesome-icon
+              v-if="existing_in_playlists.includes(pl.local_id)"
+              icon="check"
+              class="existing-icon"
+              title="Já adicionada"
+            />
           </button>
         </div>
       </div>
@@ -26,6 +33,7 @@ export default {
     playlists: { type: Array, required: true },
     position: { type: Object, default: () => ({ x: 0, y: 0 }) },
     default_avatar: { type: String, required: true },
+    existing_in_playlists: { type: Array, default: () => [] }
   },
   emits: ["update:modelValue", "select"],
   computed: {
@@ -99,6 +107,12 @@ export default {
 
 .menu-item:hover {
   background: var(--background-gray);
+}
+
+.existing-icon {
+  color: var(--green);
+  font-size: 0.8rem;
+  margin-left: auto;
 }
 
 .mini-cover {
