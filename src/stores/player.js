@@ -345,6 +345,10 @@ export const usePlayerStore = defineStore("player", {
       this.syncState();
     },
 
+    setCurrentPlaylist(playlist) {
+      this.current_playlist = playlist;
+    },
+
     async toggle_play() {
       if (!this.current_music) return;
 
