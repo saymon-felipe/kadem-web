@@ -69,7 +69,13 @@
                 <small class="mobile-only-artist">{{ track.channel }}</small>
               </div>
 
-              <div class="status-icons">
+              <div
+                class="status-icons"
+                v-if="
+                  radioStore.isTrackOffline(track) ||
+                  active_downloads[track.local_id] !== undefined
+                "
+              >
                 <div
                   v-if="active_downloads[track.local_id] !== undefined"
                   class="progress-ring-container"
@@ -856,10 +862,6 @@ export default {
 
   .tracks-scroll-area {
     padding-bottom: 60px;
-  }
-
-  .status-icons {
-    display: none;
   }
 }
 </style>
