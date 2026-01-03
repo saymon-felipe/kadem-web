@@ -138,7 +138,16 @@ export const useAuthStore = defineStore("auth", {
         localStorage.removeItem("kadem_kanban_syncs");
 
         if (!not_redirect) {
-          router.push("/auth");
+          if (
+            this.$route.query.from_site === "true" ||
+            this.$route.query.from_site === true ||
+            this.$route.query.from_site === 1 ||
+            this.$route.query.from_site === "1"
+          ) {
+            this.$router.push({ path: "/auth", query: { from_site: "from_site" } });
+          } else {
+            router.push("/auth");
+          }
         }
       }
     },
