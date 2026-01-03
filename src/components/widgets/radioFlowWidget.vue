@@ -1,20 +1,29 @@
 <template>
   <div class="radio-flow-widget glass">
-    <div class="music-data">
+    <div class="widget-header">
       <div class="widget-cover">
         <img :src="current_music?.thumbnail || defaultMusicCover" alt="Capa" />
       </div>
-      <div class="radio-data">
-        <span :title="current_music?.title">{{
-          current_music?.title || "Nenhuma música tocando"
-        }}</span>
-        <span :title="current_playlist?.name">{{
-          current_playlist?.name || "--------"
-        }}</span>
+
+      <div class="radio-info">
+        <span class="music-title" :title="current_music?.title">
+          {{ current_music?.title || "Nenhuma música tocando" }}
+        </span>
+
+        <div class="tags-container">
+          <span
+            class="playlist-tag"
+            v-if="current_playlist?.name"
+            :title="current_playlist?.name"
+          >
+            {{ current_playlist?.name }}
+          </span>
+          <span class="playlist-tag" v-else>--------</span>
+        </div>
       </div>
     </div>
-    <div class="time-range progress-container">
-      <span class="time-text">{{ formatted_current_time }}</span>
+
+    <div class="progress-section">
       <input
         type="range"
         min="0"
@@ -22,16 +31,21 @@
         v-model="ui_current_time"
         @input="on_seek_input"
         @change="on_seek_change"
-        class="slider progress-slider"
+        class="slider"
         :style="progress_style"
         :disabled="is_disabled_controls"
       />
-      <span class="time-text">{{ formatted_duration }}</span>
+      <div class="time-display">
+        <span class="time-text">{{ formatted_current_time }}</span>
+        <span class="time-text">{{ formatted_duration }}</span>
+      </div>
     </div>
     <div class="controls">
+      &nbsp;
+
       <button
         type="button"
-        class="prev"
+        class="control-btn prev"
         @click="prev"
         title="Anterior"
         :disabled="is_disabled_controls"
@@ -41,26 +55,29 @@
 
       <button
         type="button"
-        class="play"
+        class="play-btn"
         @click="handle_play_interaction"
         :title="is_playing ? 'Pausar' : 'Tocar'"
         :disabled="is_disabled_controls"
       >
-        <font-awesome-icon :icon="'circle-' + (is_playing ? 'pause' : 'play')" />
+        <font-awesome-icon :icon="is_playing ? 'pause' : 'play'" />
       </button>
 
       <button
         type="button"
-        class="next"
+        class="control-btn next"
         @click="next"
         title="Próxima"
         :disabled="is_disabled_controls"
       >
         <font-awesome-icon icon="forward-step" />
       </button>
+
+      &nbsp;
     </div>
   </div>
 </template>
+
 <script>
 import { mapState, mapActions } from "pinia";
 import { usePlayerStore } from "@/stores/player";
@@ -176,105 +193,194 @@ export default {
   },
 };
 </script>
+
 <style scoped>
 .radio-flow-widget {
   width: 100%;
+  max-width: 800px;
+  padding: var(--space-7);
   display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  position: relative;
+  overflow: hidden;
+  color: var(--deep-blue);
+}
+
+.radio-flow-widget::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.radio-flow-widget > * {
+  position: relative;
+  z-index: 1;
+}
+
+.widget-header {
+  display: flex;
+  gap: var(--space-5);
   align-items: center;
-  padding: var(--space-6);
-  gap: var(--space-6);
+}
 
-  & .widget-cover {
-    width: 48px;
-    height: 48px;
-    flex-shrink: 0;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    background: var(--deep-blue);
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+.widget-cover {
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
 
-    & img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-  }
+.widget-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
-  & .music-data {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-  }
+.radio-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-2);
+  flex-grow: 1;
+  overflow: hidden;
+}
 
-  & .time-range {
-    flex-grow: 1;
-    display: flex;
-    align-items: center;
-  }
+.music-title {
+  font-size: var(--fontsize-md);
+  font-weight: 700;
+  color: var(--white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  color: var(--deep-blue);
+}
 
-  & .radio-data {
-    width: 150px;
-    display: grid;
-    line-height: 1.2;
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
 
-    & span {
-      text-overflow: ellipsis;
-      overflow: hidden;
-      white-space: nowrap;
+.playlist-tag {
+  background-color: var(--gray-700);
+  color: var(--gray-100);
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
 
-      &:first-child {
-        color: var(--deep-blue);
-        font-size: 0.9rem;
-        font-weight: 600;
-      }
+.progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
 
-      &:last-child {
-        color: var(--deep-blue-2);
-        font-size: 0.75rem;
-      }
-    }
-  }
+.time-text {
+  font-size: 0.75rem;
+  color: var(--deep-blue);
+  min-width: 35px;
+  font-weight: 500;
 
-  & .controls {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-
-    & button {
-      cursor: pointer;
-      background: none;
-      border: none;
-      color: var(--deep-blue);
-      transition: all 0.2s ease-in-out;
-
-      &:hover {
-        color: var(--deep-blue-2);
-      }
-
-      &.prev svg,
-      &.next svg {
-        font-size: calc(1vw + 0.7rem);
-      }
-
-      &.play svg {
-        font-size: calc(1vw + 1.5rem);
-      }
-    }
+  &:last-child {
+    text-align: right;
   }
 }
 
-@media (max-width: 1100px) {
-  .progress-container {
-    width: 100%;
-  }
+.time-display {
+  display: flex;
+  justify-content: space-between;
+}
 
+.controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-2);
+  padding: 0 var(--space-2);
+}
+
+.control-btn {
+  background: none;
+  border: none;
+  color: var(--deep-blue);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1.2rem;
+  opacity: 1;
+}
+
+.control-btn.secondary {
+  color: var(--gray-300);
+  font-size: 1rem;
+  opacity: 0.6;
+}
+
+.control-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.control-btn:hover:not(:disabled) {
+  transform: scale(1.1);
+}
+
+.play-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-full);
+  background: var(--deep-blue);
+  color: var(--white);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  cursor: pointer;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.play-btn svg {
+  margin-left: 2px;
+}
+
+.play-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.3);
+}
+
+.play-btn:active {
+  transform: scale(0.95);
+}
+
+@media (max-width: 400px) {
   .radio-flow-widget {
-    flex-direction: column;
+    padding: var(--space-5);
   }
 
-  .radio-data {
-    width: 100% !important;
-    max-width: 300px;
+  .widget-cover {
+    width: 80px;
+    height: 80px;
+  }
+
+  .play-btn {
+    width: 50px;
+    height: 50px;
+    font-size: 1.3rem;
   }
 }
 </style>
