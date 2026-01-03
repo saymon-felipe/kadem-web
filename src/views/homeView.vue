@@ -3,7 +3,7 @@
     <loadingSpinner type="yellow" />
   </div>
   <div class="main" :style="background">
-    <headerSystem />
+    <headerSystem ref="systemHeader" />
     <SyncIndicator :syncing="is_syncing" />
     <homeWidgets />
     <DesktopWindowManager />
@@ -106,6 +106,17 @@ export default {
     handleProjectRevoked() {
       this.$router.go();
     },
+    checkLandingSource() {
+      const source = this.$route.query.source;
+      if (source === "site_landing") {
+        setTimeout(() => {
+          if (this.$refs.systemHeader) {
+            this.$refs.systemHeader.open_plan_modal();
+            this.$router.replace({ query: null });
+          }
+        }, 500);
+      }
+    },
   },
   created() {
     window.addEventListener("project-access-revoked", this.handleProjectRevoked);
@@ -118,6 +129,8 @@ export default {
     this.init_connection_monitor();
 
     this.checkAuthStatus(true);
+
+    this.checkLandingSource();
   },
   beforeUnmount() {
     window.removeEventListener("resize", this.handleResize);

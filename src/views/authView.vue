@@ -138,6 +138,7 @@ export default {
       repeatPasswordFieldType: "password",
       passwordStrength: { text: "", class: "" },
       inviteToken: null,
+      from_site: false,
     };
   },
   computed: {
@@ -160,6 +161,15 @@ export default {
 
       if (this.$route.query.email) {
         this.email = this.$route.query.email;
+      }
+
+      if (
+        this.$route.query.from_site === "true" ||
+        this.$route.query.from_site === true ||
+        this.$route.query.from_site === 1 ||
+        this.$route.query.from_site === "1"
+      ) {
+        this.from_site = true;
       }
     });
   },
@@ -218,13 +228,9 @@ export default {
       if (!password) return { text: "", class: "" };
 
       if (password.length >= 6) score++;
-      // Regra 2: Pelo menos 1 letra maiúscula
       if (/[A-Z]/.test(password)) score++;
-      // Regra 3: Pelo menos 1 letra minúscula
       if (/[a-z]/.test(password)) score++;
-      // Regra 4: Pelo menos 1 número
       if (/[0-9]/.test(password)) score++;
-      // Regra 5: Pelo menos 1 caractere especial
       if (/[!@#$%&*]/.test(password)) score++;
 
       if (score <= 2) return { text: "Fraca", class: "weak" };
@@ -292,11 +298,15 @@ export default {
 
           vaultStore.setupVault(this.password, this.email);
 
-          this.$router.push("/");
+          if (this.from_site) {
+            this.$router.push({ path: "/", query: { source: "site_landing" } });
+          } else {
+            this.$router.push("/");
+          }
         }
       } catch (error) {
         const errorMsg =
-          error.response.data?.message ||
+          error.response?.data?.message ||
           error.message ||
           "Ocorreu um erro desconhecido.";
         this.setResponse("error", errorMsg, false);
