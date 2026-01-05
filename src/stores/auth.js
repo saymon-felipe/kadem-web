@@ -139,10 +139,13 @@ export const useAuthStore = defineStore("auth", {
 
         if (!not_redirect) {
           if (
-            this.$route.query.from_site === "true" ||
-            this.$route.query.from_site === true ||
-            this.$route.query.from_site === 1 ||
-            this.$route.query.from_site === "1"
+            this.$route &&
+            (
+              this.$route.query.from_site === "true" ||
+              this.$route.query.from_site === true ||
+              this.$route.query.from_site === 1 ||
+              this.$route.query.from_site === "1"
+            )
           ) {
             this.$router.push({ path: "/auth", query: { from_site: "from_site" } });
           } else {

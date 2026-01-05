@@ -31,8 +31,14 @@
     <div v-else class="vault-unlocked-screen">
       <div class="header-search">
         <div class="form-group">
-          <input type="text" placeholder=" " class="search-bar" v-model="searchQuery" />
-          <label>Filtrar Nome ou email</label>
+          <input
+            type="text"
+            placeholder=" "
+            class="search-bar"
+            id="filter-account-input"
+            v-model="searchQuery"
+          />
+          <label for="filter-account-input">Filtrar Nome, email ou tipo</label>
         </div>
       </div>
 
@@ -47,108 +53,115 @@
           Adicionar Conta
         </button>
         <button @click="vault.lockVault()" class="btn-small btn-save">
-          Trancar cofre
+          Trancar Cofre
         </button>
       </div>
-    </div>
 
-    <SideModal v-model="showAddModal" @close="handleCloseModal">
-      <AccountForm
-        :accountToEdit="accountToEdit"
-        @save="handleSaveOrUpdateAccount"
-        @close="handleCloseModal"
-      />
-    </SideModal>
+      <SideModal v-model="showAddModal" @close="handleCloseModal">
+        <AccountForm
+          @close="handleCloseModal"
+          @save="handleSaveNewAccount"
+          :edit-account="accountToEdit"
+        />
+      </SideModal>
+    </div>
   </div>
 </template>
 
 <script>
-import { mapState } from "pinia";
 import { useVaultStore } from "@/stores/vault";
 import { useAuthStore } from "@/stores/auth";
 import AccountList from "./AccountList.vue";
 import AccountForm from "./AccountForm.vue";
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import SideModal from "@/components/SideModal.vue";
 
 export default {
+  name: "AccountCenter",
   components: {
+    SideModal,
     AccountList,
     AccountForm,
-    SideModal,
+    FontAwesomeIcon,
+  },
+  setup() {
+    const vault = useVaultStore();
+    const auth = useAuthStore();
+    return { vault, auth };
   },
   data() {
     return {
       masterPasswordInput: "",
       passwordFieldType: "password",
-      error: "",
       isLoading: false,
-      searchQuery: "",
+      error: null,
       showAddModal: false,
+      searchQuery: "",
       accountToEdit: null,
     };
   },
   computed: {
-    ...mapState(useVaultStore, ["isUnlocked"]),
-    ...mapState(useAuthStore, ["user"]),
-    vault() {
-      return useVaultStore();
-    },
     filteredAccounts() {
-      if (!this.searchQuery) return this.vault.accounts;
-      const lowerQuery = this.searchQuery.toLowerCase();
+      if (!this.searchQuery) {
+        return this.vault.accounts;
+      }
+      const q = this.searchQuery.toLowerCase();
+      // Filtro aprimorado para nome, usuário e tipo da conta
       return this.vault.accounts.filter(
         (acc) =>
-          acc.name.toLowerCase().includes(lowerQuery) ||
-          (acc.user && acc.user.toLowerCase().includes(lowerQuery)) ||
-          (acc.email && acc.email.toLowerCase().includes(lowerQuery))
+          acc.name.toLowerCase().includes(q) ||
+          acc.user.toLowerCase().includes(q) ||
+          (acc.type && acc.type.toLowerCase().includes(q))
       );
     },
   },
+  mounted: function () {},
   methods: {
-    async handleUnlock() {
-      this.isLoading = true;
-      this.error = "";
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        const success = await this.vault.unlockVault(
-          this.masterPasswordInput,
-          this.user.email
-        );
-        if (!success) {
-          this.error = "Senha incorreta";
-        }
-      } catch (e) {
-        this.error = "Erro ao tentar desbloquear";
-        console.error(e);
-      } finally {
-        this.isLoading = false;
-        this.masterPasswordInput = "";
-      }
-    },
     showPassword() {
       this.passwordFieldType = "text";
     },
     hidePassword() {
       this.passwordFieldType = "password";
     },
+
+    async handleUnlock() {
+      if (this.isLoading || !this.masterPasswordInput) return;
+
+      this.isLoading = true;
+      this.error = null;
+
+      try {
+        const userSalt = this.auth.user.email;
+        await this.vault.unlockVault(this.masterPasswordInput, userSalt);
+      } catch (err) {
+        this.error = err.message;
+      } finally {
+        this.isLoading = false;
+        this.masterPasswordInput = "";
+      }
+    },
+
     handleRequestEdit(account) {
-      this.accountToEdit = JSON.parse(JSON.stringify(account));
+      this.accountToEdit = account;
       this.showAddModal = true;
     },
+
     handleCloseModal() {
       this.showAddModal = false;
       this.accountToEdit = null;
     },
-    async handleSaveOrUpdateAccount(data, localDataId) {
+
+    async handleSaveNewAccount(accountData) {
       try {
-        if (localDataId) {
-          await this.vault.updateAccount(localDataId, data);
+        if (accountData.localId) {
+          // Lógica de edição se necessário (assumindo que o store suporte update)
+          await this.vault.updateAccount(accountData);
         } else {
-          await this.vault.createAccount(data);
+          await this.vault.createAccount(accountData);
         }
         this.handleCloseModal();
       } catch (err) {
-        console.error("Erro ao salvar/editar conta:", err);
+        console.error("Erro ao salvar conta:", err);
       }
     },
   },
@@ -157,12 +170,9 @@ export default {
 
 <style scoped>
 .account-center-container {
-  width: 100%;
   height: 100%;
-  color: var(--deep-blue);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 .vault-lock-screen {
@@ -227,29 +237,17 @@ export default {
 .scrollable-content {
   flex: 1;
   overflow-y: auto;
-  min-height: 0;
-  padding-right: var(--space-2);
-  margin-right: calc(var(--space-2) * -1);
-  margin-top: var(--space-2);
-}
-
-.scrollable-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scrollable-content::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
+  margin-bottom: var(--space-4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-color) rgba(255, 255, 255, 0.1);
 }
 
 .buttons {
   flex: 0 0 auto;
   display: flex;
-  justify-content: flex-end;
   gap: var(--space-3);
-  padding-top: var(--space-4);
-  background-color: transparent;
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
-  margin-top: var(--space-2);
+  justify-content: flex-end;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: var(--space-3);
 }
 </style>

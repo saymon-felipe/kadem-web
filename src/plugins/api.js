@@ -44,9 +44,27 @@ const api = axios.create({
   withCredentials: true
 });
 
+/**
+ * Interceptor de Resposta
+ * Gerencia erros globais de autenticação (401) e segurança de projetos (403).
+ */
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Tratamento de Sessão Expirada (401)
+    if (error.response && error.response.status === 401) {
+      // Importação dinâmica para evitar dependência circular
+      const { useAuthStore } = await import('../stores/auth');
+      const authStore = useAuthStore();
+
+      // Evita loop se já estivermos na tela de auth
+      if (!window.location.pathname.includes('/auth')) {
+        console.warn('[API] Sessão expirada (401). Forçando logout.');
+        await authStore.logout(true);
+      }
+      return Promise.reject(error);
+    }
+
     const originalRequest = error.config;
 
     if (error.response && error.response.status === 403) {
