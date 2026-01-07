@@ -64,8 +64,8 @@
                   class="title-row"
                   style="display: flex; align-items: center; gap: 6px"
                 >
-                  <strong :title="decode_html_entities(current_music.title)">{{
-                    decode_html_entities(current_music.title)
+                  <strong :title="decode_html_entities(track.title)">{{
+                    decode_html_entities(track.title)
                   }}</strong>
                 </div>
                 <small class="mobile-only-artist">{{
