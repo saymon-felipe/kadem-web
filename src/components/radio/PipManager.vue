@@ -17,6 +17,7 @@
 <script>
 import system_icon from "@/assets/images/icons/system.png";
 import background_image_src from "@/assets/images/fundo-auth.webp";
+import { decode_html_entities } from "@/utils/string_helpers";
 
 export default {
   name: "PipPlayer",
@@ -140,6 +141,7 @@ export default {
     },
   },
   methods: {
+    decode_html_entities,
     force_frame_update() {
       if (!document.pictureInPictureElement) return;
       if (this.is_internal_update) return;
@@ -381,13 +383,14 @@ export default {
 
       this.ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
       this.ctx.font = "13px Roboto, sans-serif";
-      const playlistName = this.current_playlist?.name || "Kadem Radio";
+      const playlistName =
+        this.decode_html_entities(this.current_playlist?.name) || "Kadem Radio";
       this.fill_text_with_ellipsis(playlistName, PADDING, text_y, max_w);
 
       this.ctx.fillStyle = "#FFFFFF";
       this.ctx.font = "bold 16px Roboto, sans-serif";
       this.fill_text_with_ellipsis(
-        this.current_music?.title || "Sem Título",
+        this.decode_html_entities(this.current_music?.title) || "Sem Título",
         PADDING,
         text_y + 19,
         max_w
@@ -395,7 +398,10 @@ export default {
 
       this.ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
       this.ctx.font = "13px Roboto, sans-serif";
-      const artist = this.current_music?.artist || this.current_music?.channel || "";
+      const artist =
+        this.decode_html_entities(this.current_music?.artist) ||
+        this.decode_html_entities(this.current_music?.channel) ||
+        "";
       this.fill_text_with_ellipsis(artist, PADDING, text_y + 36, max_w);
 
       const time_y = 148;
