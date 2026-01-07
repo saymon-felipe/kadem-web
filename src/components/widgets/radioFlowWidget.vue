@@ -6,17 +6,17 @@
       </div>
 
       <div class="radio-info">
-        <span class="music-title" :title="current_music?.title">
-          {{ current_music?.title || "Nenhuma música tocando" }}
+        <span class="music-title" :title="decode_html_entities(current_music?.title)">
+          {{ decode_html_entities(current_music?.title) || "Nenhuma música tocando" }}
         </span>
 
         <div class="tags-container">
           <span
             class="playlist-tag"
             v-if="current_playlist?.name"
-            :title="current_playlist?.name"
+            :title="decode_html_entities(current_playlist?.name)"
           >
-            {{ current_playlist?.name }}
+            {{ decode_html_entities(current_playlist?.name) }}
           </span>
           <span class="playlist-tag" v-else>--------</span>
         </div>
@@ -83,6 +83,7 @@ import { mapState, mapActions } from "pinia";
 import { usePlayerStore } from "@/stores/player";
 import { useWindowStore } from "@/stores/windows";
 import defaultMusicCover from "@/assets/images/kadem-default-music.jpg";
+import { decode_html_entities } from "@/utils/string_helpers";
 
 export default {
   data() {
@@ -151,7 +152,7 @@ export default {
       "set_loading_state",
     ]),
     ...mapActions(useWindowStore, ["openWindow"]),
-
+    decode_html_entities,
     handle_play_interaction() {
       if (this.is_loading) return;
 

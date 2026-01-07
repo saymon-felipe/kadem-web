@@ -27,13 +27,13 @@
           v-if="current_music"
           :key="current_music.youtube_id"
           :class="{ 'mini-item': collapsed }"
-          :title="collapsed ? current_music.title : ''"
+          :title="collapsed ? decode_html_entities(current_music.title) : ''"
         >
           <img :src="current_music.thumbnail" class="q-cover" />
 
           <div class="q-info" v-if="!collapsed">
-            <strong>{{ current_music.title }}</strong>
-            <small>{{ current_music.channel }}</small>
+            <strong>{{ decode_html_entities(current_music.title) }}</strong>
+            <small>{{ decode_html_entities(current_music.channel) }}</small>
           </div>
 
           <div class="visualizer-icon" v-if="!collapsed">
@@ -65,13 +65,13 @@
           <div
             class="queue-item"
             :class="{ 'mini-item': collapsed }"
-            :title="collapsed ? track.title : ''"
+            :title="collapsed ? decode_html_entities(track.title) : ''"
           >
             <img :src="track.thumbnail" class="q-cover" />
 
             <div class="q-info" v-if="!collapsed">
-              <strong>{{ track.title }}</strong>
-              <small>{{ track.channel }}</small>
+              <strong>{{ decode_html_entities(track.title) }}</strong>
+              <small>{{ decode_html_entities(track.channel) }}</small>
             </div>
 
             <div class="actions" v-if="!collapsed">
@@ -98,6 +98,7 @@
 import draggable from "vuedraggable";
 import { mapState } from "pinia";
 import { usePlayerStore } from "@/stores/player";
+import { decode_html_entities } from "@/utils/string_helpers";
 
 export default {
   name: "QueueSidebar",
@@ -129,6 +130,7 @@ export default {
     },
   },
   methods: {
+    decode_html_entities,
     check_move(evt) {
       const dragged_track = evt.draggedContext.element;
       const is_internal_item = this.next_tracks.some(

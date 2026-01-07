@@ -64,9 +64,13 @@
                   class="title-row"
                   style="display: flex; align-items: center; gap: 6px"
                 >
-                  <strong :title="track.title">{{ track.title }}</strong>
+                  <strong :title="decode_html_entities(current_music.title)">{{
+                    decode_html_entities(current_music.title)
+                  }}</strong>
                 </div>
-                <small class="mobile-only-artist">{{ track.channel }}</small>
+                <small class="mobile-only-artist">{{
+                  decode_html_entities(track.channel)
+                }}</small>
               </div>
 
               <div
@@ -189,6 +193,7 @@ import { useRadioStore } from "@/stores/radio";
 import { useUtilsStore } from "@/stores/utils";
 import { usePlayerStore } from "@/stores/player";
 import TrackOptionsMenu from "./TrackOptionsMenu.vue";
+import { decode_html_entities } from "@/utils/string_helpers";
 
 export default {
   name: "TrackList",
@@ -246,7 +251,7 @@ export default {
   methods: {
     ...mapActions(usePlayerStore, ["play_track"]),
     ...mapActions(useRadioStore, ["removeTrackFromPlaylist", "downloadTrack"]),
-
+    decode_html_entities,
     is_in_queue(track) {
       if (!this.queue || !track) return false;
 

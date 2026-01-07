@@ -4,8 +4,12 @@
       <div class="music-element" :style="'opacity: ' + (current_music ? 1 : 0)">
         <img :src="current_music?.thumbnail" />
         <div class="music-info">
-          <strong :title="current_music?.title">{{ current_music?.title }}</strong>
-          <small :title="current_music?.channel">{{ current_music?.channel }}</small>
+          <strong :title="decode_html_entities(current_music?.title)">{{
+            decode_html_entities(current_music?.title)
+          }}</strong>
+          <small :title="decode_html_entities(current_music?.channel)">{{
+            decode_html_entities(current_music?.channel)
+          }}</small>
         </div>
       </div>
 
@@ -100,6 +104,7 @@
 import { mapState, mapActions } from "pinia";
 import { usePlayerStore } from "@/stores/player";
 import PipManager from "./PipManager.vue";
+import { decode_html_entities } from "@/utils/string_helpers";
 
 export default {
   components: {
@@ -158,6 +163,7 @@ export default {
       "get_current_time",
       "get_duration",
     ]),
+    decode_html_entities,
     format_seconds_to_time(seconds) {
       if (isNaN(seconds)) return "00:00";
       const m = Math.floor(seconds / 60);

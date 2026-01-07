@@ -30,7 +30,7 @@ export default {
     SyncIndicator,
   },
   computed: {
-    ...mapState(useAuthStore, ["user", "checkAuthStatus"]),
+    ...mapState(useAuthStore, ["user"]),
     ...mapState(useUtilsStore, ["is_syncing"]),
     ...mapState(useAppStore, ["system"]),
     finalImageUrl() {
@@ -121,6 +121,12 @@ export default {
   created() {
     window.addEventListener("project-access-revoked", this.handleProjectRevoked);
   },
+  handleVisibilityChange() {
+    if (document.visibilityState === "visible") {
+      console.debug("[Kadem] Aba ativa novamente. Forçando verificação de sessão...");
+      this.checkAuthStatus();
+    }
+  },
   mounted: function () {
     this.handleResize();
     window.addEventListener("resize", this.handleResize);
@@ -131,10 +137,13 @@ export default {
     this.checkAuthStatus(true);
 
     this.checkLandingSource();
+
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
   },
   beforeUnmount() {
     window.removeEventListener("resize", this.handleResize);
     window.removeEventListener("project-access-revoked", this.handleProjectRevoked);
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
   },
 };
 </script>

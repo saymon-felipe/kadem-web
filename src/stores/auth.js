@@ -257,8 +257,8 @@ export const useAuthStore = defineStore("auth", {
 
       if (recursive) {
         setTimeout(() => {
-          this.syncProfile();
-        }, 15 * 60 * 1000); // 15 minutos
+          this.syncProfile(recursive);
+        }, 10 * 60 * 1000); // 10 minutos
       }
     },
     async _saveUserData(apiUserData) {
