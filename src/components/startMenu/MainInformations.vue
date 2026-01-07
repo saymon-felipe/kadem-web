@@ -73,6 +73,7 @@
         <button
           class="icon-button"
           title="Adicionar Projeto"
+          id="create-group"
           @click="$emit('request-new-group')"
         >
           <font-awesome-icon icon="plus" />
