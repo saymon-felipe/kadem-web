@@ -276,6 +276,7 @@ export default {
       "queue",
       "next",
       "mobile_tab",
+      "volume",
     ]),
     ...mapState(useRadioStore, { playlists: "playlists" }),
     ...mapState(useUtilsStore, ["connection"]),
@@ -321,6 +322,16 @@ export default {
       return this.containerDimensions.width <= 1100;
     },
   },
+  watch: {
+    is_mobile: {
+      immediate: true,
+      handler(isMobile) {
+        if (isMobile) {
+          this.forceMobileVolume();
+        }
+      },
+    },
+  },
   methods: {
     ...mapActions(usePlayerStore, [
       "play_track",
@@ -336,6 +347,7 @@ export default {
       "set_queue",
       "set_mobile_tab",
       "setCurrentPlaylist",
+      "set_volume",
     ]),
     ...mapActions(useRadioStore, [
       "pullPlaylists",
@@ -347,6 +359,14 @@ export default {
       "checkOfflineAvailability",
       "update_playlist_cover",
     ]),
+
+    forceMobileVolume() {
+      console.log("[RadioFlow] Mobile detectado. Forçando volume para 100%.");
+
+      if (typeof this.setVolume === "function") {
+        this.set_volume(100);
+      }
+    },
 
     async load_data() {
       if (this.connection.connected) {
@@ -656,6 +676,7 @@ export default {
           onReady: (event) => {
             console.log("[RadioFlow] YouTube Player Pronto.");
             this.register_yt_instance(event.target);
+            if (this.is_mobile) this.forceMobileVolume();
             if (typeof this.restorePlayerConnection === "function") {
               this.restorePlayerConnection();
             }
@@ -881,11 +902,13 @@ export default {
   align-items: center;
   padding: var(--space-3);
   position: absolute;
-  bottom: 156px;
+  bottom: 140px;
   width: 100%;
   z-index: 100;
   border-radius: var(--radius-md);
   border-bottom: none;
+  flex-shrink: 0;
+  margin-bottom: var(--space-2);
 }
 
 .nav-item {
@@ -915,10 +938,9 @@ export default {
   .radio-flow-wrapper {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
-    flex-grow: 1;
-    min-height: 0;
-    height: auto;
+    height: 100%;
+    gap: var(--space-2);
+    overflow: hidden;
 
     & iframe {
       position: absolute;
@@ -928,8 +950,8 @@ export default {
   }
 
   .layout-grid {
-    display: block;
-    position: relative;
+    display: flex;
+    flex-direction: column;
     flex-grow: 1;
     min-height: 0;
     overflow: hidden;
@@ -940,7 +962,8 @@ export default {
   .grid-area-queue {
     width: 100%;
     height: 100% !important;
-    max-height: 100% !important;
+    max-height: none !important;
+    flex-grow: 1;
   }
 
   .queue-sidebar {
@@ -950,6 +973,7 @@ export default {
   .grid-area-sidebar > aside,
   .grid-area-queue > aside {
     padding-bottom: 69px;
+    height: 100%;
   }
 }
 </style>

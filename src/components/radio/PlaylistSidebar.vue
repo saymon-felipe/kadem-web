@@ -45,12 +45,20 @@
 
     <button
       class="btn mt-auto new-playlist-btn"
+      id="create-playlist"
       :class="collapsed ? 'btn-circle-add' : 'btn-primary'"
       @click="$emit('create-playlist')"
       :title="collapsed ? 'Nova Playlist' : ''"
     >
       <font-awesome-icon icon="plus" v-if="collapsed" />
       <span v-else>Nova Playlist</span>
+    </button>
+    <button
+      class="btn mt-auto new-playlist-btn btn-circle-add"
+      id="create-playlist-responsive"
+      @click="$emit('create-playlist')"
+    >
+      <font-awesome-icon icon="plus" />
     </button>
   </aside>
 </template>
@@ -238,5 +246,22 @@ export default {
 .btn-circle-add:hover {
   background: var(--deep-blue-2);
   transform: scale(1.05);
+}
+
+#create-playlist-responsive {
+  position: absolute;
+  bottom: 63px;
+  right: 8px;
+  display: none;
+}
+
+@container (max-width: 1100px) {
+  #create-playlist {
+    display: none;
+  }
+
+  #create-playlist-responsive {
+    display: block;
+  }
 }
 </style>

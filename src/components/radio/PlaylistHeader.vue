@@ -32,7 +32,7 @@
     </div>
     <div class="header-options">
       <button
-        v-if="connection.connected && allow_offline"
+        v-if="connection.connected && allow_offline && track_count > 0"
         class="btn-options"
         :class="{
           'downloaded-state': is_fully_downloaded,
