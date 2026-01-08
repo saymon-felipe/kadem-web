@@ -1,14 +1,14 @@
 <template>
   <div class="player-wrapper-container">
     <div class="player-wrapper">
-      <div class="music-element" :style="'opacity: ' + (current_music ? 1 : 0)">
-        <img :src="current_music?.thumbnail" />
+      <div class="music-element">
+        <img :src="current_music?.thumbnail || kadem_default_music" />
         <div class="music-info">
           <strong :title="decode_html_entities(current_music?.title)">{{
-            decode_html_entities(current_music?.title)
+            decode_html_entities(current_music?.title) || "Aguardando música"
           }}</strong>
           <small :title="decode_html_entities(current_music?.channel)">{{
-            decode_html_entities(current_music?.channel)
+            decode_html_entities(current_music?.channel) || "Radio Flow"
           }}</small>
         </div>
       </div>
@@ -105,6 +105,7 @@ import { mapState, mapActions } from "pinia";
 import { usePlayerStore } from "@/stores/player";
 import PipManager from "./PipManager.vue";
 import { decode_html_entities } from "@/utils/string_helpers";
+import kadem_default_music from "@/assets/images/kadem-default-music.jpg";
 
 export default {
   components: {
@@ -119,6 +120,7 @@ export default {
       timer_interval: null,
       last_volume: 0.5,
       pip_is_active: false,
+      kadem_default_music,
     };
   },
   computed: {

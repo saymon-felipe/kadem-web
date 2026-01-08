@@ -23,7 +23,7 @@
         v-show="!is_mobile || mobile_tab === 'content'"
       >
         <template v-if="selected_playlist">
-          <div class="search-header">
+          <div class="search-header" v-if="!is_mobile">
             <div class="search-input-wrapper">
               <div class="form-group">
                 <input
@@ -78,7 +78,6 @@
                   <button class="btn-circle play" @click="handle_play_playlist_btn">
                     <font-awesome-icon :icon="play_button_icon" />
                   </button>
-
                   <button
                     class="btn-icon"
                     :class="{ active: is_shuffle }"
@@ -101,14 +100,14 @@
               />
             </template>
 
-            <template v-else-if="view_mode === 'search'">
+            <template v-else-if="view_mode === 'search' && !is_mobile">
               <div class="search-results-header">
                 <h3>Resultados para "{{ last_search_term }}"</h3>
               </div>
               <loading-spinner v-if="is_searching" style="margin: 50px auto" />
               <TrackList
                 v-else
-                ref="searchTrackList"
+                ref="desktopSearchTrackList"
                 mode="search"
                 :tracks="search_results"
                 :current_music_id="current_music?.youtube_id"
@@ -117,6 +116,15 @@
               />
             </template>
           </div>
+
+          <button
+            v-if="is_mobile"
+            class="mobile-search-fab"
+            @click="open_mobile_search"
+            title="Buscar músicas"
+          >
+            <font-awesome-icon icon="magnifying-glass" />
+          </button>
         </template>
 
         <div v-else class="welcome-state">
@@ -175,9 +183,51 @@
         <span>Fila</span>
       </button>
     </nav>
+    <BottomSheetModal v-model="show_mobile_search_modal" @close="close_mobile_search">
+      <div class="mobile-search-container">
+        <h3>Buscar Música</h3>
+        <div class="search-input-wrapper mobile">
+          <div class="form-group">
+            <input
+              type="text"
+              v-model="search_query"
+              @keyup.enter="perform_mobile_search"
+              placeholder=" "
+              id="mobile-search-input"
+              class="search-input"
+              ref="mobileSearchInput"
+              :disabled="!connection.connected"
+            />
+            <label for="mobile-search-input" class="floating-label">
+              Digite o nome da música ou artista...
+            </label>
+          </div>
+          <button @click="perform_mobile_search" class="search-btn-confirm">
+            <font-awesome-icon icon="arrow-right" />
+          </button>
+        </div>
 
-    <div id="youtube-player-container" class="ghost-player"></div>
+        <div class="mobile-results-area">
+          <loading-spinner v-if="is_searching" style="margin: 20px auto" />
 
+          <div v-else-if="search_results.length > 0">
+            <TrackList
+              mode="search"
+              ref="mobileSearchTrackList"
+              :tracks="search_results"
+              :current_music_id="current_music?.youtube_id"
+              :is_mobile="true"
+              @play-track="play_preview"
+              @request-add="open_playlist_selector"
+            />
+          </div>
+
+          <div v-else-if="has_searched" class="empty-search">
+            <p>Nenhum resultado encontrado.</p>
+          </div>
+        </div>
+      </div>
+    </BottomSheetModal>
     <Teleport to="body">
       <PlaylistSelector
         v-model="show_playlist_selector"
@@ -188,17 +238,17 @@
         @close="show_playlist_selector = false"
         @select="verify_and_add_track"
       />
+      <ConfirmationModal
+        v-model="confirmationState.show"
+        :message="confirmationState.message"
+        :confirmText="confirmationState.confirmText"
+        :description="confirmationState.description"
+        @cancelled="confirmationState.show = false"
+        @confirmed="execute_confirmation_action"
+      />
     </Teleport>
 
-    <ConfirmationModal
-      v-model="confirmationState.show"
-      :message="confirmationState.message"
-      :confirmText="confirmationState.confirmText"
-      :description="confirmationState.description"
-      @cancelled="confirmationState.show = false"
-      @confirmed="execute_confirmation_action"
-    />
-
+    <div id="youtube-player-container" class="ghost-player"></div>
     <PlayerWrapper />
   </div>
 </template>
@@ -211,7 +261,9 @@ import { useUtilsStore } from "@/stores/utils";
 import { useWindowStore } from "@/stores/windows";
 import { radioRepository } from "@/services/localData/radioRepository";
 import { api } from "@/plugins/api";
+import { db } from "@/db";
 
+// Components
 import PlaylistSidebar from "./PlaylistSidebar.vue";
 import PlaylistHeader from "./PlaylistHeader.vue";
 import TrackList from "./TrackList.vue";
@@ -220,11 +272,10 @@ import QueueSidebar from "./QueueSidebar.vue";
 import PlaylistSelector from "./PlaylistSelector.vue";
 import LoadingSpinner from "@/components/loadingSpinner.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
+import BottomSheetModal from "@/components/BottomSheetModal.vue"; // IMPORTANTE: Importar o novo modal
 
 import defaultCover from "@/assets/images/fundo-auth.webp";
 import defaultAvatar from "@/assets/images/kadem-default-playlist.jpg";
-
-import { db } from "@/db";
 
 export default {
   name: "RadioFlow",
@@ -237,6 +288,7 @@ export default {
     LoadingSpinner,
     PlaylistSelector,
     ConfirmationModal,
+    BottomSheetModal,
   },
   data() {
     return {
@@ -253,6 +305,9 @@ export default {
       last_search_term: "",
       search_results: [],
       is_searching: false,
+
+      show_mobile_search_modal: false,
+      has_searched: false,
 
       show_playlist_selector: false,
       selector_position: { x: 0, y: 0 },
@@ -327,6 +382,7 @@ export default {
       immediate: true,
       handler(isMobile) {
         if (isMobile) {
+          if (this.view_mode === "search") this.close_search();
           this.forceMobileVolume();
         }
       },
@@ -359,26 +415,16 @@ export default {
       "checkOfflineAvailability",
       "update_playlist_cover",
     ]),
-
     forceMobileVolume() {
-      console.log("[RadioFlow] Mobile detectado. Forçando volume para 100%.");
-
-      if (typeof this.setVolume === "function") {
-        this.set_volume(100);
-      }
+      this.set_volume(100);
     },
-
     async load_data() {
-      if (this.connection.connected) {
-        await this.pullPlaylists();
-      }
-
+      if (this.connection.connected) await this.pullPlaylists();
       if (this.playlists.length > 0) {
         if (!this.selected_playlist && !this.current_playlist) {
           this.select_playlist(this.playlists[0]);
         } else {
           const playlist_id = this.current_playlist || this.selected_playlist;
-
           const stillExists = this.playlists.find(
             (p) => p.local_id === playlist_id.local_id
           );
@@ -390,57 +436,35 @@ export default {
         this.tracks = [];
       }
     },
-
-    /* -------------------------------------------------------------------------- */
-    /* Playlist Management Logic                                                  */
-    /* -------------------------------------------------------------------------- */
     async select_playlist(playlist) {
       this.close_search();
       this.selected_playlist = playlist;
-
-      // Busca as músicas do banco local (Dexie)
       const localTracks = await radioRepository.getLocalTracks(playlist.local_id);
-
-      // Atualiza o estado local
       this.tracks = localTracks;
-
-      // Verifica disponibilidade offline para atualizar ícones
-      if (this.tracks.length > 0) {
-        await this.checkOfflineAvailability(this.tracks);
-      }
+      if (this.tracks.length > 0) await this.checkOfflineAvailability(this.tracks);
     },
-
     handle_mobile_select_playlist(playlist) {
       this.select_playlist(playlist);
-      if (this.is_mobile) {
-        this.set_mobile_tab("content");
-      }
+      if (this.is_mobile) this.set_mobile_tab("content");
     },
-
     async handle_create_playlist() {
       const newId = await this.createPlaylist("Nova Playlist", "");
       await this.load_data();
       const created = this.playlists.find((p) => p.local_id === newId);
       if (created) this.handle_mobile_select_playlist(created);
     },
-
     async handle_rename_playlist(playlist, newName) {
       if (!newName || newName.trim() === "") return;
       await this.renamePlaylist(playlist, newName.trim());
     },
-
     async handle_change_cover(playlist, image) {
       if (!image || image.trim() === "") return;
-
       playlist.cover = image;
       this.setCurrentPlaylist(playlist);
-
       await this.update_playlist_cover(playlist.id || playlist.local_id, image);
     },
-
     async handle_delete_playlist(playlist) {
       await this.deletePlaylist(playlist.local_id, playlist.id);
-
       if (
         this.selected_playlist &&
         this.selected_playlist.local_id === playlist.local_id
@@ -448,19 +472,12 @@ export default {
         this.selected_playlist = null;
         this.tracks = [];
       }
-
       if (this.playlists.length > 0 && !this.selected_playlist) {
         this.select_playlist(this.playlists[0]);
       }
     },
-
-    /* -------------------------------------------------------------------------- */
-    /* Track & Player Actions                                           */
-    /* -------------------------------------------------------------------------- */
-
     handle_manual_add_queue(track) {
       const exists = this.queue.some((t) => t.youtube_id === track.youtube_id);
-
       if (exists) {
         this.openConfirmation({
           message: `A música <strong>${track.title}</strong> já está na fila de reprodução.`,
@@ -469,44 +486,30 @@ export default {
         });
         return;
       }
-
       this.add_to_queue(track);
     },
-
     handle_play_playlist_btn() {
       if (!this.tracks || this.tracks.length === 0) return;
-
-      if (this.is_current_playlist_active) {
-        this.toggle_play();
-      } else {
-        this.play_playlist_context(this.selected_playlist, this.tracks);
-      }
+      if (this.is_current_playlist_active) this.toggle_play();
+      else this.play_playlist_context(this.selected_playlist, this.tracks);
     },
-
     play_specific_track(track) {
       this.play_playlist_context(this.selected_playlist, this.tracks, track);
     },
-
     play_preview(video_obj) {
       this.play_track(video_obj, null);
     },
-
     handle_update_queue(new_queue) {
       this.set_queue(new_queue);
     },
 
-    /* -------------------------------------------------------------------------- */
-    /* Search & Add Track Logic                                                   */
-    /* -------------------------------------------------------------------------- */
-    async perform_search() {
+    async fetch_search_results() {
       if (!this.connection.connected) return;
       if (!this.search_query.trim()) return;
 
-      this.last_search_term = this.search_query;
-
-      this.view_mode = "search";
       this.is_searching = true;
       this.search_results = [];
+      this.has_searched = true;
 
       try {
         const response = await api.get("/radio/search", {
@@ -520,11 +523,37 @@ export default {
       }
     },
 
+    async perform_search() {
+      this.last_search_term = this.search_query;
+      this.view_mode = "search";
+      await this.fetch_search_results();
+    },
+
+    async perform_mobile_search() {
+      await this.fetch_search_results();
+    },
+
     close_search() {
       this.view_mode = "playlist";
       this.search_query = "";
       this.last_search_term = "";
       this.search_results = [];
+      this.has_searched = false;
+    },
+
+    open_mobile_search() {
+      this.search_query = "";
+      this.search_results = [];
+      this.has_searched = false;
+      this.show_mobile_search_modal = true;
+
+      setTimeout(() => {
+        if (this.$refs.mobileSearchInput) this.$refs.mobileSearchInput.focus();
+      }, 300);
+    },
+
+    close_mobile_search() {
+      this.show_mobile_search_modal = false;
     },
 
     async open_playlist_selector(track, event) {
@@ -536,7 +565,6 @@ export default {
           .where("youtube_id")
           .equals(track.youtube_id)
           .toArray();
-
         this.target_track_playlist_ids = existing_entries.map((t) => t.playlist_local_id);
       } catch (error) {
         console.error("Erro ao verificar duplicatas:", error);
@@ -546,22 +574,19 @@ export default {
       const rect = targetElement.getBoundingClientRect();
 
       this.selector_position = {
-        x: rect.right,
-        y: rect.bottom + 5,
+        x: rect.x,
+        y: rect.y,
       };
 
       this.show_playlist_selector = true;
     },
-
     async verify_and_add_track(playlist) {
       this.target_playlist_for_add = playlist;
       this.show_playlist_selector = false;
-
       const existing_tracks = await radioRepository.getLocalTracks(playlist.local_id);
       const exists = existing_tracks.some(
         (t) => t.youtube_id === this.track_being_added.youtube_id
       );
-
       if (exists) {
         this.openConfirmation({
           message: "Esta música já está na playlist selecionada.",
@@ -574,12 +599,10 @@ export default {
     },
     async execute_add_track() {
       if (!this.target_playlist_for_add || !this.track_being_added) return;
-
       const newTrackId = await this.addTrackToPlaylist(
         this.target_playlist_for_add,
         this.track_being_added
       );
-
       if (
         this.selected_playlist &&
         this.selected_playlist.local_id === this.target_playlist_for_add.local_id
@@ -588,17 +611,17 @@ export default {
         if (savedTrack) this.tracks.push(savedTrack);
       }
 
-      if (this.view_mode === "search" && this.$refs.searchTrackList) {
-        this.$refs.searchTrackList.trigger_add_feedback(this.track_being_added);
+      if (this.$refs.desktopSearchTrackList) {
+        this.$refs.desktopSearchTrackList.trigger_add_feedback(this.track_being_added);
+      }
+
+      if (this.$refs.mobileSearchTrackList) {
+        this.$refs.mobileSearchTrackList.trigger_add_feedback(this.track_being_added);
       }
 
       this.target_playlist_for_add = null;
       this.track_being_added = null;
     },
-
-    /* -------------------------------------------------------------------------- */
-    /* Modals, Deletion & UI Helpers                                              */
-    /* -------------------------------------------------------------------------- */
     openConfirmation({ description, message, confirmText, action }) {
       this.confirmationState = {
         show: true,
@@ -608,14 +631,10 @@ export default {
         description: description,
       };
     },
-
     async execute_confirmation_action() {
-      if (this.confirmationState.action) {
-        await this.confirmationState.action();
-      }
+      if (this.confirmationState.action) await this.confirmationState.action();
       this.confirmationState.show = false;
     },
-
     handle_delete_track(track) {
       this.openConfirmation({
         message: `Tem certeza que deseja remover <br> ${track.title} da playlist?`,
@@ -633,14 +652,9 @@ export default {
     toggle_queue() {
       this.is_queue_collapsed = !this.is_queue_collapsed;
     },
-
     toggle_sidebar() {
       this.is_sidebar_collapsed = !this.is_sidebar_collapsed;
     },
-
-    /* -------------------------------------------------------------------------- */
-    /* YouTube Player API Integration                                             */
-    /* -------------------------------------------------------------------------- */
     init_youtube_api() {
       if (!window.YT) {
         const tag = document.createElement("script");
@@ -654,7 +668,6 @@ export default {
         this.create_yt_player();
       }
     },
-
     create_yt_player() {
       if (this.yt_player) {
         try {
@@ -663,28 +676,20 @@ export default {
           console.warn("Erro ao destruir player antigo:", e);
         }
       }
-
       this.yt_player = new window.YT.Player("youtube-player-container", {
         height: "0",
         width: "0",
-        playerVars: {
-          playsinline: 1,
-          controls: 0,
-          disablekb: 1,
-        },
+        playerVars: { playsinline: 1, controls: 0, disablekb: 1 },
         events: {
           onReady: (event) => {
             console.log("[RadioFlow] YouTube Player Pronto.");
             this.register_yt_instance(event.target);
             if (this.is_mobile) this.forceMobileVolume();
-            if (typeof this.restorePlayerConnection === "function") {
+            if (typeof this.restorePlayerConnection === "function")
               this.restorePlayerConnection();
-            }
           },
           onStateChange: (event) => {
-            if (event.data === 0) {
-              this.next();
-            }
+            if (event.data === 0) this.next();
           },
         },
       });
@@ -693,12 +698,9 @@ export default {
   mounted() {
     this.load_data();
     this.init_youtube_api();
-
-    // Restaura conexão se o player já estiver inicializado no estado global
     if (this.player_mode === "native" || !this.current_music) {
-      if (typeof this.restorePlayerConnection === "function") {
+      if (typeof this.restorePlayerConnection === "function")
         this.restorePlayerConnection();
-      }
     }
   },
 };
@@ -932,9 +934,91 @@ export default {
   color: var(--blue);
 }
 
+.mobile-search-fab {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: var(--deep-blue);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.2rem;
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.mobile-search-fab:active {
+  transform: scale(0.95);
+  background-color: var(--deep-blue-2);
+}
+
+.mobile-search-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-search-container h3 {
+  margin: 0 0 var(--space-3) 0;
+  color: var(--deep-blue);
+  font-size: 1.2rem;
+}
+
+.search-input-wrapper.mobile {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.search-input-wrapper.mobile .form-group {
+  flex-grow: 1;
+}
+
+.search-btn-confirm {
+  width: 48px;
+  border-radius: var(--radius-md);
+  border: none;
+  background-color: var(--deep-blue);
+  color: white;
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
+.mobile-results-area {
+  flex-grow: 1;
+  overflow-y: auto;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  padding-top: var(--space-3);
+}
+
+.empty-search {
+  text-align: center;
+  padding: var(--space-5);
+  color: var(--gray-400);
+}
+
 /* --- Container Queries Logic --- */
 
 @container (max-width: 1100px) {
+  .mobile-search-fab {
+    position: fixed;
+    bottom: 63px;
+    right: 8px;
+    width: 45px;
+    height: 45px;
+    min-width: 45px;
+    min-height: 45px;
+    max-width: 45px;
+    max-height: 45px;
+  }
+
   .radio-flow-wrapper {
     display: flex;
     flex-direction: column;

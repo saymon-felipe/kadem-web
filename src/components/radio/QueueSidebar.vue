@@ -6,7 +6,7 @@
     @dragleave="on_drag_leave"
     @drop="on_drop"
   >
-    <div class="queue-header" :class="{ 'center-content': collapsed }">
+    <div class="queue-header" :class="{ 'center-content': collapsed }" v-if="!isMobile">
       <h3 v-if="!collapsed">Fila de músicas</h3>
       <button
         class="btn-icon"
@@ -18,7 +18,7 @@
       </button>
     </div>
 
-    <div class="queue-content">
+    <div class="queue-content" :style="isMobile ? 'padding-top: var(--space-4)' : ''">
       <div class="section-title" v-if="!collapsed">Neste momento</div>
 
       <transition name="fade-slide" mode="out-in">
@@ -98,6 +98,7 @@
 import draggable from "vuedraggable";
 import { mapState } from "pinia";
 import { usePlayerStore } from "@/stores/player";
+import { useAppStore } from "@/stores/app";
 import { decode_html_entities } from "@/utils/string_helpers";
 
 export default {
@@ -120,6 +121,7 @@ export default {
   },
   computed: {
     ...mapState(usePlayerStore, ["is_playing"]),
+    ...mapState(useAppStore, ["isMobile"]),
     queue_model: {
       get() {
         return this.next_tracks;
@@ -166,11 +168,11 @@ export default {
   flex-direction: column;
   border-left: 1px solid rgba(255, 255, 255, 0.05);
   transition: width 0.3s ease;
-  overflow: hidden; /* Importante para esconder scrollbar horizontal na transição */
+  overflow: hidden;
 }
 
 .mini-mode {
-  align-items: center; /* Centraliza tudo no modo mini */
+  align-items: center;
   padding: 0;
 }
 

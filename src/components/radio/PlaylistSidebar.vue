@@ -1,6 +1,6 @@
 <template>
   <aside class="sidebar glass" :class="{ collapsed: collapsed }">
-    <div class="sidebar-header">
+    <div class="sidebar-header" v-if="!isMobile">
       <button
         class="toggle-btn"
         @click="$emit('toggle-collapse')"
@@ -16,7 +16,10 @@
       </transition>
     </div>
 
-    <div class="playlist-list-container">
+    <div
+      class="playlist-list-container"
+      :style="isMobile ? 'padding-top: var(--space-4)' : ''"
+    >
       <transition-group name="playlist-anim" tag="div" class="playlist-list">
         <div v-if="playlists.length === 0 && !collapsed" class="empty-msg">
           Nenhuma playlist.
@@ -64,6 +67,9 @@
 </template>
 
 <script>
+import { mapState } from "pinia";
+import { useAppStore } from "@/stores/app";
+
 export default {
   props: {
     playlists: { type: Array, required: true },
@@ -75,6 +81,7 @@ export default {
     collapsed: { type: Boolean, default: false },
   },
   computed: {
+    ...mapState(useAppStore, ["isMobile"]),
     playlist_id() {
       return this.current_playing_playlist_id || this.selected_playlist_id;
     },
