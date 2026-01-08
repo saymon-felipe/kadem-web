@@ -27,6 +27,9 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         workbox: {
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
           runtimeCaching: [
             {
@@ -119,6 +122,7 @@ export default defineConfig(({ mode }) => {
           drop_debugger: true,
         },
       },
+      sourcemap: false
     },
     resolve: {
       alias: {

@@ -9,4 +9,6 @@
 /*.json /404.html  404
 /*.ico  /404.html  404
 
+/assets/* /assets/:splat  404
+
 /* /index.html  200
