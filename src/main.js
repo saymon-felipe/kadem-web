@@ -153,6 +153,15 @@ library.add(
   faCircleNotch
 );
 
+window.addEventListener('error', (event) => {
+  const isTagError = event.target && (event.target.tagName === 'SCRIPT' || event.target.tagName === 'LINK');
+
+  if (isTagError) {
+    console.warn('[Global] Asset load failed. Reloading...');
+    window.location.reload(true);
+  }
+}, true);
+
 const app = createApp(App);
 const pinia = createPinia();
 pinia.use(piniaPluginPersistedState);

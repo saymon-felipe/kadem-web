@@ -83,12 +83,17 @@ router.beforeEach(async (to, from, next) => {
 });
 
 router.onError((error) => {
-  const pattern = /Loading chunk (\d)+ failed/g;
-  const isChunkLoadFailed = error.message.match(pattern);
-  const targetPath = router.history.pending.fullPath;
+  const chunkFailedMessage = /Loading chunk [\d]+ failed/;
+  const dynamicImportFailedMessage = /dynamically imported module/;
+  const importFailedMessage = /error loading dynamic model/;
 
-  if (isChunkLoadFailed) {
-    window.location.reload();
+  if (
+    error.message.match(chunkFailedMessage) ||
+    error.message.match(dynamicImportFailedMessage) ||
+    error.message.match(importFailedMessage)
+  ) {
+    console.log('[Router] Chunk load error detected, reloading...');
+    window.location.reload(true);
   }
 });
 
