@@ -352,6 +352,41 @@ async function _handleKanbanTask(task) {
       }
       break;
 
+    case 'MOVE_TASK_LIST':
+      const targetColLocalId = task.payload.column_id;
+      const targetCol = await kanbanRepository.get_column_by_local_id(targetColLocalId);
+
+      if (!targetCol || !targetCol.id) {
+        throw new Error("COLUMN_NOT_SYNCED: Tentativa de mover tarefas para coluna sem ID (Server).");
+      }
+      const serverColId = targetCol.id;
+      const tasksToReorder = [];
+
+      for (const t of task.payload.tasks) {
+        let tServerId = t.id;
+
+        if (!tServerId) {
+          const localTaskData = await kanbanRepository.get_task_by_local_id(t.local_id);
+          tServerId = localTaskData?.id;
+        }
+
+        if (tServerId) {
+          tasksToReorder.push({
+            id: tServerId,
+            order: t.order
+          });
+        } else {
+          console.warn(`[SyncService] Tarefa ${t.local_id} ignorada no reorder (sem ID server).`);
+        }
+      }
+
+      if (tasksToReorder.length > 0) {
+        await api.post(`/kanban/columns/${serverColId}/reorder-tasks`, {
+          tasks: tasksToReorder
+        });
+      }
+      break;
+
     case 'CREATE_TASK_COMMENT':
       const localTask = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
       if (!localTask?.id) throw new Error("TASK_NOT_SYNCED: Comentário aguardando Task.");
