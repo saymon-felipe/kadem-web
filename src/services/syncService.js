@@ -537,6 +537,7 @@ async function _handleDownloadLyricsTask(task) {
   const { video_id, track_local_id } = task.payload;
   const radioStore = useRadioStore();
 
+  // 1. Verifica Cache Local antes de bater na API
   try {
     const existing = await db.lyrics.get(video_id);
     const hasCachedContent = existing && existing.content &&
@@ -545,17 +546,8 @@ async function _handleDownloadLyricsTask(task) {
 
     if (hasCachedContent) {
       console.log(`[SyncService] Legenda recuperada do cache local: ${video_id}`);
-
-      await radioRepository.updateLocalTrack(track_local_id, {
-        has_lyrics: true,
-        lyrics_unavailable: false
-      });
-
-      radioStore.update_track_lyrics_status_in_memory(video_id, {
-        has_lyrics: true,
-        lyrics_unavailable: false
-      });
-
+      await radioRepository.updateLocalTrack(track_local_id, { has_lyrics: true, lyrics_unavailable: false });
+      radioStore.update_track_lyrics_status_in_memory(video_id, { has_lyrics: true, lyrics_unavailable: false });
       radioStore.set_lyric_downloading(video_id, false);
       return;
     }
@@ -566,7 +558,6 @@ async function _handleDownloadLyricsTask(task) {
   try {
     const authStore = useAuthStore();
     const token = authStore.token || authStore.getToken;
-
     const endpoint = `${apiServices.MEDIA_ENGINE}/subtitles/${video_id}?nocache=${Date.now()}`;
 
     const response = await api.get(endpoint, {
@@ -575,20 +566,28 @@ async function _handleDownloadLyricsTask(task) {
     });
 
     const data = response.data;
-    const subtitle_data = data?.subtitles || data;
 
-    const isValidContent = subtitle_data && (
-      (Array.isArray(subtitle_data) && subtitle_data.length > 0) ||
-      (typeof subtitle_data === 'string' && subtitle_data.trim().length > 0)
+    let subtitle_payload = data;
+    if (data && typeof data === 'object' && 'subtitles' in data) {
+      subtitle_payload = data.subtitles;
+    }
+
+    if (subtitle_payload === null || subtitle_payload === undefined) {
+      throw new Error("LYRICS_EMPTY");
+    }
+
+    const isValidContent = (
+      (Array.isArray(subtitle_payload) && subtitle_payload.length > 0) ||
+      (typeof subtitle_payload === 'string' && subtitle_payload.trim().length > 0)
     );
 
     if (!isValidContent) {
       throw new Error("LYRICS_EMPTY");
     }
 
-    let final_content = subtitle_data;
-    if (typeof subtitle_data === 'string') {
-      final_content = parse_srt(subtitle_data);
+    let final_content = subtitle_payload;
+    if (typeof subtitle_payload === 'string') {
+      final_content = parse_srt(subtitle_payload);
     }
 
     await db.lyrics.put({
@@ -597,15 +596,8 @@ async function _handleDownloadLyricsTask(task) {
       downloaded_at: new Date().toISOString()
     });
 
-    await radioRepository.updateLocalTrack(track_local_id, {
-      has_lyrics: true,
-      lyrics_unavailable: false
-    });
-
-    radioStore.update_track_lyrics_status_in_memory(video_id, {
-      has_lyrics: true,
-      lyrics_unavailable: false
-    });
+    await radioRepository.updateLocalTrack(track_local_id, { has_lyrics: true, lyrics_unavailable: false });
+    radioStore.update_track_lyrics_status_in_memory(video_id, { has_lyrics: true, lyrics_unavailable: false });
 
     console.log(`[SyncService] Legendas baixadas e salvas para ${video_id}`);
 
@@ -614,7 +606,7 @@ async function _handleDownloadLyricsTask(task) {
     const isEmpty = (error.message === "LYRICS_EMPTY");
 
     if (isNotFound || isEmpty) {
-      console.warn(`[SyncService] Legenda indisponível para ${video_id} (Motivo: ${isEmpty ? 'Vazio' : '404'}). Marcando como indisponível.`);
+      console.warn(`[SyncService] Legenda indisponível para ${video_id} (Motivo: ${isEmpty ? 'Vazio/Null' : '404'}). Marcando como indisponível.`);
 
       try {
         await radioRepository.updateLocalTrack(track_local_id, {
@@ -627,7 +619,7 @@ async function _handleDownloadLyricsTask(task) {
           lyrics_unavailable: true
         });
       } catch (dbError) {
-        console.error(`[SyncService] Erro ao salvar status 'unavailable' localmente (ignorando para limpar fila):`, dbError);
+        console.error(`[SyncService] Erro ao salvar status 'unavailable' localmente:`, dbError);
       }
 
       return;
