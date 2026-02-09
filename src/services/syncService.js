@@ -604,17 +604,21 @@ async function _handleDownloadLyricsTask(task) {
     const isEmpty = (error.message === "LYRICS_EMPTY");
 
     if (isNotFound || isEmpty) {
-      console.warn(`[SyncService] Legenda indisponível para ${video_id} (Motivo: ${isEmpty ? 'Vazio' : '404'}).`);
+      console.warn(`[SyncService] Legenda indisponível para ${video_id} (Motivo: ${isEmpty ? 'Vazio' : '404'}). Marcando como indisponível.`);
 
-      await radioRepository.updateLocalTrack(track_local_id, {
-        lyrics_unavailable: true,
-        has_lyrics: false
-      });
+      try {
+        await radioRepository.updateLocalTrack(track_local_id, {
+          lyrics_unavailable: true,
+          has_lyrics: false
+        });
 
-      radioStore.update_track_lyrics_status_in_memory(video_id, {
-        has_lyrics: false,
-        lyrics_unavailable: true
-      });
+        radioStore.update_track_lyrics_status_in_memory(video_id, {
+          has_lyrics: false,
+          lyrics_unavailable: true
+        });
+      } catch (dbError) {
+        console.error(`[SyncService] Erro ao salvar status 'unavailable' localmente (ignorando para limpar fila):`, dbError);
+      }
 
       return;
     }
