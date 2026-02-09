@@ -55,7 +55,20 @@ export const radioRepository = {
     return await db.tracks.where('id').equals(serverId).first();
   },
 
-  async addLocalTrack(data) { return await db.tracks.add(data); },
+  async addLocalTrack(data) {
+    const lyricsStatus = await this._checkRealLyricsStatus(data.youtube_id);
+
+    const payload = {
+      ...data,
+      has_lyrics: lyricsStatus.has_lyrics,
+      lyrics_unavailable: lyricsStatus.lyrics_unavailable
+    };
+    return await db.tracks.add(payload);
+  },
+
+  async updateTrackLyricsStatus(localId, status) {
+    return await db.tracks.update(localId, status);
+  },
 
   async updateLocalTrack(id, updates) { return await db.tracks.update(id, updates); },
 
@@ -66,33 +79,28 @@ export const radioRepository = {
      ======================================================================== */
 
   async saveTrackAudio(trackLocalId, youtubeId, audioBlob) {
-    // [CORREÇÃO SÊNIOR] Validação de Integridade do Binário
     if (!audioBlob) {
       throw new Error("Tentativa de salvar blob nulo ou indefinido.");
     }
 
-    // Verifica tamanho mínimo (arquivos menores que 50KB provavelmente são erros de fetch)
     if (audioBlob.size < 50000) {
       throw new Error(`Blob suspeito detectado (Tamanho: ${audioBlob.size} bytes). Abortando persistência.`);
     }
 
-    // Verifica tipo MIME (log de aviso apenas)
     if (audioBlob.type && !audioBlob.type.startsWith('audio/')) {
       console.warn(`[RadioRepo] Aviso: Tipo MIME incomum (${audioBlob.type}), mas prosseguindo com validação de tamanho.`);
     }
 
     return await db.transaction('rw', db.tracks, db.global_audio_cache, async () => {
-      // 1. Salva no Global Cache (Binário)
       await db.global_audio_cache.put({
         youtube_id: youtubeId,
         audio_blob: audioBlob,
         created_at: new Date().toISOString()
       });
 
-      // 2. Atualiza a referência na tabela de Tracks
       await db.tracks.update(trackLocalId, {
         is_offline: true,
-        audio_blob: null // Limpeza para garantir leveza na tabela tracks
+        audio_blob: null
       });
     });
   },
@@ -126,12 +134,10 @@ export const radioRepository = {
     const track = await db.tracks.get(localId);
     if (!track) return false;
 
-    // Se tiver a flag, confirmamos no cache global para garantir integridade
     if (track.is_offline && track.youtube_id) {
       return await this.hasGlobalAudio(track.youtube_id);
     }
 
-    // Fallback para sistema antigo (blob na própria track)
     return !!track.audio_blob;
   },
 
@@ -162,6 +168,22 @@ export const radioRepository = {
     }
   },
 
+  async _checkRealLyricsStatus(youtube_id) {
+    if (!youtube_id) return { has_lyrics: false, lyrics_unavailable: false };
+
+    const entry = await db.lyrics.get(youtube_id);
+
+    if (entry) {
+      if (entry.content && Array.isArray(entry.content) && entry.content.length > 0) {
+        return { has_lyrics: true, lyrics_unavailable: false };
+      }
+
+      return { has_lyrics: false, lyrics_unavailable: true };
+    }
+
+    return { has_lyrics: false, lyrics_unavailable: false };
+  },
+
   /* ========================================================================
      SECTION 4: SYNC HELPERS (SMART MERGE IMPLEMENTADO)
      ======================================================================== */
@@ -172,7 +194,7 @@ export const radioRepository = {
 
     console.log(`[RadioRepo] Processando Sync de ${playlistsFromServer.length} playlists.`);
 
-    return db.transaction('rw', db.playlists, db.tracks, async () => {
+    return db.transaction('rw', db.playlists, db.tracks, db.lyrics, async () => {
 
       const serverIdsSet = new Set(playlistsFromServer.map(p => p.id));
       const allLocalPlaylists = await db.playlists.toArray();
@@ -226,6 +248,8 @@ export const radioRepository = {
           for (const apiTrack of apiPl.tracks) {
             const existingTrack = await db.tracks.where('id').equals(apiTrack.id).first();
 
+            const lyricsStatus = await this._checkRealLyricsStatus(apiTrack.youtube_id);
+
             const trackPayload = {
               id: apiTrack.id,
               playlist_id: apiPl.id,
@@ -235,15 +259,18 @@ export const radioRepository = {
               channel: apiTrack.channel,
               thumbnail: apiTrack.thumbnail,
               duration_seconds: apiTrack.duration_seconds,
-              created_at: apiTrack.created_at
+              created_at: apiTrack.created_at,
+              has_lyrics: lyricsStatus.has_lyrics,
+              lyrics_unavailable: lyricsStatus.lyrics_unavailable
             };
 
             if (existingTrack) {
               trackPayload.local_id = existingTrack.local_id;
-              // Preserva blob se existir no formato antigo
+
               if (existingTrack.audio_blob) {
                 trackPayload.audio_blob = existingTrack.audio_blob;
               }
+
               await db.tracks.put(trackPayload);
             } else {
               await db.tracks.add(trackPayload);

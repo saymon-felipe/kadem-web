@@ -72,7 +72,29 @@
                   decode_html_entities(track.channel)
                 }}</small>
               </div>
+              <div class="lyrics-indicator">
+                <font-awesome-icon
+                  v-if="is_lyric_loading(track.youtube_id)"
+                  icon="spinner"
+                  spin
+                  class="status-icon loading"
+                  title="Baixando legenda..."
+                />
 
+                <font-awesome-icon
+                  v-else-if="track_has_lyrics(track)"
+                  icon="closed-captioning"
+                  class="status-icon success"
+                  title="Legenda disponível"
+                />
+
+                <font-awesome-icon
+                  v-else-if="track.lyrics_unavailable"
+                  icon="microphone-slash"
+                  class="status-icon disabled"
+                  title="Legenda indisponível"
+                />
+              </div>
               <div
                 class="status-icons"
                 v-if="
@@ -223,7 +245,6 @@ export default {
   },
 
   emits: ["play-track", "delete-track", "request-add", "add-to-queue"],
-
   setup() {
     const radioStore = useRadioStore();
     return { radioStore };
@@ -239,7 +260,7 @@ export default {
   },
 
   computed: {
-    ...mapState(useRadioStore, ["active_downloads"]),
+    ...mapState(useRadioStore, ["active_downloads", "isLyricDownloading"]),
     ...mapState(usePlayerStore, ["current_music", "is_playing", "queue"]),
     ...mapState(useUtilsStore, ["connection"]),
 
@@ -247,11 +268,20 @@ export default {
       return !this.connection.connected;
     },
   },
-
   methods: {
     ...mapActions(usePlayerStore, ["play_track"]),
-    ...mapActions(useRadioStore, ["removeTrackFromPlaylist", "downloadTrack"]),
+    ...mapActions(useRadioStore, [
+      "removeTrackFromPlaylist",
+      "downloadTrack",
+      "trackHasLyrics",
+    ]),
     decode_html_entities,
+    is_lyric_loading(id) {
+      return this.isLyricDownloading(id);
+    },
+    track_has_lyrics(track) {
+      return this.trackHasLyrics(track);
+    },
     is_in_queue(track) {
       if (!this.queue || !track) return false;
 
@@ -296,10 +326,8 @@ export default {
     },
 
     is_track_unavailable(track) {
-      // 1. Se tem internet, consideramos disponível (fallback para YouTube)
       if (!this.is_offline_mode) return false;
 
-      // 2. Se não tem internet, verificamos na Store se o arquivo existe localmente
       const isAvailable = this.radioStore.isTrackOffline(track);
 
       return !isAvailable;
@@ -753,9 +781,12 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
+  width: fit-content;
   height: 24px;
-  margin-left: 8px;
+
+  & span {
+    flex-grow: initial !important;
+  }
 }
 
 .status-icon {
@@ -838,6 +869,26 @@ export default {
   transform: scale(1.1);
 }
 
+.lyrics-indicators {
+  display: inline-flex;
+  margin-left: 6px;
+  align-items: center;
+}
+
+.indicator-icon {
+  font-size: 0.75rem;
+}
+
+.indicator-icon.success {
+  color: var(--green);
+  opacity: 0.8;
+}
+
+.indicator-icon.disabled {
+  color: var(--gray-300);
+  opacity: 0.5;
+}
+
 /* Container Queries para Responsividade Mobile */
 @container (max-width: 1100px) {
   .track-row {
@@ -866,7 +917,7 @@ export default {
   }
 
   .tracks-scroll-area {
-    padding-bottom: 60px;
+    padding-bottom: 100px;
   }
 }
 </style>

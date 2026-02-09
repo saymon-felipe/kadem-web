@@ -6,6 +6,10 @@ import { useRadioStore } from "./radio.js";
 import { useUtilsStore } from '../stores/utils';
 import MediaSessionManager from "../services/MediaSessionManager";
 import silentAudioUrl from "@/assets/audios/silent-audio.mp3";
+import { db } from "../db";
+import { parse_srt } from "../utils/srt_parser";
+import { apiServices } from "../plugins/apiServices";
+import { useAuthStore } from './auth';
 
 function debounce(func, wait) {
   let timeout;
@@ -32,10 +36,87 @@ export const usePlayerStore = defineStore("player", {
     is_initialized: false,
     yt_player_instance: null,
     native_audio_instance: markRaw(new Audio()),
-    current_audio_url: null
+    current_audio_url: null,
+    current_lyrics: [],
+    show_lyrics: false
   }),
 
   actions: {
+    async download_lyrics_background(video_id) {
+      if (!video_id) return;
+
+      try {
+        const exists = await db.lyrics.get(video_id);
+        if (exists) return;
+
+        const auth_store = useAuthStore();
+        const token = auth_store.token || auth_store.getToken;
+
+        if (!token) {
+          console.warn('[Player] Tentativa de download de legendas sem token de autenticação.');
+          return;
+        }
+
+        const endpoint = `${apiServices.MEDIA_ENGINE}/subtitles/${video_id}`;
+
+        const response = await api.get(endpoint, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'no-cache'
+          },
+          timeout: 30000
+        });
+
+        const subtitle_data = response.data?.subtitles || response.data;
+
+        if (subtitle_data) {
+          const parsed = parse_srt(subtitle_data);
+
+          await db.lyrics.put({
+            video_id: video_id,
+            content: parsed,
+            downloaded_at: new Date().toISOString()
+          });
+
+          if (this.current_music && this.current_music.youtube_id === video_id) {
+            this.current_music.lyrics = parsed;
+            this.$forceUpdate();
+          }
+
+          console.log(`[Player] Legendas sincronizadas via Media Engine para ${video_id}`);
+        }
+
+      } catch (error) {
+        console.warn(`[Player] Falha no download de legendas (Media Engine): ${error.message}`);
+      }
+    },
+
+    async load_current_lyrics() {
+      this.current_lyrics = [];
+      const video_id = this.current_music?.youtube_id || this.current_music?.id;
+
+      if (!video_id) return;
+
+      try {
+        let record = await db.lyrics.get(video_id);
+
+        if (!record) {
+          await this.download_lyrics_background(video_id);
+          record = await db.lyrics.get(video_id);
+        }
+
+        if (record) {
+          this.current_lyrics = record.content;
+        }
+      } catch (err) {
+        console.error("[Player] Erro ao carregar legendas", err);
+      }
+    },
+
+    toggle_lyrics() {
+      this.show_lyrics = !this.show_lyrics;
+    },
+
     /* ==========================================================================
        SECTION 1: INTERNAL HELPERS & SAFETY MECHANISMS
        ========================================================================== */

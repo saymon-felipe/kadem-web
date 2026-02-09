@@ -76,6 +76,30 @@
         </div>
       </div>
       <button
+        v-if="
+          radioStore.trackHasLyrics(current_music) ||
+          radioStore.isLyricDownloading(current_music?.youtube_id)
+        "
+        class="btn-icon lyrics-btn"
+        @click="toggle_lyrics"
+        :class="{ active: show_lyrics_modal }"
+        :disabled="radioStore.isLyricDownloading(current_music?.youtube_id)"
+        :title="
+          radioStore.isLyricDownloading(current_music?.youtube_id)
+            ? 'Baixando legenda...'
+            : show_lyrics_modal
+            ? 'Ocultar legendas'
+            : 'Mostrar legendas'
+        "
+      >
+        <font-awesome-icon
+          v-if="radioStore.isLyricDownloading(current_music?.youtube_id)"
+          icon="spinner"
+          spin
+        />
+        <font-awesome-icon v-else icon="closed-captioning" />
+      </button>
+      <button
         class="btn-icon pip-btn"
         @click="handle_pip_toggle"
         :disabled="!is_playing"
@@ -97,19 +121,35 @@
       @toggle-play="handle_pip_play_toggle"
       @set-volume="update_volume_from_external"
     />
+
+    <LyricsModal
+      v-model="show_lyrics_modal"
+      :lyrics="current_music?.lyrics"
+      :current_time="ui_current_time"
+      :track="current_music"
+      :default_cover="kadem_default_music"
+    />
   </div>
 </template>
 
 <script>
 import { mapState, mapActions } from "pinia";
 import { usePlayerStore } from "@/stores/player";
+import { useRadioStore } from "@/stores/radio";
 import PipManager from "./PipManager.vue";
 import { decode_html_entities } from "@/utils/string_helpers";
 import kadem_default_music from "@/assets/images/kadem-default-music.jpg";
+import { db } from "@/db";
+import LyricsModal from "./LyricsModal.vue";
 
 export default {
   components: {
     PipManager,
+    LyricsModal,
+  },
+  setup() {
+    const radioStore = useRadioStore();
+    return { radioStore };
   },
   data() {
     return {
@@ -121,6 +161,7 @@ export default {
       last_volume: 0.5,
       pip_is_active: false,
       kadem_default_music,
+      show_lyrics_modal: false,
     };
   },
   computed: {
@@ -131,7 +172,28 @@ export default {
       "is_loading",
       "current_playlist",
     ]),
+    has_lyrics_available() {
+      return (
+        this.current_music &&
+        Array.isArray(this.current_music.lyrics) &&
+        this.current_music.lyrics.length > 0
+      );
+    },
+    current_lyric_text() {
+      if (!this.show_lyrics) return null;
 
+      if (!this.has_lyrics_available) return null;
+
+      const current_time = this.ui_current_time;
+
+      const active_lines = this.current_music.lyrics.filter(
+        (line) => line.start <= current_time
+      );
+
+      if (active_lines.length === 0) return null;
+
+      return active_lines.pop().text;
+    },
     is_disabled() {
       return !this.current_music || this.is_loading;
     },
@@ -166,6 +228,28 @@ export default {
       "get_duration",
     ]),
     decode_html_entities,
+    toggle_lyrics() {
+      this.show_lyrics_modal = !this.show_lyrics_modal;
+    },
+    async load_lyrics_from_cache() {
+      if (!this.current_music || !this.current_music.youtube_id) return;
+
+      const video_id = this.current_music.youtube_id;
+
+      try {
+        const cached = await db.lyrics.get(video_id);
+
+        if (cached && cached.content) {
+          console.log(`[Player] Legenda carregada do cache para: ${video_id}`);
+
+          this.current_music.lyrics = cached.content;
+
+          this.$forceUpdate();
+        }
+      } catch (e) {
+        console.warn("[Player] Erro ao carregar legenda:", e);
+      }
+    },
     format_seconds_to_time(seconds) {
       if (isNaN(seconds)) return "00:00";
       const m = Math.floor(seconds / 60);
@@ -233,6 +317,8 @@ export default {
           this.ui_current_time = 0;
           this.duration = 0;
         }
+
+        this.load_lyrics_from_cache();
       },
       immediate: true,
     },
@@ -273,6 +359,63 @@ export default {
 </script>
 
 <style scoped>
+.lyrics-btn {
+  font-size: 1.2rem;
+  transition: all 0.2s ease;
+  margin-right: var(--space-2);
+}
+
+.lyrics-btn.active {
+  color: var(--primary);
+  opacity: 1;
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+
+.lyrics-overlay {
+  position: absolute;
+  bottom: 90px;
+  left: 20px;
+  width: 300px;
+  max-height: 100px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.active-lyric {
+  color: var(--white);
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  animation: slideUp 0.3s ease-out, opacity 0.2s ease-in-out;
+}
+
+.waiting-lyric {
+  color: var(--gray-400);
+}
+
+.btn-control.active {
+  color: var(--primary-color);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .player-wrapper-container {
   width: 100%;
 }
@@ -292,7 +435,7 @@ export default {
   transition: opacity 0.3s;
   align-items: center;
   position: relative;
-  padding-right: 50px;
+  padding-right: 80px;
 }
 
 /* Área desabilitada visualmente */
@@ -431,7 +574,8 @@ export default {
   }
 }
 
-.pip-btn {
+.pip-btn,
+.lyrics-btn {
   margin-left: 10px;
   transition: all 0.2s ease;
   position: absolute;
@@ -439,6 +583,10 @@ export default {
   bottom: 0;
   margin: auto;
   right: var(--space-5);
+}
+
+.lyrics-btn {
+  right: var(--space-12);
 }
 
 .pip-btn:hover {
@@ -459,6 +607,11 @@ export default {
 
 /* Responsividade do Player */
 @container (max-width: 1100px) {
+  .lyrics-overlay {
+    bottom: 150px;
+    width: calc(100% - 40px);
+  }
+
   .player-wrapper-container {
     flex-shrink: 0;
   }
@@ -498,6 +651,12 @@ export default {
     bottom: initial;
     right: var(--space-5);
     margin-left: 0;
+  }
+
+  .lyrics-btn {
+    right: var(--space-5) !important;
+    display: inline-block;
+    height: fit-content;
   }
 
   .music-info {

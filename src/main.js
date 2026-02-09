@@ -79,7 +79,8 @@ import {
   faCrown,
   faLock,
   faArrowRight,
-  faCircleNotch
+  faCircleNotch,
+  faClosedCaptioning
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -150,7 +151,8 @@ library.add(
   faCrown,
   faLock,
   faArrowRight,
-  faCircleNotch
+  faCircleNotch,
+  faClosedCaptioning
 );
 
 window.addEventListener('error', (event) => {

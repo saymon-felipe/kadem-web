@@ -2,7 +2,7 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('KademDB');
 
-db.version(5).stores({
+db.version(6).stores({
   tasks: '++id, title, tempId',
   syncQueue: '++id, type, timestamp',
   users: '&id',
@@ -14,5 +14,6 @@ db.version(5).stores({
   kanban_tasks: '++local_id, id, column_id, project_id',
   playlists: '++local_id, &id, name, created_at',
   tracks: '++local_id, &id, title, youtube_id, playlist_local_id',
-  global_audio_cache: '&youtube_id, created_at'
+  global_audio_cache: '&youtube_id, created_at',
+  lyrics: 'video_id'
 });

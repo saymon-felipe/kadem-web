@@ -4,8 +4,8 @@ import { syncService } from "../services/syncService";
 import { radioRepository, syncQueueRepository } from "../services/localData";
 import { usePlayerStore } from "./player";
 import { apiServices } from "../plugins/apiServices";
-import { useUtilsStore } from "./utils";
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from "@/stores/auth";
+import { useUtilsStore } from "@/stores/utils";
 
 export const useRadioStore = defineStore("radio", {
   state: () => ({
@@ -14,7 +14,9 @@ export const useRadioStore = defineStore("radio", {
     loading: false,
     active_downloads: {},
     offline_synced_ids: {},
-    downloaded_youtube_ids: {}
+    downloaded_youtube_ids: {},
+    active_lyrics_downloads: {},
+    downloaded_lyrics_map: {},
   }),
 
   getters: {
@@ -30,11 +32,18 @@ export const useRadioStore = defineStore("radio", {
       }
 
       return !!track.is_offline;
-    }
+    },
+    isLyricDownloading: (state) => (video_id) => {
+      return !!state.active_lyrics_downloads[video_id];
+    },
+    trackHasLyrics: (state) => (track) => {
+      if (!track || !track.youtube_id) return false;
+      if (state.downloaded_lyrics_map[track.youtube_id]) return true;
+      return !!track.has_lyrics;
+    },
   },
 
   actions: {
-
     /* ==========================================================================
        SECTION 1: STATE MANAGEMENT & HELPERS
        ========================================================================== */
@@ -51,12 +60,13 @@ export const useRadioStore = defineStore("radio", {
         const offlineIds = await radioRepository.getAllDownloadedVideoIds();
 
         this.downloaded_youtube_ids = {};
-        offlineIds.forEach(id => {
+        offlineIds.forEach((id) => {
           this.downloaded_youtube_ids[id] = true;
         });
 
-        console.log(`[RadioStore] Sistema Offline Inicializado: ${offlineIds.length} faixas disponíveis.`);
-
+        console.log(
+          `[RadioStore] Sistema Offline Inicializado: ${offlineIds.length} faixas disponíveis.`
+        );
       } catch (error) {
         console.error("[RadioStore] Falha ao carregar do Dexie:", error);
       }
@@ -249,14 +259,16 @@ export const useRadioStore = defineStore("radio", {
           const authStore = useAuthStore();
           const token = authStore.getToken;
 
-          const endpoint = `${apiServices.MEDIA_ENGINE}/stream/${track.youtube_id}?nocache=${Date.now()}`;
+          const endpoint = `${apiServices.MEDIA_ENGINE}/stream/${
+            track.youtube_id
+          }?nocache=${Date.now()}`;
 
           const response = await api.get(endpoint, {
-            responseType: 'blob',
+            responseType: "blob",
             timeout: 0,
             headers: {
-              'Cache-Control': 'no-cache',
-              'Authorization': `Bearer ${token}`
+              "Cache-Control": "no-cache",
+              Authorization: `Bearer ${token}`,
             },
             onDownloadProgress: (progressEvent) => {
               const total = progressEvent.total || estimatedTotal;
@@ -269,23 +281,30 @@ export const useRadioStore = defineStore("radio", {
 
                 this.active_downloads[track.local_id] = percent;
               }
-            }
+            },
           });
           audio_blob = response.data;
         }
 
         if (audio_blob) {
-          await radioRepository.saveTrackAudio(track.local_id, track.youtube_id, audio_blob);
+          await radioRepository.saveTrackAudio(
+            track.local_id,
+            track.youtube_id,
+            audio_blob
+          );
         }
 
         this.active_downloads[track.local_id] = 100;
+
+        this.queue_lyrics_download(track);
+
+        const has_audio = this.downloaded_youtube_ids[track.youtube_id];
 
         setTimeout(() => {
           delete this.active_downloads[track.local_id];
           this.downloaded_youtube_ids[track.youtube_id] = true;
           this._updateLocalState(track.local_id, { is_offline: true });
         }, 500);
-
       } catch (error) {
         console.error(`[RadioStore] Erro download:`, error);
         track.is_offline = false;
@@ -388,7 +407,18 @@ export const useRadioStore = defineStore("radio", {
         const trackId = await radioRepository.addLocalTrack(trackData);
 
         const pl = this.playlists.find((p) => p.local_id === playlist.local_id);
-        if (pl) pl.track_count = (pl.track_count || 0) + 1;
+        if (pl) {
+          pl.track_count = (pl.track_count || 0) + 1;
+
+          if (pl.tracks && Array.isArray(pl.tracks)) {
+            pl.tracks.push({
+              ...trackData,
+              local_id: trackId,
+              has_lyrics: false,
+              lyrics_unavailable: false,
+            });
+          }
+        }
 
         await syncQueueRepository.addSyncQueueTask({
           type: "ADD_TRACK",
@@ -402,6 +432,8 @@ export const useRadioStore = defineStore("radio", {
           timestamp: timestamp,
         });
 
+        await this.queue_lyrics_download({ ...trackData, local_id: trackId });
+
         syncService.processSyncQueue();
         return trackId;
       } catch (error) {
@@ -414,7 +446,12 @@ export const useRadioStore = defineStore("radio", {
         await radioRepository.deleteLocalTrack(track.local_id);
         const pl = this.playlists.find((p) => p.local_id === track.playlist_local_id);
 
-        if (pl) pl.track_count = Math.max(0, (pl.track_count || 1) - 1);
+        if (pl) {
+          pl.track_count = Math.max(0, (pl.track_count || 1) - 1);
+          if (pl.tracks && Array.isArray(pl.tracks)) {
+            pl.tracks = pl.tracks.filter((t) => t.local_id !== track.local_id);
+          }
+        }
 
         await syncQueueRepository.addSyncQueueTask({
           type: "DELETE_TRACK",
@@ -425,6 +462,91 @@ export const useRadioStore = defineStore("radio", {
         syncService.processSyncQueue();
       } catch (error) {
         console.error("[RadioStore] Erro ao remover música:", error);
+      }
+    },
+
+    update_track_lyrics_status_in_memory(video_id, { has_lyrics, lyrics_unavailable }) {
+      if (has_lyrics) {
+        this.downloaded_lyrics_map[video_id] = true;
+      }
+
+      const updatePayload = {};
+      if (has_lyrics !== undefined) updatePayload.has_lyrics = has_lyrics;
+      if (lyrics_unavailable !== undefined)
+        updatePayload.lyrics_unavailable = lyrics_unavailable;
+
+      this.playlists.forEach((playlist) => {
+        if (playlist.tracks && Array.isArray(playlist.tracks)) {
+          const tracks = playlist.tracks.filter((t) => t.youtube_id === video_id);
+          tracks.forEach((track) => Object.assign(track, updatePayload));
+        }
+      });
+
+      const playerStore = usePlayerStore();
+
+      if (playerStore.queue && Array.isArray(playerStore.queue)) {
+        const queueTracks = playerStore.queue.filter((t) => t.youtube_id === video_id);
+        queueTracks.forEach((track) => Object.assign(track, updatePayload));
+      }
+
+      if (
+        playerStore.current_music &&
+        playerStore.current_music.youtube_id === video_id
+      ) {
+        console.log(
+          `[RadioStore] Sincronizando estado da legenda no Player: ${video_id}`
+        );
+
+        Object.assign(playerStore.current_music, updatePayload);
+
+        if (has_lyrics !== undefined) playerStore.current_music.has_lyrics = has_lyrics;
+        if (lyrics_unavailable !== undefined)
+          playerStore.current_music.lyrics_unavailable = lyrics_unavailable;
+      }
+    },
+
+    set_lyric_downloading(video_id, status) {
+      if (status) {
+        this.active_lyrics_downloads[video_id] = true;
+      } else {
+        delete this.active_lyrics_downloads[video_id];
+      }
+    },
+
+    async queue_lyrics_download(track) {
+      if (!track.youtube_id || track.has_lyrics || track.lyrics_unavailable) return;
+
+      this.set_lyric_downloading(track.youtube_id, true);
+
+      await syncQueueRepository.addSyncQueueTask({
+        type: "DOWNLOAD_LYRICS",
+        payload: {
+          video_id: track.youtube_id,
+          track_local_id: track.local_id,
+        },
+        timestamp: new Date().toISOString(),
+      });
+
+      const utilsStore = useUtilsStore();
+      if (utilsStore?.connection?.connected) {
+        syncService.processSyncQueue();
+      }
+    },
+
+    async download_missing_lyrics_for_playlist(playlist_local_id) {
+      const tracks = await radioRepository.getLocalTracks(playlist_local_id);
+      let count = 0;
+
+      for (const track of tracks) {
+        if (!this.trackHasLyrics(track) && !track.lyrics_unavailable) {
+          await this.queue_lyrics_download(track);
+          count++;
+        }
+      }
+
+      if (count > 0) {
+        console.log(`[RadioStore] Agendado download de legendas para ${count} músicas.`);
+        syncService.processSyncQueue();
       }
     },
   },

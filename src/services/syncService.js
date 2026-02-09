@@ -13,6 +13,10 @@ import {
 import { useProjectStore } from '../stores/projects';
 import { useAuthStore } from '../stores/auth';
 import { useUtilsStore } from '../stores/utils';
+import { useRadioStore } from '../stores/radio';
+import { parse_srt } from '../utils/srt_parser';
+import { apiServices } from '../plugins/apiServices';
+import { db } from '../db';
 
 let isProcessing = false;
 
@@ -519,8 +523,115 @@ async function _handleUserTask(task) {
 // MAIN PROCESSOR
 // ============================================================================
 
+async function _handleDownloadLyricsTask(task) {
+  const { video_id, track_local_id } = task.payload;
+  const radioStore = useRadioStore();
+
+  try {
+    const existing = await db.lyrics.get(video_id);
+    const hasCachedContent = existing && existing.content &&
+      ((Array.isArray(existing.content) && existing.content.length > 0) ||
+        (typeof existing.content === 'string' && existing.content.trim().length > 0));
+
+    if (hasCachedContent) {
+      console.log(`[SyncService] Legenda recuperada do cache local: ${video_id}`);
+
+      await radioRepository.updateLocalTrack(track_local_id, {
+        has_lyrics: true,
+        lyrics_unavailable: false
+      });
+
+      radioStore.update_track_lyrics_status_in_memory(video_id, {
+        has_lyrics: true,
+        lyrics_unavailable: false
+      });
+
+      radioStore.set_lyric_downloading(video_id, false);
+      return;
+    }
+  } catch (cacheErr) {
+    console.warn(`[SyncService] Erro ao ler cache de legendas:`, cacheErr);
+  }
+
+  try {
+    const authStore = useAuthStore();
+    const token = authStore.token || authStore.getToken;
+
+    const endpoint = `${apiServices.MEDIA_ENGINE}/subtitles/${video_id}?nocache=${Date.now()}`;
+
+    const response = await api.get(endpoint, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      timeout: 30000
+    });
+
+    const data = response.data;
+    const subtitle_data = data?.subtitles || data;
+
+    const isValidContent = subtitle_data && (
+      (Array.isArray(subtitle_data) && subtitle_data.length > 0) ||
+      (typeof subtitle_data === 'string' && subtitle_data.trim().length > 0)
+    );
+
+    if (!isValidContent) {
+      throw new Error("LYRICS_EMPTY");
+    }
+
+    let final_content = subtitle_data;
+    if (typeof subtitle_data === 'string') {
+      final_content = parse_srt(subtitle_data);
+    }
+
+    await db.lyrics.put({
+      video_id: video_id,
+      content: final_content,
+      downloaded_at: new Date().toISOString()
+    });
+
+    await radioRepository.updateLocalTrack(track_local_id, {
+      has_lyrics: true,
+      lyrics_unavailable: false
+    });
+
+    radioStore.update_track_lyrics_status_in_memory(video_id, {
+      has_lyrics: true,
+      lyrics_unavailable: false
+    });
+
+    console.log(`[SyncService] Legendas baixadas e salvas para ${video_id}`);
+
+  } catch (error) {
+    const isNotFound = (error.response && error.response.status === 404);
+    const isEmpty = (error.message === "LYRICS_EMPTY");
+
+    if (isNotFound || isEmpty) {
+      console.warn(`[SyncService] Legenda indisponível para ${video_id} (Motivo: ${isEmpty ? 'Vazio' : '404'}).`);
+
+      await radioRepository.updateLocalTrack(track_local_id, {
+        lyrics_unavailable: true,
+        has_lyrics: false
+      });
+
+      radioStore.update_track_lyrics_status_in_memory(video_id, {
+        has_lyrics: false,
+        lyrics_unavailable: true
+      });
+
+      return;
+    }
+
+    console.error(`[SyncService] Erro de rede/servidor ao baixar legenda:`, error);
+    throw error;
+
+  } finally {
+    radioStore.set_lyric_downloading(video_id, false);
+  }
+}
+
 async function processTaskItem(task) {
-  if (['CREATE_PROJECT', 'DELETE_PROJECT', 'REMOVE_PROJECT_MEMBER', 'REVOKE_PROJECT_INVITE'].includes(task.type)) {
+  if (task.type === 'DOWNLOAD_LYRICS') {
+    await _handleDownloadLyricsTask(task);
+  }
+  else if (['CREATE_PROJECT', 'DELETE_PROJECT', 'REMOVE_PROJECT_MEMBER', 'REVOKE_PROJECT_INVITE'].includes(task.type)) {
     await _handleProjectTask(task);
   }
   else if (task.type.includes('COLUMN') || task.type.includes('TASK') || task.type.includes('COMMENT')) {

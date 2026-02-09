@@ -34,6 +34,22 @@
       <button
         v-if="connection.connected && allow_offline && track_count > 0"
         class="btn-options"
+        :class="{ 'btn-disabled': !has_missing_lyrics && !is_downloading_lyrics }"
+        @click.stop="handle_download_lyrics"
+        :disabled="is_downloading_lyrics || !has_missing_lyrics"
+        :title="lyrics_btn_title"
+      >
+        <font-awesome-icon v-if="is_downloading_lyrics" icon="spinner" spin />
+        <font-awesome-icon v-else icon="closed-captioning" />
+
+        <span
+          v-if="has_missing_lyrics && !is_downloading_lyrics"
+          class="badge-dot"
+        ></span>
+      </button>
+      <button
+        v-if="connection.connected && allow_offline && track_count > 0"
+        class="btn-options"
         :class="{
           'downloaded-state': is_fully_downloaded,
           'downloading-state': is_downloading_playlist,
@@ -142,8 +158,40 @@ export default {
   },
 
   computed: {
-    ...mapState(useRadioStore, ["active_downloads", "allow_offline"]),
+    ...mapState(useRadioStore, ["active_downloads", "allow_offline", "trackHasLyrics"]),
     ...mapState(useUtilsStore, ["connection"]),
+
+    has_missing_lyrics() {
+      if (!this.playlist || !this.playlist.tracks) return false;
+
+      return this.playlist.tracks.some((t) => {
+        if (!t.youtube_id) return false;
+        if (this.radioStore.trackHasLyrics(t)) return false;
+        if (t.lyrics_unavailable) return false;
+
+        return true;
+      });
+    },
+    missing_lyrics_count() {
+      if (!this.playlist || !this.playlist.tracks) return 0;
+
+      return this.playlist.tracks.filter((t) => {
+        return (
+          t.youtube_id && !this.radioStore.trackHasLyrics(t) && !t.lyrics_unavailable
+        );
+      }).length;
+    },
+    is_downloading_lyrics() {
+      if (!this.playlist || !this.playlist.tracks) return false;
+      return this.playlist.tracks.some(
+        (t) => t.youtube_id && this.radioStore.isLyricDownloading(t.youtube_id)
+      );
+    },
+    lyrics_btn_title() {
+      if (this.is_downloading_lyrics) return "Baixando legendas...";
+      if (this.has_missing_lyrics) return "Baixar legendas faltantes";
+      return "Todas as legendas disponíveis já foram baixadas";
+    },
 
     hero_background() {
       const cover = this.default_cover;
@@ -172,7 +220,17 @@ export default {
   },
 
   methods: {
-    ...mapActions(useRadioStore, ["downloadPlaylist", "isTrackOffline"]),
+    ...mapActions(useRadioStore, [
+      "downloadPlaylist",
+      "isTrackOffline",
+      "download_missing_lyrics_for_playlist",
+    ]),
+
+    async handle_download_lyrics() {
+      if (!this.playlist?.local_id || !this.has_missing_lyrics) return;
+
+      await this.download_missing_lyrics_for_playlist(this.playlist.local_id);
+    },
 
     open_cover_modal() {
       this.showMenu = false;
@@ -252,6 +310,17 @@ export default {
 </script>
 
 <style scoped>
+.badge-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  background-color: var(--yellow);
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
 .text-green {
   color: #4ade80;
 }
@@ -369,6 +438,7 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
 .btn-options:hover {
