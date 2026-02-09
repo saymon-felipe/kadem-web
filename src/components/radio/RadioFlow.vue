@@ -111,8 +111,11 @@
                 mode="search"
                 :tracks="search_results"
                 :current_music_id="current_music?.youtube_id"
+                :has_more="!!next_page_token"
+                :is_loading_more="is_loading_more"
                 @play-track="play_preview"
                 @request-add="open_playlist_selector"
+                @load-more="handle_load_more"
               />
             </template>
           </div>
@@ -217,8 +220,11 @@
               :tracks="search_results"
               :current_music_id="current_music?.youtube_id"
               :is_mobile="true"
+              :has_more="!!next_page_token"
+              :is_loading_more="is_loading_more"
               @play-track="play_preview"
               @request-add="open_playlist_selector"
+              @load-more="handle_load_more"
             />
           </div>
 
@@ -320,6 +326,8 @@ export default {
         confirmText: "Confirmar",
         action: null,
       },
+      next_page_token: null,
+      is_loading_more: false,
     };
   },
   computed: {
@@ -503,34 +511,62 @@ export default {
       this.set_queue(new_queue);
     },
 
-    async fetch_search_results() {
+    async fetch_search_results(loadMore = false) {
       if (!this.connection.connected) return;
       if (!this.search_query.trim()) return;
 
-      this.is_searching = true;
-      this.search_results = [];
-      this.has_searched = true;
+      const pageToken = loadMore ? this.next_page_token : null;
+
+      if (loadMore && !pageToken) return;
+
+      if (loadMore) {
+        this.is_loading_more = true;
+      } else {
+        this.is_searching = true;
+        this.search_results = [];
+        this.has_searched = true;
+      }
 
       try {
         const response = await api.get("/radio/search", {
-          params: { q: this.search_query },
+          params: {
+            q: this.search_query,
+            page_token: pageToken,
+          },
         });
-        this.search_results = response.data.items;
+
+        const { items, next_page_token } = response.data;
+
+        if (loadMore) {
+          this.search_results.push(...items);
+        } else {
+          this.search_results = items;
+        }
+
+        this.next_page_token = next_page_token || null;
       } catch (error) {
         console.error("Erro busca:", error);
       } finally {
         this.is_searching = false;
+        this.is_loading_more = false;
       }
     },
 
     async perform_search() {
       this.last_search_term = this.search_query;
       this.view_mode = "search";
-      await this.fetch_search_results();
+      this.next_page_token = null;
+      await this.fetch_search_results(false);
     },
 
     async perform_mobile_search() {
       await this.fetch_search_results();
+    },
+
+    async handle_load_more() {
+      if (!this.is_searching && !this.is_loading_more && this.next_page_token) {
+        await this.fetch_search_results(true);
+      }
     },
 
     close_search() {

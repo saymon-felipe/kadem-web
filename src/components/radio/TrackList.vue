@@ -72,6 +72,7 @@
                   decode_html_entities(track.channel)
                 }}</small>
               </div>
+
               <div class="lyrics-indicator">
                 <font-awesome-icon
                   v-if="is_lyric_loading(track.youtube_id)"
@@ -80,14 +81,12 @@
                   class="status-icon loading"
                   title="Baixando legenda..."
                 />
-
                 <font-awesome-icon
                   v-else-if="track_has_lyrics(track)"
                   icon="closed-captioning"
                   class="status-icon success"
                   title="Legenda disponível"
                 />
-
                 <font-awesome-icon
                   v-else-if="track.lyrics_unavailable"
                   icon="microphone-slash"
@@ -95,6 +94,7 @@
                   title="Legenda indisponível"
                 />
               </div>
+
               <div
                 class="status-icons"
                 v-if="
@@ -128,7 +128,6 @@
                       cx="10"
                       cy="10"
                     />
-
                     <circle
                       class="progress-ring__circle"
                       stroke="currentColor"
@@ -144,7 +143,6 @@
                     />
                   </svg>
                 </div>
-
                 <span
                   v-else-if="radioStore.isTrackOffline(track)"
                   class="status-icon offline-ready"
@@ -158,7 +156,6 @@
             <div class="col-channel">
               {{ mode === "search" ? track.channel : format_date(track.created_at) }}
             </div>
-
             <div class="col-duration text-center">
               {{ format_duration(track.duration_seconds) }}
             </div>
@@ -172,7 +169,6 @@
               >
                 <font-awesome-icon icon="ellipsis-vertical" />
               </button>
-
               <button
                 v-else
                 @click.stop="$emit('request-add', track, $event)"
@@ -189,6 +185,21 @@
                 />
               </button>
             </div>
+          </div>
+        </template>
+
+        <template #footer>
+          <div
+            v-if="mode === 'search' && (has_more || is_loading_more)"
+            ref="infiniteScrollTrigger"
+            class="infinite-scroll-trigger"
+          >
+            <font-awesome-icon
+              v-if="is_loading_more"
+              icon="spinner"
+              spin
+              class="loading-more-icon"
+            />
           </div>
         </template>
       </draggable>
@@ -242,9 +253,18 @@ export default {
       type: Boolean,
       default: false,
     },
+    has_more: {
+      type: Boolean,
+      default: false,
+    },
+    is_loading_more: {
+      type: Boolean,
+      default: false,
+    },
   },
 
-  emits: ["play-track", "delete-track", "request-add", "add-to-queue"],
+  emits: ["play-track", "delete-track", "request-add", "add-to-queue", "load-more"],
+
   setup() {
     const radioStore = useRadioStore();
     return { radioStore };
@@ -256,6 +276,7 @@ export default {
       options_position: { x: 0, y: 0 },
       selected_track_for_menu: null,
       success_feedback_map: {},
+      observer: null,
     };
   },
 
@@ -268,6 +289,21 @@ export default {
       return !this.connection.connected;
     },
   },
+
+  mounted() {
+    this.setupIntersectionObserver();
+  },
+
+  beforeUnmount() {
+    if (this.observer) this.observer.disconnect();
+  },
+
+  updated() {
+    if (!this.observer || !this.$refs.infiniteScrollTrigger) {
+      this.setupIntersectionObserver();
+    }
+  },
+
   methods: {
     ...mapActions(usePlayerStore, ["play_track"]),
     ...mapActions(useRadioStore, [
@@ -276,6 +312,35 @@ export default {
       "trackHasLyrics",
     ]),
     decode_html_entities,
+
+    /* -------------------------------------------------------------------------- */
+    /* Infinite Scroll Logic                                                      */
+    /* -------------------------------------------------------------------------- */
+    setupIntersectionObserver() {
+      if (!this.$refs.infiniteScrollTrigger) return;
+
+      if (this.observer) this.observer.disconnect();
+
+      this.observer = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0];
+          if (entry.isIntersecting && this.has_more && !this.is_loading_more) {
+            this.$emit("load-more");
+          }
+        },
+        {
+          root: null,
+          rootMargin: "100px",
+          threshold: 0.1,
+        }
+      );
+
+      this.observer.observe(this.$refs.infiniteScrollTrigger);
+    },
+
+    /* -------------------------------------------------------------------------- */
+    /* Helpers                                                                    */
+    /* -------------------------------------------------------------------------- */
     is_lyric_loading(id) {
       return this.isLyricDownloading(id);
     },
@@ -284,7 +349,6 @@ export default {
     },
     is_in_queue(track) {
       if (!this.queue || !track) return false;
-
       return this.queue.some(
         (t) =>
           (t.local_id && t.local_id === track.local_id) ||
@@ -294,9 +358,7 @@ export default {
 
     trigger_add_feedback(track) {
       if (!track || !track.youtube_id) return;
-
       this.success_feedback_map[track.youtube_id] = true;
-
       setTimeout(() => {
         delete this.success_feedback_map[track.youtube_id];
       }, 2500);
@@ -304,11 +366,7 @@ export default {
 
     get_progress_offset(progress) {
       const circumference = 50.26;
-
-      if (progress === 0) {
-        return circumference * 0.75;
-      }
-
+      if (progress === 0) return circumference * 0.75;
       return circumference - (circumference * progress) / 100;
     },
 
@@ -317,8 +375,6 @@ export default {
     /* -------------------------------------------------------------------------- */
     is_track_playing(track) {
       if (!this.current_music) return false;
-
-      // Compatibilidade para verificar por local_id ou youtube_id
       if (track.local_id && this.current_music.local_id) {
         return track.local_id === this.current_music.local_id;
       }
@@ -327,19 +383,15 @@ export default {
 
     is_track_unavailable(track) {
       if (!this.is_offline_mode) return false;
-
       const isAvailable = this.radioStore.isTrackOffline(track);
-
       return !isAvailable;
     },
 
     /* -------------------------------------------------------------------------- */
-    /* User Interactions (Click, Double Click)                                    */
+    /* User Interactions                                                          */
     /* -------------------------------------------------------------------------- */
-
     handle_row_click(track) {
       if (this.is_track_unavailable(track)) return;
-
       if (this.is_mobile) {
         this.play_track(track, null);
       }
@@ -348,16 +400,13 @@ export default {
     handle_desktop_dbl_click(track) {
       if (this.is_mobile) return;
       if (this.is_track_unavailable(track)) return;
-
       this.play_track(track, null);
     },
 
     open_menu(event, track) {
       this.selected_track_for_menu = track;
-
       const rect = event.currentTarget.getBoundingClientRect();
       const menuWidth = 150;
-
       let finalX = rect.left;
 
       if (finalX + menuWidth > window.innerWidth) {
@@ -372,34 +421,33 @@ export default {
         x: finalX,
         y: rect.bottom,
       };
-
       this.show_options_menu = true;
     },
+
     handle_delete() {
       if (this.selected_track_for_menu) {
         this.$emit("delete-track", this.selected_track_for_menu);
       }
       this.show_options_menu = false;
     },
+
     handle_add_queue() {
       if (this.selected_track_for_menu) {
         this.trigger_add_feedback(this.selected_track_for_menu);
-
         this.$emit("add-to-queue", this.selected_track_for_menu);
       }
       this.show_options_menu = false;
     },
+
     async handle_copy_link() {
       if (this.selected_track_for_menu && this.selected_track_for_menu.youtube_id) {
         const link = `https://youtu.be/${this.selected_track_for_menu.youtube_id}`;
-
         try {
           await navigator.clipboard.writeText(link);
         } catch (err) {
           console.error("Falha ao copiar link: ", err);
         }
       }
-
       this.show_options_menu = false;
     },
 
@@ -412,9 +460,8 @@ export default {
       if (this.mode == "search") return;
 
       const originalImg = event.currentTarget.querySelector("img");
-
-      // Cria elemento fantasma customizado
       const ghost = document.createElement("div");
+
       Object.assign(ghost.style, {
         position: "absolute",
         top: "-9999px",
@@ -434,12 +481,10 @@ export default {
       });
 
       let thumbVisual;
-
       if (originalImg && originalImg.complete && originalImg.naturalWidth > 0) {
         const canvas = document.createElement("canvas");
         canvas.width = 48;
         canvas.height = 48;
-
         Object.assign(canvas.style, {
           width: "48px",
           height: "48px",
@@ -447,14 +492,11 @@ export default {
           flexShrink: "0",
           objectFit: "cover",
         });
-
         const ctx = canvas.getContext("2d");
-
         try {
           ctx.drawImage(originalImg, 0, 0, 48, 48);
           thumbVisual = canvas;
         } catch (e) {
-          console.warn("Kadem Drag: Falha ao desenhar canvas", e);
           thumbVisual = this.create_fallback_thumb();
         }
       } else {
@@ -498,16 +540,13 @@ export default {
 
       textGroup.appendChild(title);
       textGroup.appendChild(channel);
-
       ghost.appendChild(thumbVisual);
       ghost.appendChild(textGroup);
-
       document.body.appendChild(ghost);
 
       if (event.dataTransfer) {
         event.dataTransfer.setDragImage(ghost, 24, 32);
         event.dataTransfer.effectAllowed = "copy";
-
         const payload = JSON.stringify({
           youtube_id: track.youtube_id,
           title: track.title,
@@ -550,7 +589,6 @@ export default {
       if (!iso) return "-";
       return new Date(iso).toLocaleDateString("pt-BR");
     },
-
     format_duration(seconds) {
       return this.format_seconds_to_time(seconds);
     },
@@ -582,7 +620,17 @@ export default {
   padding-bottom: var(--space-4);
 }
 
-/* Grid Padrão Desktop */
+.infinite-scroll-trigger {
+  width: 100%;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--blue);
+  font-size: 1.2rem;
+  margin-top: 10px;
+}
+
 .track-row {
   display: grid;
   grid-template-columns: 40px 4fr 2fr 1fr 40px;
@@ -635,13 +683,10 @@ export default {
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* Novo: Efeito de Hover no Desktop */
-/* Apenas aplica se o dispositivo suportar hover (exclui a maioria dos mobiles) */
 @media (hover: hover) {
   .track-row:hover .play-overlay {
     opacity: 1;
   }
-
   .track-row:hover .mini-thumb {
     filter: brightness(0.6);
   }
@@ -685,7 +730,6 @@ export default {
   overflow: hidden;
 }
 
-/* Wrapper da Imagem para posicionar o overlay */
 .thumb-wrapper {
   position: relative;
   width: 36px;
@@ -701,7 +745,6 @@ export default {
   transition: filter 0.2s ease;
 }
 
-/* Estilo do Overlay de Play */
 .play-overlay {
   position: absolute;
   top: 0;
@@ -889,12 +932,10 @@ export default {
   opacity: 0.5;
 }
 
-/* Container Queries para Responsividade Mobile */
 @container (max-width: 1100px) {
   .track-row {
     grid-template-columns: 30px 1fr 40px;
   }
-
   .col-channel,
   .col-duration,
   .desktop-only-artist,
@@ -902,11 +943,9 @@ export default {
   .track-row.header span:nth-child(4) {
     display: none !important;
   }
-
   .mobile-only-artist {
     display: block;
   }
-
   .tracks-table {
     padding: 0 var(--space-2);
   }
