@@ -25,6 +25,12 @@ let isProcessing = false;
 // ============================================================================
 
 /**
+ * Utilitário para liberar a Thread Principal (UI)
+ * Permite que o navegador renderize a tela entre tarefas pesadas.
+ */
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
  * Salva os dados do perfil recebidos do servidor no banco local.
  */
 async function _saveServerData(apiUserData) {
@@ -114,6 +120,8 @@ async function processAccountsSync(accountTasks) {
   console.log(`[SyncService] Sincronizando mudanças para ${Object.keys(tasksByAccount).length} contas do cofre...`);
 
   for (const accountId of Object.keys(tasksByAccount)) {
+    await delay(20);
+
     const tasksForThisAccount = tasksByAccount[accountId];
     const localId = tasksForThisAccount[0].payload.localId;
 
@@ -184,6 +192,8 @@ async function processProjectSync(projectTasks) {
   console.log(`[SyncService] Sincronizando mudanças para ${Object.keys(tasksByProject).length} projetos...`);
 
   for (const projectKey of Object.keys(tasksByProject)) {
+    await delay(20);
+
     const tasksForThisProject = tasksByProject[projectKey];
     const projectId = tasksForThisProject[0].payload.project_id;
     const localId = tasksForThisProject[0].payload.localId;
@@ -698,8 +708,10 @@ export const syncService = {
         return a.timestamp - b.timestamp;
       });
 
-      // Processa Individualmente
       for (const task of sortedTasks) {
+
+        await delay(50);
+
         try {
           await processTaskItem(task);
           await syncQueueRepository.deleteTask(task.id);
