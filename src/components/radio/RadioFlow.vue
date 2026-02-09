@@ -186,6 +186,7 @@
         <span>Fila</span>
       </button>
     </nav>
+
     <BottomSheetModal v-model="show_mobile_search_modal" @close="close_mobile_search">
       <div class="mobile-search-container">
         <h3>Buscar Música</h3>
@@ -278,7 +279,7 @@ import QueueSidebar from "./QueueSidebar.vue";
 import PlaylistSelector from "./PlaylistSelector.vue";
 import LoadingSpinner from "@/components/loadingSpinner.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
-import BottomSheetModal from "@/components/BottomSheetModal.vue"; // IMPORTANTE: Importar o novo modal
+import BottomSheetModal from "@/components/BottomSheetModal.vue";
 
 import defaultCover from "@/assets/images/fundo-auth.webp";
 import defaultAvatar from "@/assets/images/kadem-default-playlist.jpg";
@@ -335,6 +336,7 @@ export default {
       "current_music",
       "is_playing",
       "current_playlist",
+      "viewed_playlist_id",
       "is_shuffle",
       "queue",
       "next",
@@ -412,6 +414,7 @@ export default {
       "set_mobile_tab",
       "setCurrentPlaylist",
       "set_volume",
+      "setViewedPlaylistId",
     ]),
     ...mapActions(useRadioStore, [
       "pullPlaylists",
@@ -426,31 +429,49 @@ export default {
     forceMobileVolume() {
       this.set_volume(100);
     },
+
     async load_data() {
       if (this.connection.connected) await this.pullPlaylists();
+
       if (this.playlists.length > 0) {
-        if (!this.selected_playlist && !this.current_playlist) {
-          this.select_playlist(this.playlists[0]);
-        } else {
-          const playlist_id = this.current_playlist || this.selected_playlist;
-          const stillExists = this.playlists.find(
-            (p) => p.local_id === playlist_id.local_id
-          );
-          if (!stillExists) this.select_playlist(this.playlists[0]);
-          else this.select_playlist(stillExists);
+        let target_id = null;
+
+        if (this.viewed_playlist_id) {
+          target_id = this.viewed_playlist_id;
+        }
+        else if (this.current_playlist) {
+          target_id = this.current_playlist.local_id;
+        }
+
+        let target_pl = null;
+        if (target_id) {
+          target_pl = this.playlists.find((p) => p.local_id === target_id);
+        }
+
+        if (!target_pl) {
+          target_pl = this.playlists[0];
+        }
+
+        if (target_pl) {
+          this.select_playlist(target_pl);
         }
       } else {
         this.selected_playlist = null;
         this.tracks = [];
       }
     },
+
     async select_playlist(playlist) {
       this.close_search();
       this.selected_playlist = playlist;
+
+      this.setViewedPlaylistId(playlist.local_id);
+
       const localTracks = await radioRepository.getLocalTracks(playlist.local_id);
       this.tracks = localTracks;
       if (this.tracks.length > 0) await this.checkOfflineAvailability(this.tracks);
     },
+
     handle_mobile_select_playlist(playlist) {
       this.select_playlist(playlist);
       if (this.is_mobile) this.set_mobile_tab("content");
@@ -468,7 +489,10 @@ export default {
     async handle_change_cover(playlist, image) {
       if (!image || image.trim() === "") return;
       playlist.cover = image;
-      this.setCurrentPlaylist(playlist);
+
+      if (this.current_playlist?.local_id === playlist.local_id) {
+        this.setCurrentPlaylist(playlist);
+      }
       await this.update_playlist_cover(playlist.id || playlist.local_id, image);
     },
     async handle_delete_playlist(playlist) {

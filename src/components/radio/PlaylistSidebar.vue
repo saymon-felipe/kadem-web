@@ -28,7 +28,7 @@
           v-for="pl in playlists"
           :key="pl.local_id"
           class="playlist-item"
-          :class="{ active: playlist_id === pl.local_id }"
+          :class="{ active: selected_playlist_id === pl.local_id }"
           @click="$emit('select-playlist', pl)"
           :title="collapsed ? pl.name : ''"
         >
@@ -82,14 +82,11 @@ export default {
   },
   computed: {
     ...mapState(useAppStore, ["isMobile"]),
-    playlist_id() {
-      return this.current_playing_playlist_id || this.selected_playlist_id;
-    },
   },
   emits: ["select-playlist", "create-playlist", "toggle-collapse"],
   methods: {
     is_playing_this(pl) {
-      return this.is_playing && this.current_playing_playlist_id === pl.local_id;
+      return this.current_playing_playlist_id === pl.local_id && this.is_playing;
     },
   },
 };
