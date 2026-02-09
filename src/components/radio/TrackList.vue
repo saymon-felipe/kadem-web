@@ -13,7 +13,7 @@
         class="tracks-scroll-area"
         :list="tracks"
         :group="{ name: 'music', pull: 'clone', put: false }"
-        item-key="youtube_id"
+        :item-key="(t) => t.local_id || t.youtube_id"
         :sort="false"
         ghost-class="track-ghost"
         :disabled="is_mobile"
@@ -187,22 +187,20 @@
             </div>
           </div>
         </template>
-
-        <template #footer>
-          <div
-            v-if="mode === 'search' && (has_more || is_loading_more)"
-            ref="infiniteScrollTrigger"
-            class="infinite-scroll-trigger"
-          >
-            <font-awesome-icon
-              v-if="is_loading_more"
-              icon="spinner"
-              spin
-              class="loading-more-icon"
-            />
-          </div>
-        </template>
       </draggable>
+
+      <div
+        v-if="mode === 'search' && (has_more || is_loading_more)"
+        ref="infiniteScrollTrigger"
+        class="infinite-scroll-trigger"
+      >
+        <font-awesome-icon
+          v-if="is_loading_more"
+          icon="spinner"
+          spin
+          class="loading-more-icon"
+        />
+      </div>
 
       <Teleport to="body">
         <TrackOptionsMenu

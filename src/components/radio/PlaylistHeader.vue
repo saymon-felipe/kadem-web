@@ -144,7 +144,7 @@ export default {
     },
   },
 
-  emits: ["rename-playlist", "delete-playlist"],
+  emits: ["rename-playlist", "delete-playlist", "change-cover"],
 
   data() {
     return {
@@ -158,7 +158,12 @@ export default {
   },
 
   computed: {
-    ...mapState(useRadioStore, ["active_downloads", "allow_offline", "trackHasLyrics"]),
+    ...mapState(useRadioStore, [
+      "active_downloads",
+      "trackHasLyrics",
+      "isLyricDownloading",
+      "isTrackOffline",
+    ]),
     ...mapState(useUtilsStore, ["connection"]),
 
     has_missing_lyrics() {
@@ -166,7 +171,7 @@ export default {
 
       return this.tracks.some((t) => {
         if (!t.youtube_id) return false;
-        if (this.radioStore.trackHasLyrics(t)) return false;
+        if (this.trackHasLyrics(t)) return false;
         if (t.lyrics_unavailable) return false;
 
         return true;
@@ -176,15 +181,13 @@ export default {
       if (!this.playlist || !this.tracks) return 0;
 
       return this.tracks.filter((t) => {
-        return (
-          t.youtube_id && !this.radioStore.trackHasLyrics(t) && !t.lyrics_unavailable
-        );
+        return t.youtube_id && !this.trackHasLyrics(t) && !t.lyrics_unavailable;
       }).length;
     },
     is_downloading_lyrics() {
       if (!this.playlist || !this.tracks) return false;
       return this.tracks.some(
-        (t) => t.youtube_id && this.radioStore.isLyricDownloading(t.youtube_id)
+        (t) => t.youtube_id && this.isLyricDownloading(t.youtube_id)
       );
     },
     lyrics_btn_title() {
@@ -222,13 +225,19 @@ export default {
   methods: {
     ...mapActions(useRadioStore, [
       "downloadPlaylist",
-      "isTrackOffline",
       "download_missing_lyrics_for_playlist",
     ]),
 
+    format_total_duration_verbose(seconds) {
+      if (!seconds) return "";
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      if (h > 0) return `${h}h ${m}m`;
+      return `${m}m`;
+    },
+
     async handle_download_lyrics() {
       if (!this.playlist?.local_id || !this.has_missing_lyrics) return;
-
       await this.download_missing_lyrics_for_playlist(this.playlist.local_id);
     },
 
@@ -239,23 +248,18 @@ export default {
 
     async handle_cover_save(base64_image) {
       this.$emit("change-cover", this.playlist, base64_image);
-
       this.is_crop_modal_open = false;
     },
 
-    /* --- Download Logic --- */
     handle_download_action() {
       if (this.is_fully_downloaded) return;
-
       if (!this.connection.connected) {
         alert("Sem conexão com a internet para realizar o download.");
         return;
       }
-
       this.downloadPlaylist(this.playlist);
     },
 
-    /* --- Rename Logic --- */
     start_rename() {
       this.tempName = this.playlist.name;
       this.isEditing = true;
@@ -274,7 +278,6 @@ export default {
       }
     },
 
-    /* --- Delete Logic --- */
     confirm_delete() {
       this.showMenu = false;
       this.showDeleteModal = true;
@@ -285,7 +288,6 @@ export default {
       this.$emit("delete-playlist", this.playlist);
     },
 
-    /* --- UI Helper Methods --- */
     closeMenu() {
       this.showMenu = false;
     },
@@ -336,13 +338,11 @@ export default {
   transform: none;
 }
 
-/* Estado: Baixando (Azul) */
 .downloading-state {
   color: var(--blue);
   background: rgba(59, 130, 246, 0.15);
 }
 
-/* Transições */
 .menu-pop-enter-active,
 .menu-pop-leave-active {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -355,7 +355,6 @@ export default {
   transform: scale(0.8) translateY(-10px);
 }
 
-/* Layout Principal */
 .playlist-hero {
   height: 180px;
   padding: var(--space-5);
@@ -383,7 +382,6 @@ export default {
   justify-content: flex-end;
 }
 
-/* Tipografia e Inputs */
 h1 {
   margin: 0 0 var(--space-2) 0;
   font-size: 2.5rem;
@@ -417,7 +415,6 @@ h1 {
   opacity: 0.6;
 }
 
-/* Botões e Menus */
 .header-options {
   position: absolute;
   top: var(--space-4);
@@ -487,12 +484,10 @@ h1 {
     height: 213px;
     align-items: start;
   }
-
   .hero-cover {
     width: 100px;
     height: 100px;
   }
-
   .hero-details,
   .hero-details h1 {
     width: 100%;
