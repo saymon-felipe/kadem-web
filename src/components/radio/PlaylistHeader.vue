@@ -162,9 +162,9 @@ export default {
     ...mapState(useUtilsStore, ["connection"]),
 
     has_missing_lyrics() {
-      if (!this.playlist || !this.playlist.tracks) return false;
+      if (!this.playlist || !this.tracks) return false;
 
-      return this.playlist.tracks.some((t) => {
+      return this.tracks.some((t) => {
         if (!t.youtube_id) return false;
         if (this.radioStore.trackHasLyrics(t)) return false;
         if (t.lyrics_unavailable) return false;
@@ -173,17 +173,17 @@ export default {
       });
     },
     missing_lyrics_count() {
-      if (!this.playlist || !this.playlist.tracks) return 0;
+      if (!this.playlist || !this.tracks) return 0;
 
-      return this.playlist.tracks.filter((t) => {
+      return this.tracks.filter((t) => {
         return (
           t.youtube_id && !this.radioStore.trackHasLyrics(t) && !t.lyrics_unavailable
         );
       }).length;
     },
     is_downloading_lyrics() {
-      if (!this.playlist || !this.playlist.tracks) return false;
-      return this.playlist.tracks.some(
+      if (!this.playlist || !this.tracks) return false;
+      return this.tracks.some(
         (t) => t.youtube_id && this.radioStore.isLyricDownloading(t.youtube_id)
       );
     },
