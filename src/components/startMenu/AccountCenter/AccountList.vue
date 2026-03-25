@@ -5,11 +5,7 @@
     </div>
     <div v-for="account in accounts" :key="account.localId" class="account-item glass">
       <div class="account-meta">
-        <img
-          :src="returnAccountTypeImage(account)"
-          :alt="account.type"
-          class="avatar avatar-sm account-icon"
-        />
+        <img :src="returnAccountTypeImage(account)" :alt="account.type" class="avatar avatar-sm account-icon" />
         <div class="text-info">
           <strong class="account-name">{{ account.name }} ({{ account.type }})</strong>
           <span class="last-access-date">
@@ -21,85 +17,50 @@
       <div class="account-credentials">
         <div class="credential-field user-field">
           <span class="label">Usuário:</span>
-          <input
-            type="text"
-            :value="account.user"
-            readonly
+          <input type="text" :value="account.user" readonly
             :class="{ revealed: vault.revealedPasswords[account.localId] }"
-            :style="inputStyle(account.localId, false)"
-          />
+            :style="inputStyle(account.localId, false)" />
 
-          <button
-            v-if="vault.revealedPasswords[account.localId]"
-            class="action-btn copy-btn ui-hover"
-            @click="copyUserAndHide(account.localId, account.user)"
-            title="Copiar Usuário"
-          >
+          <button v-if="vault.revealedPasswords[account.localId]" class="action-btn copy-btn ui-hover"
+            @click="copyUserAndHide(account.localId, account.user)" title="Copiar Usuário">
             <font-awesome-icon icon="copy" />
           </button>
         </div>
 
         <div class="credential-field password-field">
           <span class="label">Senha:</span>
-          <input
-            :type="vault.revealedPasswords[account.localId] ? 'text' : 'password'"
+          <input :type="vault.revealedPasswords[account.localId] ? 'text' : 'password'"
             :value="vault.revealedPasswords[account.localId] || '••••••••••••'"
-            :class="{ revealed: vault.revealedPasswords[account.localId] }"
-            readonly
-            :style="inputStyle(account.localId, true)"
-          />
+            :class="{ revealed: vault.revealedPasswords[account.localId] }" readonly
+            :style="inputStyle(account.localId, true)" />
 
-          <button
-            v-if="vault.revealedPasswords[account.localId]"
-            class="action-btn copy-btn ui-hover"
-            @click="copyPassword(account.localId)"
-            title="Copiar Senha"
-          >
+          <button v-if="vault.revealedPasswords[account.localId]" class="action-btn copy-btn ui-hover"
+            @click="copyPassword(account.localId)" title="Copiar Senha">
             <font-awesome-icon icon="copy" />
           </button>
         </div>
       </div>
 
       <div class="account-actions">
-        <button
-          class="action-btn ui-hover"
-          @click="toggleRevealAll(account.localId)"
-          :title="
-            vault.revealedPasswords[account.localId]
-              ? 'Ocultar Credenciais'
-              : 'Revelar Credenciais'
-          "
-        >
-          <font-awesome-icon
-            :icon="vault.revealedPasswords[account.localId] ? 'eye-slash' : 'eye'"
-          />
+        <button class="action-btn ui-hover" @click="toggleRevealAll(account.localId)" :title="vault.revealedPasswords[account.localId]
+            ? 'Ocultar Credenciais'
+            : 'Revelar Credenciais'
+          ">
+          <font-awesome-icon :icon="vault.revealedPasswords[account.localId] ? 'eye-slash' : 'eye'" />
         </button>
 
-        <button
-          class="action-btn ui-hover"
-          @click="$emit('request-edit', account)"
-          title="Editar Conta"
-        >
+        <button class="action-btn ui-hover" @click="$emit('request-edit', account)" title="Editar Conta">
           <font-awesome-icon icon="cog" />
         </button>
 
-        <button
-          class="action-btn delete-btn ui-hover"
-          @click="confirmDelete(account)"
-          title="Excluir Conta"
-        >
+        <button class="action-btn delete-btn ui-hover" @click="confirmDelete(account)" title="Excluir Conta">
           <font-awesome-icon icon="trash-can" />
         </button>
       </div>
     </div>
 
-    <ConfirmationModal
-      v-model="showDeleteModal"
-      :message="deleteMessage"
-      confirm-text="Excluir"
-      @confirmed="handleDeleteAccount"
-      @cancelled="showDeleteModal = false"
-    />
+    <ConfirmationModal v-model="showDeleteModal" :message="deleteMessage" confirm-text="Excluir"
+      @confirmed="handleDeleteAccount" @cancelled="showDeleteModal = false" />
   </div>
 </template>
 
@@ -223,6 +184,7 @@ export default {
   flex-direction: column;
   gap: var(--space-4);
   margin: var(--space-4) 0;
+  overflow-y: auto;
 }
 
 .empty-state {

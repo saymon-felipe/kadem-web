@@ -48,10 +48,11 @@
         </div>
       </div>
 
-      <AccountList :accounts="filteredAccounts" @edit="openEditForm" />
+      <AccountList :accounts="filteredAccounts" @request-edit="openEditForm" />
 
-      <AccountForm v-if="isAccountFormOpen" :editData="editAccountData" @save="saveAccount"
-        @close="isAccountFormOpen = false" />
+      <SideModal v-model="showAddModal" @close="handleCloseModal">
+        <AccountForm @close="handleCloseModal" @save="handleSaveNewAccount" :accountToEdit="accountToEdit" />
+      </SideModal>
 
       <Transition name="slide-over-root">
         <div v-if="show_rescue_modal" class="modal-overlay">
@@ -91,6 +92,7 @@
 <script>
 import AccountList from "./AccountList.vue";
 import AccountForm from "./AccountForm.vue";
+import SideModal from "@/components/SideModal.vue";
 import { useVaultStore } from "@/stores/vault";
 import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
@@ -100,6 +102,7 @@ export default {
   components: {
     AccountList,
     AccountForm,
+    SideModal,
     loadingSpinner
   },
   setup() {
@@ -115,7 +118,7 @@ export default {
       masterPasswordInput: "",
       error: "",
       isLoading: false,
-      isAccountFormOpen: false,
+      showAddModal: false,
       editAccountData: null,
       passwordFieldType: "password",
       show_rescue_modal: false,
@@ -139,6 +142,9 @@ export default {
     },
   },
   methods: {
+    openAddForm: function () {
+      this.showAddModal = true;
+    },
     async handleUnlock() {
       this.error = "";
       this.isLoading = true;
@@ -161,25 +167,24 @@ export default {
     hidePassword() {
       this.passwordFieldType = "password";
     },
-
-    openAddForm() {
-      this.editAccountData = null;
-      this.isAccountFormOpen = true;
-    },
-
     openEditForm(account) {
-      this.editAccountData = account;
-      this.isAccountFormOpen = true;
+      console.log(account)
+      this.accountToEdit = account;
+      this.showAddModal = true;
     },
 
-    async saveAccount(accountData, localId = null) {
+    handleCloseModal() {
+      this.showAddModal = false;
+      this.accountToEdit = null;
+    },
+    async handleSaveNewAccount(accountData, localId = null) {
       try {
         if (localId) {
           await this.vault.updateAccount(localId, accountData);
         } else {
           await this.vault.createAccount(accountData);
         };
-        this.isAccountFormOpen = false;
+        this.showAddModal = false;
       } catch (err) {
         console.error("Erro ao salvar conta:", err);
       };
