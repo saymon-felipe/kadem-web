@@ -136,27 +136,24 @@ export const useVaultStore = defineStore('vault', () => {
   const loadAccountsFromDB = async () => {
     if (!isUnlocked.value) return;
 
-    try {
-      const encryptedAccounts = await accountsRepository.getAllLocalAccounts();
-      const decryptedList = [];
+    const encrypted_accounts = await accountsRepository.getAllLocalAccounts();
+    const decrypted_list = [];
 
-      for (const acc of encryptedAccounts) {
-        try {
-          const decryptedData = await _decrypt(acc.data);
-          const accountData = JSON.parse(decryptedData);
-          decryptedList.push({
-            localId: acc.localId,
-            id: acc.id,
-            ...accountData
-          });
-        } catch (err) {
-          console.error(`Falha ao descriptografar conta localId ${acc.localId}`, err);
-        }
-      }
-      accounts.value = decryptedList;
-    } catch (error) {
-      console.error("Erro ao carregar contas do DB:", error);
-    }
+    for (const acc of encrypted_accounts) {
+      try {
+        const decrypted_data = await _decrypt(acc.data, _mek.value);
+        const account_data = JSON.parse(decrypted_data);
+        decrypted_list.push({
+          localId: acc.localId,
+          id: acc.id,
+          ...account_data
+        });
+      } catch (err) {
+        console.error(`Falha isolada ao descriptografar conta localId ${acc.localId}. Conta ignorada.`, err);
+      };
+    };
+
+    accounts.value = decrypted_list;
   };
 
   const pullAccounts = async () => {
@@ -365,6 +362,10 @@ export const useVaultStore = defineStore('vault', () => {
     }
   };
 
+  const get_safe_salt = (email) => {
+    return email ? email.trim().toLowerCase() : '';
+  };
+
   const sanitize_recovery_code = (code) => {
     if (!code) return '';
     return code.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -446,18 +447,19 @@ export const useVaultStore = defineStore('vault', () => {
     syncService.processSyncQueue();
   };
 
-  const execute_home_migration = async (recovery_code, current_password, user_salt) => {
+  const execute_home_migration = async (recovery_code, current_password, raw_user_salt) => {
     let old_master_password;
+    let recovery_key;
+
+    const user_salt = raw_user_salt;
 
     try {
       const { data } = await api.get('/users/profile/recovery-payload');
-
       const clean_code = sanitize_recovery_code(recovery_code);
-      const recovery_key = await _deriveKey(clean_code, user_salt);
-
+      recovery_key = await _deriveKey(clean_code, user_salt);
       old_master_password = await _decrypt(data.recovery_payload, recovery_key);
     } catch (err) {
-      throw new Error("Código de Recuperação (Senha Mestra) inválido ou dados corrompidos.");
+      throw new Error("Código de Recuperação (Senha Mestra) inválido ou erro de rede.");
     };
 
     const old_key = await _deriveKey(old_master_password, user_salt);
@@ -465,7 +467,6 @@ export const useVaultStore = defineStore('vault', () => {
 
     localStorage.removeItem('kadem_vault_last_sync');
     last_sync_timestamp.value = null;
-
     await pullAccounts();
 
     const encrypted_accounts = await accountsRepository.getAllLocalAccounts();
@@ -483,7 +484,7 @@ export const useVaultStore = defineStore('vault', () => {
           timestamp: new Date().toISOString()
         });
       } catch (e) {
-        console.warn(`[Vault] Conta ${acc.id} falhou na migração.`, e);
+        console.warn(`[Vault] Conta ${acc.id} ignorada por falha prévia.`, e);
       };
     };
 
@@ -491,9 +492,14 @@ export const useVaultStore = defineStore('vault', () => {
     const new_encrypted_validation = await _encrypt(validationToken, new_key);
     localStorage.setItem('vault_validation', new_encrypted_validation);
 
+    const new_recovery_payload = await _encrypt(current_password, recovery_key);
+    await api.post('/users/profile/recovery-payload', { payload: new_recovery_payload });
+
     await api.post('/users/profile/complete-migration');
 
-    await setup_recovery_key(current_password, user_salt);
+    const time_shield = new Date().toISOString();
+    localStorage.setItem('kadem_vault_last_sync', time_shield);
+    last_sync_timestamp.value = time_shield;
 
     syncService.processSyncQueue();
     return true;

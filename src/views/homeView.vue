@@ -31,9 +31,11 @@
                 v-model="migration_current_password" placeholder=" " @keyup.enter="run_migration" />
               <label for="new-pw">Confirme sua Senha Atual do Sistema</label>
 
-              <font-awesome-icon icon="eye" class="password-icon toggle-password"
-                @mousedown="show_current_password = true" @mouseup="show_current_password = false"
-                @mouseleave="show_current_password = false" />
+              <span class="toggle-password" @mousedown="show_current_password = true"
+                @mouseup="show_current_password = false" @mouseleave="show_current_password = false"
+                @touchstart.prevent="show_current_password = true" @touchend.prevent="show_current_password = false">
+                <font-awesome-icon :icon="show_current_password ? 'eye-slash' : 'eye'" />
+              </span>
             </div>
 
             <p v-if="migration_error" class="error-text">{{ migration_error }}</p>
@@ -48,6 +50,7 @@
         </div>
       </div>
     </Transition>
+
     <Transition name="slide-over-root">
       <div v-if="show_recovery_setup" class="modal-overlay">
         <div class="modal-content glass" role="dialog" aria-modal="true">
@@ -66,9 +69,14 @@
                   placeholder=" " @keyup.enter="generate_recovery" />
                 <label for="setup-password">Digite sua senha atual</label>
 
-                <font-awesome-icon icon="eye" class="password-icon toggle-password"
-                  @mousedown="show_setup_password = true" @mouseup="show_setup_password = false"
-                  @mouseleave="show_setup_password = false" />
+                <span class="toggle-password" @mousedown="show_setup_password = true"
+                  @mouseup="show_setup_password = false" @mouseleave="show_setup_password = false"
+                  @touchstart.prevent="show_setup_password = true" @touchend.prevent="show_setup_password = false">
+                  <font-awesome-icon :icon="show_setup_password ? 'eye-slash' : 'eye'" />
+                </span>
+              </div>
+              <div class="forgot-password-container">
+                <a href="#" @click.prevent="handle_forgot_password" class="forgot-link">Esqueci minha senha</a>
               </div>
             </div>
 
@@ -95,6 +103,7 @@
     </Transition>
   </div>
 </template>
+
 <script>
 import { mapState, mapActions } from "pinia";
 import { useAuthStore } from "@/stores/auth";
@@ -124,7 +133,6 @@ export default {
       if (this.system && this.system.background && this.system.background != "") {
         return this.system.background;
       }
-
       return this.defaultBackground;
     },
     background() {
@@ -139,10 +147,13 @@ export default {
       defaultBackground: systemBackground,
       isLoading: true,
       isImageReady: false,
+
       show_recovery_setup: false,
       setup_password: "",
       generated_code: null,
       recovery_error: "",
+      show_setup_password: false,
+
       migration_recovery_code: "",
       migration_current_password: "",
       migration_error: "",
@@ -187,6 +198,16 @@ export default {
   methods: {
     ...mapActions(useAuthStore, ["setUser", "checkAuthStatus"]),
     ...mapActions(useAppStore, ["setSystem", "updateMobileStatus"]),
+    handle_forgot_password() {
+      this.$router.push('/logout');
+    },
+    handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        console.debug("[Kadem] Aba ativa novamente. Forçando verificação de sessão...");
+        this.checkAuthStatus();
+      }
+    },
+
     check_vault_security_status() {
       if (!this.user) return;
 
@@ -195,6 +216,7 @@ export default {
         return;
       };
     },
+
     async run_migration() {
       this.is_migrating = true;
       this.migration_error = "";
@@ -219,6 +241,7 @@ export default {
         this.is_migrating = false;
       };
     },
+
     async generate_recovery() {
       if (!this.setup_password) return;
       this.recovery_error = "";
@@ -242,21 +265,26 @@ export default {
       this.setup_password = "";
       this.show_setup_password = false;
     },
+
     returnSystem: function () {
       this.api.get("/system").then((response) => {
         this.setSystem(response.data);
       });
     },
+
     init_connection_monitor() {
       const utilsStore = useUtilsStore();
       utilsStore._start_smart_polling();
     },
+
     handleResize() {
       this.updateMobileStatus();
     },
+
     handleProjectRevoked() {
       this.$router.go();
     },
+
     checkLandingSource() {
       const source = this.$route.query.source;
       if (source === "site_landing") {
@@ -271,12 +299,6 @@ export default {
   },
   created() {
     window.addEventListener("project-access-revoked", this.handleProjectRevoked);
-  },
-  handleVisibilityChange() {
-    if (document.visibilityState === "visible") {
-      console.debug("[Kadem] Aba ativa novamente. Forçando verificação de sessão...");
-      this.checkAuthStatus();
-    }
   },
   mounted: function () {
     this.handleResize();
@@ -302,6 +324,7 @@ export default {
   },
 };
 </script>
+
 <style scoped>
 .main {
   width: 100%;
@@ -411,10 +434,34 @@ export default {
   cursor: pointer;
   color: var(--gray-4);
   transition: color 0.3s ease;
-  z-index: 2;
+  z-index: 10;
+  padding: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-body .toggle-password:hover {
   color: var(--primary-color);
+}
+
+.forgot-password-container {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}
+
+.forgot-link {
+  color: var(--primary-color);
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+.forgot-link:hover {
+  color: var(--deep-blue);
+  text-decoration: underline;
 }
 </style>
