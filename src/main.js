@@ -80,7 +80,8 @@ import {
   faLock,
   faArrowRight,
   faCircleNotch,
-  faClosedCaptioning
+  faClosedCaptioning,
+  faLifeRing
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -152,7 +153,8 @@ library.add(
   faLock,
   faArrowRight,
   faCircleNotch,
-  faClosedCaptioning
+  faClosedCaptioning,
+  faLifeRing
 );
 
 window.addEventListener('error', (event) => {

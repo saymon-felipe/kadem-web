@@ -30,6 +30,7 @@ export const useVaultStore = defineStore('vault', () => {
   const isUnlocked = ref(false);
   const _mek = ref(null);
   const accounts = ref([]);
+  const zombie_count = ref(0);
   const revealedPasswords = ref({});
 
   let _inactivityTimer = null;
@@ -139,6 +140,8 @@ export const useVaultStore = defineStore('vault', () => {
     const encrypted_accounts = await accountsRepository.getAllLocalAccounts();
     const decrypted_list = [];
 
+    zombie_count.value = 0;
+
     for (const acc of encrypted_accounts) {
       try {
         const decrypted_data = await _decrypt(acc.data, _mek.value);
@@ -149,7 +152,8 @@ export const useVaultStore = defineStore('vault', () => {
           ...account_data
         });
       } catch (err) {
-        console.error(`Falha isolada ao descriptografar conta localId ${acc.localId}. Conta ignorada.`, err);
+        zombie_count.value++;
+        console.warn(`[Vault] Conta órfã detectada (localId ${acc.localId}). Aguardando resgate.`);
       };
     };
 
@@ -505,7 +509,56 @@ export const useVaultStore = defineStore('vault', () => {
     return true;
   };
 
+  const rescue_legacy_accounts = async (test_password, test_email) => {
+    if (!isUnlocked.value) {
+      throw new Error("O cofre precisa estar destrancado com sua senha atual primeiro.");
+    }
+
+    const test_key = await _deriveKey(test_password, test_email);
+    const encrypted_accounts = await accountsRepository.getAllLocalAccounts();
+
+    let recovered_count = 0;
+
+    for (const acc of encrypted_accounts) {
+      let is_zombie = false;
+      try {
+        await _decrypt(acc.data, _mek.value);
+      } catch (e) {
+        is_zombie = true;
+      }
+
+      if (is_zombie) {
+        try {
+          const decrypted_data = await _decrypt(acc.data, test_key);
+
+          const new_encrypted_blob = await _encrypt(decrypted_data, _mek.value);
+
+          await accountsRepository.saveLocalAccount({ ...acc, data: new_encrypted_blob });
+
+          await syncQueueRepository.addSyncQueueTask({
+            type: 'UPDATE_ACCOUNT',
+            payload: { localId: acc.localId, id: acc.id, data: new_encrypted_blob },
+            timestamp: new Date().toISOString()
+          });
+
+          recovered_count++;
+        } catch (e) {
+          console.error(e)
+        }
+      }
+    }
+
+    if (recovered_count > 0) {
+      await loadAccountsFromDB();
+      syncService.processSyncQueue();
+    }
+
+    return recovered_count;
+  };
+
   return {
+    zombie_count,
+    rescue_legacy_accounts,
     setup_recovery_key,
     execute_home_migration,
     generate_recovery_code,
