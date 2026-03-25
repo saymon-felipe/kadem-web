@@ -365,7 +365,145 @@ export const useVaultStore = defineStore('vault', () => {
     }
   };
 
+  const sanitize_recovery_code = (code) => {
+    if (!code) return '';
+    return code.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  };
+
+  const generate_recovery_code = () => {
+    const array = new Uint8Array(12);
+    window.crypto.getRandomValues(array);
+    const hex = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    return hex.match(/.{1,4}/g).join('-').toUpperCase();
+  };
+
+  const setup_recovery_key = async (master_password, user_salt) => {
+    const recovery_code = generate_recovery_code();
+
+    const clean_code = sanitize_recovery_code(recovery_code);
+    const recovery_key = await _deriveKey(clean_code, user_salt);
+
+    const recovery_payload = await _encrypt(master_password, recovery_key);
+
+    try {
+      await api.post('/users/profile/recovery-payload', { payload: recovery_payload });
+      console.log("[Vault] Recovery payload salvo com segurança.");
+    } catch (err) {
+      console.error("Falha ao salvar payload de recuperação na API.", err);
+      throw err;
+    };
+
+    return recovery_code;
+  };
+
+  const recover_vault_data = async (recovery_code, new_password, user_salt, encrypted_recovery_payload) => {
+    try {
+      const clean_code = sanitize_recovery_code(recovery_code);
+      const recovery_key = await _deriveKey(clean_code, user_salt);
+
+      const old_master_password = await _decrypt(encrypted_recovery_payload, recovery_key);
+
+      await migrate_master_password(old_master_password, new_password, user_salt);
+
+      const new_recovery_code = await setup_recovery_key(new_password, user_salt);
+
+      return new_recovery_code;
+    } catch (error) {
+      console.error("[Vault] Falha na recuperação E2E:", error);
+      throw new Error("Código de recuperação inválido ou dados corrompidos.");
+    };
+  };
+
+  const migrate_master_password = async (old_password, new_password, user_salt) => {
+    const old_key = await _deriveKey(old_password, user_salt);
+    const new_key = await _deriveKey(new_password, user_salt);
+
+    const encrypted_accounts = await accountsRepository.getAllLocalAccounts();
+
+    for (const acc of encrypted_accounts) {
+      const decrypted_data = await _decrypt(acc.data, old_key);
+
+      const new_encrypted_blob = await _encrypt(decrypted_data, new_key);
+
+      await accountsRepository.updateLocalAccount(acc.localId, new_encrypted_blob);
+
+      await syncQueueRepository.addSyncQueueTask({
+        type: 'UPDATE_ACCOUNT_ENCRYPTION',
+        payload: {
+          localId: acc.localId,
+          data: new_encrypted_blob
+        },
+        timestamp: new Date().toISOString()
+      });
+    };
+
+    const validation_token = "VALID_VAULT_KEY";
+    const new_encrypted_validation = await _encrypt(validation_token, new_key);
+    localStorage.setItem('vault_validation', new_encrypted_validation);
+
+    _mek.value = new_key;
+    isUnlocked.value = true;
+    syncService.processSyncQueue();
+  };
+
+  const execute_home_migration = async (recovery_code, current_password, user_salt) => {
+    let old_master_password;
+
+    try {
+      const { data } = await api.get('/users/profile/recovery-payload');
+
+      const clean_code = sanitize_recovery_code(recovery_code);
+      const recovery_key = await _deriveKey(clean_code, user_salt);
+
+      old_master_password = await _decrypt(data.recovery_payload, recovery_key);
+    } catch (err) {
+      throw new Error("Código de Recuperação (Senha Mestra) inválido ou dados corrompidos.");
+    };
+
+    const old_key = await _deriveKey(old_master_password, user_salt);
+    const new_key = await _deriveKey(current_password, user_salt);
+
+    localStorage.removeItem('kadem_vault_last_sync');
+    last_sync_timestamp.value = null;
+
+    await pullAccounts();
+
+    const encrypted_accounts = await accountsRepository.getAllLocalAccounts();
+
+    for (const acc of encrypted_accounts) {
+      try {
+        const decrypted_data = await _decrypt(acc.data, old_key);
+        const new_encrypted_blob = await _encrypt(decrypted_data, new_key);
+
+        await accountsRepository.saveLocalAccount({ ...acc, data: new_encrypted_blob });
+
+        await syncQueueRepository.addSyncQueueTask({
+          type: 'UPDATE_ACCOUNT',
+          payload: { localId: acc.localId, id: acc.id, data: new_encrypted_blob },
+          timestamp: new Date().toISOString()
+        });
+      } catch (e) {
+        console.warn(`[Vault] Conta ${acc.id} falhou na migração.`, e);
+      };
+    };
+
+    const validationToken = "VALID_VAULT_KEY";
+    const new_encrypted_validation = await _encrypt(validationToken, new_key);
+    localStorage.setItem('vault_validation', new_encrypted_validation);
+
+    await api.post('/users/profile/complete-migration');
+
+    await setup_recovery_key(current_password, user_salt);
+
+    syncService.processSyncQueue();
+    return true;
+  };
+
   return {
+    setup_recovery_key,
+    execute_home_migration,
+    generate_recovery_code,
+    recover_vault_data,
     pullAccounts,
     _updateLastAccess,
     isUnlocked,

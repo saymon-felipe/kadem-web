@@ -10,9 +10,10 @@
             :type="passwordFieldType"
             v-model="masterPasswordInput"
             placeholder=" "
+            id="unlock-vault"
             @keyup.enter="handleUnlock"
           />
-          <label>Senha</label>
+          <label for="unlock-vault">Senha</label>
           <p v-if="error" class="error-message">{{ error }}</p>
         </div>
         <font-awesome-icon
