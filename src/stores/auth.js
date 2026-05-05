@@ -130,6 +130,7 @@ export const useAuthStore = defineStore("auth", {
         kanbanStore.tasks = {};
         kanbanStore.lastSyncs = null;
         vaultStore.lockVault();
+        vaultStore.purge_state();
         radioStore.clearState();
         playerStore.clearState();
         localStorage.removeItem("kadem_user_last_sync");

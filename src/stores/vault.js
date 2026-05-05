@@ -134,6 +134,11 @@ export const useVaultStore = defineStore('vault', () => {
     console.log("Cofre trancado e memória limpa.");
   };
 
+  const purge_state = () => {
+    lockVault();
+    last_sync_timestamp.value = null;
+  };
+
   const loadAccountsFromDB = async () => {
     if (!isUnlocked.value) return;
 
@@ -194,12 +199,12 @@ export const useVaultStore = defineStore('vault', () => {
 
     try {
       const keyCandidate = await _deriveKey(masterPassword, userSalt);
-      const encryptedValidation = localStorage.getItem('vault_validation');
+      let encryptedValidation = localStorage.getItem('vault_validation');
 
       if (!encryptedValidation) {
         console.log("Configurando o cofre pela primeira vez...");
         await setupVault(masterPassword, userSalt);
-        return;
+        encrypted_validation = localStorage.getItem('vault_validation');
       }
 
       try {
@@ -570,6 +575,7 @@ export const useVaultStore = defineStore('vault', () => {
     revealedPasswords,
     unlockVault,
     lockVault,
+    purge_state,
     setupVault,
     loadAccountsFromDB,
     createAccount,
