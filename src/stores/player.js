@@ -164,6 +164,7 @@ export const usePlayerStore = defineStore("player", {
     _reset_native_player() {
       this._ensure_audio_instance();
       this.native_audio_instance.pause();
+      this.native_audio_instance.loop = false;
       this.native_audio_instance.removeAttribute("src");
       this.native_audio_instance.onended = null;
       this.native_audio_instance.ontimeupdate = null;
@@ -221,12 +222,14 @@ export const usePlayerStore = defineStore("player", {
       try {
         this.current_audio_url = URL.createObjectURL(blob);
         audio.src = this.current_audio_url;
+        audio.loop = false;
         audio.volume = this.volume;
 
         audio.ontimeupdate = () => {
           if (Math.floor(audio.currentTime) % 5 === 0)
             this._update_media_session_position();
         };
+
         audio.onended = () => this.next();
 
         if (should_play) {
@@ -483,8 +486,8 @@ export const usePlayerStore = defineStore("player", {
         if (this.native_audio_instance.src) {
           should_play
             ? this.native_audio_instance
-                .play()
-                .catch((e) => console.error("Erro playback nativo:", e))
+              .play()
+              .catch((e) => console.error("Erro playback nativo:", e))
             : this.native_audio_instance.pause();
         }
       } else if (this.player_mode === "youtube") {
