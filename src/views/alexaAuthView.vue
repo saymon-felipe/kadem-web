@@ -5,11 +5,25 @@
                 <div class="alexa-badge">Conectar Alexa</div>
                 <img src="../assets/images/kadem-logo.png" alt="Kadem" />
             </div>
+
             <div class="auth-body">
-                <form @submit.prevent="handleAlexaLogin">
+                <form v-if="!success" @submit.prevent="handleAlexaLogin">
                     <h2>Entre com sua conta Kadem</h2>
 
                     <LoadingResponse :msg="error" type="error" styletype="small" :loading="loading" />
+
+                    <div class="form-group" v-if="isPairingMode">
+                        <input
+                            type="text"
+                            id="pairing-code"
+                            v-model="pairingCode"
+                            placeholder=""
+                            inputmode="numeric"
+                            maxlength="6"
+                            required
+                        />
+                        <label for="pairing-code">Codigo da Alexa</label>
+                    </div>
 
                     <div class="form-group">
                         <input type="email" id="email" v-model="email" placeholder="" required />
@@ -19,14 +33,22 @@
                     <div class="form-group password-group">
                         <input :type="passwordFieldType" id="password" v-model="password" placeholder="" required />
                         <label for="password">Senha</label>
-                        <font-awesome-icon :icon="passwordFieldType === 'password' ? 'eye' : 'eye-slash'"
-                            class="password-icon" @click="togglePassword" />
+                        <font-awesome-icon
+                            :icon="passwordFieldType === 'password' ? 'eye' : 'eye-slash'"
+                            class="password-icon"
+                            @click="togglePassword"
+                        />
                     </div>
 
                     <button type="submit" class="btn btn-primary" :disabled="loading">
                         {{ loading ? "Vinculando..." : "Vincular Conta" }}
                     </button>
                 </form>
+
+                <div v-else class="success-state">
+                    <h2>Conta vinculada</h2>
+                    <p>{{ success }}</p>
+                </div>
             </div>
         </div>
     </section>
@@ -37,23 +59,33 @@ import LoadingResponse from "@/components/loadingResponse.vue";
 import { api } from "../plugins/api";
 
 export default {
-    name: 'AlexaAuthView',
+    name: "AlexaAuthView",
     components: {
-        LoadingResponse
+        LoadingResponse,
     },
     data() {
         return {
-            email: '',
-            password: '',
-            error: '',
+            email: "",
+            password: "",
+            error: "",
             loading: false,
-            passwordFieldType: 'password',
-            redirectUri: '',
-            stateParam: '',
+            passwordFieldType: "password",
+            redirectUri: "",
+            stateParam: "",
             clientId: "",
             responseType: "",
             scope: "",
+            pairingCode: "",
+            success: "",
         };
+    },
+    computed: {
+        isOAuthMode() {
+            return !!this.redirectUri || !!this.stateParam;
+        },
+        isPairingMode() {
+            return !this.isOAuthMode;
+        },
     },
     mounted() {
         const params = new URLSearchParams(window.location.search);
@@ -63,6 +95,7 @@ export default {
         this.clientId = params.get("client_id") || "";
         this.responseType = params.get("response_type") || "";
         this.scope = params.get("scope") || "";
+        this.pairingCode = (params.get("code") || "").replace(/\D/g, "").slice(0, 6);
 
         console.log("[Alexa Auth Params]", {
             redirectUri: this.redirectUri,
@@ -70,29 +103,42 @@ export default {
             clientId: this.clientId,
             responseType: this.responseType,
             scope: this.scope,
+            pairingCode: this.pairingCode ? "present" : "missing",
         });
 
+        if (this.isPairingMode) {
+            return;
+        }
+
         if (!this.redirectUri || !this.stateParam) {
-            this.error = "Parâmetros de vínculo ausentes. Inicie pelo app da Alexa.";
+            this.error = "Parametros de vinculo ausentes. Inicie pelo app da Alexa.";
             return;
         }
 
         if (this.clientId !== "alexa") {
-            this.error = "client_id inválido.";
+            this.error = "client_id invalido.";
             return;
         }
 
         if (this.responseType !== "code") {
-            this.error = "response_type inválido.";
-            return;
+            this.error = "response_type invalido.";
         }
     },
     methods: {
         togglePassword() {
-            this.passwordFieldType = this.passwordFieldType === 'password' ? 'text' : 'password';
+            this.passwordFieldType = this.passwordFieldType === "password" ? "text" : "password";
         },
         async handleAlexaLogin() {
-            if (!this.redirectUri || !this.stateParam) return;
+            if (this.isOAuthMode && (!this.redirectUri || !this.stateParam)) return;
+
+            if (this.isPairingMode) {
+                this.pairingCode = this.pairingCode.replace(/\D/g, "").slice(0, 6);
+
+                if (this.pairingCode.length !== 6) {
+                    this.error = "Informe o codigo de 6 digitos que a Alexa mostrou.";
+                    return;
+                }
+            }
 
             this.loading = true;
             this.error = "";
@@ -101,13 +147,23 @@ export default {
                 const response = await api.post("/auth/login", {
                     email: this.email,
                     password: this.password,
-                    is_alexa: true,
+                    is_alexa: this.isOAuthMode,
                 });
 
                 const { token } = response.data;
 
                 if (!token) {
-                    this.error = "Login OK, mas nenhum código/token foi retornado.";
+                    this.error = "Login OK, mas nenhum token foi retornado.";
+                    return;
+                }
+
+                if (this.isPairingMode) {
+                    await api.post("/alexa/link", {
+                        code: this.pairingCode,
+                        token,
+                    });
+
+                    this.success = "Agora volte para a Alexa e peca a musica novamente.";
                     return;
                 }
 
@@ -121,8 +177,8 @@ export default {
             } finally {
                 this.loading = false;
             }
-        }
-    }
+        },
+    },
 };
 </script>
 
@@ -198,6 +254,12 @@ form {
 
 .password-icon:hover {
     opacity: 1;
+}
+
+.success-state {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
 }
 
 @media (max-width: 960px) {

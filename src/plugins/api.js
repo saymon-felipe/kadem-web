@@ -1,8 +1,7 @@
 import axios from 'axios';
 import { useProjectStore } from '../stores/projects';
-import { useAuthStore } from '../stores/auth';
 
-const dev_environment = "http://localhost:3000/api";
+const dev_environment = "https://mesh-symantec-own-developmental.trycloudflare.com/api";
 const homolog_environment = "https://coretest-kadem-d8b86a10b9e8.herokuapp.com/api";
 const prod_environment = "https://core-kadem-a06ada9519bc.herokuapp.com/api";
 
@@ -12,7 +11,7 @@ let ambient = 2;
 
 const hostname = window.location.hostname;
 
-if (hostname.includes("localhost") || hostname.includes("192.168")) {
+if (hostname.includes("localhost") || hostname.includes("192.168") || hostname.includes("trycloudflare")) {
   ambient = 0; // Local
 } else if (hostname.includes("dev") || hostname.includes("homolog") || hostname.includes("staging")) {
   ambient = 1; // Homologação
