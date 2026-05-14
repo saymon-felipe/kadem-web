@@ -48,6 +48,14 @@ const routes = [
     }
   },
   {
+    path: "/alexa-auth",
+    name: "AlexaAuth",
+    component: () => import("../views/alexaAuthView.vue"),
+    meta: {
+      public: true
+    }
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: { name: 'Auth' }
   }

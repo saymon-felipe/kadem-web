@@ -44,9 +44,9 @@ export const useAuthStore = defineStore("auth", {
         throw error;
       }
     },
-    async login(email, password, invite_token) {
+    async login(email, password, invite_token, is_alexa = false) {
       try {
-        const response = await api.post("/auth/login", { email, password, invite_token });
+        const response = await api.post("/auth/login", { email, password, invite_token, is_alexa });
         const { token, user } = response.data;
 
         if (token) {
