@@ -103,7 +103,116 @@
           >
         </p>
       </div>
+
+      <div class="attachments-section">
+        <div class="attachments-header">
+          <label>Anexos</label>
+          <button
+            type="button"
+            class="btn-attach"
+            @click="$refs.attachmentInput?.click()"
+            title="Anexar arquivo"
+          >
+            <font-awesome-icon icon="cloud-arrow-up" />
+          </button>
+          <input
+            ref="attachmentInput"
+            type="file"
+            class="hidden-file-input"
+            @change="handle_attachment_selected"
+          />
+        </div>
+
+        <p v-if="attachment_error" class="attachment-error">{{ attachment_error }}</p>
+
+        <div v-if="editable_task.attachments?.length" class="attachment-list">
+          <div
+            v-for="attachment in editable_task.attachments"
+            :key="attachment.local_id || attachment.id"
+            class="attachment-item"
+            role="button"
+            tabindex="0"
+            @click="open_attachment(attachment)"
+            @keydown.enter.prevent="open_attachment(attachment)"
+          >
+            <font-awesome-icon :icon="attachment_icon(attachment)" />
+            <span class="attachment-name">{{ attachment.name }}</span>
+            <span class="attachment-size">{{ format_file_size(attachment.size_bytes) }}</span>
+            <span v-if="attachment.upload_status !== 'synced'" class="attachment-status">
+              <font-awesome-icon icon="spinner" spin />
+            </span>
+            <button
+              type="button"
+              class="btn-attachment-delete"
+              @click.stop="remove_attachment(attachment)"
+              title="Excluir anexo"
+            >
+              <font-awesome-icon icon="trash-can" />
+            </button>
+          </div>
+        </div>
+
+        <p v-else class="attachment-empty">Nenhum anexo.</p>
+      </div>
     </form>
+
+    <teleport to="body">
+      <div
+        v-if="preview_attachment"
+        class="attachment-preview-overlay"
+        @click.self="close_attachment_preview"
+      >
+        <div class="attachment-preview-modal">
+          <header class="attachment-preview-header">
+            <strong>{{ preview_attachment.name }}</strong>
+            <div class="preview-actions">
+              <a
+                v-if="preview_url"
+                class="preview-action"
+                :href="preview_url"
+                :download="preview_attachment.name"
+                target="_blank"
+                rel="noopener"
+                title="Baixar"
+              >
+                <font-awesome-icon icon="download" />
+              </a>
+              <button
+                type="button"
+                class="preview-action"
+                @click="close_attachment_preview"
+                title="Fechar"
+              >
+                <font-awesome-icon icon="xmark" />
+              </button>
+            </div>
+          </header>
+
+          <div class="attachment-preview-body">
+            <img
+              v-if="preview_kind === 'image'"
+              :src="preview_url"
+              :alt="preview_attachment.name"
+            />
+            <video
+              v-else-if="preview_kind === 'video'"
+              :src="preview_url"
+              controls
+            ></video>
+            <iframe
+              v-else-if="preview_kind === 'html'"
+              :src="preview_url"
+              sandbox
+            ></iframe>
+            <pre v-else-if="preview_kind === 'text'">{{ preview_text }}</pre>
+            <div v-else class="unsupported-preview">
+              <font-awesome-icon icon="download" />
+              <p>Este tipo de arquivo pode ser baixado.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </teleport>
 
     <div class="comments-section">
       <h4>Comentários</h4>
@@ -260,6 +369,12 @@ export default {
       priority_options: ["Normal", "Importante", "Urgente"],
       size_options: ["P - Pequeno", "M - Médio", "G - Grande"],
       selected_responsible_wrapper: null,
+      attachment_error: "",
+      preview_attachment: null,
+      preview_url: "",
+      preview_kind: "",
+      preview_text: "",
+      preview_object_url: "",
 
       // Comentários
       new_comment_text: "",
@@ -335,11 +450,14 @@ export default {
       "toggleCommentLike",
       "editTaskComment",
       "deleteTaskComment",
+      "addTaskAttachment",
+      "deleteTaskAttachment",
     ]),
 
     get_clean_task_data(task) {
       const clone = JSON.parse(JSON.stringify(task));
       delete clone.comments;
+      delete clone.attachments;
       return clone;
     },
 
@@ -348,6 +466,9 @@ export default {
 
       if (!this.editable_task.comments) {
         this.editable_task.comments = [];
+      }
+      if (!this.editable_task.attachments) {
+        this.editable_task.attachments = [];
       }
       if (!this.editable_task.priority) this.editable_task.priority = "Importante";
       if (!this.editable_task.size) this.editable_task.size = "M - Médio";
@@ -502,6 +623,109 @@ export default {
       }
     },
 
+    async handle_attachment_selected(event) {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      this.attachment_error = "";
+      if (!file) return;
+
+      try {
+        const attachment = await this.addTaskAttachment(this.editable_task, file);
+        if (!this.editable_task.attachments) this.editable_task.attachments = [];
+
+        const idx = this.editable_task.attachments.findIndex(
+          (item) => item.local_id === attachment.local_id
+        );
+        if (idx === -1) {
+          this.editable_task.attachments.push(attachment);
+        } else {
+          this.editable_task.attachments[idx] = attachment;
+        }
+      } catch (error) {
+        this.attachment_error =
+          error?.response?.data?.message || error.message || "NÃ£o foi possÃ­vel anexar.";
+      }
+    },
+
+    async remove_attachment(attachment) {
+      await this.deleteTaskAttachment(this.editable_task, attachment);
+      this.editable_task.attachments = (this.editable_task.attachments || []).filter(
+        (item) => item.local_id !== attachment.local_id
+      );
+    },
+
+    attachment_icon(attachment) {
+      const kind = this.get_attachment_kind(attachment);
+      if (kind === "image") return "image";
+      if (kind === "video") return "circle-play";
+      if (kind === "text" || kind === "html") return "list";
+      return "clipboard";
+    },
+
+    get_attachment_kind(attachment) {
+      const mime = attachment.mime_type || "";
+      const name = (attachment.name || "").toLowerCase();
+      if (mime.startsWith("image/")) return "image";
+      if (mime.startsWith("video/")) return "video";
+      if (mime.includes("html") || name.endsWith(".html") || name.endsWith(".htm")) return "html";
+      if (
+        mime.startsWith("text/") ||
+        [".sql", ".json", ".xml", ".csv", ".log", ".md", ".js", ".ts", ".css"].some((ext) =>
+          name.endsWith(ext)
+        )
+      ) {
+        return "text";
+      }
+      return "download";
+    },
+
+    async open_attachment(attachment) {
+      this.close_attachment_preview();
+      this.preview_attachment = attachment;
+      this.preview_kind = this.get_attachment_kind(attachment);
+      this.preview_text = "";
+
+      if (attachment.blob) {
+        this.preview_object_url = URL.createObjectURL(attachment.blob);
+        this.preview_url = this.preview_object_url;
+      } else {
+        this.preview_url = attachment.url;
+      }
+
+      if (this.preview_kind === "text") {
+        try {
+          this.preview_text = attachment.blob
+            ? await attachment.blob.text()
+            : await (await fetch(attachment.url)).text();
+        } catch (error) {
+          this.preview_text = "NÃ£o foi possÃ­vel carregar a prÃ©via deste arquivo.";
+        }
+      }
+
+      if (this.preview_kind === "download" && this.preview_url) {
+        window.open(this.preview_url, "_blank", "noopener");
+      }
+    },
+
+    close_attachment_preview() {
+      if (this.preview_object_url) {
+        URL.revokeObjectURL(this.preview_object_url);
+      }
+      this.preview_attachment = null;
+      this.preview_url = "";
+      this.preview_kind = "";
+      this.preview_text = "";
+      this.preview_object_url = "";
+    },
+
+    format_file_size(bytes) {
+      if (!bytes) return "0 B";
+      const units = ["B", "KB", "MB", "GB"];
+      const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+      const value = bytes / Math.pow(1024, index);
+      return `${value >= 10 || index === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`;
+    },
+
     get_priority_color(val) {
       const map = { Normal: "bg-gray", Importante: "bg-orange", Urgente: "bg-red" };
       return map[val] || "bg-gray";
@@ -559,12 +783,36 @@ export default {
       },
       deep: true,
     },
+    "task.attachments": {
+      handler(newAttachments) {
+        if (!newAttachments) return;
+        if (!this.editable_task.attachments) this.editable_task.attachments = [];
+
+        newAttachments.forEach((attachment) => {
+          const index = this.editable_task.attachments.findIndex(
+            (local) => local.local_id === attachment.local_id
+          );
+          if (index === -1) {
+            this.editable_task.attachments.push({ ...attachment });
+          } else {
+            this.editable_task.attachments[index] = {
+              ...this.editable_task.attachments[index],
+              ...attachment,
+            };
+          }
+        });
+      },
+      deep: true,
+    },
     selected_responsible_wrapper: {
       handler(newVal) {
         this.apply_responsible_change(newVal);
       },
       deep: true,
     },
+  },
+  beforeUnmount() {
+    this.close_attachment_preview();
   },
 };
 </script>
@@ -746,6 +994,200 @@ export default {
   color: var(--deep-blue);
   font-size: var(--fontsize-xs);
   font-weight: 500;
+}
+
+.attachments-section {
+  border-top: 1px solid var(--background-gray);
+  padding-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.attachments-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.attachments-header label {
+  flex: 1;
+}
+
+.btn-attach {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--background-gray);
+  background: var(--white);
+  color: var(--deep-blue);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.btn-attach:hover {
+  background: var(--background-gray);
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.attachment-error {
+  color: var(--red);
+  font-size: var(--fontsize-xs);
+  margin: 0;
+}
+
+.attachment-empty {
+  color: var(--gray-300);
+  font-size: var(--fontsize-xs);
+  margin: 0;
+}
+
+.attachment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attachment-item {
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto auto 28px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--background-gray);
+  background: var(--white);
+  color: var(--deep-blue);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.attachment-item:hover {
+  border-color: var(--deep-blue);
+}
+
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+}
+
+.attachment-size,
+.attachment-status {
+  font-size: 0.72rem;
+  color: var(--gray-300);
+}
+
+.btn-attachment-delete {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--gray-300);
+  cursor: pointer;
+}
+
+.btn-attachment-delete:hover {
+  color: var(--red);
+}
+
+.attachment-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 24px;
+}
+
+.attachment-preview-modal {
+  width: min(920px, 96vw);
+  height: min(720px, 88vh);
+  background: var(--white);
+  color: var(--deep-blue);
+  border-radius: var(--radius-sm);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.attachment-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--background-gray);
+}
+
+.attachment-preview-header strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.preview-action {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--deep-blue);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+}
+
+.attachment-preview-body {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background: #f7f7f7;
+}
+
+.attachment-preview-body img,
+.attachment-preview-body video,
+.attachment-preview-body iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  object-fit: contain;
+  background: var(--white);
+}
+
+.attachment-preview-body pre {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  margin: 0;
+  padding: 16px;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #101820;
+  color: #f5f7fb;
+  font-size: 0.85rem;
+}
+
+.unsupported-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--gray-300);
 }
 
 /* --- COMENTÁRIOS --- */

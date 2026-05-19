@@ -6,6 +6,15 @@ import { syncService } from '../services/syncService';
 import { useAuthStore } from './auth';
 import { api } from '../plugins/api';
 import { useUtilsStore } from '../stores/utils';
+import { getPlanLimits } from '../services/subscription_plans';
+
+const formatBytes = (bytes) => {
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / Math.pow(1024, index);
+  return `${value >= 10 || index === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`;
+};
 
 export const useKanbanStore = defineStore('kanban', {
   state: () => ({
@@ -322,7 +331,14 @@ export const useKanbanStore = defineStore('kanban', {
           timestamp: Date.now()
         });
 
-        syncService.processSyncQueue();
+        await syncService.processSyncQueue();
+        const refreshedColumn = await kanbanRepository.get_column_by_local_id(saved_column.local_id);
+        if (refreshedColumn) {
+          Object.assign(saved_column, refreshedColumn);
+          const idx = this.columns[pid].findIndex(c => c.local_id === saved_column.local_id);
+          if (idx !== -1) this.columns[pid][idx] = refreshedColumn;
+          return refreshedColumn;
+        }
 
         return saved_column;
 
@@ -353,7 +369,7 @@ export const useKanbanStore = defineStore('kanban', {
           timestamp: Date.now()
         });
 
-        syncService.processSyncQueue();
+        await syncService.processSyncQueue();
 
       } catch (error) {
         console.error("[KanbanStore] Erro update coluna:", error);
@@ -423,7 +439,14 @@ export const useKanbanStore = defineStore('kanban', {
           timestamp: Date.now()
         });
 
-        syncService.processSyncQueue();
+        await syncService.processSyncQueue();
+        const refreshedTask = await kanbanRepository.get_task_by_local_id(saved_task.local_id);
+        if (refreshedTask) {
+          Object.assign(saved_task, refreshedTask);
+          const idx = this.tasks[column_local_id].findIndex(t => t.local_id === saved_task.local_id);
+          if (idx !== -1) this.tasks[column_local_id][idx] = { ...refreshedTask, attachments: [] };
+          return { ...refreshedTask, attachments: [] };
+        }
 
         return saved_task;
 
@@ -435,13 +458,14 @@ export const useKanbanStore = defineStore('kanban', {
 
     async updateTask(task) {
       try {
-        const clean_task = JSON.parse(JSON.stringify(task));
+        const attachments = task.attachments || [];
+        const clean_task = JSON.parse(JSON.stringify({ ...task, attachments: undefined }));
         await kanbanRepository.update_task(task.local_id, clean_task);
 
         const column_tasks = this.tasks[task.column_id];
         if (column_tasks) {
           const index = column_tasks.findIndex(t => t.local_id === task.local_id);
-          if (index !== -1) column_tasks[index] = clean_task;
+          if (index !== -1) column_tasks[index] = { ...clean_task, attachments };
         }
 
         await syncQueueRepository.addSyncQueueTask({
@@ -451,7 +475,7 @@ export const useKanbanStore = defineStore('kanban', {
           timestamp: Date.now()
         });
 
-        syncService.processSyncQueue();
+        await syncService.processSyncQueue();
 
       } catch (error) {
         console.error("[KanbanStore] Erro update tarefa:", error);
@@ -472,7 +496,7 @@ export const useKanbanStore = defineStore('kanban', {
           timestamp: Date.now()
         });
 
-        syncService.processSyncQueue();
+        await syncService.processSyncQueue();
 
       } catch (error) {
         console.error("[KanbanStore] Erro delete tarefa:", error);
@@ -513,11 +537,95 @@ export const useKanbanStore = defineStore('kanban', {
             payload: { column_id: columnId, tasks: updates },
             timestamp: Date.now()
           });
-          syncService.processSyncQueue();
+          await syncService.processSyncQueue();
         }
       } catch (error) {
         console.error("Erro mover tarefas:", error);
       }
+    },
+
+    async addTaskAttachment(task, file) {
+      const authStore = useAuthStore();
+      const limits = getPlanLimits(authStore.user?.plan_tier || 'free');
+      const maxSize = limits.max_task_attachment_size_bytes || (5 * 1024 * 1024);
+
+      if (!file) return null;
+      if (file.size > maxSize) {
+        throw new Error(`Arquivo acima do limite do seu plano (${formatBytes(maxSize)}).`);
+      }
+
+      const attachmentData = {
+        id: null,
+        task_id: task.id || null,
+        task_local_id: task.local_id,
+        project_id: task.project_id,
+        name: file.name,
+        mime_type: file.type || 'application/octet-stream',
+        size_bytes: file.size,
+        url: null,
+        blob: file,
+        upload_status: 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const savedAttachment = await kanbanRepository.add_attachment(attachmentData);
+      const columnTasks = this.tasks[task.column_id];
+      if (columnTasks) {
+        const target = columnTasks.find(t => t.local_id === task.local_id);
+        if (target) {
+          if (!target.attachments) target.attachments = [];
+          target.attachments.push(savedAttachment);
+        }
+      }
+
+      await syncQueueRepository.addSyncQueueTask({
+        type: 'ADD_TASK_ATTACHMENT',
+        payload: {
+          attachment_local_id: savedAttachment.local_id,
+          task_local_id: task.local_id
+        },
+        entity_id: savedAttachment.local_id,
+        timestamp: Date.now()
+      });
+
+      await syncService.processSyncQueue();
+
+      const refreshedAttachment = await kanbanRepository.get_attachment_by_local_id(savedAttachment.local_id);
+      if (refreshedAttachment && columnTasks) {
+        const target = columnTasks.find(t => t.local_id === task.local_id);
+        const idx = target?.attachments?.findIndex(a => a.local_id === savedAttachment.local_id);
+        if (target && idx !== undefined && idx !== -1) {
+          target.attachments[idx] = refreshedAttachment;
+        }
+        return refreshedAttachment;
+      }
+
+      return savedAttachment;
+    },
+
+    async deleteTaskAttachment(task, attachment) {
+      await kanbanRepository.delete_attachment(attachment.local_id);
+
+      const columnTasks = this.tasks[task.column_id];
+      if (columnTasks) {
+        const target = columnTasks.find(t => t.local_id === task.local_id);
+        if (target?.attachments) {
+          target.attachments = target.attachments.filter(a => a.local_id !== attachment.local_id);
+        }
+      }
+
+      await syncQueueRepository.addSyncQueueTask({
+        type: 'DELETE_TASK_ATTACHMENT',
+        payload: {
+          id: attachment.id,
+          local_id: attachment.local_id
+        },
+        entity_id: attachment.local_id,
+        timestamp: Date.now()
+      });
+
+      await syncService.processSyncQueue();
     }
   }
 });

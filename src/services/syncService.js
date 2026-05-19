@@ -83,7 +83,7 @@ const resolveServerPlaylistId = async (localPlaylistId) => {
  */
 const buildChangesArray = (payload, timestamp) => {
   const changes = [];
-  const ignoreKeys = ['id', 'local_id', 'localId', 'project_id', 'timestamp', 'type', 'entity_id', 'playlist_id_is_server'];
+  const ignoreKeys = ['id', 'local_id', 'localId', 'project_id', 'timestamp', 'type', 'entity_id', 'playlist_id_is_server', 'attachments'];
   const changeTs = timestamp || new Date().toISOString();
 
   for (const key in payload) {
@@ -324,7 +324,15 @@ async function _handleKanbanTask(task) {
 
     case 'REORDER_COLUMNS':
       const pIdReorder = await resolveServerProjectId(task.payload.project_id);
-      const colsOrder = task.payload.columns_order.filter(c => c.id).map(c => ({ id: c.id, order: c.order }));
+      const colsOrder = [];
+      for (const c of task.payload.columns_order) {
+        let colServerId = c.id;
+        if (!colServerId && c.local_id) {
+          const localColumn = await kanbanRepository.get_column_by_local_id(c.local_id);
+          colServerId = localColumn?.id;
+        }
+        if (colServerId) colsOrder.push({ id: colServerId, order: c.order });
+      }
       if (colsOrder.length) await api.post(`/kanban/projects/${pIdReorder}/reorder-columns`, { columns: colsOrder });
       break;
 
@@ -350,11 +358,47 @@ async function _handleKanbanTask(task) {
         serverId = t?.id;
       }
 
+      if (!serverId) {
+        throw new Error("TASK_NOT_SYNCED: Update em tarefa sem ID server.");
+      }
+
+      const taskChanges = buildChangesArray(task.payload, task.timestamp);
+      if (taskChanges.length > 0) {
+        await api.put(`/kanban/tasks/${serverId}`, { changes: taskChanges });
+      }
+      break;
+
+    case 'ADD_TASK_ATTACHMENT':
+      const attachment = await kanbanRepository.get_attachment_by_local_id(task.payload.attachment_local_id);
+      if (!attachment) return;
+
+      const parentTaskForAttachment = await kanbanRepository.get_task_by_local_id(attachment.task_local_id);
+      if (!parentTaskForAttachment?.id) throw new Error("TASK_NOT_SYNCED: Anexo aguardando Task.");
+      if (!attachment.blob) throw new Error("ATTACHMENT_BLOB_MISSING");
+
+      response = await api.post(`/kanban/tasks/${parentTaskForAttachment.id}/attachments`, attachment.blob, {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'X-Mime-Type': attachment.mime_type || 'application/octet-stream',
+          'X-File-Name': encodeURIComponent(attachment.name || 'arquivo'),
+          'X-File-Size': attachment.size_bytes || attachment.blob.size || 0
+        },
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity
+      });
+
+      await kanbanRepository.setServerDataForAttachment(attachment.local_id, response.data);
+      break;
+
+    case 'DELETE_TASK_ATTACHMENT':
+      serverId = task.payload.id;
+      if (!serverId && task.payload.local_id) {
+        const localAttachment = await kanbanRepository.get_attachment_by_local_id(task.payload.local_id);
+        serverId = localAttachment?.id;
+      }
       if (serverId) {
-        const taskChanges = buildChangesArray(task.payload, task.timestamp);
-        if (taskChanges.length > 0) {
-          await api.put(`/kanban/tasks/${serverId}`, { changes: taskChanges });
-        }
+        try { await api.delete(`/kanban/attachments/${serverId}`); }
+        catch (e) { if (e.response?.status !== 404) throw e; }
       }
       break;
 
@@ -667,80 +711,90 @@ export const syncService = {
     isProcessing = true;
 
     try {
-      const pendingTasks = await syncQueueRepository.getPendingTasks();
-      if (pendingTasks.length === 0) {
-        isProcessing = false;
-        return;
-      }
+      while (true) {
+        const pendingTasks = await syncQueueRepository.getPendingTasks();
+        if (pendingTasks.length === 0) break;
 
-      console.log(`[SyncService] Iniciando sincronização de ${pendingTasks.length} tarefas...`);
+        console.log(`[SyncService] Iniciando sincronização de ${pendingTasks.length} tarefas...`);
 
-      // Separa tarefas de lote (Batch)
-      const profileTasks = pendingTasks.filter(t => t.type === 'SYNC_PROFILE_CHANGE');
-      const projectFieldTasks = pendingTasks.filter(t => t.type === 'SYNC_PROJECT_CHANGE');
-      const accountSyncTasks = pendingTasks.filter(t => t.type === 'UPDATE_ACCOUNT');
+        const profileTasks = pendingTasks.filter(t => t.type === 'SYNC_PROFILE_CHANGE');
+        const projectFieldTasks = pendingTasks.filter(t => t.type === 'SYNC_PROJECT_CHANGE');
+        const accountSyncTasks = pendingTasks.filter(t => t.type === 'UPDATE_ACCOUNT');
 
-      const individualTasks = pendingTasks.filter(t =>
-        t.type !== 'SYNC_PROFILE_CHANGE' &&
-        t.type !== 'SYNC_PROJECT_CHANGE' &&
-        t.type !== 'UPDATE_ACCOUNT'
-      );
+        const individualTasks = pendingTasks.filter(t =>
+          t.type !== 'SYNC_PROFILE_CHANGE' &&
+          t.type !== 'SYNC_PROJECT_CHANGE' &&
+          t.type !== 'UPDATE_ACCOUNT'
+        );
 
-      // Processa Lotes
-      await processProfileSync(profileTasks);
-      await processProjectSync(projectFieldTasks);
-      await processAccountsSync(accountSyncTasks);
+        await processProfileSync(profileTasks);
+        await processProjectSync(projectFieldTasks);
+        await processAccountsSync(accountSyncTasks);
 
-      // Ordena tarefas individuais por dependência lógica
-      const creationOrder = { 'CREATE_PROJECT': 1, 'CREATE_COLUMN': 2, 'CREATE_TASK': 3, 'CREATE_PLAYLIST': 4, 'ADD_TRACK': 5 };
-      const sortedTasks = individualTasks.sort((a, b) => {
-        const orderA = creationOrder[a.type] || 10;
-        const orderB = creationOrder[b.type] || 10;
-        if (orderA !== orderB) return orderA - orderB;
-        return a.timestamp - b.timestamp;
-      });
+        const creationOrder = {
+          'CREATE_PROJECT': 1,
+          'CREATE_COLUMN': 2,
+          'CREATE_TASK': 3,
+          'ADD_TASK_ATTACHMENT': 4,
+          'CREATE_PLAYLIST': 5,
+          'ADD_TRACK': 6
+        };
+        const sortedTasks = individualTasks.sort((a, b) => {
+          const orderA = creationOrder[a.type] || 10;
+          const orderB = creationOrder[b.type] || 10;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.timestamp - b.timestamp;
+        });
 
-      for (const task of sortedTasks) {
+        let hadDeferredDependency = false;
 
-        await delay(50);
+        for (const task of sortedTasks) {
+          await delay(50);
 
-        try {
-          await processTaskItem(task);
-          await syncQueueRepository.deleteTask(task.id);
-          console.log(`[SyncService] OK: ${task.type} (${task.id})`);
-
-        } catch (error) {
-          if (error.response && (error.response.status === 403 || error.response.status === 404)) {
-            console.warn(`[SyncService] Erro Fatal (${error.response.status}). Removendo tarefa ${task.type}.`);
+          try {
+            await processTaskItem(task);
             await syncQueueRepository.deleteTask(task.id);
+            console.log(`[SyncService] OK: ${task.type} (${task.id})`);
 
-            if (error.response.status === 403 && task.payload && task.payload.projectId) {
-              const projectStore = useProjectStore();
-              projectStore.forceLocalProjectRemoval(task.payload.projectId);
+          } catch (error) {
+            if (error.response && (error.response.status === 403 || error.response.status === 404)) {
+              console.warn(`[SyncService] Erro Fatal (${error.response.status}). Removendo tarefa ${task.type}.`);
+              await syncQueueRepository.deleteTask(task.id);
+
+              if (error.response.status === 403 && task.payload && task.payload.projectId) {
+                const projectStore = useProjectStore();
+                projectStore.forceLocalProjectRemoval(task.payload.projectId);
+              }
+              continue;
             }
-            continue;
+
+            const msg = error.message || "";
+            if (msg.includes("NOT_SYNCED")) {
+              hadDeferredDependency = true;
+              console.warn(`[SyncService] Adiado: ${task.type} (Dependência não resolvida)`);
+              continue;
+            }
+
+            const current_retries = task.retry_count || 0;
+            const max_retries = 5;
+
+            if (current_retries >= max_retries) {
+              console.error(`[SyncService] FALHA FINAL: Tarefa ${task.id} excedeu ${max_retries} tentativas. Removendo.`);
+              await syncQueueRepository.deleteTask(task.id);
+            } else {
+              const new_count = current_retries + 1;
+              console.warn(`[SyncService] Falha na tarefa ${task.type}. Tentativa ${new_count}/${max_retries}.`);
+
+              await syncQueueRepository.updateTask(task.id, {
+                retry_count: new_count
+              });
+            }
           }
+        }
 
-          const msg = error.message || "";
-          if (msg.includes("NOT_SYNCED")) {
-            console.warn(`[SyncService] Adiado: ${task.type} (Dependência não resolvida)`);
-            continue;
-          }
-
-          const current_retries = task.retry_count || 0;
-          const max_retries = 5;
-
-          if (current_retries >= max_retries) {
-            console.error(`[SyncService] FALHA FINAL: Tarefa ${task.id} excedeu ${max_retries} tentativas. Removendo.`);
-            await syncQueueRepository.deleteTask(task.id);
-          } else {
-            const new_count = current_retries + 1;
-            console.warn(`[SyncService] Falha na tarefa ${task.type}. Tentativa ${new_count}/${max_retries}.`);
-
-            await syncQueueRepository.updateTask(task.id, {
-              retry_count: new_count
-            });
-          }
+        if (hadDeferredDependency) {
+          const remainingTasks = await syncQueueRepository.getPendingTasks();
+          if (remainingTasks.length === sortedTasks.length) break;
         }
       }
     } catch (globalError) {

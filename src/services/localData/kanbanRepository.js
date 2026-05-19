@@ -1,5 +1,30 @@
 import { db } from '../../db';
 
+const strip_task_relations = (task) => {
+    if (!task) return task;
+    const { attachments, ...taskRecord } = task;
+    return taskRecord;
+};
+
+const attach_files_to_tasks = async (tasks, project_id) => {
+    const attachments = await db.kanban_task_attachments
+        .where('project_id')
+        .equals(project_id)
+        .toArray();
+
+    const attachmentsByTask = attachments.reduce((acc, attachment) => {
+        if (!acc[attachment.task_local_id]) acc[attachment.task_local_id] = [];
+        acc[attachment.task_local_id].push(attachment);
+        return acc;
+    }, {});
+
+    return tasks.map(task => ({
+        ...task,
+        attachments: (attachmentsByTask[task.local_id] || [])
+            .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
+    }));
+};
+
 export const kanbanRepository = {
     async get_columns_by_project(project_id) {
         return await db.kanban_columns.where('project_id').equals(project_id).sortBy('order');
@@ -31,7 +56,8 @@ export const kanbanRepository = {
     },
 
     async get_tasks_by_project(pid) {
-        return await db.kanban_tasks.where('project_id').equals(pid).toArray();
+        const tasks = await db.kanban_tasks.where('project_id').equals(pid).toArray();
+        return await attach_files_to_tasks(tasks, pid);
     },
 
     async get_task_by_local_id(lid) {
@@ -44,7 +70,7 @@ export const kanbanRepository = {
     },
 
     async update_task(lid, data) {
-        return await db.kanban_tasks.update(lid, data);
+        return await db.kanban_tasks.update(lid, strip_task_relations(data));
     },
 
     async setServerIdForTask(lid, sid) {
@@ -56,7 +82,35 @@ export const kanbanRepository = {
     },
 
     async bulk_put_tasks(tasks) {
-        return await db.kanban_tasks.bulkPut(tasks);
+        return await db.kanban_tasks.bulkPut(tasks.map(strip_task_relations));
+    },
+
+    async get_attachment_by_local_id(local_id) {
+        return await db.kanban_task_attachments.get(local_id);
+    },
+
+    async add_attachment(data) {
+        const local_id = await db.kanban_task_attachments.add(data);
+        return { ...data, local_id };
+    },
+
+    async update_attachment(local_id, data) {
+        return await db.kanban_task_attachments.update(local_id, data);
+    },
+
+    async setServerDataForAttachment(local_id, serverData) {
+        return await db.kanban_task_attachments.update(local_id, {
+            id: serverData.id,
+            task_id: serverData.task_id,
+            url: serverData.url,
+            upload_status: 'synced',
+            blob: null,
+            updated_at: serverData.updated_at || new Date().toISOString()
+        });
+    },
+
+    async delete_attachment(local_id) {
+        return await db.kanban_task_attachments.delete(local_id);
     },
 
     async update_local_comment_state(task_local_id, comment_local_id, updates) {
@@ -100,7 +154,7 @@ export const kanbanRepository = {
             return;
         }
 
-        await db.transaction('rw', db.kanban_columns, db.kanban_tasks, async () => {
+        await db.transaction('rw', db.kanban_columns, db.kanban_tasks, db.kanban_task_attachments, async () => {
             const serverColumnIds = apiColumns.map(c => c.id);
             const serverTaskIds = apiTasks.map(t => t.id);
 
@@ -147,7 +201,6 @@ export const kanbanRepository = {
                 }
             }
 
-            const tasksToPut = [];
             for (const task of apiTasks) {
                 const existing = await db.kanban_tasks.where({ project_id: localProjectId }).filter(t => t.id === task.id).first();
 
@@ -175,19 +228,53 @@ export const kanbanRepository = {
                     taskData.local_id = existing.local_id;
                 }
 
-                tasksToPut.push(taskData);
-            }
+                const taskLocalId = await db.kanban_tasks.put(taskData);
 
-            if (tasksToPut.length > 0) {
-                await db.kanban_tasks.bulkPut(tasksToPut);
+                if (taskLocalId && Array.isArray(task.attachments)) {
+                    const serverAttachmentIds = task.attachments.map(a => a.id).filter(Boolean);
+                    await db.kanban_task_attachments
+                        .where('task_local_id')
+                        .equals(taskLocalId)
+                        .filter(a => a.id && !serverAttachmentIds.includes(a.id))
+                        .delete();
+
+                    for (const attachment of task.attachments) {
+                        const existingAttachment = await db.kanban_task_attachments
+                            .where({ project_id: localProjectId })
+                            .filter(a => a.id === attachment.id)
+                            .first();
+
+                        const attachmentData = {
+                            id: attachment.id,
+                            task_id: task.id,
+                            task_local_id: taskLocalId,
+                            project_id: localProjectId,
+                            name: attachment.name,
+                            mime_type: attachment.mime_type,
+                            size_bytes: attachment.size_bytes,
+                            url: attachment.url,
+                            created_at: attachment.created_at,
+                            updated_at: attachment.updated_at,
+                            upload_status: 'synced',
+                            blob: null
+                        };
+
+                        if (existingAttachment) {
+                            await db.kanban_task_attachments.update(existingAttachment.local_id, attachmentData);
+                        } else {
+                            await db.kanban_task_attachments.add(attachmentData);
+                        }
+                    }
+                }
             }
         });
     },
 
     async clearLocalKanban() {
-        return await db.transaction('rw', db.kanban_columns, db.kanban_tasks, async () => {
+        return await db.transaction('rw', db.kanban_columns, db.kanban_tasks, db.kanban_task_attachments, async () => {
             await db.kanban_columns.clear();
             await db.kanban_tasks.clear();
+            await db.kanban_task_attachments.clear();
         });
     }
 };

@@ -8,6 +8,7 @@ export const SUBSCRIPTION_PLANS = {
       max_projects: 3,
       max_members_by_project: 3,
       can_use_offline_radio: false,
+      max_task_attachment_size_bytes: 5 * 1024 * 1024,
     },
     features: [
       "Limite de 3 Projetos",
@@ -24,6 +25,7 @@ export const SUBSCRIPTION_PLANS = {
       max_projects: 7,
       max_members_by_project: 7,
       can_use_offline_radio: true,
+      max_task_attachment_size_bytes: 50 * 1024 * 1024,
     },
     features: [
       "Até 7 Projetos",
@@ -41,6 +43,7 @@ export const SUBSCRIPTION_PLANS = {
       max_projects: 999,
       max_members_by_project: 999,
       can_use_offline_radio: true,
+      max_task_attachment_size_bytes: 1024 * 1024 * 1024,
     },
     features: [
       "Projetos Ilimitados",
