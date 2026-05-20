@@ -1,8 +1,8 @@
 <template>
-  <Transition name="slide-over-root">
-    <div v-if="modelValue" class="modal-wrapper-fixed">
+  <Transition :name="transition_name">
+    <div v-if="modelValue" class="modal-wrapper-fixed" :class="{ 'is-floating': is_floating }">
       <div class="modal-overlay" @click="close"></div>
-      <div class="modal-content glass borderless" @click.stop>
+      <div class="modal-content glass" :class="`variant-${variant}`" @click.stop>
         <slot></slot>
       </div>
     </div>
@@ -17,8 +17,21 @@ export default {
       type: Boolean,
       default: false,
     },
+    variant: {
+      type: String,
+      default: "side",
+      validator: (value) => ["side", "floating"].includes(value),
+    },
   },
   emits: ["close"],
+  computed: {
+    is_floating() {
+      return this.variant === "floating";
+    },
+    transition_name() {
+      return this.is_floating ? "floating-modal" : "side-modal";
+    },
+  },
   methods: {
     close() {
       this.$emit("close");
@@ -34,70 +47,118 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
   z-index: 10000;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+}
+
+.modal-wrapper-fixed.is-floating {
   display: grid;
-  grid-template-columns: 1fr auto;
+  place-items: center;
+  justify-content: center;
+  padding: clamp(8px, 3vw, 24px);
 }
 
 .modal-overlay {
-  grid-column: 1 / -1;
-  grid-row: 1 / -1;
-  background-color: rgba(0, 0, 0, 0.5);
+  position: absolute;
+  inset: 0;
+  background-color: rgba(14, 18, 34, 0.46);
+  backdrop-filter: blur(2px);
   z-index: 1;
 }
 
 .modal-content {
-  grid-column: 2;
-  grid-row: 1;
-  width: 90vw;
-  max-width: 500px;
-  height: 100%;
   z-index: 2;
   position: relative;
-  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: -18px 0 40px rgba(13, 20, 45, 0.2);
 }
 
-@media (max-width: 1100px) {
-  .modal-content {
-    width: calc(100dvw - 30px);
-  }
+.variant-side {
+  width: min(460px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+.variant-floating {
+  width: 80dvw;
+  max-width: 860px;
+  height: 100%;
+  max-height: 760px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 24px 70px rgba(13, 20, 45, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 @media (max-width: 480px) {
-  .modal-content {
-    grid-column: 1;
-    width: calc(100dvw - 12px);
+  .variant-floating {
+    border-radius: var(--radius-md);
+    width: 95dvw;
   }
 }
 
-.slide-over-root-enter-active,
-.slide-over-root-leave-active {
-  transition: opacity 0.3s ease;
+.side-modal-enter-active,
+.side-modal-leave-active {
+  transition: opacity 0.2s ease;
 }
 
-.slide-over-root-enter-active .modal-content,
-.slide-over-root-leave-active .modal-content {
-  transition: transform 0.3s ease;
+.side-modal-enter-active .modal-content,
+.side-modal-leave-active .modal-content {
+  transition: transform 0.24s ease, opacity 0.2s ease;
 }
 
-.slide-over-root-enter-active .modal-overlay,
-.slide-over-root-leave-active .modal-overlay {
-  transition: opacity 0.3s ease;
+.side-modal-enter-active .modal-overlay,
+.side-modal-leave-active .modal-overlay {
+  transition: opacity 0.2s ease;
 }
 
-.slide-over-root-enter-from .modal-overlay {
+.side-modal-enter-from .modal-overlay,
+.side-modal-leave-to .modal-overlay {
   opacity: 0;
 }
 
-.slide-over-root-enter-from .modal-content {
+.side-modal-enter-from .modal-content,
+.side-modal-leave-to .modal-content {
+  opacity: 0;
   transform: translateX(100%);
 }
 
-.slide-over-root-leave-to .modal-overlay {
+.floating-modal-enter-active,
+.floating-modal-leave-active {
+  transition: opacity 0.22s ease;
+}
+
+.floating-modal-enter-active .modal-content,
+.floating-modal-leave-active .modal-content {
+  transition: transform 0.26s cubic-bezier(0.2, 0.9, 0.25, 1.12), opacity 0.2s ease;
+}
+
+.floating-modal-enter-active .modal-overlay,
+.floating-modal-leave-active .modal-overlay {
+  transition: opacity 0.22s ease;
+}
+
+.floating-modal-enter-from .modal-overlay,
+.floating-modal-leave-to .modal-overlay {
   opacity: 0;
 }
 
-.slide-over-root-leave-to .modal-content {
-  transform: translateX(100%);
+.floating-modal-enter-from .modal-content {
+  opacity: 0;
+  transform: translateY(18px) scale(0.96);
+}
+
+.floating-modal-leave-to {
+  opacity: 0;
+}
+
+.floating-modal-leave-to .modal-content {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
 }
 </style>

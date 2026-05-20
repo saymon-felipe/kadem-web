@@ -1,209 +1,256 @@
 <template>
   <div class="task-detail-modal">
-    <div class="modal-header">
+    <header class="modal-header">
       <div class="header-content">
         <span class="project-name">{{ projectName }}</span>
-        <h3 class="task-id">#{{ task_display_id }}</h3>
+        <div class="title-row">
+          <h3 class="task-id">#{{ task_display_id }}</h3>
+          <span v-if="is_dirty" class="dirty-badge">Alterações não salvas</span>
+        </div>
       </div>
       <div class="header-actions">
         <transition name="scale-btn">
-          <button
-            v-if="is_dirty"
-            class="action-btn check"
-            @click="handle_save"
-            title="Salvar"
-          >
+          <button v-if="is_dirty" class="action-btn check" @click="handle_save" title="Salvar" type="button">
             <font-awesome-icon icon="check" />
           </button>
         </transition>
-        <button
-          class="action-btn delete"
-          @click="$emit('delete', editable_task)"
-          title="Excluir"
-        >
+        <button class="action-btn delete" @click="$emit('delete', editable_task)" title="Excluir" type="button">
           <font-awesome-icon icon="trash-can" />
         </button>
-        <button class="action-btn close" @click="$emit('close')" title="Fechar">
+        <button class="action-btn close" @click="$emit('close')" title="Fechar" type="button">
           <font-awesome-icon icon="xmark" />
         </button>
       </div>
-    </div>
+    </header>
 
-    <form class="task-form-content" @submit.prevent="handle_save">
-      <div class="form-group">
-        <label>Descrição</label>
-        <textarea
-          v-model="editable_task.description"
-          rows="3"
-          class="description-input"
-        ></textarea>
-      </div>
+    <nav class="task-tabs" aria-label="Secoes da tarefa">
+      <button type="button" class="tab-btn" :class="{ active: active_tab === 'details' }"
+        @click="active_tab = 'details'">
+        Detalhes
+      </button>
+      <button type="button" class="tab-btn" :class="{ active: active_tab === 'attachments' }"
+        @click="active_tab = 'attachments'">
+        Anexos
+        <span class="tab-count">{{ attachment_count }}</span>
+      </button>
+      <button type="button" class="tab-btn" :class="{ active: active_tab === 'comments' }"
+        @click="active_tab = 'comments'">
+        Comentários
+        <span class="tab-count">{{ comment_count }}</span>
+      </button>
+    </nav>
 
-      <div class="form-group">
-        <label>Responsável</label>
-        <CustomDropdown
-          v-model="selected_responsible_wrapper"
-          :options="responsible_options"
-          placeholder="Selecionar responsável"
-        >
-          <template #trigger="{ selected }">
-            <div class="dropdown-row" v-if="selected">
-              <img
-                v-if="selected.avatar"
-                :src="selected.avatar"
-                class="avatar avatar-xs"
-              />
-              <div v-else class="avatar-placeholder" :class="selected.iconClass">
-                <font-awesome-icon :icon="selected.icon" />
-              </div>
-              <span>{{ selected.name }}</span>
-            </div>
-            <span v-else class="placeholder-text">Não atribuído</span>
-          </template>
-          <template #option="{ option }">
-            <div class="dropdown-row">
-              <img v-if="option.avatar" :src="option.avatar" class="avatar avatar-xs" />
-              <div v-else class="avatar-placeholder" :class="option.iconClass">
-                <font-awesome-icon :icon="option.icon" />
-              </div>
-              <span>{{ option.name }}</span>
-            </div>
-          </template>
-        </CustomDropdown>
-      </div>
+    <main class="modal-body">
+      <form :style="active_tab === 'comments' ? 'height: fit-content !important;' : ''"
+        v-show="active_tab === 'details'" class="tab-panel details-panel" @submit.prevent="handle_save">
+        <section class="description-card">
+          <label for="task-description">Descricao</label>
+          <textarea id="task-description" v-model="editable_task.description" rows="7"
+            class="description-input"></textarea>
+        </section>
 
-      <div class="form-group">
-        <label>Prioridade</label>
-        <CustomDropdown v-model="editable_task.priority" :options="priority_options">
-          <template #trigger="{ selected }">
-            <div class="dropdown-row">
-              <span class="priority-dot" :class="get_priority_color(selected)"></span>
-              <span :class="get_priority_text_color(selected)">{{ selected }}</span>
-            </div>
-          </template>
-          <template #option="{ option }">
-            <div class="dropdown-row">
-              <span class="priority-dot" :class="get_priority_color(option)"></span>
-              <span :class="get_priority_text_color(option)">{{ option }}</span>
-            </div>
-          </template>
-        </CustomDropdown>
-      </div>
+        <section class="field-grid">
+          <div class="form-group">
+            <label>Responsável</label>
+            <CustomDropdown v-model="selected_responsible_wrapper" :options="responsible_options"
+              placeholder="Selecionar responsável">
+              <template #trigger="{ selected }">
+                <div class="dropdown-row" v-if="selected">
+                  <img v-if="selected.avatar" :src="selected.avatar" class="avatar avatar-xs" />
+                  <div v-else class="avatar-placeholder" :class="selected.iconClass">
+                    <font-awesome-icon :icon="selected.icon" />
+                  </div>
+                  <span>{{ selected.name }}</span>
+                </div>
+                <span v-else class="placeholder-text">Nao atribuido</span>
+              </template>
+              <template #option="{ option }">
+                <div class="dropdown-row">
+                  <img v-if="option.avatar" :src="option.avatar" class="avatar avatar-xs" />
+                  <div v-else class="avatar-placeholder" :class="option.iconClass">
+                    <font-awesome-icon :icon="option.icon" />
+                  </div>
+                  <span>{{ option.name }}</span>
+                </div>
+              </template>
+            </CustomDropdown>
+          </div>
 
-      <div class="form-group">
-        <label>Tamanho</label>
-        <CustomDropdown v-model="editable_task.size" :options="size_options" />
-      </div>
+          <div class="form-group">
+            <label>Prioridade</label>
+            <CustomDropdown v-model="editable_task.priority" :options="priority_options">
+              <template #trigger="{ selected }">
+                <div class="dropdown-row">
+                  <span class="priority-dot" :class="get_priority_color(selected)"></span>
+                  <span :class="get_priority_text_color(selected)">{{ selected }}</span>
+                </div>
+              </template>
+              <template #option="{ option }">
+                <div class="dropdown-row">
+                  <span class="priority-dot" :class="get_priority_color(option)"></span>
+                  <span :class="get_priority_text_color(option)">{{ option }}</span>
+                </div>
+              </template>
+            </CustomDropdown>
+          </div>
 
-      <div class="meta-info">
-        <p>
-          <em
-            >Tarefa aberta por: <strong>{{ task_creator_name }}</strong> -
-            {{ created_time_ago }}</em
-          >
-        </p>
-      </div>
+          <div class="form-group">
+            <label>Tamanho</label>
+            <CustomDropdown v-model="editable_task.size" :options="size_options" />
+          </div>
+        </section>
 
-      <div class="attachments-section">
-        <div class="attachments-header">
-          <label>Anexos</label>
-          <button
-            type="button"
-            class="btn-attach"
-            @click="$refs.attachmentInput?.click()"
-            title="Anexar arquivo"
-          >
+        <footer class="meta-info">
+          <span>Tarefa aberta por <strong>{{ task_creator_name }}</strong></span>
+          <span>{{ created_time_ago }}</span>
+        </footer>
+      </form>
+
+      <section v-show="active_tab === 'attachments'" class="tab-panel attachments-panel">
+        <div class="section-toolbar">
+          <div>
+            <h4>Anexos</h4>
+            <p>{{ attachment_count }} arquivo{{ attachment_count === 1 ? "" : "s" }}</p>
+          </div>
+          <button type="button" class="btn-attach" @click="$refs.attachmentInput?.click()" title="Anexar arquivo">
             <font-awesome-icon icon="cloud-arrow-up" />
+            <span>Anexar</span>
           </button>
-          <input
-            ref="attachmentInput"
-            type="file"
-            class="hidden-file-input"
-            @change="handle_attachment_selected"
-          />
+          <input ref="attachmentInput" type="file" class="hidden-file-input" @change="handle_attachment_selected" />
         </div>
 
         <p v-if="attachment_error" class="attachment-error">{{ attachment_error }}</p>
 
-        <div v-if="editable_task.attachments?.length" class="attachment-list">
-          <div
-            v-for="attachment in editable_task.attachments"
-            :key="attachment.local_id || attachment.id"
-            class="attachment-item"
-            role="button"
-            tabindex="0"
-            @click="open_attachment(attachment)"
-            @keydown.enter.prevent="open_attachment(attachment)"
-          >
-            <font-awesome-icon :icon="attachment_icon(attachment)" />
-            <span class="attachment-name">{{ attachment.name }}</span>
-            <span class="attachment-size">{{ format_file_size(attachment.size_bytes) }}</span>
+        <div v-if="editable_task.attachments?.length" class="attachment-list custom-scrollbar">
+          <div v-for="attachment in editable_task.attachments" :key="attachment.local_id || attachment.id"
+            class="attachment-item" role="button" tabindex="0" @click="open_attachment(attachment)"
+            @keydown.enter.prevent="open_attachment(attachment)">
+            <div class="attachment-icon">
+              <font-awesome-icon :icon="attachment_icon(attachment)" />
+            </div>
+            <div class="attachment-main">
+              <span class="attachment-name">{{ attachment.name }}</span>
+              <span class="attachment-size">{{ format_file_size(attachment.size_bytes) }}</span>
+            </div>
             <span v-if="attachment.upload_status !== 'synced'" class="attachment-status">
               <font-awesome-icon icon="spinner" spin />
+              Sincronizando
             </span>
-            <button
-              type="button"
-              class="btn-attachment-delete"
-              @click.stop="remove_attachment(attachment)"
-              title="Excluir anexo"
-            >
+            <button type="button" class="btn-attachment-delete" @click.stop="remove_attachment(attachment)"
+              title="Excluir anexo">
               <font-awesome-icon icon="trash-can" />
             </button>
           </div>
         </div>
 
-        <p v-else class="attachment-empty">Nenhum anexo.</p>
-      </div>
-    </form>
+        <div v-else class="empty-state">
+          <font-awesome-icon icon="cloud-arrow-up" />
+          <p>Nenhum anexo nesta tarefa.</p>
+        </div>
+      </section>
+
+      <section v-show="active_tab === 'comments'" class="tab-panel comments-panel">
+        <div class="comments-header">
+          <h4>Comentários</h4>
+          <span>{{ comment_count }}</span>
+        </div>
+
+        <div class="comment-list custom-scrollbar" v-if="editable_task.comments && editable_task.comments.length"
+          ref="commentList">
+          <div v-for="comment in editable_task.comments" :key="comment.local_id" class="comment-item">
+            <div class="comment-header">
+              <img :src="comment.author.avatar || default_account_image" class="avatar avatar-sm" />
+              <div class="comment-meta">
+                <span class="comment-author">{{ comment.author.name }}</span>
+                <span class="comment-time" :title="format_full_date(comment.timestamp || comment.created_at)">
+                  {{ format_time_ago(comment.timestamp || comment.created_at) }}
+                </span>
+              </div>
+
+              <div class="comment-options" v-if="is_current_user(comment.author.id)">
+                <button class="btn-icon-small" @click.stop="toggle_comment_menu(comment.local_id)" type="button"
+                  title="Opcoes">
+                  <font-awesome-icon icon="ellipsis-vertical" />
+                </button>
+                <transition name="fade-switch">
+                  <div v-if="open_comment_menu === comment.local_id" class="comment-menu glass"
+                    v-click-outside="close_comment_menu">
+                    <button type="button" @click="edit_comment(comment)">
+                      <font-awesome-icon icon="pencil" /> Editar
+                    </button>
+                    <button type="button" class="danger" @click="delete_comment(comment)">
+                      <font-awesome-icon icon="trash-can" /> Excluir
+                    </button>
+                  </div>
+                </transition>
+              </div>
+            </div>
+
+            <div class="comment-content-wrapper">
+              <div v-if="editing_comment_id === comment.local_id" class="comment-edit-box">
+                <textarea v-model="editing_comment_content" rows="2"></textarea>
+                <div class="edit-actions">
+                  <button class="btn-small btn-cancel" @click="cancel_edit_comment" type="button">
+                    Cancelar
+                  </button>
+                  <button class="btn-small btn-save" @click="save_edit_comment(comment)" type="button">
+                    Salvar
+                  </button>
+                </div>
+              </div>
+              <div v-else class="comment-bubble">
+                <p>{{ comment.content }}</p>
+              </div>
+
+              <div class="comment-actions-bar">
+                <button class="btn-like" :class="{ liked: comment.liked_by_me }" @click="toggle_like(comment)"
+                  title="Curtir" type="button">
+                  <font-awesome-icon :icon="['fas', 'thumbs-up']" />
+                  <span>{{ comment.likes_count || 0 }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="comment-list-placeholder" v-else>
+          <p>Nenhum comentario ainda.</p>
+        </div>
+
+        <div class="new-comment-area">
+          <img :src="user?.avatar || default_account_image" class="avatar avatar-sm" />
+          <div class="new-comment-box">
+            <textarea v-model="new_comment_text" placeholder="Escreva um comentario..." rows="1"
+              @keydown.enter.exact.prevent="submit_comment" ref="commentInput"></textarea>
+            <button class="btn-send" :class="{ active: new_comment_text.trim() }" @click="submit_comment" title="Enviar"
+              type="button">
+              <font-awesome-icon icon="paper-plane" />
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
 
     <teleport to="body">
-      <div
-        v-if="preview_attachment"
-        class="attachment-preview-overlay"
-        @click.self="close_attachment_preview"
-      >
+      <div v-if="preview_attachment" class="attachment-preview-overlay" @click.self="close_attachment_preview">
         <div class="attachment-preview-modal">
           <header class="attachment-preview-header">
             <strong>{{ preview_attachment.name }}</strong>
             <div class="preview-actions">
-              <a
-                v-if="preview_url"
-                class="preview-action"
-                :href="preview_url"
-                :download="preview_attachment.name"
-                target="_blank"
-                rel="noopener"
-                title="Baixar"
-              >
+              <a v-if="preview_url" class="preview-action" :href="preview_url" :download="preview_attachment.name"
+                target="_blank" rel="noopener" title="Baixar">
                 <font-awesome-icon icon="download" />
               </a>
-              <button
-                type="button"
-                class="preview-action"
-                @click="close_attachment_preview"
-                title="Fechar"
-              >
+              <button type="button" class="preview-action" @click="close_attachment_preview" title="Fechar">
                 <font-awesome-icon icon="xmark" />
               </button>
             </div>
           </header>
 
           <div class="attachment-preview-body">
-            <img
-              v-if="preview_kind === 'image'"
-              :src="preview_url"
-              :alt="preview_attachment.name"
-            />
-            <video
-              v-else-if="preview_kind === 'video'"
-              :src="preview_url"
-              controls
-            ></video>
-            <iframe
-              v-else-if="preview_kind === 'html'"
-              :src="preview_url"
-              sandbox
-            ></iframe>
+            <img v-if="preview_kind === 'image'" :src="preview_url" :alt="preview_attachment.name" />
+            <video v-else-if="preview_kind === 'video'" :src="preview_url" controls></video>
+            <iframe v-else-if="preview_kind === 'html'" :src="preview_url" sandbox></iframe>
             <pre v-else-if="preview_kind === 'text'">{{ preview_text }}</pre>
             <div v-else class="unsupported-preview">
               <font-awesome-icon icon="download" />
@@ -213,114 +260,6 @@
         </div>
       </div>
     </teleport>
-
-    <div class="comments-section">
-      <h4>Comentários</h4>
-
-      <div
-        class="comment-list"
-        v-if="editable_task.comments && editable_task.comments.length"
-      >
-        <div
-          v-for="comment in editable_task.comments"
-          :key="comment.local_id"
-          class="comment-item"
-        >
-          <div class="comment-header">
-            <img
-              :src="comment.author.avatar || default_account_image"
-              class="avatar avatar-sm"
-            />
-            <div class="comment-meta">
-              <span class="comment-author">{{ comment.author.name }}</span>
-              <span
-                class="comment-time"
-                :title="format_full_date(comment.timestamp || comment.created_at)"
-              >
-                {{ format_time_ago(comment.timestamp || comment.created_at) }}
-              </span>
-            </div>
-
-            <div class="comment-options" v-if="is_current_user(comment.author.id)">
-              <button
-                class="btn-icon-small"
-                @click.stop="toggle_comment_menu(comment.local_id)"
-              >
-                <font-awesome-icon icon="ellipsis-vertical" />
-              </button>
-              <transition name="fade-switch">
-                <div
-                  v-if="open_comment_menu === comment.local_id"
-                  class="comment-menu glass"
-                  v-click-outside="close_comment_menu"
-                >
-                  <button @click="edit_comment(comment)">
-                    <font-awesome-icon icon="pencil" /> Editar
-                  </button>
-                  <button class="danger" @click="delete_comment(comment)">
-                    <font-awesome-icon icon="trash-can" /> Excluir
-                  </button>
-                </div>
-              </transition>
-            </div>
-          </div>
-
-          <div class="comment-content-wrapper">
-            <div v-if="editing_comment_id === comment.local_id" class="comment-edit-box">
-              <textarea v-model="editing_comment_content" rows="2"></textarea>
-              <div class="edit-actions">
-                <button class="btn-small btn-cancel" @click="cancel_edit_comment">
-                  Cancelar
-                </button>
-                <button class="btn-small btn-save" @click="save_edit_comment(comment)">
-                  Salvar
-                </button>
-              </div>
-            </div>
-            <div v-else class="comment-bubble">
-              <p>{{ comment.content }}</p>
-            </div>
-
-            <div class="comment-actions-bar">
-              <button
-                class="btn-like"
-                :class="{ liked: comment.liked_by_me }"
-                @click="toggle_like(comment)"
-                title="Curtir"
-              >
-                <font-awesome-icon :icon="['fas', 'thumbs-up']" />
-                <span>{{ comment.likes_count || 0 }}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="comment-list-placeholder" v-else>
-        <p>Nenhum comentário ainda.</p>
-      </div>
-
-      <div class="new-comment-area">
-        <img :src="user?.avatar || default_account_image" class="avatar avatar-sm" />
-        <div class="new-comment-box">
-          <textarea
-            v-model="new_comment_text"
-            placeholder="Escreva um comentário..."
-            rows="1"
-            @keydown.enter.exact.prevent="submit_comment"
-            ref="commentInput"
-          ></textarea>
-          <button
-            class="btn-send"
-            :class="{ active: new_comment_text.trim() }"
-            @click="submit_comment"
-            title="Enviar"
-          >
-            <font-awesome-icon icon="paper-plane" />
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -343,7 +282,7 @@ export default {
     projectName: { type: String, default: "Projeto" },
     members: { type: Array, default: () => [] },
   },
-  emits: ["close", "delete"],
+  emits: ["close", "delete", "delete-comment"],
 
   directives: {
     "click-outside": {
@@ -363,11 +302,12 @@ export default {
 
   data() {
     return {
+      active_tab: "details",
       editable_task: {},
       original_snapshot: "",
       default_account_image: defaultAccountImage,
       priority_options: ["Normal", "Importante", "Urgente"],
-      size_options: ["P - Pequeno", "M - Médio", "G - Grande"],
+      size_options: ["P - Pequeno", "M - M\u00e9dio", "G - Grande"],
       selected_responsible_wrapper: null,
       attachment_error: "",
       preview_attachment: null,
@@ -376,7 +316,6 @@ export default {
       preview_text: "",
       preview_object_url: "",
 
-      // Comentários
       new_comment_text: "",
       open_comment_menu: null,
       editing_comment_id: null,
@@ -396,6 +335,14 @@ export default {
       const current = this.get_clean_task_data(this.editable_task);
       const original = this.get_clean_task_data(JSON.parse(this.original_snapshot));
       return JSON.stringify(current) !== JSON.stringify(original);
+    },
+
+    attachment_count() {
+      return this.editable_task.attachments?.length || 0;
+    },
+
+    comment_count() {
+      return this.editable_task.comments?.length || 0;
     },
 
     task_creator_name() {
@@ -471,7 +418,7 @@ export default {
         this.editable_task.attachments = [];
       }
       if (!this.editable_task.priority) this.editable_task.priority = "Importante";
-      if (!this.editable_task.size) this.editable_task.size = "M - Médio";
+      if (!this.editable_task.size) this.editable_task.size = "M - M\u00e9dio";
 
       this.sync_responsible_wrapper();
 
@@ -544,7 +491,7 @@ export default {
 
       comment.liked_by_me = isLiked;
 
-      let likes_count = parseInt(comment.likes_count);
+      const likes_count = parseInt(comment.likes_count);
 
       comment.likes_count = isLiked ? (likes_count || 0) + 1 : (likes_count || 0) - 1;
 
@@ -612,14 +559,11 @@ export default {
         this.new_comment_text = "";
 
         this.$nextTick(() => {
-          const container = document.querySelector(
-            ".projects-window-content .modal-content"
-          );
-
+          const container = this.$refs.commentList;
           if (container) container.scrollTop = container.scrollHeight;
         });
       } catch (error) {
-        console.error("Erro ao enviar comentário:", error);
+        console.error("Erro ao enviar comentario:", error);
       }
     },
 
@@ -643,7 +587,7 @@ export default {
         }
       } catch (error) {
         this.attachment_error =
-          error?.response?.data?.message || error.message || "NÃ£o foi possÃ­vel anexar.";
+          error?.response?.data?.message || error.message || "Nao foi possivel anexar.";
       }
     },
 
@@ -698,7 +642,7 @@ export default {
             ? await attachment.blob.text()
             : await (await fetch(attachment.url)).text();
         } catch (error) {
-          this.preview_text = "NÃ£o foi possÃ­vel carregar a prÃ©via deste arquivo.";
+          this.preview_text = "Nao foi possivel carregar a previa deste arquivo.";
         }
       }
 
@@ -758,6 +702,7 @@ export default {
   watch: {
     "task.local_id": {
       handler() {
+        this.active_tab = "details";
         this.snapshot_task();
       },
       immediate: true,
@@ -819,62 +764,104 @@ export default {
 
 <style scoped>
 .task-detail-modal {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  min-width: 0;
   background-color: var(--white);
   color: var(--deep-blue);
-  padding: var(--space-6);
-  box-sizing: border-box;
-  font-family: "Roboto", sans-serif;
+  display: flex;
+  flex-direction: column;
+
+  & main {
+    height: 100% !important;
+    width: 100% !important;
+  }
 }
 
-/* --- HEADER --- */
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: var(--space-4);
-  flex-shrink: 0;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-6) var(--space-7) var(--space-4);
+  border-bottom: 1px solid rgba(31, 39, 76, 0.08);
 }
 
 .header-content {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .project-name {
-  font-size: var(--fontsize-sm);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fontsize-xs);
   color: var(--gray-100);
   font-weight: 700;
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
 .task-id {
-  font-size: var(--fontsize-lg);
+  font-size: var(--fontsize-md);
   font-weight: 900;
   color: var(--deep-blue);
   margin: 0;
   user-select: auto;
 }
 
+.dirty-badge {
+  border-radius: 999px;
+  background: var(--green-high);
+  color: var(--deep-blue);
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 4px 9px;
+}
+
 .header-actions {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.action-btn,
+.btn-icon-small,
+.preview-action,
+.btn-attachment-delete,
+.btn-send {
+  display: grid;
+  place-items: center;
 }
 
 .action-btn {
-  background: none;
-  border: none;
-  font-size: var(--fontsize-sm);
+  width: 34px;
+  height: 34px;
+  background: var(--gray-700);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: var(--fontsize-xs);
   cursor: pointer;
-  color: var(--gray-300);
-  padding: 4px;
-  transition: color 0.2s, transform 0.1s;
+  color: var(--gray-100);
+  padding: 0;
+  transition: color 0.2s, transform 0.1s, background 0.2s;
 }
 
 .action-btn:hover {
+  background: var(--white);
   color: var(--deep-blue);
+  border-color: rgba(31, 39, 76, 0.18);
 }
 
 .action-btn.check {
@@ -882,48 +869,136 @@ export default {
 }
 
 .action-btn.check:hover {
-  transform: scale(1.1);
+  transform: scale(1.06);
 }
 
 .action-btn.delete:hover {
   color: var(--red);
 }
 
-.task-form-content {
+.task-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-7);
+  border-bottom: 1px solid rgba(31, 39, 76, 0.08);
+  overflow-y: hidden;
+}
+
+.tab-btn {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-4);
+  background: transparent;
+  color: var(--gray-100);
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.tab-btn:hover,
+.tab-btn.active {
+  background: var(--gray-700);
+  color: var(--deep-blue);
+  border-color: rgba(31, 39, 76, 0.1);
+}
+
+.tab-count {
+  min-width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--deep-blue);
+  font-size: 0.72rem;
+  border: 1px solid rgba(31, 39, 76, 0.12);
+}
+
+.modal-body {
+  min-height: 0;
+  min-width: 0;
+  padding: var(--space-6) var(--space-7) var(--space-7);
+}
+
+.tab-panel {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.details-panel {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  gap: var(--space-5);
+  align-content: start;
+  overflow: hidden;
+}
+
+.description-card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding-right: 4px;
-  margin-bottom: var(--space-4);
+  gap: var(--space-3);
+  min-height: 0;
 }
 
-.form-group {
-  gap: 6px;
-  margin: 0 !important;
-}
-
+.description-card label,
 .form-group label {
-  font-size: var(--fontsize-sm);
+  font-size: 0.8rem;
   color: var(--deep-blue);
-  font-weight: 500;
+  font-weight: 800;
   position: static;
   transform: none;
 }
 
 .description-input {
-  min-height: 80px;
-  resize: vertical;
+  height: clamp(150px, 32vh, 240px);
+  min-height: 150px;
+  max-height: 240px;
+  resize: none;
+  overflow: auto;
   background-color: var(--white);
-  border: 1px solid var(--background-gray);
+  border: 1px solid rgba(31, 39, 76, 0.14);
   border-radius: var(--radius-sm);
-  padding: 10px;
+  padding: var(--space-5);
   font-size: var(--fontsize-sm);
+  line-height: 1.45;
   color: var(--deep-blue);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .description-input:focus {
-  outline: 2px solid var(--deep-blue);
+  outline: 3px solid rgba(31, 39, 76, 0.16);
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+.form-group {
+  gap: 7px;
+  margin: 0 !important;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.form-group :deep(.custom-dropdown),
+.form-group :deep(.dropdown-trigger),
+.form-group :deep(.trigger-content) {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .dropdown-row {
@@ -931,6 +1006,14 @@ export default {
   align-items: center;
   gap: 10px;
   width: 100%;
+  min-width: 0;
+}
+
+.dropdown-row span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .placeholder-text {
@@ -938,8 +1021,8 @@ export default {
 }
 
 .priority-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -958,12 +1041,12 @@ export default {
 
 .text-orange {
   color: var(--orange);
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .text-red {
   color: var(--red);
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .text-gray {
@@ -978,6 +1061,7 @@ export default {
   place-items: center;
   font-size: 12px;
   color: var(--white);
+  flex-shrink: 0;
 }
 
 .all-icon {
@@ -989,43 +1073,72 @@ export default {
 }
 
 .meta-info {
-  margin-top: var(--space-4);
-  font-style: italic;
-  color: var(--deep-blue);
+  min-height: 42px;
+  border: 1px solid rgba(31, 39, 76, 0.1);
+  background: var(--gray-700);
+  border-radius: var(--radius-sm);
+  color: var(--gray-100);
   font-size: var(--fontsize-xs);
-  font-weight: 500;
-}
-
-.attachments-section {
-  border-top: 1px solid var(--background-gray);
-  padding-top: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.attachments-header {
+  font-weight: 600;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0 var(--space-4);
 }
 
-.attachments-header label {
-  flex: 1;
+.attachments-panel,
+.comments-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  position: relative;
+}
+
+.attachments-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.section-toolbar,
+.comments-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.section-toolbar h4,
+.comments-header h4 {
+  font-size: var(--fontsize-sm);
+  color: var(--deep-blue);
+  margin: 0;
+}
+
+.section-toolbar p,
+.comments-header span {
+  margin: 3px 0 0;
+  color: var(--gray-100);
+  font-size: var(--fontsize-xs);
+  font-weight: 700;
 }
 
 .btn-attach {
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--background-gray);
-  background: var(--white);
-  color: var(--deep-blue);
+  height: 38px;
+  border: none;
+  background: var(--deep-blue);
+  color: var(--white);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  padding: 0 var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 800;
 }
 
 .btn-attach:hover {
-  background: var(--background-gray);
+  background: var(--deep-blue-2);
 }
 
 .hidden-file-input {
@@ -1038,29 +1151,27 @@ export default {
   margin: 0;
 }
 
-.attachment-empty {
-  color: var(--gray-300);
-  font-size: var(--fontsize-xs);
-  margin: 0;
-}
-
 .attachment-list {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-3);
+  padding-right: 2px;
 }
 
 .attachment-item {
-  min-height: 38px;
+  min-height: 54px;
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) auto auto 28px;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  border: 1px solid var(--background-gray);
+  gap: var(--space-3);
+  border: 1px solid rgba(31, 39, 76, 0.1);
   background: var(--white);
   color: var(--deep-blue);
   border-radius: var(--radius-sm);
-  padding: 6px 8px;
+  padding: var(--space-3);
   cursor: pointer;
   text-align: left;
 }
@@ -1069,31 +1180,299 @@ export default {
   border-color: var(--deep-blue);
 }
 
+.attachment-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--gray-700);
+  color: var(--deep-blue);
+}
+
+.attachment-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
 .attachment-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--fontsize-xs);
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .attachment-size,
 .attachment-status {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   color: var(--gray-300);
+  font-weight: 700;
+}
+
+.attachment-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .btn-attachment-delete {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   border: none;
   background: transparent;
   color: var(--gray-300);
   cursor: pointer;
+  border-radius: var(--radius-sm);
 }
 
 .btn-attachment-delete:hover {
   color: var(--red);
+  background: var(--red-high);
+}
+
+.empty-state,
+.comment-list-placeholder {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--space-3);
+  color: var(--gray-300);
+  font-size: var(--fontsize-sm);
+  text-align: center;
+  border: 1px dashed rgba(31, 39, 76, 0.16);
+  border-radius: var(--radius-sm);
+  padding: var(--space-5);
+  max-height: calc(100% - 125px);
+}
+
+.empty-state svg {
+  font-size: 1.6rem;
+}
+
+.comment-list {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-right: 2px;
+  max-height: calc(100% - 110px);
+}
+
+.comment-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  position: relative;
+
+  & img {
+    margin: 5px;
+  }
+}
+
+.comment-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.comment-author {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--black);
+}
+
+.comment-time {
+  font-size: 0.75rem;
+  color: var(--gray-300);
+}
+
+.comment-options {
+  position: relative;
+}
+
+.btn-icon-small {
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: none;
+  color: var(--gray-300);
+  cursor: pointer;
+  padding: 0;
+  border-radius: var(--radius-sm);
+}
+
+.btn-icon-small:hover {
+  color: var(--deep-blue);
+  background: var(--gray-700);
+}
+
+.comment-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  padding: 4px 0;
+  z-index: 10;
+  min-width: 112px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--gray-700);
+}
+
+.comment-menu button {
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  text-align: left;
+  font-size: var(--fontsize-xs);
+  color: var(--deep-blue);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-menu button:hover {
+  background: var(--background-gray);
+}
+
+.comment-menu button.danger {
+  color: var(--red);
+}
+
+.comment-content-wrapper {
+  padding-left: 52px;
+}
+
+.comment-bubble {
+  background-color: var(--gray-700);
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  color: #333;
+  line-height: 1.4;
+  position: relative;
+}
+
+.comment-bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.comment-actions-bar {
+  margin-top: 4px;
+  display: flex;
+  gap: 10px;
+}
+
+.btn-like {
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  color: var(--gray-100);
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.2s;
+}
+
+.btn-like.liked,
+.btn-like:hover {
+  color: var(--deep-blue);
+}
+
+.comment-edit-box textarea {
+  width: 100%;
+  border: 1px solid var(--deep-blue);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  font-size: 0.85rem;
+  resize: vertical;
+  outline: none;
+  min-height: 78px;
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.new-comment-area {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding-top: var(--space-6);
+  border-top: 1px solid rgba(31, 39, 76, 0.08);
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+}
+
+.new-comment-box {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  background: var(--white);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  transition: border-color 0.2s;
+}
+
+.new-comment-box:focus-within {
+  border-color: var(--deep-blue);
+}
+
+.new-comment-box textarea {
+  flex-grow: 1;
+  border: none;
+  background: transparent;
+  padding: 8px 0;
+  resize: none;
+  outline: none;
+  font-size: 0.9rem;
+  height: 36px;
+  color: var(--deep-blue);
+  box-shadow: none;
+}
+
+.btn-send {
+  width: 30px;
+  height: 30px;
+  background: none;
+  border: none;
+  color: var(--gray-300);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.btn-send.active,
+.btn-send:hover {
+  color: var(--deep-blue);
 }
 
 .attachment-preview-overlay {
@@ -1146,8 +1525,6 @@ export default {
   background: transparent;
   color: var(--deep-blue);
   cursor: pointer;
-  display: grid;
-  place-items: center;
   text-decoration: none;
 }
 
@@ -1190,233 +1567,79 @@ export default {
   color: var(--gray-300);
 }
 
-/* --- COMENTÁRIOS --- */
-.comments-section {
-  border-top: 1px solid var(--background-gray);
-  padding-top: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+@media (max-width: 760px) {
+
+  .modal-header,
+  .task-tabs,
+  .modal-body {
+    padding-left: var(--space-5);
+    padding-right: var(--space-5);
+  }
+
+  .modal-header {
+    align-items: center;
+  }
+
+  .task-tabs {
+    overflow-x: auto;
+  }
+
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .details-panel {
+    grid-template-rows: auto auto auto;
+    gap: var(--space-4);
+  }
+
+  .description-input {
+    height: clamp(130px, 28vh, 190px);
+    min-height: 130px;
+    max-height: 190px;
+  }
+
+  .attachment-item {
+    grid-template-columns: 34px minmax(0, 1fr) 30px;
+  }
+
+  .attachment-status {
+    grid-column: 2;
+  }
+
+  .comment-content-wrapper {
+    padding-left: 0;
+  }
+
+  .meta-info {
+    align-items: flex-start;
+    justify-content: center;
+    flex-direction: column;
+    padding: var(--space-3) var(--space-4);
+  }
 }
 
-.comments-section h4 {
-  font-size: var(--fontsize-sm);
-  color: var(--deep-blue);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-  text-decoration-color: var(--deep-blue);
-  margin-bottom: var(--space-2);
-}
+@media (max-width: 480px) {
+  .modal-header {
+    padding-top: var(--space-5);
+    gap: var(--space-3);
+  }
 
-.comment-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
+  .header-actions {
+    gap: 3px;
+  }
 
-.comment-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+  .action-btn {
+    width: 31px;
+    height: 31px;
+  }
 
-.comment-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  position: relative;
-}
+  .tab-btn {
+    padding: 0 var(--space-3);
+  }
 
-.comment-meta {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-  flex-grow: 1;
-}
-
-.comment-author {
-  font-weight: 700;
-  font-size: 0.9rem;
-  color: var(--black);
-}
-
-.comment-time {
-  font-size: 0.75rem;
-  color: var(--gray-300);
-}
-
-.comment-options {
-  position: relative;
-}
-
-.btn-icon-small {
-  background: none;
-  border: none;
-  color: var(--gray-300);
-  cursor: pointer;
-  padding: 4px;
-}
-
-.btn-icon-small:hover {
-  color: var(--deep-blue);
-}
-
-.comment-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background: var(--white);
-  border-radius: var(--radius-sm);
-  padding: 4px 0;
-  z-index: 10;
-  min-width: 100px;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--gray-700);
-}
-
-.comment-menu button {
-  background: none;
-  border: none;
-  padding: 8px 12px;
-  text-align: left;
-  font-size: var(--fontsize-xs);
-  color: var(--deep-blue);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.comment-menu button:hover {
-  background: var(--background-gray);
-}
-
-.comment-menu button.danger {
-  color: var(--red);
-}
-
-.comment-content-wrapper {
-  padding-left: calc(40px + var(--space-3));
-}
-
-.comment-bubble {
-  background-color: #f0f0f0;
-  padding: 12px;
-  border-radius: var(--radius-sm);
-  font-size: 0.85rem;
-  color: #333;
-  line-height: 1.4;
-  position: relative;
-}
-
-.comment-actions-bar {
-  margin-top: 4px;
-  display: flex;
-  gap: 10px;
-}
-
-.btn-like {
-  background: none;
-  border: none;
-  font-size: 0.75rem;
-  color: var(--gray-100);
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: color 0.2s;
-}
-
-.btn-like.liked,
-.btn-like:hover {
-  color: var(--deep-blue);
-}
-
-.comment-edit-box textarea {
-  width: 100%;
-  border: 1px solid var(--deep-blue);
-  border-radius: var(--radius-sm);
-  padding: 8px;
-  font-size: 0.85rem;
-  resize: vertical;
-  outline: none;
-}
-
-.edit-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.new-comment-area {
-  display: flex;
-  gap: var(--space-3);
-  align-items: center;
-  margin-top: var(--space-2);
-}
-
-.new-comment-box {
-  flex-grow: 1;
-  display: flex;
-  align-items: center;
-  background: var(--white);
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-sm);
-  padding: 4px 12px;
-  transition: border-color 0.2s;
-}
-
-.new-comment-box:focus-within {
-  border-color: var(--deep-blue);
-}
-
-.new-comment-box textarea {
-  flex-grow: 1;
-  border: none;
-  background: transparent;
-  padding: 8px 0;
-  resize: none;
-  outline: none;
-  font-size: 0.9rem;
-  height: 36px;
-  color: var(--deep-blue);
-  box-shadow: none;
-}
-
-.btn-send {
-  background: none;
-  border: none;
-  color: var(--gray-300);
-  cursor: pointer;
-  font-size: 1rem;
-  padding: 4px;
-  transition: color 0.2s;
-}
-
-.btn-send.active,
-.btn-send:hover {
-  color: var(--deep-blue);
-}
-
-.comment-list-placeholder {
-  font-style: italic;
-  color: var(--gray-300);
-  font-size: 0.9rem;
-  text-align: center;
-  padding: var(--space-4);
-}
-
-.task-form-content::-webkit-scrollbar,
-.comment-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.task-form-content::-webkit-scrollbar-thumb,
-.comment-list::-webkit-scrollbar-thumb {
-  background-color: var(--background-gray);
-  border-radius: 3px;
+  .new-comment-area>.avatar {
+    display: none;
+  }
 }
 </style>

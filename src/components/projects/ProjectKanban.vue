@@ -55,7 +55,7 @@
       </button>
     </div>
 
-    <SideModal v-model="is_modal_open" @close="is_modal_open = false">
+    <SideModal v-model="is_modal_open" variant="floating" @close="is_modal_open = false">
       <TaskDetailForm
         v-if="selected_task"
         :key="selected_task.local_id"
