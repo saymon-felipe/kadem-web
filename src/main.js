@@ -105,6 +105,7 @@ import {
   faSun,
   faMoon,
   faCamera,
+  faMicrophoneSlash,
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -201,6 +202,7 @@ library.add(
   faSun,
   faMoon,
   faCamera,
+  faMicrophoneSlash,
 );
 
 window.addEventListener('error', (event) => {

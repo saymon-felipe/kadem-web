@@ -249,6 +249,8 @@ export const radioRepository = {
             const existingTrack = await db.tracks.where('id').equals(apiTrack.id).first();
 
             const lyricsStatus = await this._checkRealLyricsStatus(apiTrack.youtube_id);
+            const hasAudio = await this.hasGlobalAudio(apiTrack.youtube_id);
+            const isOffline = hasAudio || (existingTrack && (!!existingTrack.audio_blob || !!existingTrack.is_offline));
 
             const trackPayload = {
               id: apiTrack.id,
@@ -261,7 +263,8 @@ export const radioRepository = {
               duration_seconds: apiTrack.duration_seconds,
               created_at: apiTrack.created_at,
               has_lyrics: lyricsStatus.has_lyrics,
-              lyrics_unavailable: lyricsStatus.lyrics_unavailable
+              lyrics_unavailable: lyricsStatus.lyrics_unavailable,
+              is_offline: !!isOffline
             };
 
             if (existingTrack) {

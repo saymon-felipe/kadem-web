@@ -914,22 +914,22 @@ export default {
   transform: scale(1.1);
 }
 
-.lyrics-indicators {
+.lyrics-indicator {
   display: inline-flex;
   margin-left: 6px;
   align-items: center;
 }
 
-.indicator-icon {
+.lyrics-indicator .status-icon {
   font-size: 0.75rem;
 }
 
-.indicator-icon.success {
+.lyrics-indicator .status-icon.success {
   color: var(--color-income);
   opacity: 0.8;
 }
 
-.indicator-icon.disabled {
+.lyrics-indicator .status-icon.disabled {
   color: var(--text-secondary);
   opacity: 0.5;
 }

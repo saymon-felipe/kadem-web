@@ -6,6 +6,7 @@ import { usePlayerStore } from "./player";
 import { apiServices } from "../plugins/apiServices";
 import { useAuthStore } from "@/stores/auth";
 import { useUtilsStore } from "@/stores/utils";
+import { db } from "../db";
 
 export const useRadioStore = defineStore("radio", {
   state: () => ({
@@ -53,8 +54,32 @@ export const useRadioStore = defineStore("radio", {
       return this.playlists.find((p) => p.local_id === track.playlist_local_id) || null;
     },
 
+    async migrateOldOfflineTracks() {
+      try {
+        if (!db.tracks) return;
+        const oldTracks = await db.tracks.filter(t => !!t.audio_blob).toArray();
+        if (oldTracks.length > 0) {
+          console.log(`[RadioStore] Migrando ${oldTracks.length} faixas antigas para o cache global.`);
+          for (const track of oldTracks) {
+            try {
+              if (track.youtube_id && track.audio_blob) {
+                await radioRepository.saveTrackAudio(track.local_id, track.youtube_id, track.audio_blob);
+              }
+            } catch (trackErr) {
+              console.error(`[RadioStore] Erro ao migrar faixa ${track.title || track.local_id}:`, trackErr);
+            }
+          }
+          console.log(`[RadioStore] Migração concluída com sucesso.`);
+        }
+      } catch (err) {
+        console.error("[RadioStore] Erro geral na migração de faixas antigas:", err);
+      }
+    },
+
     async _loadFromDB() {
       try {
+        await this.migrateOldOfflineTracks();
+
         this.playlists = await radioRepository.getLocalPlaylists();
 
         const offlineIds = await radioRepository.getAllDownloadedVideoIds();
@@ -196,7 +221,14 @@ export const useRadioStore = defineStore("radio", {
 
           if (existsReal) {
             this.downloaded_youtube_ids[track.youtube_id] = true;
-            if (!flagLocal) track.is_offline = true;
+            if (!flagLocal) {
+              track.is_offline = true;
+              corrections.push(
+                radioRepository.updateLocalTrack(track.local_id, {
+                  is_offline: true,
+                })
+              );
+            }
           } else {
             if (flagLocal) {
               console.warn(`[RadioStore] Inconsistência: ${track.title} sem binário.`);

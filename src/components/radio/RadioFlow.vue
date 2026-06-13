@@ -422,6 +422,7 @@ export default {
     ]),
     ...mapActions(useRadioStore, [
       "pullPlaylists",
+      "_loadFromDB",
       "createPlaylist",
       "deletePlaylist",
       "renamePlaylist",
@@ -435,7 +436,11 @@ export default {
     },
 
     async load_data() {
-      if (this.connection.connected) await this.pullPlaylists();
+      if (this.connection.connected) {
+        await this.pullPlaylists();
+      } else {
+        await this._loadFromDB();
+      }
 
       if (this.playlists.length > 0) {
         let target_id = null;
