@@ -57,7 +57,8 @@ export const useRadioStore = defineStore("radio", {
     async migrateOldOfflineTracks() {
       try {
         if (!db.tracks) return;
-        const oldTracks = await db.tracks.filter(t => !!t.audio_blob).toArray();
+        const allTracks = await db.tracks.toArray();
+        const oldTracks = allTracks.filter(t => !!t.audio_blob);
         if (oldTracks.length > 0) {
           console.log(`[RadioStore] Migrando ${oldTracks.length} faixas antigas para o cache global.`);
           for (const track of oldTracks) {

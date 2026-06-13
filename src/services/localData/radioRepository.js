@@ -194,7 +194,7 @@ export const radioRepository = {
 
     console.log(`[RadioRepo] Processando Sync de ${playlistsFromServer.length} playlists.`);
 
-    return db.transaction('rw', db.playlists, db.tracks, db.lyrics, async () => {
+    return db.transaction('rw', db.playlists, db.tracks, db.lyrics, db.global_audio_cache, async () => {
 
       const serverIdsSet = new Set(playlistsFromServer.map(p => p.id));
       const allLocalPlaylists = await db.playlists.toArray();
