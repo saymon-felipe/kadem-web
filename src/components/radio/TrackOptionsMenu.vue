@@ -67,22 +67,23 @@ export default {
 .options-menu {
   position: absolute;
   width: 180px;
-  background: white;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-float);
   display: flex;
   flex-direction: column;
 }
 
 .disabled-item {
   cursor: default !important;
-  color: var(--gray-400) !important;
+  color: var(--text-muted) !important;
   background: none !important;
 }
 
 .success-icon {
-  color: var(--green);
+  color: var(--color-income);
 }
 
 .menu-item {
@@ -95,17 +96,17 @@ export default {
   background: none;
   cursor: pointer;
   text-align: left;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   transition: background 0.1s;
   font-size: 0.9rem;
 }
 
 .menu-item:hover {
-  background: var(--background-gray);
+  background: var(--surface-3);
 }
 
 .option-red {
-  color: var(--red);
+  color: var(--color-expense);
 }
 
 /* --- Animação Menu Pop --- */

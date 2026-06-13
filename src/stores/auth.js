@@ -20,6 +20,7 @@ import {
   accountsRepository,
   kanbanRepository,
   radioRepository,
+  financeRepository,
 } from "../services/localData";
 
 export const useAuthStore = defineStore("auth", {
@@ -116,6 +117,7 @@ export const useAuthStore = defineStore("auth", {
           accountsRepository.clearLocalAccounts(),
           kanbanRepository.clearLocalKanban(),
           radioRepository.clearLocalData(),
+          financeRepository.clearLocalFinance(),
         ]);
 
         this.user = {};
@@ -303,6 +305,32 @@ export const useAuthStore = defineStore("auth", {
         syncService.processSyncQueue();
       } catch (error) {
         console.error("Falha ao salvar bio localmente:", error);
+      }
+    },
+    async updateUserAvatar(base64Image) {
+      const currentUser = this.user;
+      const { occupations, medals, ...profileData } = currentUser;
+      const updatedProfileData = { ...profileData, avatar: base64Image };
+      const updatedUserForState = { ...updatedProfileData, occupations, medals };
+
+      try {
+        await userRepository.saveLocalUserProfile(updatedProfileData);
+        this.setUser(updatedUserForState);
+
+        await syncQueueRepository.addSyncQueueTask({
+          type: "SYNC_PROFILE_CHANGE",
+          payload: {
+            field: "avatar",
+            value: base64Image,
+            timestamp: new Date().toISOString(),
+          },
+          userId: currentUser.id,
+          timestamp: new Date().toISOString(),
+        });
+
+        syncService.processSyncQueue();
+      } catch (error) {
+        console.error("Falha ao salvar avatar localmente:", error);
       }
     },
     async addNewOccupation(occupationName) {

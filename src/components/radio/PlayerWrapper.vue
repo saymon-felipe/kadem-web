@@ -366,7 +366,7 @@ export default {
 }
 
 .lyrics-btn.active {
-  color: var(--primary);
+  color: var(--color-info);
   opacity: 1;
   text-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
 }
@@ -402,7 +402,7 @@ export default {
 }
 
 .btn-control.active {
-  color: var(--primary-color);
+  color: var(--color-info);
 }
 
 @keyframes slideUp {
@@ -423,14 +423,15 @@ export default {
 .player-wrapper {
   height: 80px;
   transform: translateY(-95px);
-  background: #ffffff;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   display: grid;
   grid-template-columns: 25% 50% 25%;
   padding: 0 var(--space-5);
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-card);
   margin-top: auto;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   gap: var(--space-4);
   transition: opacity 0.3s;
   align-items: center;
@@ -450,7 +451,7 @@ export default {
   align-items: center;
   gap: var(--space-4);
   font-size: 1.5rem;
-  color: var(--deep-blue);
+  color: var(--text-primary);
 }
 
 .btn-control {
@@ -464,7 +465,7 @@ export default {
 
 .btn-control:hover {
   transform: scale(1.1);
-  color: var(--primary);
+  color: var(--color-info);
 }
 
 .btn-control:disabled {
@@ -508,7 +509,7 @@ export default {
 
 .time-display {
   font-size: 0.75rem;
-  color: var(--deep-blue);
+  color: var(--text-secondary);
   opacity: 0.8;
   margin-top: -5px;
 }
@@ -535,7 +536,7 @@ export default {
   border: none;
   cursor: pointer;
   font-size: 1.1rem;
-  color: var(--deep-blue);
+  color: var(--text-secondary);
   opacity: 0.8;
   display: grid;
   place-items: center;
@@ -590,12 +591,12 @@ export default {
 }
 
 .pip-btn:hover {
-  color: var(--blue);
+  color: var(--color-info);
   transform: scale(1.1);
 }
 
 .pip-btn.active {
-  color: var(--blue);
+  color: var(--color-info);
   filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5));
 }
 

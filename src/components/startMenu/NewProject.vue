@@ -113,30 +113,34 @@
           accept="image/png, image/jpeg"
           style="display: none"
         />
+      </div>
+    </div>
 
-        <div class="actions-footer">
-          <button
-            v-if="isEditMode && isUserAdmin"
-            class="btn btn-red"
-            @click="confirmDeleteProject"
-            :disabled="isCreating"
-          >
-            Excluir projeto
-          </button>
+    <div class="actions-footer">
+      <div class="footer-left">
+        <button
+          v-if="isEditMode && isUserAdmin"
+          class="btn btn-red"
+          @click="confirmDeleteProject"
+          :disabled="isCreating"
+        >
+          Excluir projeto
+        </button>
+      </div>
 
-          <button class="btn" @click="handleCancelNewGroup">
-            {{ canEditProject ? "Cancelar" : "Fechar" }}
-          </button>
+      <div class="footer-right">
+        <button class="btn" @click="handleCancelNewGroup">
+          {{ canEditProject ? "Cancelar" : "Fechar" }}
+        </button>
 
-          <button
-            v-if="canEditProject"
-            class="btn btn-primary"
-            @click="handleSave"
-            :disabled="isCreating"
-          >
-            {{ saveButtonText }}
-          </button>
-        </div>
+        <button
+          v-if="canEditProject"
+          class="btn btn-primary"
+          @click="handleSave"
+          :disabled="isCreating"
+        >
+          {{ saveButtonText }}
+        </button>
       </div>
     </div>
 
@@ -624,7 +628,7 @@ export default {
 .remove-member-btn {
   background: none;
   border: none;
-  color: var(--white);
+  color: #ffffff;
   font-size: var(--fontsize-sm);
   cursor: pointer;
   margin-left: 5px;
@@ -640,7 +644,7 @@ export default {
 }
 
 .pending-members span {
-  color: var(--white);
+  color: #ffffff;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   display: flex;
@@ -725,11 +729,30 @@ export default {
 
 .actions-footer {
   display: flex;
-  justify-content: flex-end;
-  gap: var(--space-3);
+  justify-content: space-between;
+  align-items: center;
   margin-top: var(--space-6);
   padding-top: var(--space-4);
-  border-top: 1px solid var(--gray-700);
+  border-top: 1px solid var(--glass-border);
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+}
+
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.actions-footer .btn {
+  width: auto;
+  min-width: 140px;
+  padding: 0 var(--space-5);
 }
 
 @media (max-width: 1100px) {
@@ -744,6 +767,31 @@ export default {
 
   .form-inputs {
     gap: var(--space-2);
+  }
+}
+
+@media (max-width: 600px) {
+  .actions-footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+  }
+
+  .footer-left,
+  .footer-right {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: var(--space-3);
+  }
+
+  .footer-right {
+    flex-direction: column-reverse;
+  }
+
+  .actions-footer .btn {
+    width: 100%;
   }
 }
 </style>

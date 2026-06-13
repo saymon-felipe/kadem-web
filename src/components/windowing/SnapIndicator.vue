@@ -32,10 +32,15 @@ export default {
     position: absolute;
     z-index: 9998;
     border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px dashed rgba(255, 255, 255, 0.5);
+    background: var(--glass-bg);
+    border: 2px dashed var(--color-info);
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
     pointer-events: none;
     transform-origin: center center;
+    transition: top var(--transition-spring, 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)),
+                left var(--transition-spring, 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)),
+                width var(--transition-spring, 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)),
+                height var(--transition-spring, 0.3s cubic-bezier(0.2, 0.8, 0.2, 1));
 }
 
 .snap-indicator-fade-scale-enter-active {

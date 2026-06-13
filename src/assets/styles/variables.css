@@ -1,59 +1,244 @@
+/* ===========================================
+   KADEM — Design System Tokens
+   Light mode (default) + Dark mode override
+   =========================================== */
+
 :root {
-    --deep-blue: #1F274C;
-    --deep-blue-2: #344079;
-    --white: #FFFFFF;
-    --dark-yellow: rgba(206, 179, 134, 0.26);
-    --dark-yellow-2: rgba(206, 179, 134, 0.15);
-    --text-gray: #808080;
-    --background-gray: #CCCCCC;
-    --red: #D64A2E;
-    --red-low: #b13c25;
-    --red-high: rgba(214, 74, 46, 0.16);
-    --green: #86CD82;
-    --green-high: rgba(134, 205, 130, 0.21);
-    --black: #222222;
-    --yellow: #FFCA37;
-    --orange: #f39c12;
-    --blue: #355AFD;
+  /* ---- Brand Colors ---- */
+  --deep-blue: #1F274C;
+  --deep-blue-2: #344079;
+  --white: #FFFFFF;
 
-    --gray-100: #666666;
-    --gray-300: #999999;
-    --gray-600: #e0e0e0;
-    --gray-700: #F2F2F2;
+  /* ---- Accent Colors ---- */
+  --yellow: #FFCA37;
+  --orange: #f39c12;
+  --blue: #355AFD;
+  --red: #D64A2E;
+  --red-low: #b13c25;
+  --red-high: rgba(214, 74, 46, 0.16);
+  --green: #86CD82;
+  --green-light: #86CD82;
+  --green-high: rgba(134, 205, 130, 0.21);
+  --amber: #f59e0b;
+  --amber-high: rgba(245, 158, 11, 0.15);
 
-    --deep-blue-gradient: linear-gradient(to left, var(--deep-blue), var(--deep-blue-2));
-    --deep-blue-gradient-right: linear-gradient(to right, var(--deep-blue), var(--deep-blue-2));
+  /* ---- Semantic Colors ---- */
+  --color-income: var(--green);
+  --color-expense: #D64A2E;
+  --color-balance: #344079;
+  --color-warning: #f59e0b;
+  --color-info: #355AFD;
 
-    --yellow-gradient: linear-gradient(to left, var(--yellow), var(--orange));
+  /* ---- Neutral Scale ---- */
+  --black: #222222;
+  --text-gray: #808080;
+  --background-gray: #CCCCCC;
+  --gray-100: #666666;
+  --gray-300: #999999;
+  --gray-400: #777777;
+  --gray-500: #b0b0b0;
+  --gray-600: #e0e0e0;
+  --gray-700: #F2F2F2;
 
-    /* BORDER RADIUS */
-    --radius-sm: clamp(0.75rem, 0.65rem + 0.5vw, 0.875rem);
-    --radius-md: clamp(1rem, 0.9rem + 0.5vw, 1.125rem);
-    --radius-lg: clamp(1.25rem, 1.1rem + 1vw, 1.5rem);
-    --radius-full: 50%;
+  /* ---- Semantic Text ---- */
+  --text-primary: var(--deep-blue);
+  --text-secondary: var(--gray-100);
+  --text-muted: var(--gray-300);
 
-    /* SPACING */
-    --space-1: 1px;
-    --space-2: 4px;
-    --space-3: 8px;
-    --space-4: 12px;
-    --space-5: 16px;
-    --space-6: 20px;
-    --space-7: 24px;
-    --space-8: 32px;
-    --space-10: 40px;
-    --space-12: 48px;
-    --space-16: 64px;
-    --space-20: 80px;
+  /* ---- Surface Layers ---- */
+  --surface-0: #ffffff;
+  --surface-1: #ffffff;
+  --surface-2: #F2F2F2;
+  --surface-3: #f0f0f0;
 
-    /* FONTSIZE */
-    --fontsize-xs: clamp(0.75rem, 0.65rem + 0.5vw, 0.875rem);   /* 12px -> 14px */
-    --fontsize-sm: clamp(1rem, 0.9rem + 0.5vw, 1.125rem);       /* 16px -> 18px */
-    --fontsize-md: clamp(1.25rem, 1.1rem + 1vw, 1.5rem);        /* 20px -> 24px */
-    --fontsize-lg: clamp(1.75rem, 1.5rem + 2vw, 2.125rem);      /* 28px -> 34px */
-    --fontsize-xl: clamp(2.25rem, 1.75rem + 3vw, 2.875rem);     /* 36px -> 46px */
+  /* ---- Dark Yellow (brand accent) ---- */
+  --dark-yellow: rgba(206, 179, 134, 0.26);
+  --dark-yellow-2: rgba(206, 179, 134, 0.15);
 
-    --boxshadow-default: 0 0 15px rgba(0, 0, 0, 0.2);
+  /* ---- Gradients ---- */
+  --deep-blue-gradient: linear-gradient(to left, var(--deep-blue), var(--deep-blue-2));
+  --deep-blue-gradient-right: linear-gradient(to right, var(--deep-blue), var(--deep-blue-2));
+  --yellow-gradient: linear-gradient(to left, var(--yellow), var(--orange));
+  --income-gradient: linear-gradient(135deg, #86CD82, #2ecc71);
+  --expense-gradient: linear-gradient(135deg, #D64A2E, #e74c3c);
 
-    --overlay: rgba(0, 0, 0, 0.5);
+  /* ---- Glass Effect ---- */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.8);
+  --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.2), inset 0 4px 20px rgba(255, 255, 255, 0.3);
+  --glass-blur: blur(5px) saturate(180%);
+
+  /* ---- Header (Taskbar) ---- */
+  --header-bg: rgba(206, 179, 134, 0.24);
+  --header-border: transparent;
+  --header-btn-hover: #d4cbbc;
+  --plan-pill-bg: rgba(255, 255, 255, 0.3);
+  --plan-pill-border: rgba(255, 255, 255, 0.4);
+
+  /* ---- Kanban Tasks ---- */
+  --card-bg: var(--white);
+  --card-border: transparent;
+  --card-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --card-hover-bg: var(--white);
+  --card-hover-border: var(--gray-300);
+  --card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+  /* ---- Project Selector & Dropdown ---- */
+  --proj-trigger-bg: #1e2139;
+  --proj-trigger-hover: #252945;
+  --proj-trigger-color: #ffffff;
+  --proj-trigger-border: none;
+  --proj-trigger-avatar-border: 2px solid #1e2139;
+  --proj-trigger-counter-bg: #ffc107;
+  --proj-trigger-counter-color: #1e2139;
+  --proj-dropdown-bg: #ffffff;
+  --proj-dropdown-border: 1px solid #e0e0e0;
+  --proj-row-hover-bg: #f5f7fa;
+  --proj-row-active-bg: #eef2ff;
+  --proj-row-active-border: none;
+
+  /* ---- Overlays ---- */
+  --overlay: rgba(0, 0, 0, 0.5);
+  --overlay-light: rgba(0, 0, 0, 0.3);
+  --overlay-heavy: var(--overlay);
+
+  /* ---- Shadows ---- */
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 2px 8px rgba(31, 39, 76, 0.08), 0 1px 2px rgba(31, 39, 76, 0.04);
+  --shadow-elevated: 0 8px 24px rgba(31, 39, 76, 0.14), 0 2px 6px rgba(31, 39, 76, 0.06);
+  --shadow-float: 0 20px 50px rgba(13, 20, 45, 0.22), 0 4px 12px rgba(13, 20, 45, 0.08);
+  --shadow-window: 0 0 15px rgba(0, 0, 0, 0.2);
+  --boxshadow-default: var(--shadow-window);
+
+  /* ---- Border Radius ---- */
+  --radius-xs: 4px;
+  --radius-sm: clamp(0.75rem, 0.65rem + 0.5vw, 0.875rem);
+  --radius-md: clamp(1rem, 0.9rem + 0.5vw, 1.125rem);
+  --radius-lg: clamp(1.25rem, 1.1rem + 1vw, 1.5rem);
+  --radius-xl: 24px;
+  --radius-full: 50%;
+
+  /* ---- Spacing ---- */
+  --space-1: 1px;
+  --space-2: 4px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 20px;
+  --space-7: 24px;
+  --space-8: 32px;
+  --space-9: 36px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* ---- Font Sizes ---- */
+  --fontsize-xs:  clamp(0.75rem,  0.65rem + 0.5vw,  0.875rem);  /* 12→14px */
+  --fontsize-sx:  0.875rem;                                        /* 14px — fixo */
+  --fontsize-sm:  clamp(1rem,     0.9rem + 0.5vw,   1.125rem);   /* 16→18px */
+  --fontsize-md:  clamp(1.25rem,  1.1rem + 1vw,     1.5rem);     /* 20→24px */
+  --fontsize-lg:  clamp(1.75rem,  1.5rem + 2vw,     2.125rem);   /* 28→34px */
+  --fontsize-xl:  clamp(2.25rem,  1.75rem + 3vw,    2.875rem);   /* 36→46px */
+
+  /* ---- Transitions ---- */
+  --transition-fast:   0.15s ease;
+  --transition-base:   0.22s ease;
+  --transition-medium: 0.28s ease;
+  --transition-spring: 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+  --transition-bounce: 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ===========================================
+   DARK MODE — sobrescreve tokens de light
+   Ativado via data-theme="dark" no <html>
+   =========================================== */
+
+[data-theme="dark"] {
+  /* ---- Brand (inverte para claro) ---- */
+  --deep-blue: #c5cae9;
+  --deep-blue-2: #9fa8da;
+  --white: #1a1d2e;
+
+  /* ---- Neutral (inverte) ---- */
+  --black: #e0e4f0;
+  --text-gray: #a0a4b8;
+  --background-gray: #2e3248;
+  --gray-100: #8890a8;
+  --gray-300: #5a6078;
+  --gray-400: #9aa3bc;
+  --gray-500: #484d68;
+  --gray-600: #2e3248;
+  --gray-700: #252838;
+
+  /* ---- Semantic Text ---- */
+  --text-primary: #c5cae9;
+  --text-secondary: #8890a8;
+  --text-muted: #5a6078;
+
+  /* ---- Surface Layers (dark) ---- */
+  --surface-0: #14172a;
+  --surface-1: #1a1d2e;
+  --surface-2: #20243a;
+  --surface-3: #272b42;
+
+  /* ---- Dark Yellow (mantém, mas mais suave) ---- */
+  --dark-yellow: rgba(206, 179, 134, 0.1);
+  --dark-yellow-2: rgba(206, 179, 134, 0.06);
+
+  /* ---- Glass Effect (dark) ---- */
+  --glass-bg: rgba(26, 29, 46, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.07);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --glass-blur: blur(12px) saturate(160%);
+
+  /* ---- Header (Taskbar) (dark) ---- */
+  --header-bg: var(--glass-bg);
+  --header-border: var(--glass-border);
+  --header-btn-hover: var(--surface-2);
+  --plan-pill-bg: var(--surface-2);
+  --plan-pill-border: var(--glass-border);
+
+  /* ---- Kanban Tasks (dark) ---- */
+  --card-bg: var(--surface-1);
+  --card-border: var(--glass-border);
+  --card-shadow: var(--shadow-card);
+  --card-hover-bg: var(--surface-2);
+  --card-hover-border: var(--color-info);
+  --card-hover-shadow: var(--shadow-elevated);
+
+  /* ---- Project Selector & Dropdown (dark) ---- */
+  --proj-trigger-bg: var(--surface-2);
+  --proj-trigger-hover: var(--surface-3);
+  --proj-trigger-color: var(--text-primary);
+  --proj-trigger-border: 1px solid var(--glass-border);
+  --proj-trigger-avatar-border: 2px solid var(--surface-2);
+  --proj-trigger-counter-bg: var(--color-info);
+  --proj-trigger-counter-color: var(--white);
+  --proj-dropdown-bg: var(--surface-2);
+  --proj-dropdown-border: 1px solid var(--glass-border);
+  --proj-row-hover-bg: var(--surface-3);
+  --proj-row-active-bg: var(--surface-3);
+  --proj-row-active-border: 1px solid var(--glass-border);
+
+  /* ---- Overlays (dark) ---- */
+  --overlay: rgba(0, 0, 0, 0.75);
+  --overlay-light: rgba(0, 0, 0, 0.55);
+  --overlay-heavy: rgba(0, 0, 0, 0.82);
+
+  /* ---- Shadows (dark — mais pronunciadas) ---- */
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-float: 0 20px 50px rgba(0, 0, 0, 0.7), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-window: 0 0 20px rgba(0, 0, 0, 0.5);
+
+  /* ---- Semantic Colors (mantém cores semânticas vibrantes) ---- */
+  --color-income: #2ecc71;
+  --color-expense: #e74c3c;
+  --color-balance: #7986cb;
+  --color-info: #5f7cff;
+  --red-high: rgba(231, 76, 60, 0.2);
+  --green-high: rgba(46, 204, 113, 0.18);
+  --amber-high: rgba(245, 158, 11, 0.18);
 }

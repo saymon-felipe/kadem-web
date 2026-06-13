@@ -85,7 +85,7 @@ export default {
 
 .project_title {
   font-weight: 500;
-  color: var(--white);
+  color: #ffffff;
   font-size: var(--fontsize-sm);
   width: 100%;
   display: block;

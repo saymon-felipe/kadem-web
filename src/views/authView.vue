@@ -323,6 +323,40 @@ form {
 }
 
 .auth {
+  /* Force light theme colors for auth screen */
+  --deep-blue: #1F274C;
+  --deep-blue-2: #344079;
+  --white: #FFFFFF;
+  --black: #222222;
+  --text-gray: #808080;
+  --background-gray: #CCCCCC;
+  --gray-100: #666666;
+  --gray-300: #999999;
+  --gray-500: #b0b0b0;
+  --gray-600: #e0e0e0;
+  --gray-700: #F2F2F2;
+
+  --text-primary: var(--deep-blue);
+  --text-secondary: var(--gray-100);
+  --text-muted: var(--gray-300);
+
+  --surface-0: #ffffff;
+  --surface-1: #ffffff;
+  --surface-2: #F2F2F2;
+  --surface-3: #f0f0f0;
+
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.8);
+  --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.2), inset 0 4px 20px rgba(255, 255, 255, 0.3);
+  --glass-blur: blur(5px) saturate(180%);
+
+  --deep-blue-gradient: linear-gradient(to left, var(--deep-blue), var(--deep-blue-2));
+  --yellow: #FFCA37;
+  --orange: #f39c12;
+  --blue: #355AFD;
+  --red: #D64A2E;
+  --green: #86CD82;
+
   overflow: hidden;
   width: 100dvw;
   height: 100dvh;
@@ -332,6 +366,24 @@ form {
   background-position: center center;
   background-size: cover;
   background-repeat: no-repeat;
+
+  & input:not([type="range"]) {
+    box-shadow: 3px 3px 4px rgba(0, 0, 0, 0.25), inset 3px 3px 4px rgba(0, 0, 0, 0.25) !important;
+  }
+
+  & .form-group label {
+    color: var(--black);
+  }
+
+  & .btn {
+    background-color: var(--background-gray);
+    color: var(--black);
+  }
+
+  & .btn.btn-primary {
+    background-image: var(--deep-blue-gradient);
+    color: var(--white);
+  }
 
   & .auth-container {
     padding: var(--space-6);

@@ -88,16 +88,16 @@ export default {
 
 <style scoped>
 .kanban-task {
-  background: var(--white);
+  background: var(--card-bg);
   border-radius: var(--radius-sm);
   padding: var(--space-4);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--card-shadow);
   cursor: grab;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-  border: 1px solid transparent;
+  transition: box-shadow var(--transition-fast) ease, border-color var(--transition-fast) ease, background var(--transition-fast) ease;
+  border: 1px solid var(--card-border);
   user-select: none;
   position: relative;
 }
@@ -107,8 +107,9 @@ export default {
 }
 
 .kanban-task:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: var(--gray-300);
+  box-shadow: var(--card-hover-shadow);
+  border-color: var(--card-hover-border);
+  background: var(--card-hover-bg);
 }
 
 .task-header {
@@ -121,7 +122,7 @@ export default {
 .task-id {
   font-size: var(--fontsize-xs);
   font-weight: 700;
-  color: var(--gray-100);
+  color: var(--text-muted);
 }
 
 .task-priority {
@@ -134,8 +135,8 @@ export default {
 }
 
 .priority-normal {
-  background-color: #f0f0f0;
-  color: var(--gray-100);
+  background-color: var(--surface-3);
+  color: var(--text-secondary);
 }
 
 .priority-important {
@@ -150,7 +151,7 @@ export default {
 
 .task-description {
   font-size: var(--fontsize-sm);
-  color: var(--black);
+  color: var(--text-primary);
   line-height: 1.4;
   margin: 0;
   pointer-events: none;
@@ -172,14 +173,14 @@ export default {
 }
 
 .avatar {
-  border: 2px solid var(--white);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  border: 2px solid var(--glass-border);
+  box-shadow: var(--shadow-xs);
   flex-shrink: 0;
 }
 
 .responsible-name {
   font-size: var(--fontsize-xs);
-  color: var(--gray-100);
+  color: var(--text-secondary);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -197,7 +198,7 @@ export default {
 }
 
 .all-icon {
-  background-color: var(--blue);
+  background-color: var(--color-info);
 }
 
 .any-icon {

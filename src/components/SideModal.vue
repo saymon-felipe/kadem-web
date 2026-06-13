@@ -36,6 +36,23 @@ export default {
     close() {
       this.$emit("close");
     },
+    handleKeydown(e) {
+      if (e.key === "Escape" && this.modelValue) {
+        this.close();
+      }
+    },
+  },
+  watch: {
+    modelValue(val) {
+      if (val) {
+        document.addEventListener("keydown", this.handleKeydown);
+      } else {
+        document.removeEventListener("keydown", this.handleKeydown);
+      }
+    },
+  },
+  beforeUnmount() {
+    document.removeEventListener("keydown", this.handleKeydown);
   },
 };
 </script>
@@ -64,101 +81,94 @@ export default {
 .modal-overlay {
   position: absolute;
   inset: 0;
-  background-color: rgba(14, 18, 34, 0.46);
-  backdrop-filter: blur(2px);
+  background: var(--overlay-heavy);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 1;
+  transition: opacity var(--transition-base);
 }
 
 .modal-content {
   z-index: 2;
   position: relative;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: -18px 0 40px rgba(13, 20, 45, 0.2);
+  background: var(--surface-0);
+  box-shadow: var(--shadow-float);
+  transition: background var(--transition-base);
 }
 
+/* Variante: painel lateral */
 .variant-side {
-  width: min(460px, 100%);
+  width: min(480px, 100%);
   height: 100%;
   overflow-y: auto;
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
 }
 
+/* Variante: modal flutuante centralizado */
 .variant-floating {
   width: 80dvw;
   max-width: 860px;
   height: 100%;
-  max-height: 760px;
+  max-height: 780px;
   overflow: hidden;
   border-radius: var(--radius-lg);
-  box-shadow:
-    0 24px 70px rgba(13, 20, 45, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  box-shadow: var(--shadow-float), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 @media (max-width: 480px) {
   .variant-floating {
     border-radius: var(--radius-md);
-    width: 95dvw;
+    width: 96dvw;
+    max-height: 90dvh;
   }
 }
 
+/* --- Animação: painel lateral --- */
 .side-modal-enter-active,
 .side-modal-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--transition-base);
 }
-
 .side-modal-enter-active .modal-content,
 .side-modal-leave-active .modal-content {
-  transition: transform 0.24s ease, opacity 0.2s ease;
+  transition: transform var(--transition-spring), opacity var(--transition-base);
 }
-
 .side-modal-enter-active .modal-overlay,
 .side-modal-leave-active .modal-overlay {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--transition-base);
 }
-
 .side-modal-enter-from .modal-overlay,
 .side-modal-leave-to .modal-overlay {
   opacity: 0;
 }
-
 .side-modal-enter-from .modal-content,
 .side-modal-leave-to .modal-content {
   opacity: 0;
   transform: translateX(100%);
 }
 
+/* --- Animação: modal flutuante (spring) --- */
 .floating-modal-enter-active,
 .floating-modal-leave-active {
-  transition: opacity 0.22s ease;
+  transition: opacity var(--transition-base);
 }
-
 .floating-modal-enter-active .modal-content,
 .floating-modal-leave-active .modal-content {
-  transition: transform 0.26s cubic-bezier(0.2, 0.9, 0.25, 1.12), opacity 0.2s ease;
+  transition: transform var(--transition-spring), opacity var(--transition-base);
 }
-
 .floating-modal-enter-active .modal-overlay,
 .floating-modal-leave-active .modal-overlay {
-  transition: opacity 0.22s ease;
+  transition: opacity var(--transition-base);
 }
-
 .floating-modal-enter-from .modal-overlay,
 .floating-modal-leave-to .modal-overlay {
   opacity: 0;
 }
-
 .floating-modal-enter-from .modal-content {
   opacity: 0;
-  transform: translateY(18px) scale(0.96);
+  transform: translateY(20px) scale(0.95);
 }
-
-.floating-modal-leave-to {
-  opacity: 0;
-}
-
 .floating-modal-leave-to .modal-content {
   opacity: 0;
-  transform: translateY(12px) scale(0.98);
+  transform: translateY(10px) scale(0.97);
 }
 </style>

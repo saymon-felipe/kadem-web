@@ -70,10 +70,10 @@ export default {
   align-items: center;
   justify-content: flex-end;
   height: 100%;
-  color: var(--white);
+  color: #ffffff;
 
   & svg {
-    color: var(--white);
+    color: inherit;
     font-size: var(--fontsize-md);
     position: static;
     right: auto;

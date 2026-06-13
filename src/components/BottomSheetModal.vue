@@ -62,13 +62,15 @@ export default {
   position: relative;
   width: 100%;
   height: 85vh;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--surface-1);
+  border-top: 1px solid var(--glass-border);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   pointer-events: auto;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(10px);
 }
 
 .sheet-header {
@@ -83,7 +85,8 @@ export default {
 .drag-handle {
   width: 40px;
   height: 5px;
-  background-color: var(--gray-300);
+  background-color: var(--text-secondary);
+  opacity: 0.3;
   border-radius: 10px;
 }
 

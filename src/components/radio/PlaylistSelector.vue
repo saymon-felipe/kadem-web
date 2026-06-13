@@ -91,10 +91,10 @@ export default {
 
 .selector-menu {
   position: fixed;
-  background: white;
+  background: var(--surface-2);
   border-radius: var(--radius-sm);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-elevated);
+  border: 1px solid var(--glass-border);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -103,9 +103,9 @@ export default {
 .menu-header {
   padding: var(--space-2) var(--space-3);
   font-size: 0.75rem;
-  color: var(--gray-500);
-  background: var(--background-gray);
-  border-bottom: 1px solid var(--gray-200);
+  color: var(--text-secondary);
+  background: var(--surface-3);
+  border-bottom: 1px solid var(--glass-border);
   font-weight: 600;
 }
 
@@ -124,13 +124,13 @@ export default {
   background: none;
   cursor: pointer;
   text-align: left;
-  transition: background 0.1s;
-  color: var(--deep-blue);
+  transition: background 0.15s ease;
+  color: var(--text-primary);
   height: 32px;
 }
 
 .menu-item:hover {
-  background: var(--background-gray);
+  background: var(--surface-3);
 }
 
 .existing-icon {

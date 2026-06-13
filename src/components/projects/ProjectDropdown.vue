@@ -176,7 +176,8 @@ export default {
 }
 
 .project-trigger {
-  background-color: #1e2139;
+  background-color: var(--proj-trigger-bg);
+  border: var(--proj-trigger-border);
   height: 52px;
   border-radius: var(--radius-sm);
   display: flex;
@@ -184,14 +185,14 @@ export default {
   justify-content: space-between;
   padding: 0 20px;
   cursor: pointer;
-  color: white;
+  color: var(--proj-trigger-color);
   transition: background-color 0.2s;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-card);
   width: 100%;
 }
 
 .project-trigger:hover {
-  background-color: #252945;
+  background-color: var(--proj-trigger-hover);
 }
 
 .trigger-left {
@@ -209,7 +210,7 @@ export default {
 
 .refresh-icon {
   font-size: 1.5rem;
-  color: white;
+  color: var(--proj-trigger-color);
   flex-shrink: 0;
 }
 
@@ -243,7 +244,7 @@ export default {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 2px solid #1e2139;
+  border: var(--proj-trigger-avatar-border);
   overflow: hidden;
   margin-left: -20px;
 }
@@ -255,8 +256,8 @@ export default {
 }
 
 .trigger-avatar.counter {
-  background-color: #ffc107;
-  color: #1e2139;
+  background-color: var(--proj-trigger-counter-bg);
+  color: var(--proj-trigger-counter-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -270,14 +271,15 @@ export default {
   top: 110%;
   left: 0;
   width: 100%;
-  background-color: white;
+  background-color: var(--proj-dropdown-bg);
   border-radius: 12px;
   z-index: 100;
   padding: 20px;
-  border: 1px solid #e0e0e0;
+  border: var(--proj-dropdown-border);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(10px);
 }
 
 .dropdown-header {
@@ -291,7 +293,7 @@ export default {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .search-wrapper {
@@ -304,6 +306,15 @@ export default {
   padding: 8px 30px 8px 10px;
   font-size: 0.9rem;
   height: 42px;
+  background-color: var(--surface-1);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: var(--color-info);
 }
 
 .search-icon {
@@ -311,7 +322,7 @@ export default {
   right: 10px;
   top: 50%;
   transform: translateY(-50%);
-  color: #888;
+  color: var(--text-secondary);
 }
 
 .dropdown-list {
@@ -331,12 +342,13 @@ export default {
 }
 
 .project-row:hover {
-  background-color: #f5f7fa;
+  background-color: var(--proj-row-hover-bg);
 }
 
 /* Item Ativo (Selecionado) */
 .project-row.active {
-  background-color: #eef2ff;
+  background-color: var(--proj-row-active-bg);
+  border: var(--proj-row-active-border);
 }
 
 .row-left {
@@ -387,7 +399,7 @@ export default {
 
 .list-project-name {
   font-weight: 500;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -395,7 +407,7 @@ export default {
 
 .list-project-description {
   font-size: var(--fontsize-xs);
-  color: var(--text-gray);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -411,7 +423,7 @@ export default {
   border-radius: 50%;
   overflow: hidden;
   margin-left: -14px;
-  border: 2px solid white;
+  border: var(--proj-trigger-avatar-border);
   flex-shrink: 0;
 }
 

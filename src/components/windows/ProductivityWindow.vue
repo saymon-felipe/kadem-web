@@ -10,6 +10,14 @@
           <p>Sua música, em qualquer lugar.</p>
         </div>
 
+        <div class="app-card" @click="open_app('kadem_nexo')">
+          <div class="icon-wrapper gradient-blue">
+            <font-awesome-icon icon="chart-simple" />
+          </div>
+          <span>Kadem Nexo</span>
+          <p>Finanças pessoais e MEI.</p>
+        </div>
+
         <div class="app-card disabled">
           <div class="icon-wrapper gradient-gray">
             <font-awesome-icon icon="list-check" />
@@ -34,14 +42,16 @@ import { mapState, mapActions } from "pinia";
 import { usePlayerStore } from "@/stores/player";
 import { useWindowStore } from "@/stores/windows"; // Necessário para verificar estado da janela
 import RadioFlow from "../radio/RadioFlow.vue";
+import KademNexo from "../finance/KademNexo.vue";
 
 export default {
-  components: { RadioFlow },
+  components: { RadioFlow, KademNexo },
   props: ["windowId"], // Recebe o ID da janela do BaseWindow
   data() {
     return {
       apps: {
         radio_flow: "RadioFlow",
+        kadem_nexo: "KademNexo",
       },
     };
   },
@@ -82,7 +92,8 @@ export default {
 }
 
 .app-card {
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: var(--space-5);
   cursor: pointer;
@@ -92,13 +103,24 @@ export default {
   align-items: center;
   text-align: center;
   gap: var(--space-3);
-  border: 1px solid transparent;
+  color: var(--text-primary);
+}
+
+.app-card span {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.app-card p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 
 .app-card:hover {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--surface-3);
+  border-color: var(--color-info);
   transform: translateY(-4px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-elevated);
 }
 
 .app-card:active {
@@ -106,7 +128,7 @@ export default {
 }
 
 .app-card.disabled {
-  opacity: 0.6;
+  opacity: 0.4;
   cursor: default;
   pointer-events: none;
 }
@@ -125,6 +147,9 @@ export default {
 .gradient-orange {
   background: var(--yellow-gradient);
 }
+.gradient-blue {
+  background: var(--deep-blue-gradient-right);
+}
 .gradient-gray {
   background: var(--gray-300);
 }
@@ -140,17 +165,18 @@ export default {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: var(--space-5);
   width: fit-content;
-  transition: transform 0.2s;
+  transition: transform 0.2s, color 0.2s;
 }
 .back-btn:hover {
   transform: translateX(-4px);
+  color: var(--color-info);
 }
 
 /* --- ANIMAÇÕES --- */

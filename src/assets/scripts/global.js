@@ -2,6 +2,13 @@ import moment from 'moment/min/moment-with-locales';
 
 moment.locale('pt-br');
 
+let globalDragDepth = 0;
+
+const setGlobalDragging = (isDragging) => {
+  if (typeof document === "undefined") return;
+  document.body.classList.toggle("is-global-dragging", isDragging);
+};
+
 export default {
   data() {
     return {
@@ -53,6 +60,18 @@ export default {
     },
     format_date: (date, format) => {
       return moment(date).locale("pt-br").format(format || "LLLL");
+    },
+    beginGlobalDrag() {
+      globalDragDepth += 1;
+      setGlobalDragging(true);
+    },
+    endGlobalDrag() {
+      globalDragDepth = Math.max(0, globalDragDepth - 1);
+      if (globalDragDepth === 0) setGlobalDragging(false);
+    },
+    resetGlobalDrag() {
+      globalDragDepth = 0;
+      setGlobalDragging(false);
     }
   },
   created() {

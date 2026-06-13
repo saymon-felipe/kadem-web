@@ -7,7 +7,7 @@
           :selected_playlist_id="selected_playlist?.local_id"
           :current_playing_playlist_id="current_playlist?.local_id"
           :is_playing="is_playing"
-          :default_cover="default_cover"
+          :default_cover="isDark ? default_cover_dark : default_cover"
           :default_avatar="default_avatar"
           :collapsed="is_sidebar_collapsed && !is_mobile"
           @select-playlist="handle_mobile_select_playlist"
@@ -65,7 +65,7 @@
                 :track_count="tracks.length"
                 :tracks="tracks"
                 :total_duration_seconds="playlist_total_duration"
-                :default_cover="default_cover"
+                :default_cover="isDark ? default_cover_dark : default_cover"
                 :default_avatar="default_avatar"
                 :is_mobile="is_mobile"
                 @change-cover="handle_change_cover"
@@ -266,6 +266,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useRadioStore } from "@/stores/radio";
 import { useUtilsStore } from "@/stores/utils";
 import { useWindowStore } from "@/stores/windows";
+import { useAppStore } from "@/stores/app";
 import { radioRepository } from "@/services/localData/radioRepository";
 import { api } from "@/plugins/api";
 import { db } from "@/db";
@@ -282,6 +283,7 @@ import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import BottomSheetModal from "@/components/BottomSheetModal.vue";
 
 import defaultCover from "@/assets/images/fundo-auth.webp";
+import defaultCoverDark from "@/assets/images/system-background-black.webp";
 import defaultAvatar from "@/assets/images/kadem-default-playlist.jpg";
 
 export default {
@@ -302,6 +304,7 @@ export default {
       selected_playlist: null,
       tracks: [],
       default_cover: defaultCover,
+      default_cover_dark: defaultCoverDark,
       default_avatar: defaultAvatar,
       yt_player: null,
 
@@ -346,6 +349,7 @@ export default {
     ...mapState(useRadioStore, { playlists: "playlists" }),
     ...mapState(useUtilsStore, ["connection"]),
     ...mapState(useWindowStore, ["_getOrCreateCurrentUserState"]),
+    ...mapState(useAppStore, ["isDark"]),
 
     play_button_icon() {
       if (this.is_current_playlist_active && this.is_playing) return "circle-pause";
@@ -898,7 +902,7 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: var(--white);
+  color: var(--text-primary);
   padding: var(--space-5);
   text-align: center;
 }
@@ -907,7 +911,9 @@ export default {
   padding: var(--space-6);
   margin-bottom: var(--space-4);
   max-width: 400px;
-  background: var(--dark-yellow);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-card);
 }
 
 .brand-logo {
@@ -919,12 +925,13 @@ export default {
 .welcome-card h1 {
   margin-bottom: var(--space-2);
   font-size: 2rem;
+  color: var(--text-primary);
 }
 
 .welcome-card p {
   opacity: 0.8;
   margin-bottom: var(--space-4);
-  color: var(--deep-blue);
+  color: var(--text-secondary);
 }
 
 .youtube-tag {
@@ -1001,8 +1008,8 @@ export default {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background-color: var(--deep-blue);
-  color: white;
+  background-color: var(--color-info);
+  color: #ffffff;
   border: none;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
   cursor: pointer;
@@ -1016,7 +1023,7 @@ export default {
 
 .mobile-search-fab:active {
   transform: scale(0.95);
-  background-color: var(--deep-blue-2);
+  filter: brightness(0.9);
 }
 
 .mobile-search-container {
@@ -1027,7 +1034,7 @@ export default {
 
 .mobile-search-container h3 {
   margin: 0 0 var(--space-3) 0;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   font-size: 1.2rem;
 }
 
@@ -1045,8 +1052,8 @@ export default {
   width: 48px;
   border-radius: var(--radius-md);
   border: none;
-  background-color: var(--deep-blue);
-  color: white;
+  background-color: var(--color-info);
+  color: #ffffff;
   cursor: pointer;
   font-size: 1.1rem;
 }

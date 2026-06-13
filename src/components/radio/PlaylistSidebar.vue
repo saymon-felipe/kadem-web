@@ -154,18 +154,20 @@ export default {
   padding: var(--space-3);
   cursor: pointer;
   border-radius: var(--radius-sm);
-  transition: background 0.2s;
+  transition: background 0.2s, color 0.2s;
   flex-shrink: 0;
   white-space: nowrap;
   width: 100%;
   box-sizing: border-box;
+  color: var(--text-secondary);
 }
 .collapsed .playlist-item {
   justify-content: center;
 }
 .playlist-item:hover,
 .playlist-item.active {
-  background: var(--dark-yellow-2);
+  background: var(--surface-3);
+  color: var(--text-primary);
 }
 
 .sidebar-header {
@@ -179,16 +181,15 @@ export default {
 .toggle-btn {
   background: none;
   border: none;
-  color: var(--gray-400);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 1rem;
   padding: 4px;
   transition: color 0.2s;
   margin: auto;
-  color: var(--deep-blue);
 }
 .toggle-btn:hover {
-  color: var(--text-gray);
+  color: var(--text-primary);
 }
 .header-text {
   white-space: nowrap;
@@ -237,18 +238,18 @@ export default {
   max-width: 45px;
   max-height: 45px;
   border-radius: 50%;
-  background: var(--deep-blue);
-  color: white;
+  background: var(--color-info);
+  color: #ffffff;
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.2rem;
   cursor: pointer;
-  box-shadow: var(--boxshadow-md);
+  box-shadow: var(--shadow-card);
 }
 .btn-circle-add:hover {
-  background: var(--deep-blue-2);
+  filter: brightness(1.1);
   transform: scale(1.05);
 }
 

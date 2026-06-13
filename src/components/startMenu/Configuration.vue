@@ -1,6 +1,29 @@
 <template>
   <div class="config-wrapper">
     <section class="config-section">
+      <h3>Aparência</h3>
+      <p>Escolha o tema visual do Kadem. A preferência é salva localmente no navegador.</p>
+      <div class="theme-options">
+        <button
+          class="theme-option"
+          :class="{ active: !isDark }"
+          @click="setTheme('light')"
+        >
+          <font-awesome-icon icon="sun" />
+          <span>Claro</span>
+        </button>
+        <button
+          class="theme-option"
+          :class="{ active: isDark }"
+          @click="setTheme('dark')"
+        >
+          <font-awesome-icon icon="moon" />
+          <span>Escuro</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="config-section">
       <h3>Segurança</h3>
       <p>
         Para redefinir sua senha, enviaremos um link de recuperação para o seu e-mail.
@@ -56,6 +79,7 @@
 import { mapState } from "pinia";
 import { useUtilsStore } from "@/stores/utils";
 import { useAuthStore } from "@/stores/auth";
+import { useAppStore } from "@/stores/app";
 import { api } from "@/plugins/api";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import BaseModal from "@/components/BaseModal.vue";
@@ -81,8 +105,13 @@ export default {
   computed: {
     ...mapState(useUtilsStore, ["connection"]),
     ...mapState(useAuthStore, ["user"]),
+    ...mapState(useAppStore, ["isDark"]),
   },
   methods: {
+    setTheme(theme) {
+      const appStore = useAppStore();
+      appStore.setTheme(theme);
+    },
     async handleRequestPasswordReset() {
       this.isLoading = true;
       this.responseMsg = "";
@@ -125,16 +154,53 @@ export default {
 }
 
 .config-section h3 {
-  font-size: var(--fontsize-sm);
+  font-size: var(--fontsize-sx);
   font-weight: 600;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--glass-border);
+  margin-bottom: var(--space-1);
 }
 
 .config-section p {
   font-size: var(--fontsize-xs);
-  color: var(--text-gray);
-  line-height: 1.6;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+/* Seletor de tema */
+.theme-options {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.theme-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: var(--fontsize-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.theme-option:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.theme-option.active {
+  background: var(--deep-blue);
+  border-color: var(--deep-blue);
+  color: #ffffff;
+  box-shadow: var(--shadow-card);
 }
 
 .config-section .btn {

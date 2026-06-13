@@ -17,6 +17,8 @@
         :sort="false"
         ghost-class="track-ghost"
         :disabled="is_mobile"
+        @start="beginGlobalDrag"
+        @end="endGlobalDrag"
       >
         <template #item="{ element: track, index }">
           <div
@@ -163,7 +165,7 @@
             <div class="col-actions">
               <button
                 v-if="mode === 'playlist'"
-                class="btn-circle"
+                class="btn-circle options"
                 @click.stop="open_menu($event, track)"
                 :disabled="is_track_unavailable(track)"
               >
@@ -635,9 +637,9 @@ export default {
   gap: var(--space-3);
   align-items: center;
   padding: var(--space-3);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--glass-border);
   font-size: var(--fontsize-xs);
-  color: var(--gray-100);
+  color: var(--text-primary);
   transition: background 0.1s;
   border-radius: var(--radius-sm);
   margin-bottom: 2px;
@@ -678,7 +680,7 @@ export default {
 }
 
 .track-row:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-3);
 }
 
 @media (hover: hover) {
@@ -692,30 +694,30 @@ export default {
 
 .track-row.header {
   font-weight: 600;
-  color: var(--gray-400);
+  color: var(--text-secondary);
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   background: transparent !important;
   cursor: default;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--glass-border);
   margin-bottom: 8px;
 }
 
 .track-row.active-track {
-  background: var(--dark-yellow-2);
+  background: var(--surface-3);
 }
 
 .track-row.active-track strong,
 .playing-icon {
-  color: var(--deep-blue);
+  color: var(--color-info);
 }
 
 .track-index,
 .col-channel,
 .col-duration {
   font-size: 0.9rem;
-  color: var(--gray-300);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -754,7 +756,7 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  color: var(--white);
+  color: #ffffff;
   font-size: 0.9rem;
   opacity: 0;
   transition: opacity 0.2s ease;
@@ -840,7 +842,7 @@ export default {
 }
 
 .offline-ready {
-  color: #4ade80;
+  color: var(--color-income);
 }
 
 .btn-circle {
@@ -859,11 +861,13 @@ export default {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  transition: background 0.2s, transform 0.2s;
+  transition: background 0.2s, transform 0.2s, color 0.2s;
+  color: var(--text-secondary);
 }
 
 .btn-circle:hover {
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  background: var(--surface-3);
 }
 
 .btn-circle svg {
@@ -875,20 +879,20 @@ export default {
 }
 
 .btn-circle.add {
-  color: var(--green);
+  color: var(--color-income);
 }
 
 .btn-circle.remove {
-  color: var(--red);
+  color: var(--color-expense);
 }
 
 .btn-circle.options {
-  color: var(--gray-400);
+  color: var(--text-secondary);
 }
 
 .btn-circle.options:hover {
-  color: var(--deep-blue);
-  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-primary);
+  background: var(--surface-3);
 }
 
 .row-blink-success {
@@ -921,12 +925,12 @@ export default {
 }
 
 .indicator-icon.success {
-  color: var(--green);
+  color: var(--color-income);
   opacity: 0.8;
 }
 
 .indicator-icon.disabled {
-  color: var(--gray-300);
+  color: var(--text-secondary);
   opacity: 0.5;
 }
 

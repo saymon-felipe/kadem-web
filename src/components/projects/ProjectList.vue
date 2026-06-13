@@ -141,7 +141,7 @@ export default {
 .project-section h2 {
   font-size: var(--fontsize-md);
   margin-bottom: var(--space-5);
-  color: var(--deep-blue);
+  color: var(--text-primary);
 }
 
 .project-grid {
@@ -156,20 +156,20 @@ export default {
   overflow: hidden;
   position: relative;
   cursor: pointer;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-card);
+  transition: transform var(--transition-fast) ease, box-shadow var(--transition-fast) ease;
 }
 
 .project-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-elevated);
 }
 
 .project-card img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  background: white;
+  background: var(--surface-1);
 }
 
 .card-overlay {
@@ -178,8 +178,8 @@ export default {
   left: 0;
   right: 0;
   padding: var(--space-4);
-  background: linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 100%);
-  color: var(--white);
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 100%);
+  color: #ffffff;
   display: flex;
   flex-direction: column;
 }
@@ -200,14 +200,16 @@ export default {
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
-  background-color: rgba(255, 255, 255, 0.5);
-  border: 2px dashed var(--gray-300);
-  color: var(--gray-100);
+  background-color: var(--surface-2);
+  border: 2px dashed var(--glass-border);
+  color: var(--text-secondary);
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .new-project-card:hover {
-  background-color: rgba(255, 255, 255, 0.8);
-  color: var(--deep-blue);
+  background-color: var(--surface-3);
+  color: var(--text-primary);
+  border-color: var(--color-info);
 }
 
 .new-project-card svg {

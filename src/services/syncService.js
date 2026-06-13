@@ -7,7 +7,8 @@ import {
   projectRepository,
   kanbanRepository,
   accountsRepository,
-  radioRepository
+  radioRepository,
+  financeRepository
 } from './localData';
 
 import { useProjectStore } from '../stores/projects';
@@ -677,9 +678,119 @@ async function _handleDownloadLyricsTask(task) {
   }
 }
 
+const updateFinanceLocalRecord = async (table, localId, serverData) => {
+  if (!localId || !serverData) return;
+  await db[table].update(localId, {
+    ...serverData,
+    pending_sync: false,
+    updated_at: serverData.updated_at || new Date().toISOString(),
+  });
+};
+
+const resolveFinanceServerId = async (table, payload) => {
+  if (payload.server_id && Number.isFinite(Number(payload.server_id))) return Number(payload.server_id);
+  if (payload.id && Number.isFinite(Number(payload.id))) return Number(payload.id);
+  if (!payload.local_id) throw new Error(`FINANCE_NOT_SYNCED: ${table} sem ID local`);
+  const row = await db[table].get(payload.local_id);
+  if (row?.id && Number.isFinite(Number(row.id))) return Number(row.id);
+  throw new Error(`FINANCE_NOT_SYNCED: aguardando ID do servidor para ${table} local ${payload.local_id}`);
+};
+
+const resolveFinanceEntityId = async (table, id) => {
+  if (!id) return null;
+  const numeric = Number(id);
+  if (Number.isFinite(numeric)) return numeric;
+  const row = await db[table].where('local_key').equals(id).first();
+  if (row?.id && Number.isFinite(Number(row.id))) return Number(row.id);
+  throw new Error(`FINANCE_NOT_SYNCED: aguardando ID do servidor para ${table} ${id}`);
+};
+
+const resolveBudgetGroupsForServer = async (groups = []) => {
+  const resolved = [];
+  for (const group of groups) {
+    const macroId = await resolveFinanceEntityId('finance_macro_categories', group.macro_category_id);
+    const items = [];
+    for (const item of group.items || []) {
+      const categoryId = await resolveFinanceEntityId('finance_categories', item.category_id);
+      items.push({ ...item, category_id: categoryId });
+    }
+    resolved.push({ ...group, macro_category_id: macroId, items });
+  }
+  return resolved;
+};
+
+async function _handleFinanceTask(task) {
+  const { payload } = task;
+
+  switch (task.type) {
+    case 'CREATE_FINANCE_TRANSACTION': {
+      const response = await api.post('/finance/transactions', payload.data);
+      await updateFinanceLocalRecord('finance_transactions', payload.local_id, response.data);
+      return;
+    }
+    case 'UPDATE_FINANCE_TRANSACTION': {
+      const id = await resolveFinanceServerId('finance_transactions', payload);
+      const response = await api.put(`/finance/transactions/${id}`, payload.data);
+      await updateFinanceLocalRecord('finance_transactions', payload.local_id, response.data);
+      return;
+    }
+    case 'DELETE_FINANCE_TRANSACTION': {
+      const id = await resolveFinanceServerId('finance_transactions', payload);
+      await api.delete(`/finance/transactions/${id}`);
+      return;
+    }
+    case 'CREATE_FINANCE_CATEGORY': {
+      const response = await api.post('/finance/categories', payload.data);
+      await updateFinanceLocalRecord('finance_categories', payload.local_id, response.data);
+      return;
+    }
+    case 'UPDATE_FINANCE_CATEGORY': {
+      const id = await resolveFinanceServerId('finance_categories', payload);
+      const response = await api.put(`/finance/categories/${id}`, payload.data);
+      await updateFinanceLocalRecord('finance_categories', payload.local_id, response.data);
+      return;
+    }
+    case 'DELETE_FINANCE_CATEGORY': {
+      const id = await resolveFinanceServerId('finance_categories', payload);
+      await api.delete(`/finance/categories/${id}`);
+      return;
+    }
+    case 'CREATE_FINANCE_MACRO_CATEGORY': {
+      const response = await api.post('/finance/macro-categories', payload.data);
+      await updateFinanceLocalRecord('finance_macro_categories', payload.local_id, response.data);
+      return;
+    }
+    case 'UPDATE_FINANCE_MACRO_CATEGORY': {
+      const id = await resolveFinanceServerId('finance_macro_categories', payload);
+      const response = await api.put(`/finance/macro-categories/${id}`, payload.data);
+      await updateFinanceLocalRecord('finance_macro_categories', payload.local_id, response.data);
+      return;
+    }
+    case 'DELETE_FINANCE_MACRO_CATEGORY': {
+      const id = await resolveFinanceServerId('finance_macro_categories', payload);
+      await api.delete(`/finance/macro-categories/${id}`);
+      return;
+    }
+    case 'SAVE_FINANCE_BUDGETS': {
+      const groups = await resolveBudgetGroupsForServer(payload.groups || []);
+      const response = await api.post('/finance/budgets', {
+        month: payload.month,
+        groups,
+      });
+      await financeRepository.setBudgetGroups(payload.month, response.data || []);
+      return;
+    }
+    default:
+      throw new Error(`Tarefa financeira desconhecida: ${task.type}`);
+  }
+}
+
 async function processTaskItem(task) {
   if (task.type === 'DOWNLOAD_LYRICS') {
     await _handleDownloadLyricsTask(task);
+  }
+  else if (task.type.includes('FINANCE')) {
+    await _handleFinanceTask(task);
   }
   else if (['CREATE_PROJECT', 'DELETE_PROJECT', 'REMOVE_PROJECT_MEMBER', 'REVOKE_PROJECT_INVITE'].includes(task.type)) {
     await _handleProjectTask(task);

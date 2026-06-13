@@ -9,6 +9,10 @@ export const SUBSCRIPTION_PLANS = {
       max_members_by_project: 3,
       can_use_offline_radio: false,
       max_task_attachment_size_bytes: 5 * 1024 * 1024,
+      finance_open_finance_enabled: false,
+      finance_ai_monthly_credits: 0,
+      finance_max_connected_items: 0,
+      finance_auto_sync_frequency: null,
     },
     features: [
       "Limite de 3 Projetos",
@@ -26,6 +30,10 @@ export const SUBSCRIPTION_PLANS = {
       max_members_by_project: 7,
       can_use_offline_radio: true,
       max_task_attachment_size_bytes: 50 * 1024 * 1024,
+      finance_open_finance_enabled: true,
+      finance_ai_monthly_credits: 300,
+      finance_max_connected_items: 3,
+      finance_auto_sync_frequency: "daily",
     },
     features: [
       "Até 7 Projetos",
@@ -36,7 +44,7 @@ export const SUBSCRIPTION_PLANS = {
   },
   enterprise: {
     name: "Kadem Enterprise",
-    value: 149.9,
+    value: 159.9,
     cycle: "MONTHLY",
     description: "Assinatura Kadem Enterprise - Para equipes e colaboração avançada.",
     limits: {
@@ -44,6 +52,10 @@ export const SUBSCRIPTION_PLANS = {
       max_members_by_project: 999,
       can_use_offline_radio: true,
       max_task_attachment_size_bytes: 1024 * 1024 * 1024,
+      finance_open_finance_enabled: true,
+      finance_ai_monthly_credits: 1500,
+      finance_max_connected_items: 15,
+      finance_auto_sync_frequency: "hourly",
     },
     features: [
       "Projetos Ilimitados",

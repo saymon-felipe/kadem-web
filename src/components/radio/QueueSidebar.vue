@@ -58,8 +58,8 @@
         drag-class="queue-drag"
         animation="200"
         :move="check_move"
-        @start="drag = true"
-        @end="drag = false"
+        @start="handle_drag_start"
+        @end="handle_drag_end"
       >
         <template #item="{ element: track, index }">
           <div
@@ -146,6 +146,16 @@ export default {
       return !is_internal_item;
     },
 
+    handle_drag_start() {
+      this.drag = true;
+      this.beginGlobalDrag();
+    },
+
+    handle_drag_end() {
+      this.drag = false;
+      this.endGlobalDrag();
+    },
+
     on_drag_over(e) {
       this.is_drag_over = true;
     },
@@ -166,7 +176,7 @@ export default {
   height: 100%;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 1px solid var(--glass-border);
   transition: width 0.3s ease;
   overflow: hidden;
 }
@@ -193,7 +203,7 @@ export default {
 .queue-header h3 {
   font-size: 1.1rem;
   font-weight: 600;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   margin: 0;
   flex: 1;
 }
@@ -216,7 +226,7 @@ export default {
 .section-title {
   font-size: 0.75rem;
   text-transform: uppercase;
-  color: var(--gray-400);
+  color: var(--text-secondary);
   margin-bottom: var(--space-3);
   letter-spacing: 0.5px;
   font-weight: 600;
@@ -244,7 +254,7 @@ export default {
 }
 
 .queue-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-2);
 }
 
 /* Modo Mini: Itens */
@@ -276,11 +286,12 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   display: block;
+  color: var(--text-primary);
 }
 
 .q-info small {
   font-size: 0.7rem;
-  color: var(--gray-400);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -296,7 +307,7 @@ export default {
 .remove-btn {
   background: none;
   border: none;
-  color: var(--gray-400);
+  color: var(--text-secondary);
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.2s;
@@ -307,7 +318,7 @@ export default {
 }
 
 .remove-btn:hover {
-  color: var(--red);
+  color: var(--color-expense);
 }
 
 .mini-play-overlay {
@@ -333,20 +344,20 @@ export default {
 
 /* Estado Ativo (Tocando agora) */
 .queue-item.active {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--surface-3);
+  border: 1px solid var(--glass-border);
 }
 
 .btn-icon {
   background: none;
   border: none;
-  color: var(--gray-400);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 1rem;
 }
 
 .btn-icon:hover {
-  color: var(--text-gray);
+  color: var(--text-primary);
 }
 
 /* Animações */
@@ -364,8 +375,8 @@ export default {
 
 :deep(.queue-ghost) {
   opacity: 0.4;
-  background: var(--dark-yellow-2, #rgba(255, 200, 0, 0.1));
-  border: 1px dashed var(--yellow, #ffc107);
+  background: var(--surface-3);
+  border: 1px dashed var(--color-info);
   border-radius: var(--radius-sm);
 
   & .q-info,
@@ -377,16 +388,16 @@ export default {
 
 :deep(.queue-drag) {
   opacity: 1;
-  background: var(--deep-blue, #0d1b2a);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-float);
+  border: 1px solid var(--glass-border);
   cursor: grabbing;
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2);
   border-radius: var(--radius-sm);
-  color: white;
+  color: var(--text-primary);
 }
 
 @container (max-width: 1100px) {
@@ -405,8 +416,8 @@ export default {
   gap: var(--space-3);
   padding: var(--space-2);
   width: 100%;
-  border: 1px dashed var(--yellow) !important;
-  background: var(--dark-yellow-2) !important;
+  border: 1px dashed var(--color-info) !important;
+  background: var(--surface-3) !important;
   border-radius: 6px;
   grid-template-columns: none !important;
   opacity: 0.6;
@@ -446,13 +457,12 @@ export default {
 
 :deep(.queue-ghost.track-row .meta strong) {
   font-size: 0.85rem;
-  color: var(--gray-100);
+  color: var(--text-primary);
 }
 
 :deep(.queue-ghost.track-row .meta small) {
   font-size: 0.75rem;
-  color: var(--gray-400);
+  color: var(--text-secondary);
   display: block !important;
-  color: var(--gray-100);
 }
 </style>

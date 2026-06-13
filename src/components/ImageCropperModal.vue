@@ -139,18 +139,20 @@ export default {
 }
 
 .modal-content {
-  background: rgba(255, 255, 255, 0.85); /* Mantém fundo base */
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   width: 90%;
   max-width: 500px;
   border-radius: var(--radius-lg, 16px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-float);
   padding: var(--space-6, 24px);
   display: flex;
   flex-direction: column;
   /* Animação de entrada idêntica ao ConfirmationModal */
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  color: var(--deep-blue, #1f274c);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
 }
 
 /* Transições Vue (Entrada/Saída do Overlay) */
@@ -191,7 +193,7 @@ export default {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--deep-blue, #1f274c);
+  color: var(--text-primary);
 }
 
 .close-btn-icon {
@@ -204,7 +206,7 @@ export default {
   transition: color 0.2s;
 }
 .close-btn-icon:hover {
-  color: var(--deep-blue, #1f274c);
+  color: var(--text-primary);
 }
 
 .modal-body-custom {
@@ -222,28 +224,28 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  border: 2px dashed rgba(0, 0, 0, 0.1);
+  border: 2px dashed var(--glass-border);
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   transition: all 0.2s;
-  background: rgba(255, 255, 255, 0.5);
-  color: var(--text-muted, #666);
+  background: var(--surface-1);
+  color: var(--text-secondary);
 }
 .upload-placeholder:hover {
-  border-color: var(--deep-blue);
-  background: rgba(255, 255, 255, 0.8);
+  border-color: var(--text-primary);
+  background: var(--surface-2);
 }
 
 .icon-circle {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: var(--gray-100, #f3f4f6);
+  background: var(--surface-3);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.5rem;
-  color: var(--white);
+  color: var(--text-primary);
 }
 
 .cropper-container {

@@ -1,17 +1,21 @@
 <template>
   <div class="user-badge-wrapper">
     <div
-      class="avatar-container"
+      class="avatar-container clickable-avatar"
       :style="progressRingStyle"
-      :title="percentToNextLevel + '% para o próximo nível.'"
+      title="Clique para alterar foto de perfil"
+      @click="trigger_avatar_upload"
     >
       <img :src="getAvatar()" :alt="user.name" class="avatar-image" />
+      <div class="avatar-overlay">
+        <font-awesome-icon icon="camera" />
+      </div>
       <div class="level-badge">{{ user.level }}</div>
     </div>
     <div class="info-container">
       <span class="connected-as">Conectado como</span>
       <h2 class="user-name">{{ user.name }}</h2>
-
+ 
       <div class="medals-container" v-if="user.medals && user.medals.length">
         <img
           v-for="medal in user.medals.slice(0, 3)"
@@ -22,24 +26,44 @@
         />
       </div>
     </div>
+
+    <ImageCropperModal
+      v-model="is_crop_modal_open"
+      title="Alterar Foto de Perfil"
+      :aspect-ratio="1"
+      @close="is_crop_modal_open = false"
+      @save="handle_avatar_save"
+    />
   </div>
 </template>
 
 <script>
+import ImageCropperModal from "./ImageCropperModal.vue";
+import { mapActions } from "pinia";
+import { useAuthStore } from "@/stores/auth";
+
 export default {
   name: "avatarComponent",
+  components: {
+    ImageCropperModal,
+  },
   props: {
     user: {
       type: Object,
       required: true,
       default: () => ({
-        avatar: "https://placehold.co/100x100/3B5998/FFFFFF?text=?",
+        avatar: "",
         name: "Usuário",
         level: 1,
         level_progress: 0,
         medals: [],
       }),
     },
+  },
+  data() {
+    return {
+      is_crop_modal_open: false,
+    };
   },
   computed: {
     progressRingStyle() {
@@ -54,11 +78,19 @@ export default {
     },
   },
   methods: {
+    ...mapActions(useAuthStore, ["updateUserAvatar"]),
     getAvatar() {
       if (this.user.avatar) return this.user.avatar;
 
       const initials = this.user.name ? this.user.name.substring(0, 1) : "?";
       return `https://placehold.co/100x100/3B5998/FFFFFF?text=${initials}`;
+    },
+    trigger_avatar_upload() {
+      this.is_crop_modal_open = true;
+    },
+    async handle_avatar_save(base64_image) {
+      await this.updateUserAvatar(base64_image);
+      this.is_crop_modal_open = false;
     },
   },
 };
@@ -85,11 +117,48 @@ export default {
   flex-shrink: 0;
 }
 
+.clickable-avatar {
+  cursor: pointer;
+  transition: transform var(--transition-fast, 0.15s) ease;
+}
+
+.clickable-avatar:hover {
+  transform: scale(1.04);
+}
+
+.clickable-avatar:active {
+  transform: scale(0.96);
+}
+
+.avatar-overlay {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  right: 5px;
+  bottom: 5px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.25rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.clickable-avatar:hover .avatar-overlay {
+  opacity: 1;
+}
+
 .avatar-image {
   width: 80px;
   height: 80px;
   border-radius: var(--radius-full);
   object-fit: cover;
+  z-index: 1;
 }
 
 @media (max-width: 1100px) {
@@ -101,6 +170,14 @@ export default {
   .avatar-image {
     width: 60px;
     height: 60px;
+  }
+
+  .avatar-overlay {
+    top: 5px;
+    left: 5px;
+    right: 5px;
+    bottom: 5px;
+    font-size: 1rem;
   }
 }
 
@@ -116,6 +193,7 @@ export default {
   padding: var(--space-1) var(--space-4);
   border-radius: var(--radius-md);
   border: 2px solid var(--white);
+  z-index: 3;
 }
 
 .info-container {

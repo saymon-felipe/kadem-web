@@ -69,15 +69,28 @@ export default {
   pointer-events: none;
 }
 
-.window-enter-active,
-.window-leave-active {
-  transition: all 0.2s ease-in-out;
+/* Animação de abertura/fechamento de janelas */
+.window-enter-active {
+  transition: opacity 0.24s ease,
+              transform 0.32s cubic-bezier(0.32, 0.72, 0, 1),
+              filter 0.24s ease;
 }
 
-.window-enter-from,
+.window-leave-active {
+  transition: opacity 0.18s ease,
+              transform 0.22s ease,
+              filter 0.18s ease;
+}
+
+.window-enter-from {
+  opacity: 0;
+  transform: translate(var(--window-translate-x, 0), var(--window-translate-y, 12px)) scale(0.96);
+  filter: blur(2px);
+}
+
 .window-leave-to {
   opacity: 0;
-  transform: translate(var(--window-translate-x, 0), var(--window-translate-y, 0))
-    scale(0.9);
+  transform: translate(var(--window-translate-x, 0), var(--window-translate-y, 0)) scale(0.97);
+  filter: blur(1px);
 }
 </style>

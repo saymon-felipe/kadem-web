@@ -30,7 +30,7 @@
         item-key="local_id"
         class="kanban-container scroll-custom"
         handle=".column-drag-handle"
-        animation="300"
+        animation="120"
         force-fallback="true"
         :fallback-on-body="true"
         fallback-class="column-fallback"
@@ -300,10 +300,12 @@ export default {
       this.show_confirmation = false;
     },
     track_mouse(e) {
-      this.drag_ctx.current_mouse_x = e.clientX || (e.touches && e.touches[0].clientX);
-      this.drag_ctx.current_mouse_y = e.clientY || (e.touches && e.touches[0].clientY);
+      this.column_drag_live.current_mouse_x = e.clientX || (e.touches && e.touches[0].clientX);
+      this.column_drag_live.current_mouse_y = e.clientY || (e.touches && e.touches[0].clientY);
     },
     on_column_drag_start(evt) {
+      this.beginGlobalDrag();
+      this.column_drag_live = this.column_drag_live || {};
       this.drag_ctx.is_dragging = true;
 
       const client_x =
@@ -314,9 +316,9 @@ export default {
         (evt.originalEvent.touches && evt.originalEvent.touches[0].clientY);
 
       this.drag_ctx.start_mouse_x = client_x;
-      this.drag_ctx.current_mouse_x = client_x;
       this.drag_ctx.start_mouse_y = client_y;
-      this.drag_ctx.current_mouse_y = client_y;
+      this.column_drag_live.current_mouse_x = client_x;
+      this.column_drag_live.current_mouse_y = client_y;
 
       const rect = evt.item.getBoundingClientRect();
 
@@ -357,7 +359,7 @@ export default {
           fallback_el.style.setProperty("box-sizing", "border-box", "important");
 
           if (this.is_mobile) {
-            const delta_y = this.drag_ctx.current_mouse_y - this.drag_ctx.start_mouse_y;
+            const delta_y = this.column_drag_live.current_mouse_y - this.drag_ctx.start_mouse_y;
 
             fallback_el.style.setProperty(
               "left",
@@ -376,11 +378,8 @@ export default {
               taskListEl.style.setProperty("flex-direction", "row", "important");
               taskListEl.style.setProperty("overflow-y", "hidden", "important");
               taskListEl.style.setProperty("overflow-x", "auto", "important");
-            }
 
-            const taskEls = taskListEl.querySelectorAll(".kanban-task");
-            if (taskEls) {
-              taskEls.forEach((task) => {
+              taskListEl.querySelectorAll(".kanban-task").forEach((task) => {
                 task.style.setProperty("width", "200px", "important");
                 task.style.setProperty("min-width", "200px", "important");
                 task.style.setProperty("max-width", "200px", "important");
@@ -388,7 +387,7 @@ export default {
               });
             }
           } else {
-            const delta_x = this.drag_ctx.current_mouse_x - this.drag_ctx.start_mouse_x;
+            const delta_x = this.column_drag_live.current_mouse_x - this.drag_ctx.start_mouse_x;
 
             fallback_el.style.setProperty(
               "top",
@@ -408,6 +407,7 @@ export default {
     },
     on_column_drag_end() {
       this.drag_ctx.is_dragging = false;
+      this.endGlobalDrag();
       window.removeEventListener("mousemove", this.track_mouse);
       window.removeEventListener("touchmove", this.track_mouse);
     },
@@ -425,13 +425,14 @@ export default {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--gray-100);
+  color: var(--text-secondary);
   padding: 6px;
   border-radius: 5px;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 
   &:hover {
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: var(--surface-3);
+    color: var(--text-primary);
   }
 }
 
@@ -471,7 +472,7 @@ export default {
 .divider-vertical {
   width: 1px;
   height: 24px;
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: var(--glass-border);
 }
 
 .kanban-columns-container {
@@ -487,7 +488,7 @@ export default {
 .column-ghost {
   opacity: 0.2;
   background: rgba(0, 0, 0, 0.1);
-  border: 2px dashed var(--gray-300);
+  border: 2px dashed var(--text-muted);
   border-radius: var(--radius-md);
 }
 
@@ -495,6 +496,9 @@ export default {
   min-width: 320px;
   max-width: 320px;
   background: rgba(206, 179, 134, 0.15);
+  border: 1px dashed var(--glass-border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -503,23 +507,45 @@ export default {
   overflow: hidden;
   position: relative;
   cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
 
-  &:hover {
-    background: rgba(206, 180, 134, 0.473);
-  }
+.create-column:hover {
+  background: rgba(206, 180, 134, 0.35);
+  border-color: var(--color-info);
+}
+
+[data-theme="dark"] .create-column {
+  background: rgba(30, 34, 55, 0.3);
+}
+
+[data-theme="dark"] .create-column:hover {
+  background: rgba(30, 34, 55, 0.5);
 }
 
 .column-fallback {
-  transition: none !important;
   opacity: 1 !important;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25) !important;
+  box-shadow: var(--shadow-float) !important;
   cursor: grabbing !important;
   z-index: 10000 !important;
   pointer-events: none;
+  transition: none !important;
+  will-change: transform;
+}
+
+:global(.column-fallback),
+:global(.column-fallback.kanban-column) {
+  transition: none !important;
+  will-change: transform;
 }
 
 .column-drag {
   opacity: 0;
+  transition: none !important;
+}
+
+.column-list-anim-move {
+  transition: transform 0.12s ease;
 }
 
 @container (max-width: 1100px) {

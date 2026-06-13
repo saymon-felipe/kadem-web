@@ -1,5 +1,5 @@
 <template>
-  <div class="task-detail-modal">
+  <div class="task-detail-modal" @click="handle_global_click">
     <header class="modal-header">
       <div class="header-content">
         <span class="project-name">{{ projectName }}</span>
@@ -292,10 +292,10 @@ export default {
             binding.value(event);
           }
         };
-        document.body.addEventListener("click", el.clickOutsideEvent);
+        document.addEventListener("click", el.clickOutsideEvent);
       },
       unmounted(el) {
-        document.body.removeEventListener("click", el.clickOutsideEvent);
+        document.removeEventListener("click", el.clickOutsideEvent);
       },
     },
   },
@@ -484,6 +484,14 @@ export default {
 
     close_comment_menu() {
       this.open_comment_menu = null;
+    },
+    handle_global_click(event) {
+      if (this.open_comment_menu !== null) {
+        const menuEl = this.$el.querySelector(".comment-menu");
+        if (menuEl && !menuEl.contains(event.target)) {
+          this.close_comment_menu();
+        }
+      }
     },
 
     async toggle_like(comment) {
@@ -768,8 +776,8 @@ export default {
   min-height: 0;
   width: 100%;
   min-width: 0;
-  background-color: var(--white);
-  color: var(--deep-blue);
+  background-color: var(--surface-1);
+  color: var(--text-primary);
   display: flex;
   flex-direction: column;
 
@@ -786,7 +794,7 @@ export default {
   gap: var(--space-5);
   min-width: 0;
   padding: var(--space-6) var(--space-7) var(--space-4);
-  border-bottom: 1px solid rgba(31, 39, 76, 0.08);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .header-content {
@@ -802,7 +810,7 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--fontsize-xs);
-  color: var(--gray-100);
+  color: var(--text-secondary);
   font-weight: 700;
 }
 
@@ -816,18 +824,30 @@ export default {
 .task-id {
   font-size: var(--fontsize-md);
   font-weight: 900;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   margin: 0;
   user-select: auto;
 }
 
 .dirty-badge {
   border-radius: 999px;
-  background: var(--green-high);
-  color: var(--deep-blue);
+  background: var(--amber-high);
+  color: var(--amber);
   font-size: 0.74rem;
   font-weight: 800;
   padding: 4px 9px;
+  animation: pulse-sutil 2s infinite ease-in-out;
+}
+
+@keyframes pulse-sutil {
+  0%, 100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
 }
 
 .header-actions {
@@ -848,24 +868,24 @@ export default {
 .action-btn {
   width: 34px;
   height: 34px;
-  background: var(--gray-700);
-  border: 1px solid transparent;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   font-size: var(--fontsize-xs);
   cursor: pointer;
-  color: var(--gray-100);
+  color: var(--text-secondary);
   padding: 0;
-  transition: color 0.2s, transform 0.1s, background 0.2s;
+  transition: color var(--transition-fast), transform var(--transition-fast), background var(--transition-fast);
 }
 
 .action-btn:hover {
-  background: var(--white);
-  color: var(--deep-blue);
-  border-color: rgba(31, 39, 76, 0.18);
+  background: var(--surface-3);
+  color: var(--text-primary);
+  border-color: var(--glass-border);
 }
 
 .action-btn.check {
-  color: var(--green);
+  color: var(--color-income);
 }
 
 .action-btn.check:hover {
@@ -873,39 +893,65 @@ export default {
 }
 
 .action-btn.delete:hover {
-  color: var(--red);
+  color: var(--color-expense);
 }
 
 .task-tabs {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-4) var(--space-7);
-  border-bottom: 1px solid rgba(31, 39, 76, 0.08);
+  align-items: flex-end;
+  gap: var(--space-4);
+  padding: 0 var(--space-7);
+  height: 48px;
+  border-bottom: 1px solid var(--glass-border);
   overflow-y: hidden;
+  position: relative;
 }
 
 .tab-btn {
-  min-height: 34px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  padding: 0 var(--space-4);
+  height: 100%;
+  border: none;
   background: transparent;
-  color: var(--gray-100);
+  color: var(--text-secondary);
   font-size: 0.84rem;
   font-weight: 800;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  transition: color var(--transition-fast);
+  position: relative;
+  padding: 0 var(--space-1);
 }
 
-.tab-btn:hover,
+.tab-btn:hover {
+  background: transparent;
+  color: var(--text-primary);
+}
+
 .tab-btn.active {
-  background: var(--gray-700);
-  color: var(--deep-blue);
-  border-color: rgba(31, 39, 76, 0.1);
+  color: var(--color-info);
+  background: transparent;
+  border: none;
+}
+
+.tab-btn::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--color-info);
+  border-radius: 3px 3px 0 0;
+  opacity: 0;
+  transform: scaleX(0.5);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.tab-btn.active::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 .tab-count {
@@ -914,10 +960,10 @@ export default {
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background: var(--white);
-  color: var(--deep-blue);
+  background: var(--surface-3);
+  color: var(--text-primary);
   font-size: 0.72rem;
-  border: 1px solid rgba(31, 39, 76, 0.12);
+  border: 1px solid var(--glass-border);
 }
 
 .modal-body {
@@ -950,7 +996,7 @@ export default {
 .description-card label,
 .form-group label {
   font-size: 0.8rem;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   font-weight: 800;
   position: static;
   transform: none;
@@ -962,18 +1008,18 @@ export default {
   max-height: 240px;
   resize: none;
   overflow: auto;
-  background-color: var(--white);
-  border: 1px solid rgba(31, 39, 76, 0.14);
+  background-color: var(--surface-2);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   padding: var(--space-5);
   font-size: var(--fontsize-sm);
   line-height: 1.45;
-  color: var(--deep-blue);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .description-input:focus {
-  outline: 3px solid rgba(31, 39, 76, 0.16);
+  outline: 3px solid var(--color-info);
 }
 
 .field-grid {
@@ -1017,7 +1063,7 @@ export default {
 }
 
 .placeholder-text {
-  color: var(--gray-300);
+  color: var(--text-muted);
 }
 
 .priority-dot {
@@ -1036,7 +1082,7 @@ export default {
 }
 
 .bg-gray {
-  background-color: var(--gray-300);
+  background-color: var(--text-muted);
 }
 
 .text-orange {
@@ -1050,7 +1096,7 @@ export default {
 }
 
 .text-gray {
-  color: var(--gray-100);
+  color: var(--text-secondary);
 }
 
 .avatar-placeholder {
@@ -1065,7 +1111,7 @@ export default {
 }
 
 .all-icon {
-  background-color: var(--blue);
+  background-color: var(--color-info);
 }
 
 .any-icon {
@@ -1074,10 +1120,10 @@ export default {
 
 .meta-info {
   min-height: 42px;
-  border: 1px solid rgba(31, 39, 76, 0.1);
-  background: var(--gray-700);
+  border: 1px solid var(--glass-border);
+  background: var(--surface-2);
   border-radius: var(--radius-sm);
-  color: var(--gray-100);
+  color: var(--text-secondary);
   font-size: var(--fontsize-xs);
   font-weight: 600;
   display: flex;
@@ -1111,14 +1157,14 @@ export default {
 .section-toolbar h4,
 .comments-header h4 {
   font-size: var(--fontsize-sm);
-  color: var(--deep-blue);
+  color: var(--text-primary);
   margin: 0;
 }
 
 .section-toolbar p,
 .comments-header span {
   margin: 3px 0 0;
-  color: var(--gray-100);
+  color: var(--text-secondary);
   font-size: var(--fontsize-xs);
   font-weight: 700;
 }
@@ -1126,8 +1172,8 @@ export default {
 .btn-attach {
   height: 38px;
   border: none;
-  background: var(--deep-blue);
-  color: var(--white);
+  background: #1F274C;
+  color: #ffffff;
   border-radius: var(--radius-sm);
   cursor: pointer;
   padding: 0 var(--space-4);
@@ -1135,10 +1181,20 @@ export default {
   align-items: center;
   gap: var(--space-2);
   font-weight: 800;
+  transition: background var(--transition-fast);
 }
 
 .btn-attach:hover {
-  background: var(--deep-blue-2);
+  background: #344079;
+}
+
+[data-theme="dark"] .btn-attach {
+  background: var(--color-info);
+  color: #ffffff;
+}
+
+[data-theme="dark"] .btn-attach:hover {
+  background: #355AFD;
 }
 
 .hidden-file-input {
@@ -1146,7 +1202,7 @@ export default {
 }
 
 .attachment-error {
-  color: var(--red);
+  color: var(--color-expense);
   font-size: var(--fontsize-xs);
   margin: 0;
 }
@@ -1167,17 +1223,19 @@ export default {
   grid-template-columns: 38px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
-  border: 1px solid rgba(31, 39, 76, 0.1);
-  background: var(--white);
-  color: var(--deep-blue);
+  border: 1px solid var(--glass-border);
+  background: var(--surface-2);
+  color: var(--text-primary);
   border-radius: var(--radius-sm);
   padding: var(--space-3);
   cursor: pointer;
   text-align: left;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
 .attachment-item:hover {
-  border-color: var(--deep-blue);
+  border-color: var(--color-info);
+  background: var(--surface-3);
 }
 
 .attachment-icon {
@@ -1186,8 +1244,8 @@ export default {
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
-  background: var(--gray-700);
-  color: var(--deep-blue);
+  background: var(--surface-3);
+  color: var(--text-primary);
 }
 
 .attachment-main {
@@ -1208,7 +1266,7 @@ export default {
 .attachment-size,
 .attachment-status {
   font-size: 0.74rem;
-  color: var(--gray-300);
+  color: var(--text-secondary);
   font-weight: 700;
 }
 
@@ -1224,13 +1282,14 @@ export default {
   height: 30px;
   border: none;
   background: transparent;
-  color: var(--gray-300);
+  color: var(--text-muted);
   cursor: pointer;
   border-radius: var(--radius-sm);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .btn-attachment-delete:hover {
-  color: var(--red);
+  color: var(--color-expense);
   background: var(--red-high);
 }
 
@@ -1242,10 +1301,10 @@ export default {
   place-items: center;
   align-content: center;
   gap: var(--space-3);
-  color: var(--gray-300);
+  color: var(--text-secondary);
   font-size: var(--fontsize-sm);
   text-align: center;
-  border: 1px dashed rgba(31, 39, 76, 0.16);
+  border: 1px dashed var(--glass-border);
   border-radius: var(--radius-sm);
   padding: var(--space-5);
   max-height: calc(100% - 125px);
@@ -1293,12 +1352,12 @@ export default {
 .comment-author {
   font-weight: 800;
   font-size: 0.9rem;
-  color: var(--black);
+  color: var(--text-primary);
 }
 
 .comment-time {
   font-size: 0.75rem;
-  color: var(--gray-300);
+  color: var(--text-secondary);
 }
 
 .comment-options {
@@ -1310,29 +1369,30 @@ export default {
   height: 28px;
   background: none;
   border: none;
-  color: var(--gray-300);
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0;
   border-radius: var(--radius-sm);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .btn-icon-small:hover {
-  color: var(--deep-blue);
-  background: var(--gray-700);
+  color: var(--text-primary);
+  background: var(--surface-3);
 }
 
 .comment-menu {
   position: absolute;
   top: 100%;
   right: 0;
-  background: var(--white);
+  background: var(--surface-2);
   border-radius: var(--radius-sm);
   padding: 4px 0;
   z-index: 10;
   min-width: 112px;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--gray-700);
+  border: 1px solid var(--glass-border);
 }
 
 .comment-menu button {
@@ -1341,19 +1401,20 @@ export default {
   padding: 8px 12px;
   text-align: left;
   font-size: var(--fontsize-xs);
-  color: var(--deep-blue);
+  color: var(--text-primary);
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
+  transition: background var(--transition-fast);
 }
 
 .comment-menu button:hover {
-  background: var(--background-gray);
+  background: var(--surface-3);
 }
 
 .comment-menu button.danger {
-  color: var(--red);
+  color: var(--color-expense);
 }
 
 .comment-content-wrapper {
@@ -1361,13 +1422,14 @@ export default {
 }
 
 .comment-bubble {
-  background-color: var(--gray-700);
+  background-color: var(--surface-2);
   padding: var(--space-4);
   border-radius: var(--radius-sm);
   font-size: 0.88rem;
-  color: #333;
+  color: var(--text-primary);
   line-height: 1.4;
   position: relative;
+  border: 1px solid var(--glass-border);
 }
 
 .comment-bubble p {
@@ -1386,7 +1448,7 @@ export default {
   background: none;
   border: none;
   font-size: 0.75rem;
-  color: var(--gray-100);
+  color: var(--text-secondary);
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -1397,18 +1459,20 @@ export default {
 
 .btn-like.liked,
 .btn-like:hover {
-  color: var(--deep-blue);
+  color: var(--color-info);
 }
 
 .comment-edit-box textarea {
   width: 100%;
-  border: 1px solid var(--deep-blue);
+  border: 1px solid var(--color-info);
   border-radius: var(--radius-sm);
   padding: 8px;
   font-size: 0.85rem;
   resize: vertical;
   outline: none;
   min-height: 78px;
+  background: var(--surface-1);
+  color: var(--text-primary);
 }
 
 .edit-actions {
@@ -1423,7 +1487,7 @@ export default {
   gap: var(--space-3);
   align-items: center;
   padding-top: var(--space-6);
-  border-top: 1px solid rgba(31, 39, 76, 0.08);
+  border-top: 1px solid var(--glass-border);
   position: absolute;
   bottom: 0;
   width: 100%;
@@ -1434,15 +1498,15 @@ export default {
   min-width: 0;
   display: flex;
   align-items: center;
-  background: var(--white);
-  border: 1px solid var(--gray-300);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   padding: 4px 10px;
-  transition: border-color 0.2s;
+  transition: border-color var(--transition-fast);
 }
 
 .new-comment-box:focus-within {
-  border-color: var(--deep-blue);
+  border-color: var(--color-info);
 }
 
 .new-comment-box textarea {
@@ -1454,7 +1518,7 @@ export default {
   outline: none;
   font-size: 0.9rem;
   height: 36px;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   box-shadow: none;
 }
 
@@ -1463,7 +1527,7 @@ export default {
   height: 30px;
   background: none;
   border: none;
-  color: var(--gray-300);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 1rem;
   padding: 0;
@@ -1472,7 +1536,7 @@ export default {
 
 .btn-send.active,
 .btn-send:hover {
-  color: var(--deep-blue);
+  color: var(--color-info);
 }
 
 .attachment-preview-overlay {
@@ -1481,20 +1545,21 @@ export default {
   z-index: 9999;
   display: grid;
   place-items: center;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--overlay-heavy);
   padding: 24px;
 }
 
 .attachment-preview-modal {
   width: min(920px, 96vw);
   height: min(720px, 88vh);
-  background: var(--white);
-  color: var(--deep-blue);
+  background: var(--surface-1);
+  color: var(--text-primary);
   border-radius: var(--radius-sm);
   display: grid;
   grid-template-rows: auto 1fr;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-float);
+  border: 1px solid var(--glass-border);
 }
 
 .attachment-preview-header {
@@ -1503,7 +1568,7 @@ export default {
   justify-content: space-between;
   gap: var(--space-3);
   padding: 12px 16px;
-  border-bottom: 1px solid var(--background-gray);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .attachment-preview-header strong {
@@ -1523,7 +1588,7 @@ export default {
   height: 30px;
   border: none;
   background: transparent;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   cursor: pointer;
   text-decoration: none;
 }
@@ -1532,7 +1597,7 @@ export default {
   min-height: 0;
   display: grid;
   place-items: center;
-  background: #f7f7f7;
+  background: var(--surface-2);
 }
 
 .attachment-preview-body img,
@@ -1542,7 +1607,7 @@ export default {
   height: 100%;
   border: none;
   object-fit: contain;
-  background: var(--white);
+  background: var(--surface-1);
 }
 
 .attachment-preview-body pre {
@@ -1564,7 +1629,7 @@ export default {
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
-  color: var(--gray-300);
+  color: var(--text-secondary);
 }
 
 @media (max-width: 760px) {

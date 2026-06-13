@@ -2,7 +2,17 @@
   <div class="loading-overlay" :class="{ 'fade-out': !isLoading }">
     <loadingSpinner type="yellow" />
   </div>
-  <div class="main" :style="background">
+  <div class="main">
+    <div
+      class="desktop-bg bg-light"
+      :class="{ active: !isDark }"
+      :style="isImageReady ? { backgroundImage: `url(${lightBgUrl})` } : {}"
+    ></div>
+    <div
+      class="desktop-bg bg-dark"
+      :class="{ active: isDark }"
+      :style="isImageReady ? { backgroundImage: `url(${darkBgUrl})` } : {}"
+    ></div>
     <headerSystem ref="systemHeader" />
     <SyncIndicator :syncing="is_syncing" />
     <homeWidgets />
@@ -114,6 +124,7 @@ import headerSystem from "../components/headerSystem.vue";
 import homeWidgets from "../components/homeWidgets.vue";
 import loadingSpinner from "../components/loadingSpinner.vue";
 import systemBackground from "../assets/images/system-background.webp";
+import systemBackgroundDark from "../assets/images/system-background-black.webp";
 import DesktopWindowManager from "../components/windowing/DesktopWindowManager.vue";
 import SyncIndicator from "@/components/SyncIndicator.vue";
 
@@ -128,25 +139,28 @@ export default {
   computed: {
     ...mapState(useAuthStore, ["user"]),
     ...mapState(useUtilsStore, ["is_syncing"]),
-    ...mapState(useAppStore, ["system"]),
-    finalImageUrl() {
-      if (this.system && this.system.background && this.system.background != "") {
+    ...mapState(useAppStore, ["system", "isDark"]),
+    lightBgUrl() {
+      if (this.system && this.system.background && this.system.background !== "") {
         return this.system.background;
       }
       return this.defaultBackground;
     },
-    background() {
-      if (!this.isImageReady) {
-        return "";
+    darkBgUrl() {
+      if (this.system && this.system.background_dark && this.system.background_dark !== "") {
+        return this.system.background_dark;
       }
-      return `background-image: url(${this.finalImageUrl});`;
+      return this.darkBackground;
     },
   },
   data() {
     return {
       defaultBackground: systemBackground,
+      darkBackground: systemBackgroundDark,
       isLoading: true,
       isImageReady: false,
+      isLightBgReady: false,
+      isDarkBgReady: false,
 
       show_recovery_setup: false,
       setup_password: "",
@@ -162,40 +176,56 @@ export default {
     };
   },
   watch: {
-    finalImageUrl: {
+    lightBgUrl: {
       handler(newUrl) {
-        if (!newUrl) {
-          this.isLoading = false;
-          this.isImageReady = false;
-          return;
-        }
-
-        this.isLoading = true;
-        this.isImageReady = false;
-
-        const img = new Image();
-
-        img.onload = () => {
-          this.isImageReady = true;
-          this.$nextTick(() => {
-            requestAnimationFrame(() => {
-              this.isLoading = false;
-            });
-          });
-        };
-
-        img.onerror = () => {
-          console.error("Falha ao carregar imagem de fundo:", newUrl);
-          this.isLoading = false;
-          this.isImageReady = false;
-        };
-
-        img.src = newUrl;
+        this.preloadImage(newUrl, "light");
+      },
+      immediate: true,
+    },
+    darkBgUrl: {
+      handler(newUrl) {
+        this.preloadImage(newUrl, "dark");
       },
       immediate: true,
     },
   },
   methods: {
+    preloadImage(url, type) {
+      if (!url) {
+        if (type === "light") this.isLightBgReady = true;
+        else this.isDarkBgReady = true;
+        this.checkIfReady();
+        return;
+      }
+
+      if (type === "light") this.isLightBgReady = false;
+      else this.isDarkBgReady = false;
+      this.isLoading = true;
+
+      const img = new Image();
+      img.onload = () => {
+        if (type === "light") this.isLightBgReady = true;
+        else this.isDarkBgReady = true;
+        this.checkIfReady();
+      };
+      img.onerror = () => {
+        console.error(`Falha ao carregar imagem de fundo (${type}):`, url);
+        if (type === "light") this.isLightBgReady = true;
+        else this.isDarkBgReady = true;
+        this.checkIfReady();
+      };
+      img.src = url;
+    },
+    checkIfReady() {
+      if (this.isLightBgReady && this.isDarkBgReady) {
+        this.isImageReady = true;
+        this.$nextTick(() => {
+          requestAnimationFrame(() => {
+            this.isLoading = false;
+          });
+        });
+      }
+    },
     ...mapActions(useAuthStore, ["setUser", "checkAuthStatus"]),
     ...mapActions(useAppStore, ["setSystem", "updateMobileStatus"]),
     handle_forgot_password() {
@@ -329,13 +359,31 @@ export default {
 .main {
   width: 100%;
   height: 100%;
-  background-position: center center;
-  background-size: cover;
-  background-repeat: no-repeat;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: var(--space-3);
+  position: relative;
+  overflow: hidden;
+}
+ 
+.desktop-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+  pointer-events: none;
+}
+ 
+.desktop-bg.active {
+  opacity: 1;
 }
 
 .modal-overlay {
@@ -432,7 +480,7 @@ export default {
   top: 50%;
   transform: translateY(-50%);
   cursor: pointer;
-  color: var(--gray-4);
+  color: var(--text-secondary);
   transition: color 0.3s ease;
   z-index: 10;
   padding: var(--space-2);
@@ -442,7 +490,7 @@ export default {
 }
 
 .modal-body .toggle-password:hover {
-  color: var(--primary-color);
+  color: var(--text-primary);
 }
 
 .forgot-password-container {

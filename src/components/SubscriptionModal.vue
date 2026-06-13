@@ -256,6 +256,7 @@ export default {
             "Limite de 3 Projetos",
             "Até 3 membros/projeto",
             "Radio Flow (Online apenas)",
+            "Kadem Nexo manual",
           ],
         },
         {
@@ -269,6 +270,8 @@ export default {
             "Até 5 membros/projeto",
             "Radio Flow (Online/Offline)",
             "Sync Prioritário",
+            "Kadem Nexo com Open Finance",
+            "300 créditos mensais de IA",
           ],
         },
         {
@@ -282,6 +285,8 @@ export default {
             "Membros Ilimitados",
             "Acesso Total Offline",
             "Suporte Prioritário 24/7",
+            "Kadem Nexo avançado",
+            "1500 créditos mensais de IA",
           ],
         },
       ];
@@ -440,14 +445,14 @@ export default {
 }
 
 .modal-content {
-  background: #ffffff;
+  background: var(--surface-1);
   width: 95%;
   max-width: 450px;
   border-radius: var(--radius-lg);
   padding: 0;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: var(--deep-blue);
+  box-shadow: var(--shadow-elevated);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
   transition: max-width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
   overflow: hidden;
   max-height: 90vh;
@@ -457,13 +462,13 @@ export default {
 
 .modal-content.wide-mode {
   max-width: 1050px;
-  background: #f8fafc;
+  background: var(--surface-1);
 }
 
 .modal-header {
   padding: var(--space-5);
-  background: white;
-  border-bottom: 1px solid #e2e8f0;
+  background: transparent;
+  border-bottom: 1px solid var(--glass-border);
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -472,11 +477,11 @@ export default {
   font-size: 1.6rem;
   font-weight: 800;
   margin: 0;
-  color: var(--gray-800);
+  color: var(--text-primary);
 }
 .subtitle {
   font-size: 1rem;
-  color: var(--text-gray);
+  color: var(--text-secondary);
   margin: 6px 0 0 0;
   font-weight: 500;
 }
@@ -485,10 +490,10 @@ export default {
   border: none;
   cursor: pointer;
   font-size: 1.5rem;
-  color: var(--gray-400);
+  color: var(--text-secondary);
 }
 .close-btn:hover {
-  color: var(--deep-blue);
+  color: var(--text-primary);
 }
 
 .step-content {
@@ -508,9 +513,9 @@ export default {
 }
 
 .plan-card {
-  background: white;
-  border: 2px solid transparent;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  background: var(--surface-2);
+  border: 2px solid var(--glass-border);
+  box-shadow: var(--shadow-card);
   border-radius: var(--radius-md);
   padding: var(--space-5);
   display: flex;
@@ -522,26 +527,26 @@ export default {
 
 .plan-card.is-interactive {
   cursor: pointer;
-  border-color: #e2e8f0;
+  border-color: var(--glass-border);
 }
 
 .plan-card.is-interactive:hover {
-  border-color: #fcd34d;
+  border-color: var(--color-info);
   transform: translateY(-4px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-elevated);
 }
 
 .plan-card.is-selected {
-  border-color: #d4af37 !important;
-  background-color: #fffbeb;
+  border-color: var(--color-info) !important;
+  background-color: var(--surface-3);
   transform: scale(1.02);
-  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.2);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
   z-index: 2;
 }
 
 .plan-card.is-current {
-  border-color: var(--deep-blue) !important;
-  background-color: #f1f5f9;
+  border-color: var(--text-secondary) !important;
+  background-color: var(--surface-3);
   opacity: 1;
 }
 
@@ -549,20 +554,20 @@ export default {
   text-align: center;
   margin-bottom: var(--space-4);
   padding-bottom: var(--space-4);
-  border-bottom: 2px dashed #e2e8f0;
+  border-bottom: 2px dashed var(--glass-border);
 }
 
 .plan-title {
   font-size: 1.25rem;
   font-weight: 800;
-  color: var(--gray-800);
+  color: var(--text-primary);
   margin-bottom: var(--space-2);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .price-wrapper {
-  color: var(--gray-800);
+  color: var(--text-primary);
   margin: var(--space-3) 0;
 }
 .currency {
@@ -578,14 +583,14 @@ export default {
 }
 .free-text {
   font-size: 2.5rem;
-  color: var(--deep-blue);
+  color: var(--color-info);
 }
 .cents {
   font-size: 1.2rem;
   font-weight: 700;
 }
 .period {
-  color: var(--text-gray);
+  color: var(--text-secondary);
   font-size: 0.9rem;
   font-weight: 600;
 }
@@ -604,12 +609,12 @@ export default {
   margin-top: 10px;
 }
 .status-badge.current {
-  background: var(--deep-blue);
-  color: white;
+  background: var(--text-secondary);
+  color: var(--white);
 }
 .status-badge.selected {
-  background: #d4af37;
-  color: white;
+  background: var(--color-info);
+  color: var(--white);
 }
 
 .features-list {
@@ -624,15 +629,15 @@ export default {
   align-items: center;
   margin-bottom: 12px;
   font-size: 0.95rem;
-  color: var(--text-gray);
+  color: var(--text-secondary);
   font-weight: 500;
 }
 .check-icon {
-  color: var(--green);
+  color: var(--color-income);
   font-size: 1rem;
 }
 .plan-card.core .check-icon {
-  color: var(--gray-400);
+  color: var(--text-secondary);
 }
 
 .card-action {
@@ -648,28 +653,28 @@ export default {
   text-transform: uppercase;
 }
 .btn-plan.current {
-  background: #cbd5e1;
-  color: var(--gray-400);
+  background: var(--surface-3);
+  color: var(--text-secondary);
   cursor: not-allowed;
 
   &.is-canceled {
-    background: white !important;
-    border: 2px solid var(--deep-blue) !important;
-    color: var(--deep-blue) !important;
+    background: var(--surface-1) !important;
+    border: 2px solid var(--color-info) !important;
+    color: var(--color-info) !important;
     cursor: pointer !important;
   }
 }
 .btn-plan.select-btn {
-  background: white;
-  border: 2px solid var(--deep-blue);
-  color: var(--deep-blue);
+  background: var(--surface-1);
+  border: 2px solid var(--color-info);
+  color: var(--color-info);
   cursor: pointer;
   transition: all 0.2s;
 }
 .btn-plan.btn-selected {
-  background: #d4af37;
-  border-color: #d4af37;
-  color: white;
+  background: var(--color-info);
+  border-color: var(--color-info);
+  color: var(--white);
 }
 
 .msg {
@@ -678,28 +683,28 @@ export default {
 }
 
 .action-footer {
-  background: white;
-  border-top: 1px solid #e2e8f0;
+  background: var(--surface-2);
+  border-top: 1px solid var(--glass-border);
   padding: var(--space-4) var(--space-5);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-float);
   animation: slide-up 0.3s ease;
 }
 
 .selection-info {
   font-size: 1.1rem;
-  color: var(--gray-400);
+  color: var(--text-secondary);
 }
 .selection-info strong {
-  color: var(--deep-blue);
+  color: var(--text-primary);
   font-weight: 800;
 }
 
 .btn-proceed {
-  background: var(--deep-blue);
-  color: white;
+  background: var(--color-info);
+  color: var(--white);
   padding: 12px 24px;
   border-radius: var(--radius-md);
   font-weight: 700;
@@ -709,22 +714,22 @@ export default {
   display: flex;
   align-items: center;
   gap: 10px;
-  transition: background 0.2s;
+  transition: background 0.2s, filter 0.2s;
 }
 .btn-proceed:hover {
-  background: #1e293b;
+  filter: brightness(1.1);
 }
 .btn-proceed:disabled {
-  background: #94a3b8;
-  color: #f1f5f9;
+  background: var(--surface-3);
+  color: var(--text-secondary);
   cursor: not-allowed;
-  opacity: 1;
+  opacity: 0.6;
 }
 
 .checkout-view {
   justify-content: center;
   align-items: center;
-  background: #f1f5f9;
+  background: var(--surface-1);
   padding: var(--space-4);
 }
 .checkout-container {
@@ -739,27 +744,31 @@ export default {
   gap: 15px;
 }
 .back-link {
-  background: white;
-  border: 1px solid #cbd5e1;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
   padding: 8px 12px;
   border-radius: 8px;
   cursor: pointer;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   font-weight: 600;
   display: flex;
   gap: 6px;
   align-items: center;
 }
+.back-link:hover {
+  background: var(--surface-3);
+}
 .glass-panel {
-  background: white;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
   padding: var(--space-5);
   border-radius: var(--radius-md);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card);
 }
 .summary-row {
   margin-bottom: 20px;
   padding-bottom: 15px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--glass-border);
   font-size: 1.1rem;
   display: flex;
   justify-content: space-between;
@@ -774,7 +783,7 @@ export default {
   text-align: center;
 }
 .cancel-link-sm {
-  color: var(--gray-400);
+  color: var(--text-secondary);
   font-weight: 600;
   text-decoration: underline;
 }

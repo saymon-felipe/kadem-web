@@ -112,20 +112,21 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   padding: 6px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s;
   font-size: var(--fontsize-xs);
-  color: var(--deep-blue);
+  color: var(--text-primary);
   font-weight: 600;
-  backdrop-filter: blur(4px);
+  backdrop-filter: var(--glass-blur);
 }
 
 .status-trigger:hover:not(.disabled) {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--surface-3);
+  color: var(--text-primary);
 }
 
 .status-trigger.disabled {
@@ -151,13 +152,13 @@ export default {
   position: absolute;
   top: calc(100% + 5px);
   left: 0;
-  background: var(--white);
+  background: var(--surface-2);
   border-radius: var(--radius-sm);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-float);
   min-width: 160px;
   z-index: 200;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--glass-border);
 }
 
 .dropdown-content ul {
@@ -173,17 +174,19 @@ export default {
   gap: 8px;
   cursor: pointer;
   font-size: var(--fontsize-xs);
-  color: var(--deep-blue);
-  transition: background 0.1s;
+  color: var(--text-primary);
+  transition: background 0.15s, color 0.15s;
 }
 
 .dropdown-content li:hover {
-  background: #f5f7fa;
+  background: var(--surface-3);
 }
 
 .dropdown-content li.selected {
-  background: #edf2f7;
+  background: var(--surface-3);
   font-weight: 700;
+  border-left: 3px solid var(--color-info);
+  padding-left: 9px;
 }
 
 .status-label {

@@ -179,6 +179,8 @@
       fallback-class="task-fallback"
       ghost-class="task-ghost"
       drag-class="task-drag"
+      @start="on_task_drag_start"
+      @end="on_task_drag_end"
       :delay="0"
       :delay-on-touch-only="true"
       :disabled="is_searching || is_mobile"
@@ -186,13 +188,11 @@
       <template #item="{ element }">
         <KanbanTask :task="element" @click="handle_task_click(element)" />
       </template>
-
-      <template #footer>
-        <div v-if="filtered_tasks.length === 0" class="empty-column-message">
-          <span>Nenhuma tarefa</span>
-        </div>
-      </template>
     </draggable>
+
+    <div v-if="filtered_tasks.length === 0" class="empty-column-message">
+      <span>Nenhuma tarefa</span>
+    </div>
   </div>
 </template>
 
@@ -367,6 +367,12 @@ export default {
       this.search_query = "";
       this.show_search = false;
     },
+    on_task_drag_start() {
+      this.beginGlobalDrag();
+    },
+    on_task_drag_end() {
+      this.endGlobalDrag();
+    },
     on_task_change(event) {
       if (this.is_searching) return;
       if (event.added || event.moved || event.removed) {
@@ -487,11 +493,15 @@ export default {
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2), inset 0 4px 20px rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(5px) saturate(180%);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1);
+}
+
+[data-theme="dark"] .kanban-column {
+  background: rgba(30, 34, 55, 0.4);
 }
 
 .column-header {
@@ -506,6 +516,8 @@ export default {
 
 .column-name {
   font-size: var(--fontsize-sx);
+  font-weight: 600;
+  color: var(--text-primary);
   flex-grow: 1;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -516,7 +528,7 @@ export default {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  color: var(--text-gray);
+  color: var(--text-secondary);
   font-size: var(--fontsize-xs);
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -535,23 +547,25 @@ export default {
   font-weight: 700;
   font-size: inherit;
   text-transform: uppercase;
-  border: 1px solid var(--deep-blue);
+  border: 1px solid var(--color-info);
   border-radius: 4px;
   padding: 2px 4px;
   outline: none !important;
   box-shadow: none !important;
   height: 30px;
+  background: var(--surface-1);
+  color: var(--text-primary);
 }
 
 .column-drag-handle {
   cursor: grab;
-  color: var(--gray-300);
+  color: var(--text-muted);
   padding: 4px;
-  transition: color 0.2s;
+  transition: color var(--transition-fast);
 }
 
 .column-drag-handle:hover {
-  color: var(--deep-blue);
+  color: var(--text-primary);
 }
 
 .column-drag-handle:active {
@@ -559,7 +573,8 @@ export default {
 }
 
 .task-count {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--surface-3);
+  color: var(--text-secondary);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 10px;
@@ -576,20 +591,20 @@ export default {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--gray-100);
+  color: var(--text-secondary);
   padding: 6px;
   border-radius: 5px;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
 .btn-icon:hover,
 .btn-icon.active {
-  background-color: rgba(0, 0, 0, 0.05);
-  color: var(--deep-blue);
+  background-color: var(--surface-3);
+  color: var(--text-primary);
 }
 
 .header-actions .add-btn:hover {
-  color: var(--deep-blue);
+  color: var(--text-primary);
 }
 
 .options-wrapper {
@@ -600,15 +615,15 @@ export default {
   position: absolute;
   top: 100%;
   right: 0;
-  background: var(--white);
+  background: var(--surface-2);
   border-radius: var(--radius-sm);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-float);
   min-width: 140px;
   z-index: 100;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--glass-border);
 }
 
 .options-dropdown button {
@@ -621,20 +636,20 @@ export default {
   align-items: center;
   gap: 8px;
   font-size: var(--fontsize-xs);
-  color: var(--deep-blue);
-  transition: background 0.2s;
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
 }
 
 .options-dropdown button:hover {
-  background: #f5f7fa;
+  background: var(--surface-3);
 }
 
 .options-dropdown button.danger {
-  color: var(--red);
+  color: var(--color-expense);
 }
 
 .options-dropdown button.danger:hover {
-  background: #fff5f5;
+  background: var(--red-high);
 }
 
 .search-wrapper {
@@ -646,17 +661,19 @@ export default {
 .search-input {
   width: 100%;
   padding: 6px 24px 6px 10px;
-  border: 1px solid var(--gray-300);
+  border: 1px solid var(--gray-500);
   border-radius: var(--radius-sm);
   font-size: var(--fontsize-xs);
   outline: none;
   height: 40px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
 .search-input:focus {
-  outline: 2px solid var(--deep-blue);
-  background: var(--white);
+  border-color: var(--color-info);
+  background: var(--surface-0);
 }
 
 .clear-search {
@@ -669,13 +686,13 @@ export default {
   place-items: center;
   background: none;
   border: none;
-  color: var(--gray-300);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 10px;
 }
 
 .clear-search:hover {
-  color: var(--red);
+  color: var(--color-expense);
 }
 
 .task-list {
@@ -700,7 +717,7 @@ export default {
   margin: auto;
   display: grid;
   place-items: center;
-  color: var(--gray-300);
+  color: var(--text-muted);
   font-size: var(--fontsize-xs);
   font-style: italic;
   user-select: none;
@@ -717,17 +734,16 @@ export default {
 .task-ghost {
   opacity: 0.4;
   background: rgba(0, 0, 0, 0.05);
-  border: 2px dashed var(--gray-300);
+  border: 2px dashed var(--text-muted);
   border-radius: var(--radius-md);
   box-shadow: none;
 }
 
 .task-fallback {
-  transition: none !important;
   opacity: 1 !important;
-  background: var(--white);
-  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3) !important;
-  border: 1px solid var(--deep-blue);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-float) !important;
+  border: 1px solid var(--color-info);
   z-index: 9999 !important;
   cursor: grabbing !important;
 }
@@ -736,21 +752,25 @@ export default {
   opacity: 0;
 }
 
+.task-list-anim-move {
+  transition: transform 0.3s ease;
+}
+
 .new-task-wrapper {
   padding: 0 var(--space-3) var(--space-3) var(--space-3);
 }
 
 .new-task-card {
-  background: var(--white);
+  background: var(--surface-2);
   border-radius: var(--radius-md);
   padding: var(--space-3);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-  border: 1px solid transparent;
-  transition: border-color 0.2s;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--glass-border);
+  transition: border-color var(--transition-fast);
 }
 
 .new-task-card:focus-within {
-  border-color: var(--deep-blue);
+  border-color: var(--color-info);
 }
 
 .task-textarea {
@@ -762,12 +782,12 @@ export default {
   outline: none;
   margin-bottom: var(--space-2);
   font-family: inherit;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   background: transparent;
+}
 
-  &:focus {
-    outline: 2px solid var(--deep-blue) !important;
-  }
+.task-textarea:focus {
+  outline: 2px solid var(--color-info) !important;
 }
 
 .new-task-footer {
@@ -779,7 +799,7 @@ export default {
 
 .hint-text {
   font-size: 10px;
-  color: var(--gray-300);
+  color: var(--text-muted);
 }
 
 .assignee-selector-wrapper {
@@ -790,16 +810,16 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--surface-3);
   border: none;
   padding: 2px 8px 2px 2px;
   border-radius: 4px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--transition-fast);
 }
 
 .btn-assignee:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--surface-2);
 }
 
 .avatar-xs {
@@ -811,7 +831,7 @@ export default {
 
 .assignee-label {
   font-size: var(--fontsize-xs);
-  color: var(--deep-blue);
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -820,13 +840,14 @@ export default {
   top: calc(100% + 5px);
   left: 0;
   z-index: 150;
-  background: var(--white);
+  background: var(--surface-2);
   min-width: 160px;
   max-height: 200px;
   overflow-y: auto;
   padding: var(--space-2) 0;
-  box-shadow: var(--boxshadow-default);
+  box-shadow: var(--shadow-float);
   border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
 }
 
 .assignee-dropdown ul {
@@ -842,17 +863,17 @@ export default {
   padding: var(--space-2) var(--space-4);
   cursor: pointer;
   font-size: var(--fontsize-xs);
-  color: var(--deep-blue);
-  transition: background 0.1s;
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
 }
 
 .assignee-dropdown li:hover {
-  background: #f5f7fa;
+  background: var(--surface-3);
 }
 
 .divider {
   border: 0;
-  border-top: 1px solid var(--gray-300);
+  border-top: 1px solid var(--gray-500);
   margin: 4px 0;
   opacity: 0.3;
 }
@@ -868,7 +889,7 @@ export default {
 }
 
 .all-icon {
-  background-color: var(--blue);
+  background-color: var(--color-info);
 }
 
 .any-icon {

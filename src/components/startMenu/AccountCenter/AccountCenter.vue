@@ -256,7 +256,7 @@ export default {
   top: 50%;
   right: 10px;
   transform: translateY(-50%);
-  color: #333;
+  color: var(--text-secondary);
   cursor: pointer;
   opacity: 0.6;
   transition: opacity 0.2s;
@@ -270,7 +270,7 @@ export default {
 
 .password-icon:hover {
   opacity: 1;
-  color: var(--primary-color);
+  color: var(--text-primary);
 }
 
 .vault-unlocked-screen {

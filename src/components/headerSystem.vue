@@ -48,7 +48,7 @@
         <img src="../assets/images/icons/productivity-icon.png" alt="Produtividade" />
       </button>
     </header>
-    <Transition name="popup-anim">
+    <Transition name="start-menu-anim">
       <StartMenu v-if="isStartMenuOpen" />
     </Transition>
     <Transition name="popup-anim">
@@ -220,58 +220,43 @@ export default {
 .plan-pill {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 20px;
+  gap: 6px;
+  padding: 5px 12px;
+  background: var(--plan-pill-bg);
+  border: 1px solid var(--plan-pill-border);
+  border-radius: var(--radius-full);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--fontsize-sx);
   font-weight: 600;
-  color: var(--deep-blue);
-  transition: all 0.2s ease;
-  height: 36px;
-  margin-right: 8px;
+  color: var(--text-primary);
+  transition: all var(--transition-base);
+  height: 34px;
+  margin-right: 6px;
+  white-space: nowrap;
 }
 
 .plan-pill:hover {
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--surface-3);
   transform: translateY(-1px);
+  box-shadow: var(--shadow-xs);
 }
 
 .plan-pill .status-dot {
-  width: 8px;
-  height: 8px;
-  background-color: var(--gray-600);
+  width: 7px;
+  height: 7px;
+  background-color: var(--gray-300);
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .plan-pill.is-pro {
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 255, 255, 0.4));
-  border-color: rgba(212, 175, 55, 0.3);
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), var(--surface-2));
+  border-color: rgba(212, 175, 55, 0.4);
 }
 
 .plan-pill.is-pro .status-dot {
-  background-color: #d4af37;
-  box-shadow: 0 0 5px rgba(212, 175, 55, 0.6);
-}
-
-.popup-anim-enter-active,
-.popup-anim-leave-active {
-  transition: opacity 0.15s ease, max-height 0.15s ease;
-  overflow: hidden;
-}
-
-.popup-anim-enter-from,
-.popup-anim-leave-to {
-  opacity: 0;
-  max-height: 0px;
-}
-
-.popup-anim-enter-to,
-.popup-anim-leave-from {
-  opacity: 1;
-  max-height: 70vh;
+  background: linear-gradient(135deg, #ffd700, #d4af37);
+  box-shadow: 0 0 6px rgba(212, 175, 55, 0.7);
 }
 
 @media (max-width: 1100px) {
@@ -291,30 +276,34 @@ export default {
 }
 
 header {
-  background: rgba(206, 179, 134, 0.24) !important;
+  background: var(--header-bg) !important;
+  border-bottom: 1px solid var(--header-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-6);
+  gap: var(--space-5);
   min-width: fit-content;
   width: 100%;
   margin: 0 auto;
   user-select: none;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  transition: background var(--transition-base), border-color var(--transition-base);
 
   & button {
-    width: 54px;
-    height: 54px;
-    min-width: 54px;
-    min-height: 54px;
-    max-width: 54px;
-    max-height: 54px;
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    min-height: 52px;
+    max-width: 52px;
+    max-height: 52px;
     padding: var(--space-3);
     cursor: pointer;
     background: none;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     border: none;
     margin: var(--space-2);
-    transition: all 0.2s ease-in-out;
+    transition: background var(--transition-base);
     position: relative;
     display: grid;
     place-items: center;
@@ -322,14 +311,14 @@ header {
     &:hover,
     &.opened,
     &.active {
-      background: #d4cbbc;
+      background: var(--header-btn-hover);
     }
 
     &:not(.home).opened::after,
     &:not(.home).active::after {
       content: "";
-      width: 40%;
-      height: 4px;
+      width: 36%;
+      height: 3px;
       border-radius: 2px;
       background: var(--gray-300);
       position: absolute;
@@ -337,16 +326,17 @@ header {
       left: 0;
       right: 0;
       margin: auto;
-      transition: all 0.2s ease-in-out;
+      transition: background var(--transition-base), width var(--transition-base);
     }
 
     &.active::after {
       background: var(--deep-blue-2) !important;
+      width: 50%;
     }
   }
 
   & img {
-    width: 80%;
+    width: 78%;
   }
 }
 

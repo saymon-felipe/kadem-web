@@ -190,6 +190,7 @@ export default {
       const initialMouseX = event.clientX;
       const initialMouseY = event.clientY;
       let startX, startY;
+      let didBeginGlobalDrag = false;
 
       const onMouseMove = (moveEvent) => {
         const movedX = Math.abs(moveEvent.clientX - initialMouseX);
@@ -200,6 +201,8 @@ export default {
           (movedX > CLICK_DRAG_THRESHOLD || movedY > CLICK_DRAG_THRESHOLD)
         ) {
           this.isDragging = true;
+          didBeginGlobalDrag = true;
+          this.beginGlobalDrag();
           let currentPosition = { ...this.windowData.position };
           let currentSize = this.windowData.size || { width: 500, height: 400 };
           if (this.windowData.isMaximized || this.windowData.previousPosition) {
@@ -369,6 +372,7 @@ export default {
           this.isDragging = false;
           this.isRestoring = false;
           this.dragPosition = null;
+          if (didBeginGlobalDrag) this.endGlobalDrag();
           store.setSnapTarget(null);
           document.removeEventListener("mousemove", onMouseMove);
           document.removeEventListener("mouseup", onMouseUp);
@@ -383,6 +387,7 @@ export default {
 
       this.focus();
       this.isResizing = true;
+      this.beginGlobalDrag();
       const store = useWindowStore();
       const initialWindow = this.windowData;
       const startX = event.clientX;
@@ -424,6 +429,7 @@ export default {
         document.removeEventListener("mousemove", onMouseMove);
         document.removeEventListener("mouseup", onMouseUp);
         this.isResizing = false;
+        this.endGlobalDrag();
       };
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
@@ -435,7 +441,7 @@ export default {
 <style scoped>
 .window-wrapper {
   position: absolute;
-  box-shadow: var(--boxshadow-default);
+  box-shadow: var(--shadow-window);
   overflow: hidden;
   pointer-events: auto;
   width: 98%;
@@ -470,17 +476,22 @@ export default {
 
 .window-wrapper.minimized {
   opacity: 0;
+  transform-origin: top center;
   pointer-events: none;
 }
 
+/* Header da janela */
 .window-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   cursor: grab;
   user-select: none;
   border-bottom: 1px solid var(--dark-yellow);
+  background: transparent;
+  transition: border-color var(--transition-base);
+  flex-shrink: 0;
 }
 
 .window-header:active {
@@ -488,46 +499,57 @@ export default {
 }
 
 .window-title {
-  font-weight: bold;
-  font-size: var(--fontsize-sm);
-  color: var(--deep-blue);
+  font-weight: 600;
+  font-size: var(--fontsize-sx);
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+/* Controles da janela */
 .window-controls {
   display: flex;
-  gap: var(--space-2);
-  height: 100%;
+  gap: var(--space-1);
+  flex-shrink: 0;
 }
 
 .window-control-btn {
   background: none;
   border: none;
-  width: 46px;
-  height: 30px;
+  width: 40px;
+  height: 28px;
   padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   cursor: pointer;
-  transition: background-color 0.2s;
-  color: var(--deep-blue);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  color: var(--text-secondary);
   display: grid;
   place-items: center;
 }
 
 .window-control-btn svg {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
 }
 
-.window-control-btn.minimize:hover,
+.window-control-btn.minimize:hover {
+  background: var(--amber-high);
+  color: var(--amber);
+}
+
 .window-control-btn.maximize:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--green-high);
+  color: var(--color-income);
 }
 
 .window-control-btn.close:hover {
-  background: var(--red);
-  color: var(--white);
+  background: var(--red-high);
+  color: var(--color-expense);
 }
 
+/* Conteúdo da janela */
 .window-content {
   padding: var(--space-3);
   height: calc(100% - 47px);
@@ -537,6 +559,7 @@ export default {
   container-name: window-viewport;
 }
 
+/* Handles de resize */
 .resize-handle {
   position: absolute;
   z-index: 10;

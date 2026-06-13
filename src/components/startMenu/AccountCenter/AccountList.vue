@@ -261,6 +261,12 @@ export default {
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+[data-theme="dark"] .credential-field {
+  background-color: transparent;
+  box-shadow: none;
+  border: 1px solid var(--glass-border);
+}
+
 .credential-field .label {
   font-size: var(--fontsize-xs);
   color: var(--deep-blue-2);

@@ -197,8 +197,8 @@ export default {
     },
 
     hero_background() {
-      const cover = this.default_cover;
-      return `background: linear-gradient(to top, rgba(255, 255, 255, 0.7), transparent), url(${cover}) no-repeat right center; background-size: cover;`;
+      const cover = this.playlist.cover || this.default_cover;
+      return `background: linear-gradient(to top, var(--surface-1), transparent), url(${cover}) no-repeat right center; background-size: cover;`;
     },
 
     total_duration_formatted() {
@@ -361,7 +361,7 @@ export default {
   display: flex;
   align-items: end;
   gap: var(--space-5);
-  color: var(--white);
+  color: var(--text-primary);
   position: relative;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   flex-shrink: 0;
@@ -392,7 +392,7 @@ h1 {
 
 .title-input {
   font-weight: 700;
-  color: var(--white);
+  color: var(--text-primary);
   background: rgba(0, 0, 0, 0.2);
   border: none;
   width: 98%;
@@ -408,7 +408,7 @@ h1 {
   gap: var(--space-2);
   font-size: 0.9rem;
   opacity: 0.9;
-  color: var(--deep-blue-2);
+  color: var(--text-secondary);
 }
 
 .separator {
@@ -426,7 +426,7 @@ h1 {
 .btn-options {
   background: rgba(0, 0, 0, 0.3);
   border: none;
-  color: var(--white);
+  color: #ffffff;
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -446,9 +446,10 @@ h1 {
   position: absolute;
   top: 40px;
   right: 0;
-  background: white;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-float);
   width: 150px;
   overflow: hidden;
   z-index: 100;
@@ -462,7 +463,7 @@ h1 {
   border: none;
   text-align: left;
   cursor: pointer;
-  color: var(--deep-blue);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -471,11 +472,11 @@ h1 {
 }
 
 .dropdown-item:hover {
-  background: var(--background-gray);
+  background: var(--surface-3);
 }
 
 .dropdown-item.danger {
-  color: var(--red);
+  color: var(--color-expense);
 }
 
 @container (max-width: 1100px) {
