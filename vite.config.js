@@ -33,7 +33,7 @@ export default defineConfig(({ mode }) => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
           runtimeCaching: [
             {
-              urlPattern: new RegExp(`^(${origins_regex_part}).*\/api\/system$`),
+              urlPattern: new RegExp(`^(${origins_regex_part}).*/api/system$`),
               handler: 'NetworkFirst',
               options: {
                 cacheName: 'api-system-cache',
@@ -44,7 +44,7 @@ export default defineConfig(({ mode }) => {
               }
             },
             {
-              urlPattern: new RegExp(`^(${origins_regex_part}).*\/system\/proxy-image`),
+              urlPattern: new RegExp(`^(${origins_regex_part}).*/system/proxy-image`),
               handler: 'CacheFirst',
               options: {
                 cacheName: 'youtube-images-cache',

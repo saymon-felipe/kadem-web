@@ -77,6 +77,17 @@ export const financeService = {
     return response(local);
   },
 
+  async createTransactionsBatch(transactions) {
+    const cleanTransactions = transactions.map((item) => JSON.parse(JSON.stringify(item)));
+    const local = await financeRepository.createLocalTransactionsBatch(cleanTransactions);
+    await enqueue("CREATE_FINANCE_TRANSACTIONS_BATCH", {
+      local_ids: local.map((item) => item.local_id),
+      transactions: cleanTransactions,
+    });
+    return response(local);
+  },
+
+
   async updateTransaction(id, data) {
     const local = await financeRepository.updateLocalTransaction(id, data);
     await enqueue("UPDATE_FINANCE_TRANSACTION", { id, local_id: local?.local_id, data });
@@ -193,5 +204,8 @@ export const financeService = {
   },
   getUsage() {
     return api.get("/finance/ai/usage");
+  },
+  analyzeCsvSchema(data) {
+    return api.post("/finance/ai/analyze-csv-schema", data);
   },
 };

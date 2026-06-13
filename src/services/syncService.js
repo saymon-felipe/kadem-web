@@ -712,9 +712,17 @@ const resolveBudgetGroupsForServer = async (groups = []) => {
     const items = [];
     for (const item of group.items || []) {
       const categoryId = await resolveFinanceEntityId('finance_categories', item.category_id);
-      items.push({ ...item, category_id: categoryId });
+      items.push({
+        category_id: categoryId,
+        amount: Number(item.amount || 0),
+        type: item.type || "EXPENSE",
+      });
     }
-    resolved.push({ ...group, macro_category_id: macroId, items });
+    resolved.push({
+      macro_category_id: macroId,
+      planned_amount: Number(group.planned_amount || 0),
+      items,
+    });
   }
   return resolved;
 };
@@ -728,6 +736,18 @@ async function _handleFinanceTask(task) {
       await updateFinanceLocalRecord('finance_transactions', payload.local_id, response.data);
       return;
     }
+    case 'CREATE_FINANCE_TRANSACTIONS_BATCH': {
+      const response = await api.post('/finance/transactions/batch', { transactions: payload.transactions });
+      if (Array.isArray(response.data)) {
+        for (let i = 0; i < response.data.length; i++) {
+          const serverData = response.data[i];
+          const localId = payload.local_ids[i];
+          await updateFinanceLocalRecord('finance_transactions', localId, serverData);
+        }
+      }
+      return;
+    }
+
     case 'UPDATE_FINANCE_TRANSACTION': {
       const id = await resolveFinanceServerId('finance_transactions', payload);
       const response = await api.put(`/finance/transactions/${id}`, payload.data);
@@ -858,8 +878,13 @@ export const syncService = {
         });
 
         let hadDeferredDependency = false;
+        let hadFailure = false;
 
         for (const task of sortedTasks) {
+          if (hadFailure) {
+            console.log(`[SyncService] Sincronização interrompida devido a falha anterior.`);
+            break;
+          }
           await delay(50);
 
           try {
@@ -899,8 +924,13 @@ export const syncService = {
               await syncQueueRepository.updateTask(task.id, {
                 retry_count: new_count
               });
+              hadFailure = true;
             }
           }
+        }
+
+        if (hadFailure) {
+          break;
         }
 
         if (hadDeferredDependency) {

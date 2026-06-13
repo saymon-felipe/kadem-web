@@ -14,8 +14,8 @@
           <div class="icon-wrapper gradient-blue">
             <font-awesome-icon icon="chart-simple" />
           </div>
-          <span>Kadem Nexo</span>
-          <p>Finanças pessoais e MEI.</p>
+          <span>Nexo</span>
+          <p>Gerenciamento de finanças</p>
         </div>
 
         <div class="app-card disabled">

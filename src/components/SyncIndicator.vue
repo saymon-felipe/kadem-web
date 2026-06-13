@@ -31,6 +31,17 @@ export default {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
+[data-theme="dark"] .sync-indicator {
+    background-image: none;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    color: var(--yellow);
+}
+
+
 .sync-fade-enter-active,
 .sync-fade-leave-active {
     transition: opacity 0.3s ease, transform 0.3s ease;

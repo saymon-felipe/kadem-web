@@ -1,6 +1,6 @@
 <template>
     <svg class="loading-spinner" viewBox="0 0 50 50">
-        <circle class="spinner-path" :style="'stroke: var(--' + type + ')'" cx="25" cy="25" r="20" fill="none"
+        <circle class="spinner-path" :style="type ? 'stroke: var(--' + type + ')' : ''" cx="25" cy="25" r="20" fill="none"
             stroke-width="5"></circle>
     </svg>
 </template>
@@ -18,7 +18,7 @@ export default {
 }
 
 .spinner-path {
-    stroke: var(--yellow);
+    stroke: var(--spinner-color, var(--yellow));
     stroke-linecap: round;
     animation: spinner-dash 1.5s ease-in-out infinite;
 }

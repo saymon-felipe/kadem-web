@@ -91,9 +91,9 @@
             <section class="panel">
               <div class="panel-title">
                 <h3>Movimentos</h3>
-                <button class="text-btn" :disabled="!canUseAi" @click="autoCategorize">
-                  <font-awesome-icon icon="chart-simple" />
-                  Categorizar IA
+                <button class="text-btn" :disabled="!canUseAi || categorizingAi" @click="autoCategorize">
+                  <font-awesome-icon :icon="categorizingAi ? 'circle-notch' : 'chart-simple'" :spin="categorizingAi" />
+                  {{ categorizingAi ? 'Categorizando...' : 'Categorizar IA' }}
                 </button>
               </div>
               <div class="transaction-tools">
@@ -139,25 +139,16 @@
                       <span v-if="csvImportFileName">{{ csvImportFileName }}</span>
                       <span v-else>Banco, cartão ou planilha</span>
                     </div>
-                    <div class="inline-actions">
-                      <label class="csv-positive-mode">
-                        <span>Valor positivo</span>
-                        <select v-model="csvPositiveType" :disabled="!csvRawRows.length || importingCsv"
-                          @change="buildCsvPreview">
-                          <option value="EXPENSE">Saída</option>
-                          <option value="INCOME">Entrada</option>
-                        </select>
-                      </label>
-                      <button class="text-btn" type="button" @click="triggerCsvPicker" :disabled="importingCsv">
+                      <button class="text-btn" type="button" @click="triggerCsvPicker" :disabled="importingCsv || loadingSchema">
                         <font-awesome-icon icon="file-import" />
-                        CSV
+                        Importar CSV
                       </button>
-                    </div>
                     <input ref="csvInput" class="visually-hidden" type="file" accept=".csv,text/csv"
                       @change="handleCsvFileChange" />
                   </div>
 
                   <p v-if="csvImportError" class="import-feedback error">{{ csvImportError }}</p>
+                  <p v-if="loadingSchema" class="import-feedback"><font-awesome-icon icon="circle-notch" spin /> Analisando padrão do CSV com IA...</p>
                   <div v-if="csvImportRows.length" class="csv-preview">
                     <div class="csv-preview-summary">
                       <span>{{ csvImportRows.length }} movimentos prontos</span>
@@ -210,7 +201,10 @@
                       <td>{{ shortDate(transaction.transaction_date) }}</td>
                       <td>{{ transaction.description }}</td>
                       <td>
-                        <CategoryCombo :model-value="transaction.category_id" :categories="categories"
+                        <span v-if="categorizingIds.includes(transaction.id)" class="categorizing-loading-text">
+                          <font-awesome-icon icon="circle-notch" spin /> Categorizando...
+                        </span>
+                        <CategoryCombo v-else :model-value="transaction.category_id" :categories="categories"
                           placeholder="Sem categoria"
                           @update:modelValue="updateTransaction(transaction.id, { category_id: $event })" />
                       </td>
@@ -218,15 +212,18 @@
                       <td class="right">
                         <strong :class="transaction.type">{{ signedMoney(transaction) }}</strong>
                       </td>
-                      <td class="row-actions">
-                        <button class="icon-btn small" @click="toggleIgnored(transaction)" title="Ignorar">
-                          <font-awesome-icon :icon="transaction.is_ignored ? 'eye-slash' : 'eye'" />
-                        </button>
-                        <button class="icon-btn small danger" @click="deleteTransaction(transaction.id)"
-                          title="Excluir">
-                          <font-awesome-icon icon="trash" />
-                        </button>
+                      <td>
+                        <div class="row-actions">
+                          <button class="icon-btn small" @click="toggleIgnored(transaction)" title="Ignorar">
+                            <font-awesome-icon :icon="transaction.is_ignored ? 'eye-slash' : 'eye'" />
+                          </button>
+                          <button class="icon-btn small danger" @click="deleteTransaction(transaction.id)"
+                            title="Excluir">
+                            <font-awesome-icon icon="trash" />
+                          </button>
+                        </div>
                       </td>
+
                     </tr>
                   </tbody>
                 </table>
@@ -347,7 +344,7 @@
                     <article v-for="item in group.items" :key="item._key" class="budget-child-row">
                       <label class="budget-labeled-control">
                         <span>Subcategoria</span>
-                        <CategoryCombo v-model="item.category_id" :categories="categoriesForMacro(group)"
+                        <CategoryCombo v-model="item.category_id" :categories="availableCategoriesForMacro(group, item)"
                           placeholder="Selecionar categoria" @change="syncBudgetItemType(item)" />
                       </label>
                       <label class="budget-labeled-control">
@@ -720,6 +717,7 @@ import { mapState } from "pinia";
 import { useAuthStore } from "@/stores/auth";
 import { financeService } from "@/services/financeService";
 import { getPlanLimits } from "@/services/subscription_plans";
+import { db } from "@/db";
 import SubscriptionModal from "@/components/SubscriptionModal.vue";
 import CategoryCombo from "./CategoryCombo.vue";
 import MacroCategoryCombo from "./MacroCategoryCombo.vue";
@@ -757,6 +755,7 @@ export default {
       loadingAi: false,
       savingQuick: false,
       importingCsv: false,
+      loadingSchema: false,
       showTransactionForm: false,
       showCategoryForm: false,
       showMacroForm: false,
@@ -830,7 +829,8 @@ export default {
       csvRawRows: [],
       csvImportRows: [],
       csvSkippedRows: 0,
-      csvPositiveType: "EXPENSE",
+      categorizingAi: false,
+      categorizingIds: [],
       tabs: [
         { id: "overview", label: "Visão", icon: "chart-simple" },
         { id: "transactions", label: "Movimentos", icon: "list" },
@@ -919,8 +919,10 @@ export default {
       };
     },
     csvImportTotals() {
+      if (!Array.isArray(this.csvImportRows)) return { income: 0, expense: 0 };
       return this.csvImportRows.reduce(
         (acc, row) => {
+          if (!row) return acc;
           const amount = Number(row.amount || 0);
           if (row.type === "INCOME") acc.income += amount;
           else acc.expense += amount;
@@ -1010,10 +1012,15 @@ export default {
       this.activeTab = tabId;
     },
     money(value) {
-      return Number(value || 0).toLocaleString("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-      });
+      try {
+        const num = Number(value || 0);
+        return (Number.isFinite(num) ? num : 0).toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        });
+      } catch {
+        return "R$ 0,00";
+      }
     },
     parseMoneyInput(rawValue) {
       const digits = String(rawValue || "").replace(/\D/g, "");
@@ -1028,7 +1035,13 @@ export default {
     },
     shortDate(value) {
       if (!value) return "--";
-      return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+      try {
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return "--";
+        return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+      } catch {
+        return "--";
+      }
     },
     categoryLabel(transaction) {
       return transaction.category_name || "Sem categoria";
@@ -1241,8 +1254,12 @@ export default {
         this.savingQuick = false;
       }
     },
+    getRefElement(ref) {
+      if (!ref) return null;
+      return Array.isArray(ref) ? ref[0] : ref;
+    },
     triggerCsvPicker() {
-      this.$refs.csvInput?.click();
+      this.getRefElement(this.$refs.csvInput)?.click();
     },
     resetCsvImport() {
       this.csvImportError = "";
@@ -1250,35 +1267,227 @@ export default {
       this.csvRawRows = [];
       this.csvImportRows = [];
       this.csvSkippedRows = 0;
-      if (this.$refs.csvInput) this.$refs.csvInput.value = "";
+      this.loadingSchema = false;
+      const csvInput = this.getRefElement(this.$refs.csvInput);
+      if (csvInput) csvInput.value = "";
     },
     async handleCsvFileChange(event) {
       const [file] = event.target.files || [];
       if (!file) return;
       this.csvImportError = "";
       this.csvImportFileName = file.name;
+      this.csvRawRows = [];
+      this.csvImportRows = [];
+      this.loadingSchema = true;
 
       try {
         const text = await file.text();
-        this.csvRawRows = this.parseCsv(text);
-        this.buildCsvPreview();
+        const clean = String(text || "").replace(/^\uFEFF/, "").trim();
+        const lines = clean.split(/\r?\n/).filter((line) => line.trim());
+        if (lines.length < 2) {
+          throw new Error("O CSV precisa ter cabeçalho e pelo menos uma linha.");
+        }
+
+        const header = lines[0];
+        const samples = lines.slice(1, 4); // Take up to 3 lines
+
+        // Check local storage cache for this header to save credits and ensure determinism
+        const cacheKey = `kadem:nexo:csv-schema:${this.normalizeKey(header)}`;
+        let schema = null;
+        try {
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) {
+            schema = JSON.parse(cached);
+            console.log("[CSV Import] Reusing cached schema:", schema);
+          }
+        } catch (err) {
+          console.warn("[CSV Import] Failed to read cached schema:", err);
+        }
+
+        if (!schema) {
+          // Send to backend for schema analysis
+          const response = await financeService.analyzeCsvSchema({ header, samples });
+          schema = response.data;
+          if (!schema || !schema.dateColumn || !schema.descriptionColumn || !schema.amountColumn) {
+            throw new Error("A IA não conseguiu determinar o esquema de colunas deste CSV.");
+          }
+          // Save to cache
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(schema));
+            console.log("[CSV Import] Cached new schema:", schema);
+          } catch (err) {
+            console.warn("[CSV Import] Failed to cache schema:", err);
+          }
+        }
+
+        await this.parseCsvWithSchema(lines, schema);
       } catch (error) {
         this.csvImportRows = [];
-        this.csvImportError = error.message || "Não foi possível ler o CSV.";
+        this.csvImportError = error.response?.data?.message || error.message || "Não foi possível processar o CSV.";
+      } finally {
+        this.loadingSchema = false;
+        const csvInput = this.getRefElement(this.$refs.csvInput);
+        if (csvInput) csvInput.value = "";
       }
     },
-    buildCsvPreview() {
+    cleanCsvCell(val) {
+      if (typeof val !== 'string') return '';
+      let clean = val.trim();
+      // Remove enclosing quotes
+      while ((clean.startsWith('"') && clean.endsWith('"')) || (clean.startsWith("'") && clean.endsWith("'"))) {
+        clean = clean.substring(1, clean.length - 1).trim();
+      }
+      // Remove any leftover outer quotes or weird trailing quotes
+      clean = clean.replace(/^['"]|['"]$/g, '').trim();
+      return clean;
+    },
+    normalizeKey(key) {
+      return String(key || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "")
+        .trim();
+    },
+    async parseCsvWithSchema(lines, schema) {
+      const delimiter = schema.delimiter || this.detectCsvDelimiter(lines[0]);
+      const rawHeaders = this.splitCsvLine(lines[0], delimiter).map(h => this.cleanCsvCell(h));
+
+      // Find indices of columns
+      const dateIdx = rawHeaders.findIndex(h => this.normalizeKey(h) === this.normalizeKey(schema.dateColumn));
+      const descIdx = rawHeaders.findIndex(h => this.normalizeKey(h) === this.normalizeKey(schema.descriptionColumn));
+      const amountIdx = rawHeaders.findIndex(h => this.normalizeKey(h) === this.normalizeKey(schema.amountColumn));
+      const typeIdx = schema.typeColumn ? rawHeaders.findIndex(h => this.normalizeKey(h) === this.normalizeKey(schema.typeColumn)) : -1;
+
+      if (dateIdx === -1 || descIdx === -1 || amountIdx === -1) {
+        throw new Error("Não foi possível mapear as colunas essenciais do CSV com o esquema detectado.");
+      }
+
+      // Build local history category memory on the fly
+      const localTxs = await db.finance_transactions.toArray();
+      const normalizeDesc = (desc) => {
+        return String(desc || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      };
+      const freqMap = {};
+      for (const tx of localTxs) {
+        if (tx.category_id && !tx.is_ignored) {
+          const norm = normalizeDesc(tx.description);
+          if (norm) {
+            if (!freqMap[norm]) freqMap[norm] = {};
+            const cid = Number(tx.category_id);
+            freqMap[norm][cid] = (freqMap[norm][cid] || 0) + 1;
+          }
+        }
+      }
+      const descriptionMemory = {};
+      for (const norm in freqMap) {
+        let maxCount = 0;
+        let bestId = null;
+        for (const cid in freqMap[norm]) {
+          if (freqMap[norm][cid] > maxCount) {
+            maxCount = freqMap[norm][cid];
+            bestId = Number(cid);
+          }
+        }
+        if (bestId) {
+          descriptionMemory[norm] = bestId;
+        }
+      }
+
       const rows = [];
       let skipped = 0;
 
-      this.csvRawRows.forEach((row, index) => {
-        const mapped = this.mapCsvRowToTransaction(row, index + 2);
-        if (mapped) rows.push(mapped);
-        else skipped += 1;
-      });
+      const normFn = this.normalize;
+      // Standard keywords for Brazilian Portuguese banking to guarantee determinism
+      const stdIncome = ["recebido", "resgatado", "credito", "entrada", "estorno", "rendimento", "deposito", "salario"];
+      const stdExpense = ["pago", "enviado", "compra", "debito", "saida", "pagamento", "tarifa", "iof", "juros"];
+
+      for (let index = 1; index < lines.length; index += 1) {
+        const line = lines[index].trim();
+        if (!line) continue;
+
+        const values = this.splitCsvLine(line, delimiter).map(val => this.cleanCsvCell(val));
+
+        const rawDate = dateIdx >= 0 ? values[dateIdx] : "";
+        const rawDesc = descIdx >= 0 ? values[descIdx] : "";
+        const rawAmount = amountIdx >= 0 ? values[amountIdx] : "";
+        const rawType = typeIdx >= 0 ? values[typeIdx] : "";
+
+        const date = this.parseCsvDate(rawDate);
+        const description = rawDesc;
+        const parsedAmount = this.parseCsvSignedAmount(rawAmount);
+
+        if (!date || !description || !parsedAmount.amount) {
+          skipped += 1;
+          continue;
+        }
+
+        let type = null;
+        if (parsedAmount.negative) {
+          type = "EXPENSE";
+        } else {
+          const normalizedTypeVal = normFn(rawType || "");
+          const normalizedDesc = normFn(description || "");
+
+          const isIncomePattern = (str) => {
+            if (!str) return false;
+            const norm = normFn(str);
+            const patterns = [...(schema.incomePatterns || []), ...stdIncome];
+            return patterns.some(pat => {
+              const normPat = normFn(pat);
+              return norm.includes(normPat);
+            });
+          };
+
+          const isExpensePattern = (str) => {
+            if (!str) return false;
+            const norm = normFn(str);
+            const patterns = [...(schema.expensePatterns || []), ...stdExpense];
+            return patterns.some(pat => {
+              const normPat = normFn(pat);
+              return norm.includes(normPat);
+            });
+          };
+
+          if (isIncomePattern(normalizedTypeVal) || isIncomePattern(normalizedDesc)) {
+            type = "INCOME";
+          } else if (isExpensePattern(normalizedTypeVal) || isExpensePattern(normalizedDesc)) {
+            type = "EXPENSE";
+          } else {
+            type = schema.defaultPositiveType || "EXPENSE";
+          }
+        }
+
+        // Try mapping category from memory first
+        const normDescVal = normalizeDesc(description);
+        let categoryId = descriptionMemory[normDescVal] || null;
+
+        // Fall back to name matching if not found in memory
+        if (!categoryId) {
+          const category = this.findCategoryByName(description, type);
+          categoryId = category?.id || null;
+        }
+
+        rows.push({
+          description: description.slice(0, 255) || `Movimento CSV ${index + 1}`,
+          amount: parsedAmount.amount,
+          type,
+          category_id: categoryId,
+          transaction_date: date,
+          status: "PAID",
+          source: "IMPORT",
+        });
+      }
 
       this.csvImportRows = rows;
       this.csvSkippedRows = skipped;
+
       if (!rows.length) {
         this.csvImportError = "Nenhum movimento válido foi encontrado no CSV.";
       } else if (skipped) {
@@ -1286,22 +1495,6 @@ export default {
       } else {
         this.csvImportError = "";
       }
-    },
-    parseCsv(text) {
-      const clean = String(text || "").replace(/^\uFEFF/, "").trim();
-      const lines = clean.split(/\r?\n/).filter((line) => line.trim());
-      if (lines.length < 2) throw new Error("O CSV precisa ter cabeçalho e pelo menos uma linha.");
-
-      const delimiter = this.detectCsvDelimiter(lines[0]);
-      const headers = this.splitCsvLine(lines[0], delimiter).map((header) => this.normalizeCsvKey(header));
-
-      return lines.slice(1).map((line) => {
-        const values = this.splitCsvLine(line, delimiter);
-        return headers.reduce((row, key, index) => {
-          if (key) row[key] = values[index] || "";
-          return row;
-        }, {});
-      });
     },
     detectCsvDelimiter(headerLine) {
       const options = [";", ",", "\t"];
@@ -1334,74 +1527,6 @@ export default {
       values.push(current.trim());
       return values;
     },
-    normalizeCsvKey(value) {
-      return this.normalize(value).replace(/[^a-z0-9]/g, "");
-    },
-    csvValue(row, aliases) {
-      const key = aliases.find((alias) => row[this.normalizeCsvKey(alias)] !== undefined);
-      return key ? row[this.normalizeCsvKey(key)] : "";
-    },
-    mapCsvRowToTransaction(row, rowNumber) {
-      const date = this.parseCsvDate(this.csvValue(row, [
-        "data",
-        "date",
-        "dt",
-        "transaction_date",
-        "data_transacao",
-        "data da transacao",
-      ]));
-      const description = this.csvValue(row, [
-        "descricao",
-        "descrição",
-        "description",
-        "historico",
-        "histórico",
-        "memo",
-        "titulo",
-        "title",
-        "estabelecimento",
-        "merchant",
-      ]).trim();
-      const amountRaw = this.csvValue(row, ["valor", "amount", "value", "quantia", "montante"]);
-      const incomeRaw = this.csvValue(row, ["entrada", "credito", "crédito", "credit", "receita", "income"]);
-      const expenseRaw = this.csvValue(row, ["saida", "saída", "debito", "débito", "debit", "despesa", "expense"]);
-      const typeRaw = this.normalize(this.csvValue(row, ["tipo", "type", "natureza"]));
-      const categoryName = this.csvValue(row, ["categoria", "category", "categoria_nome"]);
-
-      const parsed = this.resolveCsvAmount({ amountRaw, incomeRaw, expenseRaw, typeRaw });
-      if (!date || !description || !parsed.amount) return null;
-
-      const category = this.findCategoryByName(categoryName, parsed.type);
-      return {
-        description: description.slice(0, 255) || `Movimento CSV ${rowNumber}`,
-        amount: parsed.amount,
-        type: parsed.type,
-        category_id: category?.id || null,
-        transaction_date: date,
-        status: "PAID",
-        source: "IMPORT",
-      };
-    },
-    resolveCsvAmount({ amountRaw, incomeRaw, expenseRaw, typeRaw }) {
-      const income = this.parseCsvAmount(incomeRaw);
-      const expense = this.parseCsvAmount(expenseRaw);
-
-      if (income > 0) return { amount: income, type: "INCOME" };
-      if (expense > 0) return { amount: expense, type: "EXPENSE" };
-
-      const signed = this.parseCsvSignedAmount(amountRaw);
-      if (!signed.amount) return { amount: 0, type: this.csvPositiveType };
-      if (typeRaw.includes("entrada") || typeRaw.includes("receita") || typeRaw.includes("income") || typeRaw.includes("credito")) {
-        return { amount: signed.amount, type: "INCOME" };
-      }
-      if (typeRaw.includes("saida") || typeRaw.includes("despesa") || typeRaw.includes("expense") || typeRaw.includes("debito")) {
-        return { amount: signed.amount, type: "EXPENSE" };
-      }
-      return { amount: signed.amount, type: signed.negative ? "EXPENSE" : this.csvPositiveType };
-    },
-    parseCsvAmount(rawValue) {
-      return this.parseCsvSignedAmount(rawValue).amount;
-    },
     parseCsvSignedAmount(rawValue) {
       const raw = String(rawValue || "").trim();
       if (!raw) return { amount: 0, negative: false };
@@ -1429,7 +1554,7 @@ export default {
       const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
       if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
 
-      const brMatch = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+      const brMatch = raw.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/);
       if (brMatch) {
         const year = brMatch[3].length === 2 ? `20${brMatch[3]}` : brMatch[3];
         return `${year}-${brMatch[2].padStart(2, "0")}-${brMatch[1].padStart(2, "0")}`;
@@ -1450,15 +1575,23 @@ export default {
       if (!this.csvImportRows.length) return;
       this.importingCsv = true;
       try {
-        for (const row of this.csvImportRows) {
-          await financeService.createTransaction(row);
-        }
+        const cleanRows = this.csvImportRows.map((row) => ({
+          description: String(row.description || ""),
+          amount: Number(row.amount || 0),
+          type: String(row.type || "EXPENSE"),
+          category_id: row.category_id ? Number(row.category_id) : null,
+          transaction_date: String(row.transaction_date),
+          status: "PAID",
+          source: "IMPORT",
+        }));
+        await financeService.createTransactionsBatch(cleanRows);
         this.resetCsvImport();
         await this.loadDashboard();
       } finally {
         this.importingCsv = false;
       }
     },
+
     async updateTransaction(id, data) {
       await financeService.updateTransaction(id, data);
       await this.loadDashboard();
@@ -1479,8 +1612,25 @@ export default {
     categoriesForMacro(group) {
       return this.categories.filter((category) => this.normalize(category.macro_category) === this.normalize(group.macro_category));
     },
+    availableCategoriesForMacro(group, currentItem) {
+      const allCategoriesForMacro = this.categoriesForMacro(group);
+      const usedCategoryIds = new Set();
+      this.budgets.forEach((g) => {
+        (g.items || []).forEach((item) => {
+          if (item.category_id && item.category_id !== currentItem?.category_id) {
+            usedCategoryIds.add(Number(item.category_id));
+          }
+        });
+      });
+      return allCategoriesForMacro.filter((category) => !usedCategoryIds.has(Number(category.id)));
+    },
     nextBudgetCategoryId(group) {
-      const used = new Set(group.items.map((item) => Number(item.category_id)).filter(Boolean));
+      const used = new Set();
+      this.budgets.forEach((g) => {
+        (g.items || []).forEach((item) => {
+          if (item.category_id) used.add(Number(item.category_id));
+        });
+      });
       const candidate = this.categoriesForMacro(group).find((category) => !used.has(Number(category.id)));
       return candidate?.id || null;
     },
@@ -1546,12 +1696,16 @@ export default {
         .filter((group) => group.macro_category_id)
         .map((group) => ({
           macro_category_id: group.macro_category_id,
+          macro_category: group.macro_category,
+          macro_color: group.macro_color,
           planned_amount: Number(group.planned_amount || 0),
+          actual_amount: Number(group.actual_amount || 0),
           items: group.items
             .filter((item) => item.category_id && Number(item.amount) >= 0)
             .map((item) => ({
               category_id: item.category_id,
               amount: Number(item.amount || 0),
+              actual_amount: Number(item.actual_amount || 0),
               type: this.findCategory(item.category_id)?.type || item.type || "EXPENSE",
             })),
         }));
@@ -1670,8 +1824,101 @@ export default {
         this.showPlanModal = true;
         return;
       }
-      await financeService.autoCategorize({ transaction_ids: this.transactions.map((item) => item.id) });
-      await Promise.all([this.loadDashboard(), this.loadUsage()]);
+
+      this.categorizingAi = true;
+      this.categorizingIds = [];
+
+      try {
+        // 1. Identify all uncategorized transactions currently on the screen/dashboard
+        const targetTransactions = this.transactions.filter(
+          (t) => !t.category_id && !t.is_ignored
+        );
+
+        if (targetTransactions.length === 0) {
+          // No items to categorize
+          return;
+        }
+
+        // Helper to normalize transaction descriptions for matching
+        const normalizeDesc = (desc) => {
+          return String(desc || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "") // Remove accents/diacritics
+            .replace(/[^a-z0-9]/g, " ")      // Replace special characters and punctuation with spaces
+            .replace(/\s+/g, " ")            // Collapse multiple spaces
+            .trim();
+        };
+
+        // 2. Fetch all local transactions from Dexie database to build the description category frequency map
+        const localTxs = await db.finance_transactions.toArray();
+        const freqMap = {}; // normalizedDesc -> { categoryId -> count }
+        for (const tx of localTxs) {
+          // If transaction has an active, valid category and is not ignored
+          if (tx.category_id && !tx.is_ignored) {
+            const norm = normalizeDesc(tx.description);
+            if (norm) {
+              if (!freqMap[norm]) freqMap[norm] = {};
+              const catId = Number(tx.category_id);
+              freqMap[norm][catId] = (freqMap[norm][catId] || 0) + 1;
+            }
+          }
+        }
+
+        // Select the most frequent category for each normalized description
+        const descriptionMemory = {};
+        for (const norm in freqMap) {
+          let maxCount = 0;
+          let bestCatId = null;
+          for (const catId in freqMap[norm]) {
+            if (freqMap[norm][catId] > maxCount) {
+              maxCount = freqMap[norm][catId];
+              bestCatId = Number(catId);
+            }
+          }
+          if (bestCatId) {
+            descriptionMemory[norm] = bestCatId;
+          }
+        }
+
+        // 3. Separate transactions into those resolvable locally and those requiring AI
+        const localMatchUpdates = [];
+        const remainingIds = [];
+
+        for (const tx of targetTransactions) {
+          const norm = normalizeDesc(tx.description);
+          const matchedCategoryId = descriptionMemory[norm];
+          if (matchedCategoryId) {
+            localMatchUpdates.push({ id: tx.id, category_id: matchedCategoryId });
+          } else {
+            remainingIds.push(tx.id);
+          }
+        }
+
+        // 4. Update locally resolved transactions immediately
+        if (localMatchUpdates.length > 0) {
+          console.log(`[CategorizeMemory] Resolving ${localMatchUpdates.length} transactions locally from memory...`);
+          for (const update of localMatchUpdates) {
+            await financeService.updateTransaction(update.id, { category_id: update.category_id });
+          }
+        }
+
+        // 5. Send remaining transactions to the AI backend if any exist
+        if (remainingIds.length > 0) {
+          console.log(`[CategorizeMemory] Requesting AI categorization for ${remainingIds.length} unknown transactions...`);
+          this.categorizingIds = [...remainingIds];
+          await financeService.autoCategorize({ transaction_ids: remainingIds });
+        } else {
+          console.log(`[CategorizeMemory] All ${localMatchUpdates.length} transactions resolved from history! Bypassed AI call.`);
+        }
+
+        await Promise.all([this.loadDashboard(), this.loadUsage()]);
+      } catch (err) {
+        console.error("Erro na categorização:", err);
+      } finally {
+        this.categorizingIds = [];
+        this.categorizingAi = false;
+      }
     },
     openBudgetPlanModal() {
       if (!this.canUseAi) {
@@ -3332,5 +3579,14 @@ tr.ignored {
   .budget-group-totals {
     grid-template-columns: 1fr;
   }
+}
+
+.categorizing-loading-text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
 }
 </style>

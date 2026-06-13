@@ -16,19 +16,13 @@
 
         <div v-if="step === 1" class="step-content pricing-view">
           <div class="plans-grid">
-            <div
-              v-for="plan in available_plans"
-              :key="plan.id"
-              class="plan-card"
-              :class="{
-                'is-current': user_plan_tier === plan.id,
-                'is-selected':
-                  selected_plan_id === plan.id &&
-                  (user_plan_tier !== plan.id || is_canceled_plan),
-                'is-interactive': user_plan_tier !== plan.id && !is_canceled_plan,
-              }"
-              @click="handle_card_selection(plan.id)"
-            >
+            <div v-for="plan in available_plans" :key="plan.id" class="plan-card" :class="{
+              'is-current': user_plan_tier === plan.id,
+              'is-selected':
+                selected_plan_id === plan.id &&
+                (user_plan_tier !== plan.id || is_canceled_plan),
+              'is-interactive': user_plan_tier !== plan.id && !is_canceled_plan,
+            }" @click="handle_card_selection(plan.id)">
               <div class="card-header">
                 <h3 class="plan-title">{{ plan.name }}</h3>
 
@@ -43,10 +37,7 @@
                 <span v-if="user_plan_tier === plan.id" class="status-badge current">
                   <font-awesome-icon icon="check-circle" /> Atual
                 </span>
-                <span
-                  v-else-if="selected_plan_id === plan.id"
-                  class="status-badge selected"
-                >
+                <span v-else-if="selected_plan_id === plan.id" class="status-badge selected">
                   Selecionado
                 </span>
               </div>
@@ -59,47 +50,28 @@
               </ul>
 
               <div class="card-action">
-                <button
-                  v-if="user_plan_tier === plan.id"
-                  class="btn-plan current"
-                  :class="is_canceled_plan ? 'is-canceled' : ''"
-                  :disabled="!is_canceled_plan"
-                >
+                <button v-if="user_plan_tier === plan.id" class="btn-plan current"
+                  :class="is_canceled_plan ? 'is-canceled' : ''" :disabled="!is_canceled_plan">
                   {{ is_canceled_plan ? "Assinar novamente" : "Seu Plano" }}
                 </button>
-                <button
-                  v-else
-                  class="btn-plan select-btn"
-                  :class="{ 'btn-selected': selected_plan_id === plan.id }"
-                >
+                <button v-else class="btn-plan select-btn" :class="{ 'btn-selected': selected_plan_id === plan.id }">
                   {{ selected_plan_id === plan.id ? "Confirmar" : "Selecionar" }}
                 </button>
               </div>
             </div>
           </div>
 
-          <div
-            class="action-footer"
-            v-if="
-              selected_plan_id &&
-              (selected_plan_id !== user_plan_tier || is_canceled_plan)
-            "
-          >
+          <div class="action-footer" v-if="
+            selected_plan_id &&
+            (selected_plan_id !== user_plan_tier || is_canceled_plan)
+          ">
             <div class="selection-info">
-              <span
-                >Você selecionou:
-                <strong>{{ get_plan_name(selected_plan_id) }}</strong></span
-              >
+              <span>Você selecionou:
+                <strong>{{ get_plan_name(selected_plan_id) }}</strong></span>
             </div>
 
-            <button
-              class="btn-proceed"
-              @click="go_to_checkout"
-              :disabled="!connection.connected"
-              :title="
-                !connection.connected ? 'Conecte-se à internet para prosseguir' : ''
-              "
-            >
+            <button class="btn-proceed" @click="go_to_checkout" :disabled="!connection.connected" :title="!connection.connected ? 'Conecte-se à internet para prosseguir' : ''
+              ">
               <span v-if="connection.connected">
                 {{
                   selected_plan_id == "free"
@@ -113,17 +85,12 @@
           </div>
 
           <div class="footer-info" v-else>
-            <a
-              v-if="user_plan_tier !== 'free'"
-              href="#"
-              @click.prevent="request_cancel"
-              class="cancel-link-sm"
-              :style="is_canceled_plan ? 'text-decoration: none; cursor: default;' : ''"
-            >
+            <a v-if="user_plan_tier !== 'free'" href="#" @click.prevent="request_cancel" class="cancel-link-sm"
+              :style="is_canceled_plan ? 'text-decoration: none; cursor: default;' : ''">
               {{
                 is_canceled_plan
                   ? "Sua assinatura acaba em " +
-                    format_date(user.subscription_expires_at, "LLL")
+                  format_date(user.subscription_expires_at, "LLL")
                   : "Cancelar Assinatura"
               }}
             </a>
@@ -144,7 +111,7 @@
                 <span>Plano escolhido:</span>
                 <strong class="highlight-text">{{
                   get_plan_name(selected_plan_id)
-                }}</strong>
+                  }}</strong>
               </div>
 
               <p class="desc">
@@ -153,18 +120,9 @@
               </p>
 
               <div class="form-group">
-                <input
-                  type="text"
-                  v-model="cpf_input"
-                  placeholder=" "
-                  maxlength="14"
-                  @focusout="check_cpf"
-                  @input="format_cpf"
-                  :class="{ error: cpf_error }"
-                  ref="cpfInput"
-                  id="cpfInput"
-                  :disabled="bill_sended"
-                />
+                <input type="text" v-model="cpf_input" placeholder=" " maxlength="14" @focusout="check_cpf"
+                  @input="format_cpf" :class="{ error: cpf_error }" ref="cpfInput" id="cpfInput"
+                  :disabled="bill_sended" />
                 <label for="cpfInput">CPF do Titular (000.000.000-00)</label>
               </div>
               <span class="msg" :class="error ? 'error' : 'success'">{{ msg }}</span>
@@ -173,11 +131,8 @@
                 <font-awesome-icon icon="lock" /> Ambiente Seguro
               </div>
 
-              <button
-                class="btn btn-primary"
-                @click="handle_checkout"
-                :disabled="loading || cpf_input.length < 14 || bill_sended"
-              >
+              <button class="btn btn-primary" @click="handle_checkout"
+                :disabled="loading || cpf_input.length < 14 || bill_sended">
                 <span v-if="loading">
                   <font-awesome-icon icon="circle-notch" spin /> Processando...
                 </span>
@@ -189,14 +144,8 @@
       </div>
     </div>
   </Transition>
-  <ConfirmationModal
-    v-model="show_cancel_modal"
-    :message="cancel_message"
-    :description="cancel_description"
-    :confirmText="confirm_text"
-    @cancelled="show_cancel_modal = false"
-    @confirmed="confirm_cancellation"
-  />
+  <ConfirmationModal v-model="show_cancel_modal" :message="cancel_message" :description="cancel_description"
+    :confirmText="confirm_text" @cancelled="show_cancel_modal = false" @confirmed="confirm_cancellation" />
 </template>
 
 <script>
@@ -256,7 +205,7 @@ export default {
             "Limite de 3 Projetos",
             "Até 3 membros/projeto",
             "Radio Flow (Online apenas)",
-            "Kadem Nexo manual",
+            "Nexo manual",
           ],
         },
         {
@@ -270,7 +219,7 @@ export default {
             "Até 5 membros/projeto",
             "Radio Flow (Online/Offline)",
             "Sync Prioritário",
-            "Kadem Nexo com Open Finance",
+            "Nexo com IA",
             "300 créditos mensais de IA",
           ],
         },
@@ -285,7 +234,7 @@ export default {
             "Membros Ilimitados",
             "Acesso Total Offline",
             "Suporte Prioritário 24/7",
-            "Kadem Nexo avançado",
+            "Nexo com IA expandida",
             "1500 créditos mensais de IA",
           ],
         },
@@ -473,18 +422,21 @@ export default {
   justify-content: space-between;
   align-items: flex-start;
 }
+
 .modal-header h2 {
   font-size: 1.6rem;
   font-weight: 800;
   margin: 0;
   color: var(--text-primary);
 }
+
 .subtitle {
   font-size: 1rem;
   color: var(--text-secondary);
   margin: 6px 0 0 0;
   font-weight: 500;
 }
+
 .close-btn {
   background: none;
   border: none;
@@ -492,6 +444,7 @@ export default {
   font-size: 1.5rem;
   color: var(--text-secondary);
 }
+
 .close-btn:hover {
   color: var(--text-primary);
 }
@@ -570,25 +523,30 @@ export default {
   color: var(--text-primary);
   margin: var(--space-3) 0;
 }
+
 .currency {
   font-size: 1.1rem;
   font-weight: 600;
   vertical-align: top;
 }
+
 .amount {
   font-size: 3rem;
   font-weight: 900;
   line-height: 1;
   letter-spacing: -1px;
 }
+
 .free-text {
   font-size: 2.5rem;
   color: var(--color-info);
 }
+
 .cents {
   font-size: 1.2rem;
   font-weight: 700;
 }
+
 .period {
   color: var(--text-secondary);
   font-size: 0.9rem;
@@ -608,10 +566,12 @@ export default {
   text-transform: uppercase;
   margin-top: 10px;
 }
+
 .status-badge.current {
   background: var(--text-secondary);
   color: var(--white);
 }
+
 .status-badge.selected {
   background: var(--color-info);
   color: var(--white);
@@ -623,6 +583,7 @@ export default {
   margin: 0 0 var(--space-5) 0;
   flex-grow: 1;
 }
+
 .features-list li {
   display: flex;
   gap: 10px;
@@ -632,10 +593,12 @@ export default {
   color: var(--text-secondary);
   font-weight: 500;
 }
+
 .check-icon {
   color: var(--color-income);
   font-size: 1rem;
 }
+
 .plan-card.core .check-icon {
   color: var(--text-secondary);
 }
@@ -643,6 +606,7 @@ export default {
 .card-action {
   margin-top: auto;
 }
+
 .btn-plan {
   width: 100%;
   padding: 12px;
@@ -652,6 +616,7 @@ export default {
   font-size: 0.9rem;
   text-transform: uppercase;
 }
+
 .btn-plan.current {
   background: var(--surface-3);
   color: var(--text-secondary);
@@ -664,6 +629,7 @@ export default {
     cursor: pointer !important;
   }
 }
+
 .btn-plan.select-btn {
   background: var(--surface-1);
   border: 2px solid var(--color-info);
@@ -671,6 +637,7 @@ export default {
   cursor: pointer;
   transition: all 0.2s;
 }
+
 .btn-plan.btn-selected {
   background: var(--color-info);
   border-color: var(--color-info);
@@ -697,6 +664,7 @@ export default {
   font-size: 1.1rem;
   color: var(--text-secondary);
 }
+
 .selection-info strong {
   color: var(--text-primary);
   font-weight: 800;
@@ -716,9 +684,11 @@ export default {
   gap: 10px;
   transition: background 0.2s, filter 0.2s;
 }
+
 .btn-proceed:hover {
   filter: brightness(1.1);
 }
+
 .btn-proceed:disabled {
   background: var(--surface-3);
   color: var(--text-secondary);
@@ -732,17 +702,20 @@ export default {
   background: var(--surface-1);
   padding: var(--space-4);
 }
+
 .checkout-container {
   width: 100%;
   max-width: 400px;
   animation: slide-in 0.3s ease;
 }
+
 .checkout-header {
   display: flex;
   align-items: center;
   margin-bottom: var(--space-4);
   gap: 15px;
 }
+
 .back-link {
   background: var(--surface-2);
   border: 1px solid var(--glass-border);
@@ -755,9 +728,11 @@ export default {
   gap: 6px;
   align-items: center;
 }
+
 .back-link:hover {
   background: var(--surface-3);
 }
+
 .glass-panel {
   background: var(--surface-2);
   border: 1px solid var(--glass-border);
@@ -765,6 +740,7 @@ export default {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
+
 .summary-row {
   margin-bottom: 20px;
   padding-bottom: 15px;
@@ -773,6 +749,7 @@ export default {
   display: flex;
   justify-content: space-between;
 }
+
 .highlight-text {
   color: #d4af37;
   font-weight: 800;
@@ -782,6 +759,7 @@ export default {
   padding: var(--space-4);
   text-align: center;
 }
+
 .cancel-link-sm {
   color: var(--text-secondary);
   font-weight: 600;
@@ -796,15 +774,18 @@ export default {
   from {
     transform: translateY(100%);
   }
+
   to {
     transform: translateY(0);
   }
 }
+
 @keyframes slide-in {
   from {
     opacity: 0;
     transform: translateX(20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -817,6 +798,7 @@ export default {
     gap: 15px;
     text-align: center;
   }
+
   .btn-proceed {
     width: 100%;
     justify-content: center;

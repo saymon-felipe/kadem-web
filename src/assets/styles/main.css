@@ -153,8 +153,9 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   justify-content: center;
   align-items: center;
-  background-image: var(--deep-blue-gradient);
-  color: white;
+  background: var(--white);
+  color: var(--deep-blue);
+  --spinner-color: var(--deep-blue);
   font-size: 1.5rem;
   position: fixed;
   top: 0;
@@ -167,6 +168,12 @@ h1, h2, h3, h4, h5, h6 {
 .loading-overlay.fade-out {
   opacity: 0;
   pointer-events: none;
+}
+
+[data-theme="dark"] .loading-overlay {
+  background-image: linear-gradient(135deg, #14172a 0%, #1a1d2e 100%);
+  color: var(--yellow);
+  --spinner-color: var(--yellow);
 }
 
 /* ===========================================
@@ -732,7 +739,6 @@ textarea {
 .btn-icon:hover,
 .header-button:hover,
 .plan-pill:hover {
-  transform: scale(1.03);
   filter: brightness(1.1);
 }
 

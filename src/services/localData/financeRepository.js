@@ -5,6 +5,17 @@ const localKey = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(1
 
 const normalizeMonth = (month) => month || new Date().toISOString().slice(0, 7);
 
+const normalizeDesc = (desc) => {
+  return String(desc || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove accents/diacritics
+    .replace(/[^a-z0-9]/g, " ")      // Replace special characters/punctuation with spaces
+    .replace(/\s+/g, " ")            // Collapse multiple spaces
+    .trim();
+};
+
+
 export const financeRepository = {
   async clearLocalFinance() {
     await Promise.all([
@@ -145,9 +156,43 @@ export const financeRepository = {
       .sort((a, b) => String(b.transaction_date || "").localeCompare(String(a.transaction_date || "")));
   },
 
+  async resolveCategoryFromLocalHistory(description) {
+    if (!description) return null;
+    try {
+      const norm = normalizeDesc(description);
+      const txs = await db.finance_transactions.toArray();
+      const freq = {};
+      for (const tx of txs) {
+        if (tx.category_id && !tx.is_ignored) {
+          if (normalizeDesc(tx.description) === norm) {
+            const cid = Number(tx.category_id);
+            freq[cid] = (freq[cid] || 0) + 1;
+          }
+        }
+      }
+      let maxCount = 0;
+      let bestId = null;
+      for (const cid in freq) {
+        if (freq[cid] > maxCount) {
+          maxCount = freq[cid];
+          bestId = Number(cid);
+        }
+      }
+      return bestId;
+    } catch (error) {
+      console.warn("[resolveCategoryFromLocalHistory] Error:", error);
+      return null;
+    }
+  },
+
   async createLocalTransaction(data) {
+    let category_id = data.category_id || null;
+    if (!category_id && data.description) {
+      category_id = await this.resolveCategoryFromLocalHistory(data.description);
+    }
     const payload = {
       ...data,
+      category_id,
       local_key: localKey("transaction"),
       id: data.id || null,
       source: data.source || "MANUAL",
@@ -164,6 +209,35 @@ export const financeRepository = {
     }
     return created;
   },
+
+  async createLocalTransactionsBatch(items) {
+    return db.transaction("rw", db.finance_transactions, async () => {
+      const createdItems = [];
+      for (const data of items) {
+        let category_id = data.category_id || null;
+        if (!category_id && data.description) {
+          category_id = await this.resolveCategoryFromLocalHistory(data.description);
+        }
+        const lKey = localKey("transaction");
+        const payload = {
+          ...data,
+          category_id,
+          local_key: lKey,
+          id: data.id || lKey,
+          source: data.source || "IMPORT",
+          status: data.status || "POSTED",
+          pending_sync: true,
+          created_at: now(),
+          updated_at: now(),
+        };
+        const local_id = await db.finance_transactions.add(payload);
+        createdItems.push({ ...payload, local_id });
+      }
+      return createdItems;
+    });
+  },
+
+
 
   async updateLocalTransaction(id, changes) {
     const current = await this.findTransaction(id);

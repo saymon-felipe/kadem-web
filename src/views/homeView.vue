@@ -1,6 +1,6 @@
 <template>
   <div class="loading-overlay" :class="{ 'fade-out': !isLoading }">
-    <loadingSpinner type="yellow" />
+    <loadingSpinner />
   </div>
   <div class="main">
     <div

@@ -31,7 +31,7 @@ export default {
       if (!str || str.trim() == "") return "";
 
       const allowedTags = ['b', 'i', 'p', 'br'];
-      const regex = new RegExp(`<\/?(?!${allowedTags.join('|')})[^>]*>`, 'gi');
+      const regex = new RegExp(`</?(?!${allowedTags.join('|')})[^>]*>`, 'gi');
       const withBreaks = str.replace(/\n/g, '<br>');
       const sanitized = withBreaks.replace(regex, '');
 
