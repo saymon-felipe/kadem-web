@@ -153,7 +153,22 @@ export const financeRepository = {
     const rows = await db.finance_transactions.toArray();
     return rows
       .filter((item) => !selected || String(item.transaction_date || "").startsWith(selected))
-      .sort((a, b) => String(b.transaction_date || "").localeCompare(String(a.transaction_date || "")));
+      .sort((a, b) => {
+        const dateCompare = String(b.transaction_date || "").localeCompare(String(a.transaction_date || ""));
+        if (dateCompare !== 0) return dateCompare;
+
+        const isNumericA = a.id && Number.isFinite(Number(a.id));
+        const isNumericB = b.id && Number.isFinite(Number(b.id));
+
+        if (isNumericA && isNumericB) {
+          return Number(b.id) - Number(a.id);
+        }
+
+        if (!isNumericA && isNumericB) return -1;
+        if (isNumericA && !isNumericB) return 1;
+
+        return (b.local_id || 0) - (a.local_id || 0);
+      });
   },
 
   async resolveCategoryFromLocalHistory(description) {

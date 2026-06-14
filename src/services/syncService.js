@@ -100,6 +100,61 @@ const buildChangesArray = (payload, timestamp) => {
   return changes;
 };
 
+const sanitizeTransactionPayload = (data) => {
+  if (!data) return {};
+  const allowedKeys = [
+    'description',
+    'amount',
+    'type',
+    'category_id',
+    'transaction_date',
+    'status',
+    'source',
+    'is_ignored'
+  ];
+  const clean = {};
+  allowedKeys.forEach(key => {
+    if (data[key] !== undefined) {
+      clean[key] = data[key];
+    }
+  });
+  return clean;
+};
+
+const sanitizeCategoryPayload = (data) => {
+  if (!data) return {};
+  const allowedKeys = [
+    'macro_category',
+    'macro_color',
+    'name',
+    'type',
+    'icon',
+    'color'
+  ];
+  const clean = {};
+  allowedKeys.forEach(key => {
+    if (data[key] !== undefined) {
+      clean[key] = data[key];
+    }
+  });
+  return clean;
+};
+
+const sanitizeMacroCategoryPayload = (data) => {
+  if (!data) return {};
+  const allowedKeys = [
+    'name',
+    'color'
+  ];
+  const clean = {};
+  allowedKeys.forEach(key => {
+    if (data[key] !== undefined) {
+      clean[key] = data[key];
+    }
+  });
+  return clean;
+};
+
 // ============================================================================
 // BATCH PROCESSORS (Processamento em Lote)
 // ============================================================================
@@ -732,12 +787,14 @@ async function _handleFinanceTask(task) {
 
   switch (task.type) {
     case 'CREATE_FINANCE_TRANSACTION': {
-      const response = await api.post('/finance/transactions', payload.data);
+      const cleanData = sanitizeTransactionPayload(payload.data);
+      const response = await api.post('/finance/transactions', cleanData);
       await updateFinanceLocalRecord('finance_transactions', payload.local_id, response.data);
       return;
     }
     case 'CREATE_FINANCE_TRANSACTIONS_BATCH': {
-      const response = await api.post('/finance/transactions/batch', { transactions: payload.transactions });
+      const cleanTransactions = (payload.transactions || []).map(tx => sanitizeTransactionPayload(tx));
+      const response = await api.post('/finance/transactions/batch', { transactions: cleanTransactions });
       if (Array.isArray(response.data)) {
         for (let i = 0; i < response.data.length; i++) {
           const serverData = response.data[i];
@@ -750,7 +807,8 @@ async function _handleFinanceTask(task) {
 
     case 'UPDATE_FINANCE_TRANSACTION': {
       const id = await resolveFinanceServerId('finance_transactions', payload);
-      const response = await api.put(`/finance/transactions/${id}`, payload.data);
+      const cleanData = sanitizeTransactionPayload(payload.data);
+      const response = await api.put(`/finance/transactions/${id}`, cleanData);
       await updateFinanceLocalRecord('finance_transactions', payload.local_id, response.data);
       return;
     }
@@ -760,13 +818,15 @@ async function _handleFinanceTask(task) {
       return;
     }
     case 'CREATE_FINANCE_CATEGORY': {
-      const response = await api.post('/finance/categories', payload.data);
+      const cleanData = sanitizeCategoryPayload(payload.data);
+      const response = await api.post('/finance/categories', cleanData);
       await updateFinanceLocalRecord('finance_categories', payload.local_id, response.data);
       return;
     }
     case 'UPDATE_FINANCE_CATEGORY': {
       const id = await resolveFinanceServerId('finance_categories', payload);
-      const response = await api.put(`/finance/categories/${id}`, payload.data);
+      const cleanData = sanitizeCategoryPayload(payload.data);
+      const response = await api.put(`/finance/categories/${id}`, cleanData);
       await updateFinanceLocalRecord('finance_categories', payload.local_id, response.data);
       return;
     }
@@ -776,13 +836,15 @@ async function _handleFinanceTask(task) {
       return;
     }
     case 'CREATE_FINANCE_MACRO_CATEGORY': {
-      const response = await api.post('/finance/macro-categories', payload.data);
+      const cleanData = sanitizeMacroCategoryPayload(payload.data);
+      const response = await api.post('/finance/macro-categories', cleanData);
       await updateFinanceLocalRecord('finance_macro_categories', payload.local_id, response.data);
       return;
     }
     case 'UPDATE_FINANCE_MACRO_CATEGORY': {
       const id = await resolveFinanceServerId('finance_macro_categories', payload);
-      const response = await api.put(`/finance/macro-categories/${id}`, payload.data);
+      const cleanData = sanitizeMacroCategoryPayload(payload.data);
+      const response = await api.put(`/finance/macro-categories/${id}`, cleanData);
       await updateFinanceLocalRecord('finance_macro_categories', payload.local_id, response.data);
       return;
     }

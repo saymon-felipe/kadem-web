@@ -43,6 +43,7 @@ const localDashboard = async (month) => {
     });
   return {
     totals,
+    transactions: transactions.slice(0, 20),
     recent_transactions: transactions.slice(0, 20),
     macro_distribution: [...byMacro.values()],
   };
@@ -52,7 +53,9 @@ export const financeService = {
   async getDashboard(params = {}) {
     try {
       const result = await api.get("/finance/dashboard", { params });
-      if (Array.isArray(result.data?.recent_transactions)) {
+      if (Array.isArray(result.data?.transactions)) {
+        await financeRepository.setTransactions(result.data.transactions);
+      } else if (Array.isArray(result.data?.recent_transactions)) {
         await financeRepository.setTransactions(result.data.recent_transactions);
       }
       return result;
@@ -96,7 +99,34 @@ export const financeService = {
 
   async deleteTransaction(id) {
     const local = await financeRepository.deleteLocalTransaction(id);
-    if (local?.id) await enqueue("DELETE_FINANCE_TRANSACTION", { id: local.id, server_id: local.id });
+    if (local) {
+      const isLocalOnly = !local.id || !Number.isFinite(Number(local.id));
+      if (isLocalOnly) {
+        const tasks = await syncQueueRepository.getPendingTasks();
+        for (const task of tasks) {
+          if (task.type === "CREATE_FINANCE_TRANSACTION" && task.payload?.local_id === local.local_id) {
+            await syncQueueRepository.deleteTask(task.id);
+          } else if (task.type === "UPDATE_FINANCE_TRANSACTION" && task.payload?.local_id === local.local_id) {
+            await syncQueueRepository.deleteTask(task.id);
+          } else if (task.type === "CREATE_FINANCE_TRANSACTIONS_BATCH" && task.payload?.local_ids) {
+            const index = task.payload.local_ids.indexOf(local.local_id);
+            if (index !== -1) {
+              task.payload.local_ids.splice(index, 1);
+              if (Array.isArray(task.payload.transactions)) {
+                task.payload.transactions.splice(index, 1);
+              }
+              if (task.payload.local_ids.length === 0) {
+                await syncQueueRepository.deleteTask(task.id);
+              } else {
+                await syncQueueRepository.updateTask(task.id, { payload: task.payload });
+              }
+            }
+          }
+        }
+      } else {
+        await enqueue("DELETE_FINANCE_TRANSACTION", { id: local.id, server_id: local.id, local_id: local.local_id });
+      }
+    }
     return response(null);
   },
 
@@ -202,8 +232,12 @@ export const financeService = {
   getInsights(params) {
     return api.get("/finance/ai/insights", { params });
   },
-  getUsage() {
-    return api.get("/finance/ai/usage");
+  async getUsage() {
+    try {
+      return await api.get("/finance/ai/usage");
+    } catch {
+      return response({});
+    }
   },
   analyzeCsvSchema(data) {
     return api.post("/finance/ai/analyze-csv-schema", data);

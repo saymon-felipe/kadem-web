@@ -217,10 +217,10 @@
                           <button class="icon-btn small" @click="toggleIgnored(transaction)" title="Ignorar">
                             <font-awesome-icon :icon="transaction.is_ignored ? 'eye-slash' : 'eye'" />
                           </button>
-                          <button class="icon-btn small danger" @click="deleteTransaction(transaction.id)"
-                            title="Excluir">
-                            <font-awesome-icon icon="trash" />
-                          </button>
+                          <button class="icon-btn small danger" @click="requestDeleteTransaction(transaction)"
+                             title="Excluir">
+                             <font-awesome-icon icon="trash" />
+                           </button>
                         </div>
                       </td>
 
@@ -709,6 +709,14 @@
     </Transition>
 
     <SubscriptionModal v-model="showPlanModal" @close="showPlanModal = false" />
+    <ConfirmationModal
+      v-model="confirmationState.show"
+      :message="confirmationState.message"
+      :confirmText="confirmationState.confirmText"
+      :description="confirmationState.description"
+      @cancelled="confirmationState.show = false"
+      @confirmed="execute_confirmation_action"
+    />
   </div>
 </template>
 
@@ -719,6 +727,7 @@ import { financeService } from "@/services/financeService";
 import { getPlanLimits } from "@/services/subscription_plans";
 import { db } from "@/db";
 import SubscriptionModal from "@/components/SubscriptionModal.vue";
+import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import CategoryCombo from "./CategoryCombo.vue";
 import MacroCategoryCombo from "./MacroCategoryCombo.vue";
 
@@ -744,7 +753,7 @@ const ProGate = {
 
 export default {
   name: "KademNexo",
-  components: { SubscriptionModal, ProGate, CategoryCombo, MacroCategoryCombo },
+  components: { SubscriptionModal, ConfirmationModal, ProGate, CategoryCombo, MacroCategoryCombo },
   data() {
     const today = new Date().toISOString().slice(0, 10);
     return {
@@ -793,6 +802,13 @@ export default {
         type: null,
         payload: null,
         message: "",
+      },
+      confirmationState: {
+        show: false,
+        message: "",
+        confirmText: "Confirmar",
+        description: "",
+        action: null,
       },
       categoryIcons: [
         "tag",
@@ -1750,6 +1766,41 @@ export default {
       this.showMacroForm = false;
       await Promise.all([this.loadMacroCategories(), this.loadCategories(), this.loadBudgets(), this.loadDashboard()]);
     },
+    openConfirmation({ description, message, confirmText, action }) {
+      this.confirmationState = {
+        show: true,
+        message: message,
+        confirmText: confirmText || "Confirmar",
+        action: action,
+        description: description || "",
+      };
+    },
+    async execute_confirmation_action() {
+      if (this.confirmationState.action) {
+        try {
+          await this.confirmationState.action();
+        } catch (err) {
+          console.error("Erro ao executar ação confirmada:", err);
+        }
+      }
+      this.confirmationState.show = false;
+    },
+    requestDeleteTransaction(transaction) {
+      this.openConfirmation({
+        message: `Excluir o lançamento "${transaction.description}"?`,
+        description: `Esta ação excluirá o lançamento no valor de ${this.money(transaction.amount)} e não poderá ser desfeita.`,
+        confirmText: "Excluir",
+        action: async () => {
+          await financeService.deleteTransaction(transaction.id);
+          await Promise.all([
+            this.loadMacroCategories(),
+            this.loadCategories(),
+            this.loadBudgets(),
+            this.loadDashboard(),
+          ]);
+        },
+      });
+    },
     requestDeleteCategory(category) {
       this.confirmDelete = {
         visible: true,
@@ -2003,6 +2054,8 @@ export default {
         const { data } = await financeService.getInsights({ month: this.selectedMonth });
         this.insights = data || [];
         await this.loadUsage();
+      } catch (err) {
+        console.error("Erro ao carregar insights:", err);
       } finally {
         this.loadingAi = false;
       }
