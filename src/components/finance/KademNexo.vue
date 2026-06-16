@@ -74,7 +74,7 @@
                   <button class="text-btn" @click="setActiveTab('transactions')">Ver todos</button>
                 </div>
                 <div class="compact-list">
-                  <article v-for="transaction in transactions.slice(0, 8)" :key="transaction.id" class="movement-row">
+                  <article v-for="transaction in transactions.slice(0, 8)" :key="transaction.local_id || transaction.id" class="movement-row">
                     <div>
                       <strong>{{ transaction.description }}</strong>
                       <span>{{ categoryLabel(transaction) }} · {{ shortDate(transaction.transaction_date) }}</span>
@@ -140,7 +140,7 @@
                       <span v-else>Banco, cartão ou planilha</span>
                     </div>
                       <button class="text-btn" type="button" @click="triggerCsvPicker" :disabled="importingCsv || loadingSchema">
-                        <font-awesome-icon icon="file-import" />
+                        <font-awesome-icon :icon="!isPaidPlan ? 'lock' : 'file-import'" />
                         Importar CSV
                       </button>
                     <input ref="csvInput" class="visually-hidden" type="file" accept=".csv,text/csv"
@@ -196,7 +196,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="transaction in transactions" :key="transaction.id"
+                    <tr v-for="transaction in transactions" :key="transaction.local_id || transaction.id"
                       :class="{ ignored: transaction.is_ignored }">
                       <td>{{ shortDate(transaction.transaction_date) }}</td>
                       <td>{{ transaction.description }}</td>
@@ -298,6 +298,7 @@
                     <div class="budget-group-title">
                       <font-awesome-icon icon="folder" />
                       <MacroCategoryCombo v-model="group.macro_category" :categories="categories"
+                        :macro-categories="macroCategories"
                         @change="selectBudgetMacro(group, $event)" />
                     </div>
                     <div class="budget-group-totals">
@@ -479,7 +480,7 @@
                     </div>
                   </header>
                   <div class="category-grid">
-                    <article v-for="category in group.items" :key="category.id" class="category-card">
+                    <article v-for="category in group.items" :key="category.local_id || category.id" class="category-card">
                       <span class="swatch" :style="{ background: category.color || '#999999' }"></span>
                       <font-awesome-icon :icon="category.icon || 'tag'" class="category-icon" />
                       <div>
@@ -503,7 +504,7 @@
           </template>
 
           <template v-else-if="tab.id === 'ai'">
-            <ProGate v-if="!isPaidPlan" @upgrade="showPlanModal = true" />
+            <ProGate v-if="!canUseAi" @upgrade="showPlanModal = true" />
             <div v-else class="panel ai-panel">
               <div class="panel-title">
                 <div>
@@ -598,7 +599,8 @@
           </div>
           <label class="field-caption">
             <span>Macro categoria</span>
-            <MacroCategoryCombo v-model="categoryForm.macro_category" :categories="categories" />
+            <MacroCategoryCombo v-model="categoryForm.macro_category" :categories="categories"
+              :macro-categories="macroCategories" @change="onCategoryMacroChange" />
           </label>
           <div class="form-grid">
             <div class="nexo-field static-label select-field">
@@ -1024,6 +1026,9 @@ export default {
         .toLowerCase()
         .trim();
     },
+    sameId(left, right) {
+      return String(left ?? "") === String(right ?? "");
+    },
     setActiveTab(tabId) {
       this.activeTab = tabId;
     },
@@ -1060,7 +1065,7 @@ export default {
       }
     },
     categoryLabel(transaction) {
-      return transaction.category_name || "Sem categoria";
+      return transaction.category_name || this.findCategory(transaction.category_id)?.name || "Sem categoria";
     },
     typeLabel(type) {
       const labels = { EXPENSE: "Saída", INCOME: "Entrada" };
@@ -1275,6 +1280,10 @@ export default {
       return Array.isArray(ref) ? ref[0] : ref;
     },
     triggerCsvPicker() {
+      if (!this.isPaidPlan) {
+        this.showPlanModal = true;
+        return;
+      }
       this.getRefElement(this.$refs.csvInput)?.click();
     },
     resetCsvImport() {
@@ -1288,6 +1297,10 @@ export default {
       if (csvInput) csvInput.value = "";
     },
     async handleCsvFileChange(event) {
+      if (!this.isPaidPlan) {
+        this.showPlanModal = true;
+        return;
+      }
       const [file] = event.target.files || [];
       if (!file) return;
       this.csvImportError = "";
@@ -1396,7 +1409,7 @@ export default {
           const norm = normalizeDesc(tx.description);
           if (norm) {
             if (!freqMap[norm]) freqMap[norm] = {};
-            const cid = Number(tx.category_id);
+            const cid = String(tx.category_id);
             freqMap[norm][cid] = (freqMap[norm][cid] || 0) + 1;
           }
         }
@@ -1408,7 +1421,7 @@ export default {
         for (const cid in freqMap[norm]) {
           if (freqMap[norm][cid] > maxCount) {
             maxCount = freqMap[norm][cid];
-            bestId = Number(cid);
+            bestId = cid;
           }
         }
         if (bestId) {
@@ -1595,7 +1608,7 @@ export default {
           description: String(row.description || ""),
           amount: Number(row.amount || 0),
           type: String(row.type || "EXPENSE"),
-          category_id: row.category_id ? Number(row.category_id) : null,
+          category_id: row.category_id || null,
           transaction_date: String(row.transaction_date),
           status: "PAID",
           source: "IMPORT",
@@ -1608,19 +1621,32 @@ export default {
       }
     },
 
+    applyTransactionPatch(id, data) {
+      this.transactions = this.transactions.map((transaction) =>
+        this.sameId(transaction.id, id) || this.sameId(transaction.local_id, id)
+          ? { ...transaction, ...data }
+          : transaction,
+      );
+    },
     async updateTransaction(id, data) {
-      await financeService.updateTransaction(id, data);
+      this.applyTransactionPatch(id, data);
+      const { data: local } = await financeService.updateTransaction(id, data);
+      if (local) {
+        this.applyTransactionPatch(id, local);
+      }
       await this.loadDashboard();
     },
     async toggleIgnored(transaction) {
-      await this.updateTransaction(transaction.id, { is_ignored: !transaction.is_ignored });
+      const nextIgnored = !transaction.is_ignored;
+      this.applyTransactionPatch(transaction.id, { is_ignored: nextIgnored });
+      await this.updateTransaction(transaction.id, { is_ignored: nextIgnored });
     },
     async deleteTransaction(id) {
       await financeService.deleteTransaction(id);
       await this.loadDashboard();
     },
     findCategory(categoryId) {
-      return this.categories.find((category) => Number(category.id) === Number(categoryId));
+      return this.categories.find((category) => this.sameId(category.id, categoryId));
     },
     findMacroByName(name) {
       return this.macroCategories.find((macro) => this.normalize(macro.name) === this.normalize(name));
@@ -1634,25 +1660,25 @@ export default {
       this.budgets.forEach((g) => {
         (g.items || []).forEach((item) => {
           if (item.category_id && item.category_id !== currentItem?.category_id) {
-            usedCategoryIds.add(Number(item.category_id));
+            usedCategoryIds.add(String(item.category_id));
           }
         });
       });
-      return allCategoriesForMacro.filter((category) => !usedCategoryIds.has(Number(category.id)));
+      return allCategoriesForMacro.filter((category) => !usedCategoryIds.has(String(category.id)));
     },
     nextBudgetCategoryId(group) {
       const used = new Set();
       this.budgets.forEach((g) => {
         (g.items || []).forEach((item) => {
-          if (item.category_id) used.add(Number(item.category_id));
+          if (item.category_id) used.add(String(item.category_id));
         });
       });
-      const candidate = this.categoriesForMacro(group).find((category) => !used.has(Number(category.id)));
+      const candidate = this.categoriesForMacro(group).find((category) => !used.has(String(category.id)));
       return candidate?.id || null;
     },
     nextBudgetMacro() {
-      const used = new Set(this.budgets.map((group) => Number(group.macro_category_id)).filter(Boolean));
-      return this.macroCategories.find((macro) => !used.has(Number(macro.id))) || null;
+      const used = new Set(this.budgets.map((group) => String(group.macro_category_id || "")).filter(Boolean));
+      return this.macroCategories.find((macro) => !used.has(String(macro.id))) || null;
     },
     addBudgetGroup() {
       const group = this.hydrateBudgetGroup({
@@ -1739,6 +1765,12 @@ export default {
         icon: category?.icon || "tag",
       };
       this.showCategoryForm = true;
+    },
+    onCategoryMacroChange(macroName) {
+      const macro = this.findMacroByName(macroName);
+      if (macro?.color) {
+        this.categoryForm.macro_color = macro.color;
+      }
     },
     async saveCategoryForm() {
       if (this.categoryForm.id) {
@@ -1910,7 +1942,7 @@ export default {
             const norm = normalizeDesc(tx.description);
             if (norm) {
               if (!freqMap[norm]) freqMap[norm] = {};
-              const catId = Number(tx.category_id);
+              const catId = String(tx.category_id);
               freqMap[norm][catId] = (freqMap[norm][catId] || 0) + 1;
             }
           }
@@ -1924,7 +1956,7 @@ export default {
           for (const catId in freqMap[norm]) {
             if (freqMap[norm][catId] > maxCount) {
               maxCount = freqMap[norm][catId];
-              bestCatId = Number(catId);
+              bestCatId = catId;
             }
           }
           if (bestCatId) {
@@ -2001,7 +2033,7 @@ export default {
         });
         if (Array.isArray(data.groups) && data.groups.length > 0) {
           this.budgets = data.groups.map((group) => {
-            const macro = this.macroCategories.find((item) => Number(item.id) === Number(group.macro_category_id));
+            const macro = this.macroCategories.find((item) => this.sameId(item.id, group.macro_category_id));
             return this.hydrateBudgetGroup({
               ...group,
               _key: `ai-macro-${group.macro_category_id}-${Math.random()}`,

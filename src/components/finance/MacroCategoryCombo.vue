@@ -66,6 +66,10 @@ export default {
       type: Array,
       default: () => [],
     },
+    macroCategories: {
+      type: Array,
+      default: () => [],
+    },
     placeholder: {
       type: String,
       default: "Macro categoria",
@@ -82,10 +86,13 @@ export default {
   },
   computed: {
     macros() {
-      const names = this.categories
+      const categoryNames = this.categories
         .map((category) => category.macro_category || "Geral")
         .filter(Boolean);
-      return [...new Set(["Geral", ...names])].sort((a, b) => a.localeCompare(b, "pt-BR"));
+      const macroNames = this.macroCategories
+        .map((macro) => macro.name)
+        .filter(Boolean);
+      return [...new Set(["Geral", ...macroNames, ...categoryNames])].sort((a, b) => a.localeCompare(b, "pt-BR"));
     },
     filteredMacros() {
       const term = this.normalize(this.filter);

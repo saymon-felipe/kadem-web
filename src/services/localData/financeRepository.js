@@ -2,6 +2,7 @@ import { db } from "../../db";
 
 const now = () => new Date().toISOString();
 const localKey = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const isServerId = (id) => id !== null && id !== undefined && Number.isFinite(Number(id));
 
 const normalizeMonth = (month) => month || new Date().toISOString().slice(0, 7);
 
@@ -15,6 +16,31 @@ const normalizeDesc = (desc) => {
     .trim();
 };
 
+const withUpdatedAt = (items = []) => items.map((item) => ({ ...item, updated_at: item.updated_at || now() }));
+
+const replaceServerItemsPreservingPending = async (table, items = []) => {
+  const serverItems = withUpdatedAt(items);
+  const existing = await table.toArray();
+  const pendingItems = existing.filter((item) =>
+    item.pending_sync || (item.local_key && !isServerId(item.id) && item.pending_sync !== false),
+  );
+  const pendingServerIds = new Set(
+    pendingItems
+      .map((item) => Number(item.id))
+      .filter((id) => Number.isFinite(id)),
+  );
+
+  await table.clear();
+
+  const merged = [
+    ...serverItems.filter((item) => !pendingServerIds.has(Number(item.id))),
+    ...pendingItems,
+  ];
+
+  if (merged.length) {
+    await table.bulkPut(merged);
+  }
+};
 
 export const financeRepository = {
   async clearLocalFinance() {
@@ -29,10 +55,7 @@ export const financeRepository = {
   },
 
   async setMacroCategories(items = []) {
-    await db.finance_macro_categories.clear();
-    if (items.length) {
-      await db.finance_macro_categories.bulkPut(items.map((item) => ({ ...item, updated_at: item.updated_at || now() })));
-    }
+    await replaceServerItemsPreservingPending(db.finance_macro_categories, items);
   },
 
   async getMacroCategories() {
@@ -69,7 +92,47 @@ export const financeRepository = {
 
   async deleteLocalMacroCategory(id) {
     const current = await this.findMacroCategory(id);
-    if (current?.local_id) await db.finance_macro_categories.delete(current.local_id);
+    if (current?.local_id) {
+      await db.transaction("rw", db.finance_macro_categories, db.finance_categories, db.finance_budget_groups, async () => {
+        const defaultMacro = await db.finance_macro_categories.where("name").equals("Geral").first();
+        if (!defaultMacro) {
+          const defaultLocalKey = localKey("macro");
+          await db.finance_macro_categories.add({
+            id: defaultLocalKey,
+            local_key: defaultLocalKey,
+            name: "Geral",
+            color: "#999999",
+            pending_sync: false,
+            created_at: now(),
+            updated_at: now(),
+          });
+        }
+
+        const categories = await db.finance_categories.where("macro_category").equals(current.name).toArray();
+        if (categories.length) {
+          await Promise.all(
+            categories.map((category) =>
+              db.finance_categories.update(category.local_id, {
+                macro_category: "Geral",
+                macro_color: "#999999",
+                color: "#999999",
+                updated_at: now(),
+              }),
+            ),
+          );
+        }
+
+        const budgetGroups = await db.finance_budget_groups
+          .where("macro_category_id")
+          .equals(current.id)
+          .toArray();
+        if (budgetGroups.length) {
+          await db.finance_budget_groups.bulkDelete(budgetGroups.map((group) => group.local_id));
+        }
+
+        await db.finance_macro_categories.delete(current.local_id);
+      });
+    }
     return current;
   },
 
@@ -85,10 +148,7 @@ export const financeRepository = {
   },
 
   async setCategories(items = []) {
-    await db.finance_categories.clear();
-    if (items.length) {
-      await db.finance_categories.bulkPut(items.map((item) => ({ ...item, updated_at: item.updated_at || now() })));
-    }
+    await replaceServerItemsPreservingPending(db.finance_categories, items);
   },
 
   async getCategories() {
@@ -126,7 +186,28 @@ export const financeRepository = {
 
   async deleteLocalCategory(id) {
     const current = await this.findCategory(id);
-    if (current?.local_id) await db.finance_categories.delete(current.local_id);
+    if (current?.local_id) {
+      await db.transaction("rw", db.finance_categories, db.finance_transactions, db.finance_budgets, async () => {
+        const transactions = await db.finance_transactions.where("category_id").equals(current.id).toArray();
+        if (transactions.length) {
+          await Promise.all(
+            transactions.map((transaction) =>
+              db.finance_transactions.update(transaction.local_id, {
+                category_id: null,
+                updated_at: now(),
+              }),
+            ),
+          );
+        }
+
+        const budgets = await db.finance_budgets.where("category_id").equals(current.id).toArray();
+        if (budgets.length) {
+          await db.finance_budgets.bulkDelete(budgets.map((budget) => budget.local_id));
+        }
+
+        await db.finance_categories.delete(current.local_id);
+      });
+    }
     return current;
   },
 
@@ -142,10 +223,7 @@ export const financeRepository = {
   },
 
   async setTransactions(items = []) {
-    await db.finance_transactions.clear();
-    if (items.length) {
-      await db.finance_transactions.bulkPut(items.map((item) => ({ ...item, updated_at: item.updated_at || now() })));
-    }
+    await replaceServerItemsPreservingPending(db.finance_transactions, items);
   },
 
   async getTransactions({ month } = {}) {
@@ -180,7 +258,7 @@ export const financeRepository = {
       for (const tx of txs) {
         if (tx.category_id && !tx.is_ignored) {
           if (normalizeDesc(tx.description) === norm) {
-            const cid = Number(tx.category_id);
+            const cid = String(tx.category_id);
             freq[cid] = (freq[cid] || 0) + 1;
           }
         }
@@ -190,7 +268,7 @@ export const financeRepository = {
       for (const cid in freq) {
         if (freq[cid] > maxCount) {
           maxCount = freq[cid];
-          bestId = Number(cid);
+          bestId = cid;
         }
       }
       return bestId;

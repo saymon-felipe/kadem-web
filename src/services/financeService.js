@@ -3,6 +3,14 @@ import { financeRepository, syncQueueRepository } from "@/services/localData";
 import { syncService } from "@/services/syncService";
 
 const response = (data) => ({ data });
+const isServerId = (id) => id !== null && id !== undefined && Number.isFinite(Number(id));
+const sameId = (left, right) => String(left ?? "") === String(right ?? "");
+
+const toPlain = (value, fallback = {}) => {
+  if (value === undefined || value === null) return fallback;
+  return JSON.parse(JSON.stringify(value));
+};
+
 const enqueue = async (type, payload) => {
   await syncQueueRepository.addSyncQueueTask({
     type,
@@ -12,10 +20,81 @@ const enqueue = async (type, payload) => {
   await syncService.processSyncQueue();
 };
 
+const removePendingEntityTasks = async (tasks, types, localId) => {
+  for (const task of tasks) {
+    if (types.includes(task.type) && task.payload?.local_id === localId) {
+      await syncQueueRepository.deleteTask(task.id);
+    }
+  }
+};
+
+const removeDeletedCategoryReferencesFromQueue = async (category) => {
+  const tasks = await syncQueueRepository.getPendingTasks();
+  await removePendingEntityTasks(tasks, ["CREATE_FINANCE_CATEGORY", "UPDATE_FINANCE_CATEGORY"], category.local_id);
+
+  for (const task of tasks) {
+    if (task.type === "CREATE_FINANCE_TRANSACTION" || task.type === "UPDATE_FINANCE_TRANSACTION") {
+      if (sameId(task.payload?.data?.category_id, category.id)) {
+        task.payload.data.category_id = null;
+        await syncQueueRepository.updateTask(task.id, { payload: task.payload });
+      }
+    } else if (task.type === "CREATE_FINANCE_TRANSACTIONS_BATCH") {
+      let changed = false;
+      (task.payload?.transactions || []).forEach((transaction) => {
+        if (sameId(transaction.category_id, category.id)) {
+          transaction.category_id = null;
+          changed = true;
+        }
+      });
+      if (changed) {
+        await syncQueueRepository.updateTask(task.id, { payload: task.payload });
+      }
+    } else if (task.type === "SAVE_FINANCE_BUDGETS") {
+      let changed = false;
+      const groups = (task.payload?.groups || [])
+        .map((group) => ({
+          ...group,
+          items: (group.items || []).filter((item) => {
+            const keep = !sameId(item.category_id, category.id);
+            if (!keep) changed = true;
+            return keep;
+          }),
+        }))
+        .filter((group) => group.items.length > 0);
+      if (changed || groups.length !== (task.payload?.groups || []).length) {
+        task.payload.groups = groups;
+        await syncQueueRepository.updateTask(task.id, { payload: task.payload });
+      }
+    }
+  }
+};
+
+const removeDeletedMacroReferencesFromQueue = async (macro) => {
+  const tasks = await syncQueueRepository.getPendingTasks();
+  await removePendingEntityTasks(tasks, ["CREATE_FINANCE_MACRO_CATEGORY", "UPDATE_FINANCE_MACRO_CATEGORY"], macro.local_id);
+
+  for (const task of tasks) {
+    if (task.type === "CREATE_FINANCE_CATEGORY" || task.type === "UPDATE_FINANCE_CATEGORY") {
+      if (task.payload?.data?.macro_category === macro.name) {
+        task.payload.data.macro_category = "Geral";
+        task.payload.data.macro_color = "#999999";
+        task.payload.data.color = "#999999";
+        await syncQueueRepository.updateTask(task.id, { payload: task.payload });
+      }
+    } else if (task.type === "SAVE_FINANCE_BUDGETS") {
+      const groups = (task.payload?.groups || []).filter((group) => !sameId(group.macro_category_id, macro.id));
+      if (groups.length !== (task.payload?.groups || []).length) {
+        task.payload.groups = groups;
+        await syncQueueRepository.updateTask(task.id, { payload: task.payload });
+      }
+    }
+  }
+};
+
 const localDashboard = async (month) => {
   const transactions = await financeRepository.getTransactions({ month });
   const categories = await financeRepository.getCategories();
-  const categoryMap = new Map(categories.map((category) => [Number(category.id || category.local_id), category]));
+  const categoryMap = new Map(categories.map((category) => [String(category.id ?? category.local_id), category]));
   const visible = transactions.filter((item) => !item.is_ignored);
   const totals = visible.reduce(
     (acc, item) => {
@@ -31,7 +110,7 @@ const localDashboard = async (month) => {
   visible
     .filter((item) => item.type === "EXPENSE")
     .forEach((item) => {
-      const category = categoryMap.get(Number(item.category_id));
+      const category = categoryMap.get(String(item.category_id ?? ""));
       const name = category?.macro_category || "Geral";
       const current = byMacro.get(name) || {
         macro_category: name,
@@ -58,7 +137,7 @@ export const financeService = {
       } else if (Array.isArray(result.data?.recent_transactions)) {
         await financeRepository.setTransactions(result.data.recent_transactions);
       }
-      return result;
+      return response(await localDashboard(params.month));
     } catch {
       return response(await localDashboard(params.month));
     }
@@ -68,20 +147,21 @@ export const financeService = {
     try {
       const result = await api.get("/finance/transactions", { params });
       await financeRepository.setTransactions(result.data || []);
-      return result;
+      return response(await financeRepository.getTransactions(params));
     } catch {
       return response(await financeRepository.getTransactions(params));
     }
   },
 
   async createTransaction(data) {
-    const local = await financeRepository.createLocalTransaction(data);
-    await enqueue("CREATE_FINANCE_TRANSACTION", { local_id: local.local_id, data });
+    const cleanData = toPlain(data);
+    const local = await financeRepository.createLocalTransaction(cleanData);
+    await enqueue("CREATE_FINANCE_TRANSACTION", { local_id: local.local_id, data: cleanData });
     return response(local);
   },
 
   async createTransactionsBatch(transactions) {
-    const cleanTransactions = transactions.map((item) => JSON.parse(JSON.stringify(item)));
+    const cleanTransactions = toPlain(transactions, []);
     const local = await financeRepository.createLocalTransactionsBatch(cleanTransactions);
     await enqueue("CREATE_FINANCE_TRANSACTIONS_BATCH", {
       local_ids: local.map((item) => item.local_id),
@@ -92,8 +172,9 @@ export const financeService = {
 
 
   async updateTransaction(id, data) {
-    const local = await financeRepository.updateLocalTransaction(id, data);
-    await enqueue("UPDATE_FINANCE_TRANSACTION", { id, local_id: local?.local_id, data });
+    const cleanData = toPlain(data);
+    const local = await financeRepository.updateLocalTransaction(id, cleanData);
+    await enqueue("UPDATE_FINANCE_TRANSACTION", { id, local_id: local?.local_id, data: cleanData });
     return response(local);
   },
 
@@ -134,7 +215,7 @@ export const financeService = {
     try {
       const result = await api.get("/finance/categories");
       await financeRepository.setCategories(result.data || []);
-      return result;
+      return response(await financeRepository.getCategories());
     } catch {
       return response(await financeRepository.getCategories());
     }
@@ -144,45 +225,59 @@ export const financeService = {
     try {
       const result = await api.get("/finance/macro-categories");
       await financeRepository.setMacroCategories(result.data || []);
-      return result;
+      return response(await financeRepository.getMacroCategories());
     } catch {
       return response(await financeRepository.getMacroCategories());
     }
   },
 
   async createMacroCategory(data) {
-    const local = await financeRepository.createLocalMacroCategory(data);
-    await enqueue("CREATE_FINANCE_MACRO_CATEGORY", { local_id: local.local_id, data });
+    const cleanData = toPlain(data);
+    const local = await financeRepository.createLocalMacroCategory(cleanData);
+    await enqueue("CREATE_FINANCE_MACRO_CATEGORY", { local_id: local.local_id, data: cleanData });
     return response(local);
   },
 
   async updateMacroCategory(id, data) {
-    const local = await financeRepository.updateLocalMacroCategory(id, data);
-    await enqueue("UPDATE_FINANCE_MACRO_CATEGORY", { id, local_id: local?.local_id, data });
+    const cleanData = toPlain(data);
+    const local = await financeRepository.updateLocalMacroCategory(id, cleanData);
+    await enqueue("UPDATE_FINANCE_MACRO_CATEGORY", { id, local_id: local?.local_id, data: cleanData });
     return response(local);
   },
 
   async deleteMacroCategory(id) {
     const local = await financeRepository.deleteLocalMacroCategory(id);
-    if (local?.id) await enqueue("DELETE_FINANCE_MACRO_CATEGORY", { id: local.id, server_id: local.id });
+    if (local) {
+      await removeDeletedMacroReferencesFromQueue(local);
+      if (isServerId(local.id)) {
+        await enqueue("DELETE_FINANCE_MACRO_CATEGORY", { id: local.id, server_id: local.id, local_id: local.local_id });
+      }
+    }
     return response(null);
   },
 
   async createCategory(data) {
-    const local = await financeRepository.createLocalCategory(data);
-    await enqueue("CREATE_FINANCE_CATEGORY", { local_id: local.local_id, data });
+    const cleanData = toPlain(data);
+    const local = await financeRepository.createLocalCategory(cleanData);
+    await enqueue("CREATE_FINANCE_CATEGORY", { local_id: local.local_id, data: cleanData });
     return response(local);
   },
 
   async updateCategory(id, data) {
-    const local = await financeRepository.updateLocalCategory(id, data);
-    await enqueue("UPDATE_FINANCE_CATEGORY", { id, local_id: local?.local_id, data });
+    const cleanData = toPlain(data);
+    const local = await financeRepository.updateLocalCategory(id, cleanData);
+    await enqueue("UPDATE_FINANCE_CATEGORY", { id, local_id: local?.local_id, data: cleanData });
     return response(local);
   },
 
   async deleteCategory(id) {
     const local = await financeRepository.deleteLocalCategory(id);
-    if (local?.id) await enqueue("DELETE_FINANCE_CATEGORY", { id: local.id, server_id: local.id });
+    if (local) {
+      await removeDeletedCategoryReferencesFromQueue(local);
+      if (isServerId(local.id)) {
+        await enqueue("DELETE_FINANCE_CATEGORY", { id: local.id, server_id: local.id, local_id: local.local_id });
+      }
+    }
     return response(null);
   },
 
@@ -197,8 +292,9 @@ export const financeService = {
   },
 
   async saveBudgets(data) {
-    const local = await financeRepository.replaceLocalBudgetGroups(data.month, data.groups || []);
-    await enqueue("SAVE_FINANCE_BUDGETS", { month: data.month, groups: data.groups || [] });
+    const cleanData = toPlain(data, { groups: [] });
+    const local = await financeRepository.replaceLocalBudgetGroups(cleanData.month, cleanData.groups || []);
+    await enqueue("SAVE_FINANCE_BUDGETS", { month: cleanData.month, groups: cleanData.groups || [] });
     return response(local);
   },
 

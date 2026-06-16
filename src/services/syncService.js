@@ -735,11 +735,52 @@ async function _handleDownloadLyricsTask(task) {
 
 const updateFinanceLocalRecord = async (table, localId, serverData) => {
   if (!localId || !serverData) return;
+  const current = await db[table].get(localId);
   await db[table].update(localId, {
     ...serverData,
     pending_sync: false,
     updated_at: serverData.updated_at || new Date().toISOString(),
   });
+
+  if (table === 'finance_categories' && current?.id && serverData.id) {
+    const transactions = await db.finance_transactions.where('category_id').equals(current.id).toArray();
+    if (transactions.length) {
+      await Promise.all(
+        transactions.map(transaction =>
+          db.finance_transactions.update(transaction.local_id, {
+            category_id: serverData.id,
+            updated_at: transaction.updated_at || new Date().toISOString(),
+          }),
+        ),
+      );
+    }
+
+    const budgets = await db.finance_budgets.where('category_id').equals(current.id).toArray();
+    if (budgets.length) {
+      await Promise.all(
+        budgets.map(budget =>
+          db.finance_budgets.update(budget.local_id, {
+            category_id: serverData.id,
+            updated_at: budget.updated_at || new Date().toISOString(),
+          }),
+        ),
+      );
+    }
+  }
+
+  if (table === 'finance_macro_categories' && current?.id && serverData.id) {
+    const budgetGroups = await db.finance_budget_groups.where('macro_category_id').equals(current.id).toArray();
+    if (budgetGroups.length) {
+      await Promise.all(
+        budgetGroups.map(group =>
+          db.finance_budget_groups.update(group.local_id, {
+            macro_category_id: serverData.id,
+            updated_at: group.updated_at || new Date().toISOString(),
+          }),
+        ),
+      );
+    }
+  }
 };
 
 const resolveFinanceServerId = async (table, payload) => {
@@ -782,18 +823,29 @@ const resolveBudgetGroupsForServer = async (groups = []) => {
   return resolved;
 };
 
+const resolveTransactionPayloadForServer = async (data) => {
+  const cleanData = sanitizeTransactionPayload(data);
+  if (cleanData.category_id) {
+    cleanData.category_id = await resolveFinanceEntityId('finance_categories', cleanData.category_id);
+  }
+  return cleanData;
+};
+
 async function _handleFinanceTask(task) {
   const { payload } = task;
 
   switch (task.type) {
     case 'CREATE_FINANCE_TRANSACTION': {
-      const cleanData = sanitizeTransactionPayload(payload.data);
+      const cleanData = await resolveTransactionPayloadForServer(payload.data);
       const response = await api.post('/finance/transactions', cleanData);
       await updateFinanceLocalRecord('finance_transactions', payload.local_id, response.data);
       return;
     }
     case 'CREATE_FINANCE_TRANSACTIONS_BATCH': {
-      const cleanTransactions = (payload.transactions || []).map(tx => sanitizeTransactionPayload(tx));
+      const cleanTransactions = [];
+      for (const tx of payload.transactions || []) {
+        cleanTransactions.push(await resolveTransactionPayloadForServer(tx));
+      }
       const response = await api.post('/finance/transactions/batch', { transactions: cleanTransactions });
       if (Array.isArray(response.data)) {
         for (let i = 0; i < response.data.length; i++) {
@@ -807,7 +859,7 @@ async function _handleFinanceTask(task) {
 
     case 'UPDATE_FINANCE_TRANSACTION': {
       const id = await resolveFinanceServerId('finance_transactions', payload);
-      const cleanData = sanitizeTransactionPayload(payload.data);
+      const cleanData = await resolveTransactionPayloadForServer(payload.data);
       const response = await api.put(`/finance/transactions/${id}`, cleanData);
       await updateFinanceLocalRecord('finance_transactions', payload.local_id, response.data);
       return;
@@ -930,7 +982,12 @@ export const syncService = {
           'CREATE_TASK': 3,
           'ADD_TASK_ATTACHMENT': 4,
           'CREATE_PLAYLIST': 5,
-          'ADD_TRACK': 6
+          'ADD_TRACK': 6,
+          'CREATE_FINANCE_MACRO_CATEGORY': 7,
+          'CREATE_FINANCE_CATEGORY': 8,
+          'CREATE_FINANCE_TRANSACTION': 9,
+          'CREATE_FINANCE_TRANSACTIONS_BATCH': 9,
+          'SAVE_FINANCE_BUDGETS': 10
         };
         const sortedTasks = individualTasks.sort((a, b) => {
           const orderA = creationOrder[a.type] || 10;

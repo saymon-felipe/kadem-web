@@ -46,7 +46,7 @@
               :key="category.id"
               type="button"
               class="combo-option"
-              :class="{ selected: category.id === modelValue }"
+              :class="{ selected: sameId(category.id, modelValue) }"
               @click="select(category.id)"
             >
             <i class="combo-swatch" :style="{ background: category.color || '#999999' }"></i>
@@ -93,7 +93,7 @@ export default {
   },
   computed: {
     selectedCategory() {
-      return this.categories.find((category) => Number(category.id) === Number(this.modelValue));
+      return this.categories.find((category) => this.sameId(category.id, this.modelValue));
     },
     filteredCategories() {
       const term = this.normalize(this.filter);
@@ -112,6 +112,9 @@ export default {
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase()
         .trim();
+    },
+    sameId(left, right) {
+      return String(left ?? "") === String(right ?? "");
     },
     toggle() {
       this.isOpen ? this.close() : this.open();
