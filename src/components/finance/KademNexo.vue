@@ -205,12 +205,17 @@
                           <font-awesome-icon icon="circle-notch" spin /> Categorizando...
                         </span>
                         <CategoryCombo v-else :model-value="transaction.category_id" :categories="categories"
+                          allow-create
                           placeholder="Sem categoria"
-                          @update:modelValue="updateTransaction(transaction.id, { category_id: $event })" />
+                          @update:modelValue="selectTransactionCategory(transaction, $event)"
+                          @create="openCategoryFormForTransaction(transaction, $event)" />
                       </td>
                       <td>{{ sourceLabel(transaction.source) }}</td>
-                      <td class="right">
+                      <td class="right value-cell">
                         <strong :class="transaction.type">{{ signedMoney(transaction) }}</strong>
+                        <small v-if="transaction.original_type" class="original-type-label">
+                          Original: {{ polarityLabel(transaction.original_type) }}
+                        </small>
                       </td>
                       <td>
                         <div class="row-actions">
@@ -590,7 +595,7 @@
 
     <Transition name="slide-over-root">
       <div v-if="showCategoryForm" class="modal-wrapper-fixed">
-        <div class="modal-overlay" @click.self="showCategoryForm = false"></div>
+        <div class="modal-overlay" @click.self="closeCategoryForm"></div>
         <form class="modal-content nexo-modal glass" @submit.prevent="saveCategoryForm">
           <h3>{{ categoryForm.id ? "Editar categoria" : "Nova categoria" }}</h3>
           <div class="nexo-field static-label">
@@ -626,7 +631,7 @@
             </div>
           </div>
           <div class="modal-actions">
-            <button type="button" class="text-btn" @click="showCategoryForm = false">Cancelar</button>
+            <button type="button" class="text-btn" @click="closeCategoryForm">Cancelar</button>
             <button type="submit" class="primary-action">Salvar</button>
           </div>
         </form>
@@ -777,6 +782,7 @@ export default {
       categories: [],
       macroCategories: [],
       categorySearch: "",
+      pendingCategorySelection: null,
       budgets: [],
       connections: [],
       macroDistribution: [],
@@ -1070,6 +1076,9 @@ export default {
     typeLabel(type) {
       const labels = { EXPENSE: "Saída", INCOME: "Entrada" };
       return labels[type] || "Não definido";
+    },
+    polarityLabel(type) {
+      return type === "INCOME" ? "positivo" : "negativo";
     },
     sourceLabel(source) {
       const labels = { MANUAL: "Manual", OPEN_FINANCE: "Open Finance", IMPORT: "CSV" };
@@ -1621,9 +1630,64 @@ export default {
       }
     },
 
+    transactionKey(transaction) {
+      return transaction?.id || transaction?.local_id || null;
+    },
+    transactionMatches(transaction, id) {
+      return this.sameId(transaction?.id, id) || this.sameId(transaction?.local_id, id);
+    },
+    async selectTransactionCategory(transaction, categoryId, options = {}) {
+      const category = this.findCategory(categoryId);
+      const update = { category_id: categoryId || null };
+      const originalType = transaction?.original_type || options.originalType || transaction?.type;
+
+      if (!categoryId && transaction?.original_type) {
+        update.type = transaction.original_type;
+        update.original_type = null;
+      }
+
+      if (category?.type) {
+        update.type = category.type;
+        if (originalType) {
+          update.original_type = originalType;
+        }
+      }
+
+      await this.updateTransaction(this.transactionKey(transaction), update);
+    },
+    resolveSavedCategory(savedCategory) {
+      if (!savedCategory) return null;
+      const savedName = this.normalize(savedCategory.name);
+      const savedMacro = this.normalize(savedCategory.macro_category);
+
+      return this.categories.find((category) => (
+        this.sameId(category.id, savedCategory.id)
+          || this.sameId(category.local_id, savedCategory.local_id)
+          || (
+            this.normalize(category.name) === savedName
+            && this.normalize(category.macro_category) === savedMacro
+            && category.type === savedCategory.type
+          )
+      )) || savedCategory;
+    },
+    async applyPendingCategorySelection(savedCategory) {
+      if (!this.pendingCategorySelection) return;
+      const pending = this.pendingCategorySelection;
+      const category = this.resolveSavedCategory(savedCategory);
+      const transaction = this.transactions.find((item) => (
+        this.transactionMatches(item, pending.transactionId)
+          || this.transactionMatches(item, pending.transactionLocalId)
+      ));
+
+      if (transaction && category?.id) {
+        await this.selectTransactionCategory(transaction, category.id, { originalType: pending.originalType });
+      }
+
+      this.pendingCategorySelection = null;
+    },
     applyTransactionPatch(id, data) {
       this.transactions = this.transactions.map((transaction) =>
-        this.sameId(transaction.id, id) || this.sameId(transaction.local_id, id)
+        this.transactionMatches(transaction, id)
           ? { ...transaction, ...data }
           : transaction,
       );
@@ -1755,7 +1819,8 @@ export default {
       await financeService.saveBudgets({ month: this.selectedMonth, groups });
       await this.loadBudgets();
     },
-    openCategoryForm(category = null) {
+    openCategoryForm(category = null, pendingSelection = null) {
+      this.pendingCategorySelection = pendingSelection;
       this.categoryForm = {
         id: category?.id || null,
         name: category?.name || "",
@@ -1766,6 +1831,26 @@ export default {
       };
       this.showCategoryForm = true;
     },
+    openCategoryFormForTransaction(transaction, suggestedName = "") {
+      this.openCategoryForm(
+        {
+          name: suggestedName,
+          macro_category: "Geral",
+          macro_color: "#999999",
+          type: transaction?.type || "EXPENSE",
+          icon: "tag",
+        },
+        {
+          transactionId: transaction?.id,
+          transactionLocalId: transaction?.local_id,
+          originalType: transaction?.original_type || transaction?.type,
+        },
+      );
+    },
+    closeCategoryForm() {
+      this.showCategoryForm = false;
+      this.pendingCategorySelection = null;
+    },
     onCategoryMacroChange(macroName) {
       const macro = this.findMacroByName(macroName);
       if (macro?.color) {
@@ -1773,13 +1858,17 @@ export default {
       }
     },
     async saveCategoryForm() {
+      let savedCategory = null;
       if (this.categoryForm.id) {
-        await financeService.updateCategory(this.categoryForm.id, this.categoryForm);
+        const { data } = await financeService.updateCategory(this.categoryForm.id, this.categoryForm);
+        savedCategory = data;
       } else {
-        await financeService.createCategory(this.categoryForm);
+        const { data } = await financeService.createCategory(this.categoryForm);
+        savedCategory = data;
       }
       this.showCategoryForm = false;
       await Promise.all([this.loadMacroCategories(), this.loadCategories(), this.loadDashboard()]);
+      await this.applyPendingCategorySelection(savedCategory);
     },
     openMacroForm(macro = null) {
       this.macroForm = {
@@ -2714,6 +2803,18 @@ tr:hover td {
 
 .right {
   text-align: right;
+}
+
+.value-cell strong,
+.value-cell small {
+  display: block;
+}
+
+.original-type-label {
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--fontsize-xs);
+  white-space: nowrap;
 }
 
 .row-actions {

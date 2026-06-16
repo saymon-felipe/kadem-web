@@ -18,11 +18,17 @@ const normalizeDesc = (desc) => {
 
 const withUpdatedAt = (items = []) => items.map((item) => ({ ...item, updated_at: item.updated_at || now() }));
 
-const replaceServerItemsPreservingPending = async (table, items = []) => {
+const replaceServerItemsPreservingPending = async (table, items = [], options = {}) => {
+  const { preserveFields = [] } = options;
   const serverItems = withUpdatedAt(items);
   const existing = await table.toArray();
   const pendingItems = existing.filter((item) =>
     item.pending_sync || (item.local_key && !isServerId(item.id) && item.pending_sync !== false),
+  );
+  const existingByServerId = new Map(
+    existing
+      .filter((item) => isServerId(item.id))
+      .map((item) => [String(item.id), item]),
   );
   const pendingServerIds = new Set(
     pendingItems
@@ -32,8 +38,23 @@ const replaceServerItemsPreservingPending = async (table, items = []) => {
 
   await table.clear();
 
+  const hydratedServerItems = serverItems.map((item) => {
+    const current = existingByServerId.get(String(item.id));
+    if (!current) return item;
+
+    const merged = { ...item };
+    if (current.local_id) merged.local_id = current.local_id;
+    if (current.local_key) merged.local_key = current.local_key;
+    preserveFields.forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(current, field) && merged[field] === undefined) {
+        merged[field] = current[field];
+      }
+    });
+    return merged;
+  });
+
   const merged = [
-    ...serverItems.filter((item) => !pendingServerIds.has(Number(item.id))),
+    ...hydratedServerItems.filter((item) => !pendingServerIds.has(Number(item.id))),
     ...pendingItems,
   ];
 
@@ -223,7 +244,9 @@ export const financeRepository = {
   },
 
   async setTransactions(items = []) {
-    await replaceServerItemsPreservingPending(db.finance_transactions, items);
+    await replaceServerItemsPreservingPending(db.finance_transactions, items, {
+      preserveFields: ["original_type"],
+    });
   },
 
   async getTransactions({ month } = {}) {

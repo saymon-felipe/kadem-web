@@ -40,6 +40,11 @@
             Sem categoria
           </button>
 
+          <button v-if="allowCreate" type="button" class="combo-create" @click="requestCreate">
+            <font-awesome-icon icon="plus" />
+            <span>{{ createLabel }}</span>
+          </button>
+
           <div class="combo-list custom-scrollbar">
             <button
               v-for="category in filteredCategories"
@@ -81,8 +86,16 @@ export default {
       type: String,
       default: "Selecionar categoria",
     },
+    createLabel: {
+      type: String,
+      default: "Nova categoria",
+    },
+    allowCreate: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ["update:modelValue", "change"],
+  emits: ["update:modelValue", "change", "create"],
   data() {
     return {
       isOpen: false,
@@ -138,7 +151,9 @@ export default {
       const spaceAbove = rect.top;
       this.direction = spaceBelow < 280 && spaceAbove > spaceBelow ? "up" : "down";
       const availableSpace = this.direction === "down" ? spaceBelow - 12 : spaceAbove - 12;
-      const menuHeight = Math.min(300, Math.max(220, this.filteredCategories.length * 44 + 104));
+      const extraHeight = this.allowCreate ? 150 : 104;
+      const minHeight = this.allowCreate ? 240 : 220;
+      const menuHeight = Math.min(340, Math.max(minHeight, this.filteredCategories.length * 44 + extraHeight));
       this.menuStyle = {
         left: `${Math.max(12, rect.left)}px`,
         width: `${Math.min(rect.width, window.innerWidth - 24)}px`,
@@ -151,6 +166,10 @@ export default {
     select(categoryId) {
       this.$emit("update:modelValue", categoryId);
       this.$emit("change", categoryId);
+      this.close();
+    },
+    requestCreate() {
+      this.$emit("create", this.filter.trim());
       this.close();
     },
     handleOutsideClick(event) {
@@ -350,6 +369,28 @@ export default {
   grid-template-columns: 1fr;
   color: var(--gray-100);
   min-height: 34px;
+}
+
+.combo-create {
+  border: 1px dashed var(--glass-border);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  min-height: 38px;
+  padding: 0 var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.combo-create:hover {
+  background: var(--surface-3);
+  border-color: var(--color-info);
+  transform: translateY(-1px);
 }
 
 .combo-empty {
