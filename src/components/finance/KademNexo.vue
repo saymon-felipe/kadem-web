@@ -199,7 +199,10 @@
                     <tr v-for="transaction in transactions" :key="transaction.local_id || transaction.id"
                       :class="{ ignored: transaction.is_ignored }">
                       <td>{{ shortDate(transaction.transaction_date) }}</td>
-                      <td>{{ transaction.description }}</td>
+                      <td class="transaction-description-cell">
+                        <strong>{{ transaction.description }}</strong>
+                        <small v-if="transaction.observation" class="transaction-observation">{{ transaction.observation }}</small>
+                      </td>
                       <td>
                         <span v-if="categorizingIds.includes(transaction.id)" class="categorizing-loading-text">
                           <font-awesome-icon icon="circle-notch" spin /> Categorizando...
@@ -213,12 +216,18 @@
                       <td>{{ sourceLabel(transaction.source) }}</td>
                       <td class="right value-cell">
                         <strong :class="transaction.type">{{ signedMoney(transaction) }}</strong>
-                        <small v-if="transaction.original_type" class="original-type-label">
+                        <small
+                          v-if="transaction.original_type && transaction.original_type !== transaction.type"
+                          class="original-type-label"
+                        >
                           Original: {{ polarityLabel(transaction.original_type) }}
                         </small>
                       </td>
                       <td>
                         <div class="row-actions">
+                          <button class="icon-btn small" @click="openTransactionForm(transaction)" title="Editar">
+                            <font-awesome-icon icon="pencil" />
+                          </button>
                           <button class="icon-btn small" @click="toggleIgnored(transaction)" title="Ignorar">
                             <font-awesome-icon :icon="transaction.is_ignored ? 'eye-slash' : 'eye'" />
                           </button>
@@ -559,10 +568,10 @@
 
     <Transition name="slide-over-root">
       <div v-if="showTransactionForm" class="modal-wrapper-fixed">
-        <div class="modal-overlay" @click.self="showTransactionForm = false"></div>
+        <div class="modal-overlay" @click.self="closeTransactionForm"></div>
         <form class="modal-content nexo-modal transaction-modal glass" :class="form.type.toLowerCase()"
           @submit.prevent="saveTransaction">
-          <h3>Novo lançamento</h3>
+          <h3>{{ form.id ? "Editar lançamento" : "Novo lançamento" }}</h3>
           <div class="segmented">
             <button type="button" class="expense-toggle" :class="{ active: form.type === 'EXPENSE' }"
               @click="form.type = 'EXPENSE'">Saída</button>
@@ -572,6 +581,11 @@
           <div class="nexo-field static-label">
             <label for="transaction-description">Descrição</label>
             <input id="transaction-description" v-model="form.description" placeholder="" required />
+          </div>
+          <div class="nexo-field static-label textarea">
+            <label for="transaction-observation">Observação</label>
+            <textarea id="transaction-observation" v-model.trim="form.observation"
+              placeholder="Detalhe opcional para diferenciar este movimento"></textarea>
           </div>
           <div class="form-grid">
             <div class="nexo-field static-label">
@@ -586,8 +600,8 @@
           </div>
           <CategoryCombo v-model="form.category_id" :categories="categories" placeholder="Sem categoria" />
           <div class="modal-actions">
-            <button type="button" class="text-btn" @click="showTransactionForm = false">Cancelar</button>
-            <button type="submit" class="primary-action">Salvar</button>
+            <button type="button" class="text-btn" @click="closeTransactionForm">Cancelar</button>
+            <button type="submit" class="primary-action">{{ form.id ? "Salvar alterações" : "Salvar" }}</button>
           </div>
         </form>
       </div>
@@ -833,8 +847,10 @@ export default {
         "receipt",
       ],
       form: {
+        id: null,
         type: "EXPENSE",
         description: "",
+        observation: "",
         amount: 0,
         amount_display: "",
         category_id: null,
@@ -1228,16 +1244,22 @@ export default {
       const { data } = await financeService.getUsage();
       this.usage = data || {};
     },
-    openTransactionForm() {
+    openTransactionForm(transaction = null) {
+      const amount = Number(transaction?.amount || 0);
       this.form = {
-        type: "EXPENSE",
-        description: "",
-        amount: 0,
-        amount_display: "",
-        category_id: null,
-        transaction_date: new Date().toISOString().slice(0, 10),
+        id: transaction?.id || transaction?.local_id || null,
+        type: transaction?.type || "EXPENSE",
+        description: transaction?.description || "",
+        observation: transaction?.observation || "",
+        amount,
+        amount_display: transaction ? this.moneyInput(amount) : "",
+        category_id: transaction?.category_id || null,
+        transaction_date: String(transaction?.transaction_date || new Date().toISOString().slice(0, 10)).slice(0, 10),
       };
       this.showTransactionForm = true;
+    },
+    closeTransactionForm() {
+      this.showTransactionForm = false;
     },
     updateTransactionAmount(event) {
       const value = this.parseMoneyInput(event.target.value);
@@ -1246,11 +1268,17 @@ export default {
       event.target.value = this.form.amount_display;
     },
     async saveTransaction() {
-      await financeService.createTransaction({
+      const payload = {
         ...this.form,
+        observation: this.form.observation || null,
         amount: Number(this.form.amount || 0),
-      });
-      this.showTransactionForm = false;
+      };
+      if (this.form.id) {
+        await financeService.updateTransaction(this.form.id, payload);
+      } else {
+        await financeService.createTransaction(payload);
+      }
+      this.closeTransactionForm();
       await this.loadDashboard();
     },
     resetQuickForm(keepType = true) {
@@ -2202,7 +2230,6 @@ export default {
   gap: var(--space-4);
   overflow: hidden;
 }
-
 .nexo-header,
 .panel-title,
 .nexo-actions,
@@ -2808,6 +2835,19 @@ tr:hover td {
 .value-cell strong,
 .value-cell small {
   display: block;
+}
+
+.transaction-description-cell strong,
+.transaction-description-cell small {
+  display: block;
+}
+
+.transaction-observation {
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--fontsize-xs);
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .original-type-label {
@@ -3677,7 +3717,7 @@ tr.ignored {
   gap: var(--space-3);
 }
 
-/* Animação dos modais do Nexo — usa a mesma do SideModal global (floating-modal) */
+/* Animação dos modais do Nexo - usa a mesma do SideModal global (floating-modal) */
 /* Definida em SideModal.vue e main.css, reutilizada aqui sem redeclaração */
 
 @media (max-width: 900px) {

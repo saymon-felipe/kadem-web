@@ -104,6 +104,7 @@ const sanitizeTransactionPayload = (data) => {
   if (!data) return {};
   const allowedKeys = [
     'description',
+    'observation',
     'amount',
     'type',
     'category_id',
