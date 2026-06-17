@@ -74,14 +74,14 @@
                   <button class="text-btn" @click="setActiveTab('transactions')">Ver todos</button>
                 </div>
                 <div class="compact-list">
-                  <article v-for="transaction in transactions.slice(0, 8)" :key="transaction.local_id || transaction.id" class="movement-row">
+                  <article v-for="transaction in recentTransactions.slice(0, 8)" :key="transaction.local_id || transaction.id" class="movement-row">
                     <div>
                       <strong>{{ transaction.description }}</strong>
                       <span>{{ categoryLabel(transaction) }} · {{ shortDate(transaction.transaction_date) }}</span>
                     </div>
                     <b :class="transaction.type">{{ signedMoney(transaction) }}</b>
                   </article>
-                  <p v-if="transactions.length === 0" class="empty-line">Nenhum lançamento.</p>
+                  <p v-if="recentTransactions.length === 0" class="empty-line">Nenhum lançamento.</p>
                 </div>
               </section>
             </div>
@@ -793,6 +793,7 @@ export default {
       showPlanModal: false,
       totals: { income: 0, expense: 0, balance: 0 },
       transactions: [],
+      recentTransactions: [],
       categories: [],
       macroCategories: [],
       categorySearch: "",
@@ -1053,6 +1054,9 @@ export default {
     },
     setActiveTab(tabId) {
       this.activeTab = tabId;
+      if (tabId === "transactions") {
+        this.loadTransactions();
+      }
     },
     money(value) {
       try {
@@ -1179,6 +1183,7 @@ export default {
       try {
         await Promise.all([
           this.loadDashboard(),
+          this.loadTransactions(),
           this.loadMacroCategories(),
           this.loadCategories(),
           this.loadBudgets(),
@@ -1193,8 +1198,12 @@ export default {
     async loadDashboard() {
       const { data } = await financeService.getDashboard({ month: this.selectedMonth });
       this.totals = data.totals || { income: 0, expense: 0, balance: 0 };
-      this.transactions = data.transactions || [];
+      this.recentTransactions = data.transactions || data.recent_transactions || [];
       this.macroDistribution = data.macro_distribution || [];
+    },
+    async loadTransactions() {
+      const { data } = await financeService.listTransactions({ month: this.selectedMonth, limit: 250 });
+      this.transactions = data || [];
     },
     async loadCategories() {
       const { data } = await financeService.getCategories();

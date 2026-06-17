@@ -132,12 +132,17 @@ export const financeService = {
   async getDashboard(params = {}) {
     try {
       const result = await api.get("/finance/dashboard", { params });
-      if (Array.isArray(result.data?.transactions)) {
-        await financeRepository.setTransactions(result.data.transactions);
-      } else if (Array.isArray(result.data?.recent_transactions)) {
-        await financeRepository.setTransactions(result.data.recent_transactions);
-      }
-      return response(await localDashboard(params.month));
+      const recentTransactions = Array.isArray(result.data?.transactions)
+        ? result.data.transactions
+        : Array.isArray(result.data?.recent_transactions)
+          ? result.data.recent_transactions
+          : [];
+
+      return response({
+        ...result.data,
+        transactions: recentTransactions,
+        recent_transactions: recentTransactions,
+      });
     } catch {
       return response(await localDashboard(params.month));
     }
