@@ -1282,10 +1282,16 @@ export default {
         observation: this.form.observation || null,
         amount: Number(this.form.amount || 0),
       };
+      let savedTransaction = null;
       if (this.form.id) {
-        await financeService.updateTransaction(this.form.id, payload);
+        const { data } = await financeService.updateTransaction(this.form.id, payload);
+        savedTransaction = data;
       } else {
-        await financeService.createTransaction(payload);
+        const { data } = await financeService.createTransaction(payload);
+        savedTransaction = data;
+      }
+      if (savedTransaction) {
+        this.upsertTransactionInList(savedTransaction);
       }
       this.closeTransactionForm();
       await this.loadDashboard();
@@ -1310,11 +1316,14 @@ export default {
       if (!this.quickForm.description || !Number(this.quickForm.amount)) return;
       this.savingQuick = true;
       try {
-        await financeService.createTransaction({
+        const { data } = await financeService.createTransaction({
           ...this.quickForm,
           amount: Number(this.quickForm.amount || 0),
           source: "MANUAL",
         });
+        if (data) {
+          this.upsertTransactionInList(data);
+        }
         this.resetQuickForm();
         await this.loadDashboard();
       } finally {
@@ -1673,6 +1682,52 @@ export default {
     transactionMatches(transaction, id) {
       return this.sameId(transaction?.id, id) || this.sameId(transaction?.local_id, id);
     },
+    transactionBelongsToSelectedMonth(transaction) {
+      return String(transaction?.transaction_date || "").startsWith(this.selectedMonth);
+    },
+    enrichTransactionForList(transaction = {}) {
+      const category = this.findCategory(transaction.category_id);
+      if (!category) return transaction;
+
+      return {
+        ...transaction,
+        category_id: category.id,
+        category_name: category.name,
+        macro_category: category.macro_category,
+        macro_category_id: category.macro_category_id,
+        category_icon: category.icon,
+        category_color: category.macro_color || category.color,
+      };
+    },
+    sortTransactionsList() {
+      this.transactions = [...this.transactions].sort((a, b) => {
+        const dateCompare = String(b.transaction_date || "").localeCompare(String(a.transaction_date || ""));
+        if (dateCompare !== 0) return dateCompare;
+
+        const isNumericA = a.id && Number.isFinite(Number(a.id));
+        const isNumericB = b.id && Number.isFinite(Number(b.id));
+
+        if (isNumericA && isNumericB) return Number(b.id) - Number(a.id);
+        if (!isNumericA && isNumericB) return -1;
+        if (isNumericA && !isNumericB) return 1;
+        return (b.local_id || 0) - (a.local_id || 0);
+      });
+    },
+    upsertTransactionInList(transaction) {
+      const next = this.enrichTransactionForList(transaction);
+      const key = this.transactionKey(next);
+      const withoutCurrent = this.transactions.filter((item) => !this.transactionMatches(item, key));
+
+      if (this.transactionBelongsToSelectedMonth(next)) {
+        this.transactions = [next, ...withoutCurrent];
+        this.sortTransactionsList();
+      } else {
+        this.transactions = withoutCurrent;
+      }
+    },
+    removeTransactionFromList(id) {
+      this.transactions = this.transactions.filter((transaction) => !this.transactionMatches(transaction, id));
+    },
     async selectTransactionCategory(transaction, categoryId, options = {}) {
       const category = this.findCategory(categoryId);
       const update = { category_id: categoryId || null };
@@ -1725,7 +1780,7 @@ export default {
     applyTransactionPatch(id, data) {
       this.transactions = this.transactions.map((transaction) =>
         this.transactionMatches(transaction, id)
-          ? { ...transaction, ...data }
+          ? this.enrichTransactionForList({ ...transaction, ...data })
           : transaction,
       );
     },
@@ -1733,7 +1788,7 @@ export default {
       this.applyTransactionPatch(id, data);
       const { data: local } = await financeService.updateTransaction(id, data);
       if (local) {
-        this.applyTransactionPatch(id, local);
+        this.upsertTransactionInList(local);
       }
       await this.loadDashboard();
     },
@@ -1744,6 +1799,7 @@ export default {
     },
     async deleteTransaction(id) {
       await financeService.deleteTransaction(id);
+      this.removeTransactionFromList(id);
       await this.loadDashboard();
     },
     findCategory(categoryId) {

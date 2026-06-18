@@ -5,6 +5,7 @@ import authView from "../views/authView.vue";
 import logoutView from '../views/logoutView.vue';
 import resetPasswordView from "../views/resetPasswordView.vue";
 import inviteLandindView from "../views/InviteLanding.vue";
+import { useAppStore } from '../stores/app.js';
 
 const routes = [
   {
@@ -28,7 +29,8 @@ const routes = [
     name: "Auth",
     component: authView,
     meta: {
-      requiresGuest: true
+      requiresGuest: true,
+      forceLightTheme: true
     }
   },
   {
@@ -36,7 +38,8 @@ const routes = [
     name: "ResetPassword",
     component: resetPasswordView,
     meta: {
-      public: true
+      public: true,
+      forceLightTheme: true
     }
   },
   {
@@ -44,7 +47,8 @@ const routes = [
     name: 'invite-landing',
     component: inviteLandindView,
     meta: {
-      public: true
+      public: true,
+      forceLightTheme: true
     }
   },
   {
@@ -52,7 +56,8 @@ const routes = [
     name: "AlexaAuth",
     component: () => import("../views/alexaAuthView.vue"),
     meta: {
-      public: true
+      public: true,
+      forceLightTheme: true
     }
   },
   {
@@ -88,6 +93,11 @@ router.beforeEach(async (to, from, next) => {
   } else {
     next();
   }
+});
+
+router.afterEach((to) => {
+  const appStore = useAppStore();
+  appStore.syncThemeForRoute(to, { deferInternal: true });
 });
 
 router.onError((error) => {
