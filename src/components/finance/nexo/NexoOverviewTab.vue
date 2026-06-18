@@ -7,13 +7,17 @@
         :totals="totals"
         :macro-distribution="macroDistribution"
         :format-money="formatMoney"
+        :selected-category="selectedCategory"
+        @category-selected="toggleCategoryFilter"
       />
       <NexoRecentTransactions
         :categories="categories"
-        :recent-transactions="recentTransactions"
+        :recent-transactions="filteredRecentTransactions"
+        :selected-category="selectedCategory"
         :format-short-date="formatShortDate"
         :format-signed-money="formatSignedMoney"
         @view-all="$emit('view-transactions')"
+        @clear-filter="selectedCategory = null"
       />
     </div>
   </div>
@@ -60,6 +64,33 @@ export default {
     formatShortDate: {
       type: Function,
       required: true,
+    },
+  },
+  data() {
+    return {
+      selectedCategory: null,
+    }
+  },
+  computed: {
+    filteredRecentTransactions() {
+      if (!this.selectedCategory) return this.recentTransactions
+      
+      return this.recentTransactions.filter((transaction) => {
+        const category = this.categories.find(
+          (c) => String(c.id ?? '') === String(transaction.category_id ?? '')
+        )
+        const macroName = category?.macro_category || 'Geral'
+        return macroName.toLowerCase() === this.selectedCategory.toLowerCase()
+      })
+    },
+  },
+  methods: {
+    toggleCategoryFilter(categoryName) {
+      if (this.selectedCategory === categoryName) {
+        this.selectedCategory = null
+      } else {
+        this.selectedCategory = categoryName
+      }
     },
   },
 }

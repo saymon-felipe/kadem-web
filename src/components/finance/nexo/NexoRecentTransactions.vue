@@ -1,21 +1,26 @@
 <template>
   <section class="panel">
     <div class="panel-title">
-      <h3>Recentes</h3>
+      <div class="title-group">
+        <h3>Recentes</h3>
+        <Transition name="fade-scale">
+          <span v-if="selectedCategory" class="filter-pill" :style="{ '--pill-color': activeCategoryColor }">
+            {{ selectedCategory }}
+            <button class="clear-pill-btn" @click="$emit('clear-filter')" title="Remover filtro">
+              &times;
+            </button>
+          </span>
+        </Transition>
+      </div>
       <button class="text-btn" @click="$emit('view-all')">Ver todos</button>
     </div>
     <div class="compact-list">
-      <article
-        v-for="transaction in recentTransactions.slice(0, 8)"
-        :key="transaction.local_id || transaction.id"
-        class="movement-row"
-      >
+      <article v-for="transaction in recentTransactions.slice(0, 8)" :key="transaction.local_id || transaction.id"
+        class="movement-row">
         <div>
           <strong>{{ transaction.description }}</strong>
-          <span
-            >{{ categoryLabel(transaction) }} ·
-            {{ formatShortDate(transaction.transaction_date) }}</span
-          >
+          <span>{{ categoryLabel(transaction) }} ·
+            {{ formatShortDate(transaction.transaction_date) }}</span>
         </div>
         <b :class="transaction.type">{{ formatSignedMoney(transaction) }}</b>
       </article>
@@ -27,7 +32,7 @@
 <script>
 export default {
   name: 'NexoRecentTransactions',
-  emits: ['view-all'],
+  emits: ['view-all', 'clear-filter'],
   props: {
     recentTransactions: {
       type: Array,
@@ -45,6 +50,19 @@ export default {
       type: Function,
       required: true,
     },
+    selectedCategory: {
+      type: String,
+      default: null,
+    },
+  },
+  computed: {
+    activeCategoryColor() {
+      if (!this.selectedCategory) return '#eab308'
+      const category = this.categories.find(
+        (c) => String(c.macro_category || '').toLowerCase() === this.selectedCategory.toLowerCase()
+      )
+      return category?.macro_color || category?.color || '#eab308'
+    }
   },
   methods: {
     categoryLabel(transaction) {
@@ -75,15 +93,69 @@ export default {
 
 .panel-title {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   margin-bottom: var(--space-5);
   flex-wrap: wrap;
 }
 
-.panel-title h3 {
+.title-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.title-group h3 {
   margin: 0;
+  line-height: 1.2;
+}
+
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: color-mix(in srgb, var(--pill-color, #eab308) 12%, transparent);
+  color: var(--pill-color, #eab308);
+  border: 1px solid color-mix(in srgb, var(--pill-color, #eab308) 40%, transparent);
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(4px);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.clear-pill-btn {
+  background: color-mix(in srgb, var(--pill-color, #eab308) 15%, transparent);
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  transition: all 0.2s ease;
+}
+
+.clear-pill-btn:hover {
+  background: var(--color-expense, #ef4444);
+  color: #ffffff !important;
+  transform: scale(1.1);
+}
+
+[data-theme="dark"] .clear-pill-btn:hover {
+  background: var(--color-expense, #ef4444);
+  color: #ffffff !important;
 }
 
 .compact-list {
@@ -161,6 +233,18 @@ export default {
 
 .text-btn:active {
   transform: scale(0.97);
+}
+
+.fade-scale-enter-active,
+.fade-scale-leave-active {
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-scale-enter-from,
+.fade-scale-leave-to {
+  opacity: 0;
+  transform: scale(0.85);
 }
 
 @media (max-width: 760px) {
