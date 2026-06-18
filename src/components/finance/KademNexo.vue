@@ -1,35 +1,20 @@
 <template>
   <div class="nexo-shell">
-    <header class="nexo-header">
-      <div>
-        <h2>Kadem Nexo</h2>
-        <span>{{ planLabel }} · {{ aiUsageLabel }}</span>
-      </div>
-
-      <div class="nexo-actions">
-        <input type="month" v-model="selectedMonth" @change="reloadAll" />
-        <button class="icon-btn" @click="reloadAll" :disabled="loading" title="Atualizar">
-          <font-awesome-icon :icon="loading ? 'circle-notch' : 'arrows-rotate'" :spin="loading" />
-        </button>
-        <button class="primary-action" @click="openTransactionForm()">
-          <font-awesome-icon icon="plus" />
-          Lançamento
-        </button>
-      </div>
-    </header>
-
-    <nav class="nexo-tabs" aria-label="Kadem Nexo">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        :class="{ active: activeTab === tab.id }"
-        @click="setActiveTab(tab.id)"
-      >
-        <font-awesome-icon :icon="tab.icon" />
-        <span>{{ tab.label }}</span>
-        <font-awesome-icon v-if="tab.pro && !isPaidPlan" icon="lock" class="tab-lock" />
-      </button>
-    </nav>
+    <NexoHeader
+      :selected-month="selectedMonth"
+      :plan-label="planLabel"
+      :ai-usage-label="aiUsageLabel"
+      :loading="loading"
+      @update:selectedMonth="selectedMonth = $event"
+      @reload="reloadAll"
+      @new-transaction="openTransactionForm()"
+    />
+    <NexoTabs
+      :tabs="tabs"
+      :active-tab="activeTab"
+      :is-paid-plan="isPaidPlan"
+      @update:activeTab="setActiveTab"
+    />
 
     <div class="tab-viewport">
       <div class="tabs-track" :style="trackStyle">
@@ -40,272 +25,46 @@
           :style="paneStyle"
         >
           <template v-if="tab.id === 'overview'">
-            <div class="summary-grid">
-              <div class="metric income">
-                <span>Entradas</span>
-                <strong>{{ money(totals.income) }}</strong>
-              </div>
-              <div class="metric expense">
-                <span>Saídas</span>
-                <strong>{{ money(totals.expense) }}</strong>
-              </div>
-              <div class="metric balance">
-                <span>Saldo</span>
-                <strong :class="{ negative: totals.balance < 0 }">{{
-                  money(totals.balance)
-                }}</strong>
-              </div>
-            </div>
-
-            <div class="overview-grid">
-              <section class="panel allocation-panel">
-                <div class="panel-title">
-                  <h3>Distribuição</h3>
-                </div>
-                <div class="allocation-body">
-                  <div class="donut" :style="{ background: donutGradient }">
-                    <div class="donut-hole">
-                      <span>{{ expensePercent }}%</span>
-                      <small>uso</small>
-                    </div>
-                  </div>
-                  <div class="legend-list">
-                    <div
-                      v-for="segment in macroDistribution"
-                      :key="segment.macro_category"
-                      class="legend-row"
-                    >
-                      <span
-                        class="swatch"
-                        :style="{ background: segment.color || '#999999' }"
-                      ></span>
-                      <span>{{ segment.macro_category || 'Geral' }}</span>
-                      <strong>{{ money(segment.total) }}</strong>
-                    </div>
-                    <p v-if="macroDistribution.length === 0" class="empty-line">
-                      Sem gastos no mês.
-                    </p>
-                  </div>
-                </div>
-              </section>
-
-              <section class="panel">
-                <div class="panel-title">
-                  <h3>Recentes</h3>
-                  <button class="text-btn" @click="setActiveTab('transactions')">Ver todos</button>
-                </div>
-                <div class="compact-list">
-                  <article
-                    v-for="transaction in recentTransactions.slice(0, 8)"
-                    :key="transaction.local_id || transaction.id"
-                    class="movement-row"
-                  >
-                    <div>
-                      <strong>{{ transaction.description }}</strong>
-                      <span
-                        >{{ categoryLabel(transaction) }} ·
-                        {{ shortDate(transaction.transaction_date) }}</span
-                      >
-                    </div>
-                    <b :class="transaction.type">{{ signedMoney(transaction) }}</b>
-                  </article>
-                  <p v-if="recentTransactions.length === 0" class="empty-line">
-                    Nenhum lançamento.
-                  </p>
-                </div>
-              </section>
-            </div>
+            <NexoOverviewTab
+              :totals="totals"
+              :categories="categories"
+              :recent-transactions="recentTransactions"
+              :macro-distribution="macroDistribution"
+              :format-money="money"
+              :format-signed-money="signedMoney"
+              :format-short-date="shortDate"
+              @view-transactions="setActiveTab('transactions')"
+            />
           </template>
 
           <template v-else-if="tab.id === 'transactions'">
-            <section class="panel">
-              <div class="panel-title">
-                <h3>Movimentos</h3>
-                <button
-                  class="text-btn"
-                  :disabled="!canUseAi || categorizingAi"
-                  @click="autoCategorize"
-                >
-                  <font-awesome-icon
-                    :icon="categorizingAi ? 'circle-notch' : 'chart-simple'"
-                    :spin="categorizingAi"
-                  />
-                  {{ categorizingAi ? 'Categorizando...' : 'Categorizar IA' }}
-                </button>
-              </div>
-              <div class="transaction-tools">
-                <section class="csv-import-card">
-                  <div class="csv-import-header">
-                    <div>
-                      <strong>Importar CSV</strong>
-                      <span v-if="csvImportFileName">{{ csvImportFileName }}</span>
-                      <span v-else>Banco, cartão ou planilha</span>
-                    </div>
-                    <button
-                      class="text-btn"
-                      type="button"
-                      @click="triggerCsvPicker"
-                      :disabled="importingCsv || loadingSchema"
-                    >
-                      <font-awesome-icon :icon="!isPaidPlan ? 'lock' : 'file-import'" />
-                      Importar CSV
-                    </button>
-                    <input
-                      ref="csvInput"
-                      class="visually-hidden"
-                      type="file"
-                      accept=".csv,text/csv"
-                      @change="handleCsvFileChange"
-                    />
-                  </div>
-
-                  <p v-if="csvImportError" class="import-feedback error">{{ csvImportError }}</p>
-                  <p v-if="loadingSchema" class="import-feedback">
-                    <font-awesome-icon icon="circle-notch" spin /> Analisando padrão do CSV com
-                    IA...
-                  </p>
-                  <div v-if="csvImportRows.length" class="csv-preview">
-                    <div class="csv-preview-summary">
-                      <span>{{ csvImportRows.length }} movimentos prontos</span>
-                      <strong
-                        >{{ money(csvImportTotals.expense) }} saídas ·
-                        {{ money(csvImportTotals.income) }} entradas</strong
-                      >
-                    </div>
-                    <div class="csv-preview-table">
-                      <table>
-                        <tbody>
-                          <tr
-                            v-for="(row, index) in csvImportRows.slice(0, 5)"
-                            :key="`${row.description}-${index}`"
-                          >
-                            <td>{{ shortDate(row.transaction_date) }}</td>
-                            <td>{{ row.description }}</td>
-                            <td class="right">
-                              <strong :class="row.type"
-                                >{{ row.type === 'EXPENSE' ? '-' : '+' }}
-                                {{ money(row.amount) }}</strong
-                              >
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    <div class="csv-import-actions">
-                      <button
-                        class="text-btn"
-                        type="button"
-                        @click="resetCsvImport"
-                        :disabled="importingCsv"
-                      >
-                        Limpar
-                      </button>
-                      <button
-                        class="primary-action compact"
-                        type="button"
-                        @click="confirmCsvImport"
-                        :disabled="importingCsv"
-                      >
-                        <font-awesome-icon
-                          :icon="importingCsv ? 'circle-notch' : 'file-import'"
-                          :spin="importingCsv"
-                        />
-                        Importar
-                      </button>
-                    </div>
-                  </div>
-                </section>
-              </div>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Data</th>
-                      <th>Descrição</th>
-                      <th>Categoria</th>
-                      <th>Origem</th>
-                      <th class="right">Valor</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="transaction in transactions"
-                      :key="transaction.local_id || transaction.id"
-                      :class="{ ignored: transaction.is_ignored }"
-                    >
-                      <td>{{ shortDate(transaction.transaction_date) }}</td>
-                      <td class="transaction-description-cell">
-                        <strong>{{ transaction.description }}</strong>
-                        <small v-if="transaction.observation" class="transaction-observation">{{
-                          transaction.observation
-                        }}</small>
-                      </td>
-                      <td>
-                        <span
-                          v-if="categorizingIds.includes(transaction.id)"
-                          class="categorizing-loading-text"
-                        >
-                          <font-awesome-icon icon="circle-notch" spin /> Categorizando...
-                        </span>
-                        <CategoryCombo
-                          v-else
-                          :model-value="transaction.category_id"
-                          :categories="categories"
-                          allow-create
-                          placeholder="Sem categoria"
-                          @update:modelValue="selectTransactionCategory(transaction, $event)"
-                          @create="openCategoryFormForTransaction(transaction, $event)"
-                        />
-                      </td>
-                      <td>{{ sourceLabel(transaction.source) }}</td>
-                      <td class="right value-cell">
-                        <strong :class="transaction.type">{{ signedMoney(transaction) }}</strong>
-                        <small
-                          v-if="
-                            transaction.original_type &&
-                            transaction.original_type !== transaction.type
-                          "
-                          class="original-type-label"
-                        >
-                          Original: {{ polarityLabel(transaction.original_type) }}
-                        </small>
-                      </td>
-                      <td>
-                        <div class="row-actions">
-                          <button
-                            class="icon-btn small"
-                            @click="openTransactionForm(transaction)"
-                            title="Editar"
-                          >
-                            <font-awesome-icon icon="pencil" />
-                          </button>
-                          <button
-                            class="icon-btn small"
-                            @click="toggleIgnored(transaction)"
-                            title="Ignorar"
-                          >
-                            <font-awesome-icon
-                              :icon="transaction.is_ignored ? 'eye-slash' : 'eye'"
-                            />
-                          </button>
-                          <button
-                            class="icon-btn small danger"
-                            @click="requestDeleteTransaction(transaction)"
-                            title="Excluir"
-                          >
-                            <font-awesome-icon icon="trash" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-                <p v-if="transactions.length === 0" class="empty-line">
-                  Nenhum lançamento encontrado.
-                </p>
-              </div>
-            </section>
+            <NexoTransactionsTab
+              :is-paid-plan="isPaidPlan"
+              :can-use-ai="canUseAi"
+              :categorizing-ai="categorizingAi"
+              :importing-csv="importingCsv"
+              :loading-schema="loadingSchema"
+              :csv-import-error="csvImportError"
+              :csv-import-file-name="csvImportFileName"
+              :csv-import-rows="csvImportRows"
+              :csv-import-totals="csvImportTotals"
+              :transactions="transactions"
+              :categories="categories"
+              :categorizing-ids="categorizingIds"
+              :format-money="money"
+              :format-signed-money="signedMoney"
+              :format-short-date="shortDate"
+              @upgrade="showPlanModal = true"
+              @auto-categorize="autoCategorize"
+              @csv-file-change="handleCsvFileChange"
+              @reset-csv="resetCsvImport"
+              @confirm-csv="confirmCsvImport"
+              @edit-transaction="openTransactionForm"
+              @toggle-ignored="toggleIgnored"
+              @delete-transaction="requestDeleteTransaction"
+              @select-category="selectTransactionCategory"
+              @create-category-for-transaction="openCategoryFormForTransaction"
+            />
           </template>
 
           <template v-else-if="tab.id === 'budget'">
@@ -506,328 +265,60 @@
           </template>
 
           <template v-else-if="tab.id === 'connections'">
-            <div class="panel connections-soon">
-              <div class="soon-icon">
-                <font-awesome-icon icon="link" />
-              </div>
-              <div>
-                <span class="soon-kicker">Em breve</span>
-                <h3>Conexões bancárias automáticas</h3>
-                <p>
-                  O Kadem Nexo está preparando uma integração viável para produção. Por enquanto,
-                  use lançamento rápido no momento da compra e importe CSV para organizar o
-                  histórico.
-                </p>
-              </div>
-              <button
-                class="primary-action compact"
-                type="button"
-                @click="setActiveTab('transactions')"
-              >
-                <font-awesome-icon icon="list" />
-                Ir para movimentos
-              </button>
-            </div>
-            <template v-if="false">
-              <ProGate v-if="!isPaidPlan" @upgrade="showPlanModal = true" />
-              <div v-else class="panel">
-                <div class="panel-title">
-                  <h3>Conexões</h3>
-                  <div class="inline-actions">
-                    <button class="text-btn" @click="syncConnections" :disabled="syncingBanks">
-                      <font-awesome-icon
-                        :icon="syncingBanks ? 'circle-notch' : 'arrows-rotate'"
-                        :spin="syncingBanks"
-                      />
-                      Sincronizar
-                    </button>
-                    <button class="primary-action compact" @click="openPluggyWidget">
-                      <font-awesome-icon icon="link" />
-                      Conectar
-                    </button>
-                  </div>
-                </div>
-
-                <div class="connection-grid">
-                  <article
-                    v-for="connection in connections"
-                    :key="connection.item_id"
-                    class="connection-card"
-                  >
-                    <div>
-                      <strong>{{ connection.connector_name }}</strong>
-                      <span>
-                        {{ connectionStatusLabel(connection.status) }} ·
-                        {{
-                          connection.last_sync_at
-                            ? shortDate(connection.last_sync_at)
-                            : 'sem sincronização'
-                        }}
-                      </span>
-                    </div>
-                    <button
-                      class="icon-btn small danger"
-                      @click="deleteConnection(connection.item_id)"
-                      title="Remover"
-                    >
-                      <font-awesome-icon icon="trash" />
-                    </button>
-                  </article>
-                  <p v-if="connections.length === 0" class="empty-line">Nenhuma conexão ativa.</p>
-                </div>
-              </div>
-            </template>
+            <NexoConnectionsTab
+              :is-paid-plan="isPaidPlan"
+              :syncing-banks="syncingBanks"
+              :connections="connections"
+              :format-short-date="shortDate"
+              @view-transactions="setActiveTab('transactions')"
+              @upgrade="showPlanModal = true"
+              @sync="syncConnections"
+              @connect="openPluggyWidget"
+              @delete="deleteConnection"
+            />
           </template>
 
           <template v-else-if="tab.id === 'categories'">
-            <section class="panel categories-panel">
-              <div class="panel-title">
-                <h3>Categorias</h3>
-                <div class="inline-actions">
-                  <button class="text-btn" @click="openMacroForm">
-                    <font-awesome-icon icon="layer-group" />
-                    Macro categoria
-                  </button>
-                  <button class="primary-action compact" @click="openCategoryForm">
-                    <font-awesome-icon icon="plus" />
-                    Categoria
-                  </button>
-                </div>
-              </div>
-
-              <div class="category-filter">
-                <font-awesome-icon icon="magnifying-glass" />
-                <div class="form-group">
-                  <input
-                    v-model="categorySearch"
-                    id="filtrar-categorias"
-                    type="search"
-                    placeholder=" "
-                  />
-                  <label for="filtrar-categorias">Filtrar categorias</label>
-                </div>
-              </div>
-
-              <div class="macro-groups">
-                <section
-                  v-for="group in groupedCategories"
-                  :key="group.id || group.name"
-                  class="macro-group"
-                  :style="budgetGroupStyle({ macro_color: group.color })"
-                >
-                  <header :style="budgetGroupHeaderStyle({ macro_color: group.color })">
-                    <div class="macro-heading">
-                      <span class="swatch" :style="{ background: group.color || '#999999' }"></span>
-                      <div>
-                        <h4>{{ group.name }}</h4>
-                        <span
-                          >{{ group.items.length }}
-                          {{ group.items.length === 1 ? 'categoria' : 'categorias' }}</span
-                        >
-                      </div>
-                    </div>
-                    <div class="row-actions">
-                      <button
-                        class="icon-btn small"
-                        @click="openMacroForm(group)"
-                        title="Editar macro"
-                      >
-                        <font-awesome-icon icon="pen" />
-                      </button>
-                      <button
-                        class="icon-btn small danger"
-                        @click="requestDeleteMacro(group)"
-                        title="Excluir macro"
-                      >
-                        <font-awesome-icon icon="trash" />
-                      </button>
-                    </div>
-                  </header>
-                  <div class="category-grid">
-                    <article
-                      v-for="category in group.items"
-                      :key="category.local_id || category.id"
-                      class="category-card"
-                    >
-                      <span
-                        class="swatch"
-                        :style="{ background: category.color || '#999999' }"
-                      ></span>
-                      <font-awesome-icon :icon="category.icon || 'tag'" class="category-icon" />
-                      <div>
-                        <strong>{{ category.name }}</strong>
-                        <small>{{ typeLabel(category.type) }}</small>
-                      </div>
-                      <div class="row-actions">
-                        <button
-                          class="icon-btn small"
-                          @click="openCategoryForm(category)"
-                          title="Editar"
-                        >
-                          <font-awesome-icon icon="pen" />
-                        </button>
-                        <button
-                          class="icon-btn small danger"
-                          @click="requestDeleteCategory(category)"
-                          title="Excluir"
-                        >
-                          <font-awesome-icon icon="trash" />
-                        </button>
-                      </div>
-                    </article>
-                  </div>
-                </section>
-                <p v-if="filteredCategories.length === 0" class="empty-line">
-                  Nenhuma categoria encontrada.
-                </p>
-              </div>
-            </section>
+            <NexoCategoriesTab
+              v-model:category-search="categorySearch"
+              :grouped-categories="groupedCategories"
+              :filtered-categories="filteredCategories"
+              :type-label="typeLabel"
+              :budget-group-style="budgetGroupStyle"
+              :budget-group-header-style="budgetGroupHeaderStyle"
+              @new-macro="openMacroForm"
+              @new-category="openCategoryForm"
+              @edit-macro="openMacroForm"
+              @delete-macro="requestDeleteMacro"
+              @edit-category="openCategoryForm"
+              @delete-category="requestDeleteCategory"
+            />
           </template>
 
           <template v-else-if="tab.id === 'ai'">
-            <ProGate v-if="!canUseAi" @upgrade="showPlanModal = true" />
-            <div v-else class="panel ai-panel">
-              <div class="panel-title">
-                <div>
-                  <h3>IA Financeira</h3>
-                  <span>Automação, leitura mensal e apoio ao orçamento.</span>
-                </div>
-                <button class="text-btn" @click="loadInsights" :disabled="loadingAi">
-                  <font-awesome-icon
-                    :icon="loadingAi ? 'circle-notch' : 'chart-simple'"
-                    :spin="loadingAi"
-                  />
-                  Gerar insights
-                </button>
-              </div>
-
-              <div class="ai-grid">
-                <section class="usage-card">
-                  <span>Créditos disponíveis</span>
-                  <strong>{{ usage.remaining_credits || 0 }}</strong>
-                  <small>
-                    {{ usage.used_credits || 0 }} usados de
-                    {{ usage.total_credits || usage.monthly_limit || 0 }}
-                  </small>
-                  <div class="usage-track">
-                    <i :style="{ width: usagePercent + '%' }"></i>
-                  </div>
-                </section>
-
-                <section class="ai-summary">
-                  <span>Mês em análise</span>
-                  <strong>{{ monthLabel }}</strong>
-                  <small
-                    >Os insights usam os lançamentos e categorias visíveis neste período.</small
-                  >
-                </section>
-              </div>
-
-              <div class="insight-list">
-                <article
-                  v-for="(insight, index) in displayInsights"
-                  :key="index"
-                  class="insight-row"
-                >
-                  <strong>{{ insight.title }}</strong>
-                  <span v-if="insight.description">{{ insight.description }}</span>
-                </article>
-                <div v-if="displayInsights.length === 0" class="empty-state">
-                  <strong>Nenhum insight gerado</strong>
-                  <span
-                    >Gere uma análise para este mês quando houver movimentos ou orçamento para
-                    comparar.</span
-                  >
-                </div>
-              </div>
-            </div>
+            <NexoAiTab
+              :can-use-ai="canUseAi"
+              :usage="usage"
+              :month-label="monthLabel"
+              :display-insights="displayInsights"
+              :loading-ai="loadingAi"
+              @upgrade="showPlanModal = true"
+              @generate-insights="loadInsights"
+            />
           </template>
         </section>
       </div>
     </div>
 
-    <Transition name="slide-over-root">
-      <div v-if="showTransactionForm" class="modal-wrapper-fixed">
-        <div class="modal-overlay" @click.self="closeTransactionForm"></div>
-        <form
-          class="modal-content nexo-modal transaction-modal glass"
-          :class="form.type.toLowerCase()"
-          @submit.prevent="saveTransaction"
-        >
-          <h3>{{ form.id ? 'Editar lançamento' : 'Novo lançamento' }}</h3>
-          <div class="segmented">
-            <button
-              type="button"
-              class="expense-toggle"
-              :class="{ active: form.type === 'EXPENSE' }"
-              @click="form.type = 'EXPENSE'"
-            >
-              Saída
-            </button>
-            <button
-              type="button"
-              class="income-toggle"
-              :class="{ active: form.type === 'INCOME' }"
-              @click="form.type = 'INCOME'"
-            >
-              Entrada
-            </button>
-          </div>
-          <div class="nexo-field static-label">
-            <label for="transaction-description">Descrição</label>
-            <input
-              id="transaction-description"
-              v-model="form.description"
-              placeholder=""
-              required
-            />
-          </div>
-          <div class="nexo-field static-label textarea">
-            <label for="transaction-observation">Observação</label>
-            <textarea
-              id="transaction-observation"
-              v-model.trim="form.observation"
-              placeholder="Detalhe opcional para diferenciar este movimento"
-            ></textarea>
-          </div>
-          <div class="form-grid">
-            <div class="nexo-field static-label">
-              <label for="transaction-amount">Valor</label>
-              <input
-                id="transaction-amount"
-                v-model="form.amount_display"
-                type="text"
-                inputmode="numeric"
-                placeholder=""
-                required
-                @input="updateTransactionAmount"
-              />
-            </div>
-            <div class="nexo-field static-label">
-              <label for="transaction-date">Data</label>
-              <input
-                id="transaction-date"
-                v-model="form.transaction_date"
-                type="date"
-                placeholder=""
-                required
-              />
-            </div>
-          </div>
-          <CategoryCombo
-            v-model="form.category_id"
-            :categories="categories"
-            placeholder="Sem categoria"
-          />
-          <div class="modal-actions">
-            <button type="button" class="text-btn" @click="closeTransactionForm">Cancelar</button>
-            <button type="submit" class="primary-action">
-              {{ form.id ? 'Salvar alterações' : 'Salvar' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </Transition>
+    <NexoTransactionModal
+      :visible="showTransactionForm"
+      :form="form"
+      :categories="categories"
+      @close="closeTransactionForm"
+      @save="saveTransaction"
+      @update-amount="updateTransactionAmount"
+      @update-field="updateTransactionFormField"
+    />
 
     <Transition name="slide-over-root">
       <div v-if="showCategoryForm" class="modal-wrapper-fixed">
@@ -928,7 +419,7 @@
             <span>{{ budgetAiContextLabel }}</span>
           </div>
 
-          <div class="budget-ai-chat custom-scrollbar">
+          <div ref="budgetAiChat" class="budget-ai-chat custom-scrollbar">
             <article
               v-for="message in budgetAiConversation"
               :key="message.id"
@@ -1003,30 +494,36 @@ import SubscriptionModal from '@/components/SubscriptionModal.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
 import CategoryCombo from './CategoryCombo.vue'
 import MacroCategoryCombo from './MacroCategoryCombo.vue'
+import NexoHeader from './nexo/NexoHeader.vue'
+import NexoTabs from './nexo/NexoTabs.vue'
+import NexoOverviewTab from './nexo/NexoOverviewTab.vue'
+import NexoTransactionsTab from './nexo/NexoTransactionsTab.vue'
+import NexoTransactionModal from './nexo/NexoTransactionModal.vue'
+import NexoConnectionsTab from './nexo/NexoConnectionsTab.vue'
+import NexoCategoriesTab from './nexo/NexoCategoriesTab.vue'
+import NexoAiTab from './nexo/NexoAiTab.vue'
 
 const pluggyWidgetUrl = 'https://cdn.pluggy.ai/pluggy-connect/latest/pluggy-connect.js'
 const includePluggySandbox =
   import.meta.env.VITE_PLUGGY_INCLUDE_SANDBOX === 'true' ||
   (!import.meta.env.PROD && import.meta.env.VITE_PLUGGY_INCLUDE_SANDBOX !== 'false')
 
-const ProGate = {
-  emits: ['upgrade'],
-  template: `
-    <div class="panel pro-gate">
-      <font-awesome-icon icon="lock" />
-      <h3>Recurso Pro</h3>
-      <p>Open Finance e IA financeira entram no plano Pro.</p>
-      <button class="primary-action compact" @click="$emit('upgrade')">
-        <font-awesome-icon icon="crown" />
-        Ver planos
-      </button>
-    </div>
-  `,
-}
-
 export default {
   name: 'KademNexo',
-  components: { SubscriptionModal, ConfirmationModal, ProGate, CategoryCombo, MacroCategoryCombo },
+  components: {
+    SubscriptionModal,
+    ConfirmationModal,
+    CategoryCombo,
+    MacroCategoryCombo,
+    NexoHeader,
+    NexoTabs,
+    NexoOverviewTab,
+    NexoTransactionsTab,
+    NexoTransactionModal,
+    NexoConnectionsTab,
+    NexoCategoriesTab,
+    NexoAiTab,
+  },
   data() {
     const today = new Date().toISOString().slice(0, 10)
     return {
@@ -1161,15 +658,6 @@ export default {
       if (!this.canUseAi) return 'IA bloqueada'
       return `${this.usage.remaining_credits ?? this.limits.finance_ai_monthly_credits} créditos IA`
     },
-    expensePercent() {
-      if (!this.totals.income) return 0
-      return Math.min(100, Math.round((this.totals.expense / this.totals.income) * 100))
-    },
-    usagePercent() {
-      const total = Number(this.usage.total_credits || this.usage.monthly_limit || 0)
-      if (!total) return 0
-      return Math.min(100, Math.round((Number(this.usage.used_credits || 0) / total) * 100))
-    },
     budgetAiContextLabel() {
       const total = this.budgetAiConversation.length
       if (!total) return 'Sem histórico'
@@ -1278,19 +766,6 @@ export default {
         return { title, description }
       })
     },
-    donutGradient() {
-      const total = this.macroDistribution.reduce((sum, item) => sum + Number(item.total || 0), 0)
-      if (!total) return 'conic-gradient(var(--gray-600) 0deg 360deg)'
-
-      let cursor = 0
-      const parts = this.macroDistribution.map((item) => {
-        const degrees = (Number(item.total || 0) / total) * 360
-        const part = `${item.color || '#999999'} ${cursor}deg ${cursor + degrees}deg`
-        cursor += degrees
-        return part
-      })
-      return `conic-gradient(${parts.join(', ')})`
-    },
   },
   methods: {
     normalize(value) {
@@ -1341,33 +816,9 @@ export default {
         return '--'
       }
     },
-    categoryLabel(transaction) {
-      return (
-        transaction.category_name ||
-        this.findCategory(transaction.category_id)?.name ||
-        'Sem categoria'
-      )
-    },
     typeLabel(type) {
       const labels = { EXPENSE: 'Saída', INCOME: 'Entrada' }
       return labels[type] || 'Não definido'
-    },
-    polarityLabel(type) {
-      return type === 'INCOME' ? 'positivo' : 'negativo'
-    },
-    sourceLabel(source) {
-      const labels = { MANUAL: 'Manual', OPEN_FINANCE: 'Open Finance', IMPORT: 'CSV' }
-      return labels[source] || 'Não definido'
-    },
-    connectionStatusLabel(status) {
-      const labels = {
-        UPDATED: 'Atualizada',
-        UPDATING: 'Atualizando',
-        LOGIN_ERROR: 'Erro de acesso',
-        OUTDATED: 'Desatualizada',
-        DELETED: 'Removida',
-      }
-      return labels[status] || 'Pendente'
     },
     budgetProgress(budget, plannedKey = 'amount') {
       const planned = Number(budget[plannedKey] || 0)
@@ -1436,6 +887,7 @@ export default {
         created_at: new Date().toISOString(),
       })
       this.saveBudgetAiConversation()
+      this.scrollToBottomOfChat()
     },
     async reloadAll() {
       this.loading = true
@@ -1540,6 +992,9 @@ export default {
     closeTransactionForm() {
       this.showTransactionForm = false
     },
+    updateTransactionFormField({ field, value }) {
+      this.form[field] = value
+    },
     updateTransactionAmount(event) {
       const value = this.parseMoneyInput(event.target.value)
       this.form.amount = value
@@ -1566,17 +1021,6 @@ export default {
       this.closeTransactionForm()
       await this.loadDashboard()
     },
-    getRefElement(ref) {
-      if (!ref) return null
-      return Array.isArray(ref) ? ref[0] : ref
-    },
-    triggerCsvPicker() {
-      if (!this.isPaidPlan) {
-        this.showPlanModal = true
-        return
-      }
-      this.getRefElement(this.$refs.csvInput)?.click()
-    },
     resetCsvImport() {
       this.csvImportError = ''
       this.csvImportFileName = ''
@@ -1584,8 +1028,6 @@ export default {
       this.csvImportRows = []
       this.csvSkippedRows = 0
       this.loadingSchema = false
-      const csvInput = this.getRefElement(this.$refs.csvInput)
-      if (csvInput) csvInput.value = ''
     },
     async handleCsvFileChange(event) {
       if (!this.isPaidPlan) {
@@ -1649,8 +1091,6 @@ export default {
           error.response?.data?.message || error.message || 'Não foi possível processar o CSV.'
       } finally {
         this.loadingSchema = false
-        const csvInput = this.getRefElement(this.$refs.csvInput)
-        if (csvInput) csvInput.value = ''
       }
     },
     cleanCsvCell(val) {
@@ -2588,6 +2028,14 @@ export default {
         this.loadingAi = false
       }
     },
+    scrollToBottomOfChat() {
+      this.$nextTick(() => {
+        const chatContainer = this.$refs.budgetAiChat
+        if (chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight
+        }
+      })
+    },
   },
   mounted() {
     this.reloadAll()
@@ -2595,6 +2043,13 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.handleGlobalKeydown)
+  },
+  watch: {
+    showBudgetAiForm(val) {
+      if (val) {
+        this.scrollToBottomOfChat()
+      }
+    },
   },
 }
 </script>
@@ -2609,9 +2064,7 @@ export default {
   gap: var(--space-4);
   overflow: hidden;
 }
-.nexo-header,
 .panel-title,
-.nexo-actions,
 .inline-actions,
 .modal-actions {
   display: flex;
@@ -2620,56 +2073,15 @@ export default {
   gap: var(--space-3);
 }
 
-.nexo-header {
-  flex-wrap: wrap;
-  flex: 0 0 auto;
-}
-
-.nexo-header h2,
-.panel-title h3,
-.macro-group h4 {
+.panel-title h3 {
   margin: 0;
 }
 
-.nexo-header span,
 .empty-line,
-.movement-row span,
-.connection-card span,
-.category-card small,
-.usage-card span,
-.usage-card small,
-.ai-summary span,
-.ai-summary small,
-.insight-row span,
 .modal-help,
-.panel-title span,
-.macro-group header span {
+.panel-title span {
   color: var(--text-secondary);
   font-size: var(--fontsize-xs);
-}
-
-.nexo-actions {
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.nexo-actions input {
-  height: 40px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-0);
-  color: var(--text-primary);
-  padding: 0 var(--space-3);
-  box-shadow: none;
-  outline: none;
-  font-size: var(--fontsize-sx);
-  transition: border-color var(--transition-fast);
-}
-
-.nexo-actions input:focus {
-  border-color: var(--deep-blue);
-  outline: none;
-  box-shadow: none;
 }
 
 .primary-action,
@@ -2706,7 +2118,6 @@ export default {
 .primary-action:active,
 .text-btn:active,
 .icon-btn:active,
-.nexo-tabs button:active,
 .segmented button:active {
   transform: scale(0.97);
 }
@@ -2746,73 +2157,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.nexo-tabs {
-  display: flex;
-  gap: var(--space-5);
-  border-bottom: 1px solid var(--glass-border);
-  overflow-x: auto;
-  overflow-y: hidden;
-  flex: 0 0 auto;
-  scrollbar-width: none;
-}
-
-.nexo-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.nexo-tabs button {
-  position: relative;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  padding: var(--space-3) 0;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  white-space: nowrap;
-  font-size: var(--fontsize-sx);
-  font-weight: 500;
-  transition: color var(--transition-fast);
-}
-
-.nexo-tabs button:hover,
-.nexo-tabs button.active {
-  color: var(--text-primary);
-}
-
-.nexo-tabs button.active {
-  font-weight: 700;
-}
-
-.nexo-tabs button.active::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px 2px 0 0;
-  background: var(--deep-blue);
-  animation: tab-underline-in 0.2s var(--transition-spring);
-}
-
-@keyframes tab-underline-in {
-  from {
-    transform: scaleX(0);
-  }
-
-  to {
-    transform: scaleX(1);
-  }
-}
-
-.tab-lock {
-  color: #d4af37;
-  font-size: 0.7rem;
-  opacity: 0.8;
-}
-
 .tab-viewport {
   flex: 1 1 auto;
   min-height: 0;
@@ -2836,12 +2180,7 @@ button:disabled {
 }
 
 .panel,
-.metric,
-.connection-card,
-.category-card,
-.budget-row,
-.usage-card,
-.ai-summary {
+.budget-row {
   background: var(--surface-0);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
@@ -2874,388 +2213,18 @@ button:disabled {
   justify-content: flex-end;
 }
 
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(150px, 1fr));
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
-}
-
-.metric {
-  padding: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.metric strong {
-  font-size: var(--fontsize-md);
-}
-
-.metric.income strong,
-.INCOME {
-  color: var(--color-income);
-}
-
-.metric.expense strong,
-.EXPENSE,
-.negative {
-  color: var(--color-expense);
-}
-
-.overview-grid {
-  display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
-  gap: var(--space-4);
-}
-
-.allocation-body {
-  display: grid;
-  grid-template-columns: 180px 1fr;
-  gap: var(--space-5);
-  align-items: center;
-}
-
-.donut {
-  width: 180px;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-}
-
-.donut-hole {
-  width: 116px;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: var(--surface-0);
-  display: grid;
-  place-items: center;
-  align-content: center;
-  transition: background var(--transition-base);
-}
-
-.donut-hole span {
-  font-weight: 900;
-  font-size: var(--fontsize-md);
-  color: var(--text-primary);
-}
-
-.donut-hole small {
-  color: var(--text-secondary);
-  font-size: var(--fontsize-xs);
-  text-transform: uppercase;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-}
-
-.legend-list,
-.compact-list,
-.budget-list,
 .budget-groups,
-.budget-child-list,
-.insight-list,
-.macro-groups {
+.budget-child-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.legend-row,
-.movement-row,
-.connection-card,
-.category-card,
 .budget-row,
-.insight-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.legend-row strong,
-.movement-row b {
-  margin-left: auto;
-}
-
-.swatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex: 0 0 12px;
-}
-
-.movement-row {
-  justify-content: space-between;
-  padding: var(--space-3) var(--space-2);
-  border-bottom: 1px solid var(--glass-border);
-  transition: background var(--transition-fast);
-  border-radius: var(--radius-xs);
-}
-
-.movement-row:hover {
-  background: var(--surface-2);
-}
-
-.transaction-tools {
-  display: grid;
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
-}
-
-.quick-entry-card,
-.csv-import-card {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  background: var(--surface-1);
-  transition:
-    background var(--transition-base),
-    border-color var(--transition-base);
-}
-
-.quick-entry-card {
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1.35fr) 150px 150px minmax(
-      210px,
-      1fr
-    ) auto;
-  align-items: end;
-}
-
-.quick-entry-heading,
-.csv-import-header,
-.csv-preview-summary,
-.csv-import-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.quick-entry-heading {
-  align-items: stretch;
-  flex-direction: column;
-}
-
-.quick-entry-heading strong,
-.csv-import-header strong {
-  color: var(--text-primary);
-}
-
-.compact-segmented {
-  min-width: 190px;
-  padding: 4px;
-}
-
-.compact-segmented button {
-  height: 32px;
-}
-
-.quick-field,
-.quick-category-field,
-.csv-positive-mode {
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.quick-field span,
-.quick-category-field > span,
-.csv-positive-mode span {
-  color: var(--text-secondary);
-  font-size: var(--fontsize-xs);
-  font-weight: 700;
-}
-
-.quick-field input,
-.csv-positive-mode select {
-  height: 40px;
-  width: 100%;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-0);
-  color: var(--text-primary);
-  padding: 0 var(--space-3);
-  outline: none;
-  box-shadow: none;
-  transition:
-    border-color var(--transition-fast),
-    background var(--transition-base);
-}
-
-.quick-field input:focus,
-.csv-positive-mode select:focus {
-  border-color: var(--deep-blue);
-  background: var(--surface-0);
-}
-
-.quick-field input::placeholder {
-  color: var(--text-muted);
-}
-
-.quick-save {
-  min-width: 132px;
-}
-
-.csv-import-header {
-  flex-wrap: wrap;
-}
-
-.csv-import-header > div:first-child {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.csv-import-header span,
-.csv-preview-summary span,
-.import-feedback {
-  color: var(--text-secondary);
-  font-size: var(--fontsize-xs);
-}
-
-.csv-positive-mode {
-  min-width: 150px;
-}
-
-.csv-positive-mode select {
-  height: 36px;
-  font-size: var(--fontsize-xs);
-}
-
-.csv-preview {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.csv-preview-table {
-  overflow-x: auto;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-}
-
-.csv-preview-table table {
-  min-width: 520px;
-}
-
-.csv-preview-table td {
-  padding: var(--space-2) var(--space-3);
-}
-
-.csv-import-actions {
-  justify-content: flex-end;
-}
-
-.import-feedback {
-  margin: 0;
-}
-
-.import-feedback.error {
-  color: var(--red);
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.movement-row div,
-.connection-card div,
-.category-card div,
-.insight-row {
-  min-width: 0;
-}
-
-.movement-row strong,
-.movement-row span,
-.connection-card strong,
-.connection-card span,
-.category-card strong,
-.category-card small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: block;
-}
-
-.table-wrap {
-  overflow: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 820px;
-}
-
-th,
-td {
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--glass-border);
-  text-align: left;
-  vertical-align: middle;
-}
-
-th {
-  color: var(--text-secondary);
-  font-size: var(--fontsize-xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: var(--surface-1);
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-tr:hover td {
-  background: var(--surface-1);
-}
-
-.right {
-  text-align: right;
-}
-
-.value-cell strong,
-.value-cell small {
-  display: block;
-}
-
-.transaction-description-cell strong,
-.transaction-description-cell small {
-  display: block;
-}
-
-.transaction-observation {
-  margin-top: var(--space-1);
-  color: var(--text-muted);
-  font-size: var(--fontsize-xs);
-  line-height: 1.4;
-  white-space: normal;
-}
-
-.original-type-label {
-  margin-top: var(--space-1);
-  color: var(--text-muted);
-  font-size: var(--fontsize-xs);
-  white-space: nowrap;
-}
-
 .row-actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
-}
-
-tr.ignored {
-  opacity: 0.45;
 }
 
 .budget-panel {
@@ -3590,21 +2559,6 @@ tr.ignored {
 }
 
 .budget-progress div,
-.usage-track {
-  height: 8px;
-  background: var(--surface-2);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.budget-progress i,
-.usage-track i {
-  height: 100%;
-  display: block;
-  background: var(--yellow-gradient);
-  transition: width 0.24s ease;
-}
-
 .budget-row-enter-active,
 .budget-row-leave-active {
   transition:
@@ -3628,174 +2582,6 @@ tr.ignored {
 
 .add-row {
   margin-top: var(--space-3);
-}
-
-.connection-grid,
-.category-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--space-3);
-}
-
-.connection-card,
-.category-card,
-.insight-row,
-.usage-card,
-.ai-summary {
-  padding: var(--space-4);
-}
-
-.connection-card button,
-.category-card button {
-  margin-left: auto;
-}
-
-.connections-soon {
-  min-height: 320px;
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-5);
-}
-
-.connections-soon h3,
-.connections-soon p {
-  margin: 0;
-}
-
-.connections-soon p {
-  max-width: 620px;
-  color: var(--text-secondary);
-  line-height: 1.55;
-}
-
-.soon-icon {
-  width: 72px;
-  height: 72px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
-  color: var(--deep-blue);
-  font-size: var(--fontsize-md);
-}
-
-.soon-kicker {
-  display: inline-flex;
-  width: max-content;
-  margin-bottom: var(--space-2);
-  border-radius: 999px;
-  background: var(--dark-yellow-2);
-  color: var(--gray-100);
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--fontsize-xs);
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.macro-group {
-  display: grid;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--surface-0);
-  border: 1px solid var(--glass-border);
-  border-left: 4px solid var(--budget-macro-color, var(--glass-border));
-  transition: background var(--transition-base);
-}
-
-.macro-group header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-sm);
-  background: var(--surface-1);
-  border: 1px solid var(--glass-border);
-  transition: background var(--transition-base);
-}
-
-.category-card {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4) !important;
-  background: var(--surface-1) !important;
-  border: 1px solid var(--glass-border) !important;
-  border-radius: var(--radius-sm) !important;
-  box-shadow: var(--shadow-xs) !important;
-  transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast),
-    background var(--transition-fast) !important;
-}
-
-.category-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-card) !important;
-  background: var(--surface-2) !important;
-}
-
-.category-card .row-actions {
-  display: flex;
-  gap: var(--space-1);
-  margin-left: auto;
-  opacity: 0.4;
-  transition: opacity var(--transition-fast);
-}
-
-.category-card:hover .row-actions {
-  opacity: 1;
-}
-
-.category-card button {
-  margin-left: initial !important;
-}
-
-@media (max-width: 600px) {
-  .category-grid {
-    grid-template-columns: 1fr !important;
-  }
-}
-
-.macro-heading {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.category-filter {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 42px;
-  margin-bottom: var(--space-5);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-0);
-  padding: 0 var(--space-3);
-  transition: background var(--transition-base);
-}
-
-.category-filter input {
-  min-width: 0;
-  width: 100%;
-  height: 40px;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-  outline: none;
-  color: var(--text-primary);
-  padding: 0;
-}
-
-.category-icon {
-  color: var(--text-primary);
-  width: 18px;
-  opacity: 0.7;
 }
 
 .budget-ai-modal {
@@ -3864,52 +2650,6 @@ tr.ignored {
   line-height: 1.45;
 }
 
-.pro-gate {
-  min-height: 260px;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  text-align: center;
-  gap: var(--space-3);
-}
-
-.pro-gate > svg {
-  font-size: var(--fontsize-lg);
-  color: #d4af37;
-}
-
-.ai-grid {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.7fr) minmax(260px, 1fr);
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
-}
-
-.usage-card,
-.ai-summary {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.usage-card strong,
-.ai-summary strong {
-  font-size: var(--fontsize-md);
-}
-
-.empty-state {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-5);
-  border: 1.5px dashed var(--glass-border);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-}
-
-.empty-state span {
-  color: var(--text-secondary);
-  font-size: var(--fontsize-xs);
-}
-
 .modal-wrapper-fixed {
   position: fixed;
   inset: 0;
@@ -3943,25 +2683,9 @@ tr.ignored {
   transition: background var(--transition-base);
 }
 
-.transaction-modal.expense {
-  background: linear-gradient(160deg, rgba(255, 246, 246, 0.97), rgba(255, 255, 255, 0.95));
-}
-
-.transaction-modal.income {
-  background: linear-gradient(160deg, rgba(243, 255, 247, 0.97), rgba(255, 255, 255, 0.95));
-}
-
 [data-theme='dark'] .nexo-modal {
   background: var(--surface-2);
   color: var(--text-primary);
-}
-
-[data-theme='dark'] .transaction-modal.expense {
-  background: linear-gradient(160deg, rgba(231, 76, 60, 0.12), var(--surface-2));
-}
-
-[data-theme='dark'] .transaction-modal.income {
-  background: linear-gradient(160deg, rgba(46, 204, 113, 0.12), var(--surface-2));
 }
 
 .nexo-modal h3,
@@ -4130,18 +2854,8 @@ tr.ignored {
 /* Definida em SideModal.vue e main.css, reutilizada aqui sem redeclaração */
 
 @media (max-width: 900px) {
-  .summary-grid,
-  .overview-grid,
-  .allocation-body,
-  .ai-grid,
-  .budget-summary-grid,
-  .quick-entry-card,
-  .connections-soon {
+  .budget-summary-grid {
     grid-template-columns: 1fr;
-  }
-
-  .allocation-body {
-    justify-items: center;
   }
 
   .budget-command-bar,
@@ -4169,23 +2883,6 @@ tr.ignored {
     display: grid;
   }
 
-  .quick-entry-heading,
-  .csv-import-header,
-  .csv-preview-summary {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .quick-save,
-  .connections-soon .primary-action {
-    width: 100%;
-  }
-
-  .connections-soon {
-    justify-items: start;
-    min-height: 260px;
-  }
-
   .budget-ai-message {
     max-width: 100%;
   }
@@ -4194,10 +2891,6 @@ tr.ignored {
 @media (max-width: 760px) {
   .form-grid {
     grid-template-columns: 1fr;
-  }
-
-  .nexo-tabs {
-    gap: var(--space-4);
   }
 
   .panel {
@@ -4213,14 +2906,5 @@ tr.ignored {
   .budget-group-totals {
     grid-template-columns: 1fr;
   }
-}
-
-.categorizing-loading-text {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--text-secondary);
-  font-size: var(--fontsize-xs);
-  font-weight: 600;
 }
 </style>
