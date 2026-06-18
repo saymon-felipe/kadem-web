@@ -11,7 +11,7 @@
         <button class="icon-btn" @click="reloadAll" :disabled="loading" title="Atualizar">
           <font-awesome-icon :icon="loading ? 'circle-notch' : 'arrows-rotate'" :spin="loading" />
         </button>
-        <button class="primary-action" @click="openTransactionForm">
+        <button class="primary-action" @click="openTransactionForm()">
           <font-awesome-icon icon="plus" />
           Lançamento
         </button>
@@ -19,7 +19,12 @@
     </header>
 
     <nav class="nexo-tabs" aria-label="Kadem Nexo">
-      <button v-for="tab in tabs" :key="tab.id" :class="{ active: activeTab === tab.id }" @click="setActiveTab(tab.id)">
+      <button
+        v-for="tab in tabs"
+        :key="tab.id"
+        :class="{ active: activeTab === tab.id }"
+        @click="setActiveTab(tab.id)"
+      >
         <font-awesome-icon :icon="tab.icon" />
         <span>{{ tab.label }}</span>
         <font-awesome-icon v-if="tab.pro && !isPaidPlan" icon="lock" class="tab-lock" />
@@ -28,7 +33,12 @@
 
     <div class="tab-viewport">
       <div class="tabs-track" :style="trackStyle">
-        <section v-for="tab in tabs" :key="tab.id" class="tab-pane custom-scrollbar" :style="paneStyle">
+        <section
+          v-for="tab in tabs"
+          :key="tab.id"
+          class="tab-pane custom-scrollbar"
+          :style="paneStyle"
+        >
           <template v-if="tab.id === 'overview'">
             <div class="summary-grid">
               <div class="metric income">
@@ -41,7 +51,9 @@
               </div>
               <div class="metric balance">
                 <span>Saldo</span>
-                <strong :class="{ negative: totals.balance < 0 }">{{ money(totals.balance) }}</strong>
+                <strong :class="{ negative: totals.balance < 0 }">{{
+                  money(totals.balance)
+                }}</strong>
               </div>
             </div>
 
@@ -58,12 +70,21 @@
                     </div>
                   </div>
                   <div class="legend-list">
-                    <div v-for="segment in macroDistribution" :key="segment.macro_category" class="legend-row">
-                      <span class="swatch" :style="{ background: segment.color || '#999999' }"></span>
-                      <span>{{ segment.macro_category || "Geral" }}</span>
+                    <div
+                      v-for="segment in macroDistribution"
+                      :key="segment.macro_category"
+                      class="legend-row"
+                    >
+                      <span
+                        class="swatch"
+                        :style="{ background: segment.color || '#999999' }"
+                      ></span>
+                      <span>{{ segment.macro_category || 'Geral' }}</span>
                       <strong>{{ money(segment.total) }}</strong>
                     </div>
-                    <p v-if="macroDistribution.length === 0" class="empty-line">Sem gastos no mês.</p>
+                    <p v-if="macroDistribution.length === 0" class="empty-line">
+                      Sem gastos no mês.
+                    </p>
                   </div>
                 </div>
               </section>
@@ -74,14 +95,23 @@
                   <button class="text-btn" @click="setActiveTab('transactions')">Ver todos</button>
                 </div>
                 <div class="compact-list">
-                  <article v-for="transaction in recentTransactions.slice(0, 8)" :key="transaction.local_id || transaction.id" class="movement-row">
+                  <article
+                    v-for="transaction in recentTransactions.slice(0, 8)"
+                    :key="transaction.local_id || transaction.id"
+                    class="movement-row"
+                  >
                     <div>
                       <strong>{{ transaction.description }}</strong>
-                      <span>{{ categoryLabel(transaction) }} · {{ shortDate(transaction.transaction_date) }}</span>
+                      <span
+                        >{{ categoryLabel(transaction) }} ·
+                        {{ shortDate(transaction.transaction_date) }}</span
+                      >
                     </div>
                     <b :class="transaction.type">{{ signedMoney(transaction) }}</b>
                   </article>
-                  <p v-if="recentTransactions.length === 0" class="empty-line">Nenhum lançamento.</p>
+                  <p v-if="recentTransactions.length === 0" class="empty-line">
+                    Nenhum lançamento.
+                  </p>
                 </div>
               </section>
             </div>
@@ -91,47 +121,19 @@
             <section class="panel">
               <div class="panel-title">
                 <h3>Movimentos</h3>
-                <button class="text-btn" :disabled="!canUseAi || categorizingAi" @click="autoCategorize">
-                  <font-awesome-icon :icon="categorizingAi ? 'circle-notch' : 'chart-simple'" :spin="categorizingAi" />
+                <button
+                  class="text-btn"
+                  :disabled="!canUseAi || categorizingAi"
+                  @click="autoCategorize"
+                >
+                  <font-awesome-icon
+                    :icon="categorizingAi ? 'circle-notch' : 'chart-simple'"
+                    :spin="categorizingAi"
+                  />
                   {{ categorizingAi ? 'Categorizando...' : 'Categorizar IA' }}
                 </button>
               </div>
               <div class="transaction-tools">
-                <form class="quick-entry-card" @submit.prevent="saveQuickTransaction">
-                  <div class="quick-entry-heading">
-                    <strong>Lançamento rápido</strong>
-                    <div class="segmented compact-segmented">
-                      <button type="button" class="expense-toggle" :class="{ active: quickForm.type === 'EXPENSE' }"
-                        @click="quickForm.type = 'EXPENSE'">Saída</button>
-                      <button type="button" class="income-toggle" :class="{ active: quickForm.type === 'INCOME' }"
-                        @click="quickForm.type = 'INCOME'">Entrada</button>
-                    </div>
-                  </div>
-                  <label class="quick-field description-field">
-                    <span>Descrição</span>
-                    <input v-model.trim="quickForm.description" type="text" placeholder="Mercado, farmácia, pix..."
-                      required />
-                  </label>
-                  <label class="quick-field amount-field">
-                    <span>Valor</span>
-                    <input v-model="quickForm.amount_display" type="text" inputmode="numeric" placeholder="R$ 0,00"
-                      required @input="updateQuickAmount" />
-                  </label>
-                  <label class="quick-field date-field">
-                    <span>Data</span>
-                    <input v-model="quickForm.transaction_date" type="date" required />
-                  </label>
-                  <div class="quick-category-field">
-                    <span>Categoria</span>
-                    <CategoryCombo v-model="quickForm.category_id" :categories="categories"
-                      placeholder="Sem categoria" />
-                  </div>
-                  <button class="primary-action compact quick-save" type="submit" :disabled="savingQuick">
-                    <font-awesome-icon :icon="savingQuick ? 'circle-notch' : 'plus'" :spin="savingQuick" />
-                    Salvar rápido
-                  </button>
-                </form>
-
                 <section class="csv-import-card">
                   <div class="csv-import-header">
                     <div>
@@ -139,44 +141,75 @@
                       <span v-if="csvImportFileName">{{ csvImportFileName }}</span>
                       <span v-else>Banco, cartão ou planilha</span>
                     </div>
-                      <button class="text-btn" type="button" @click="triggerCsvPicker" :disabled="importingCsv || loadingSchema">
-                        <font-awesome-icon :icon="!isPaidPlan ? 'lock' : 'file-import'" />
-                        Importar CSV
-                      </button>
-                    <input ref="csvInput" class="visually-hidden" type="file" accept=".csv,text/csv"
-                      @change="handleCsvFileChange" />
+                    <button
+                      class="text-btn"
+                      type="button"
+                      @click="triggerCsvPicker"
+                      :disabled="importingCsv || loadingSchema"
+                    >
+                      <font-awesome-icon :icon="!isPaidPlan ? 'lock' : 'file-import'" />
+                      Importar CSV
+                    </button>
+                    <input
+                      ref="csvInput"
+                      class="visually-hidden"
+                      type="file"
+                      accept=".csv,text/csv"
+                      @change="handleCsvFileChange"
+                    />
                   </div>
 
                   <p v-if="csvImportError" class="import-feedback error">{{ csvImportError }}</p>
-                  <p v-if="loadingSchema" class="import-feedback"><font-awesome-icon icon="circle-notch" spin /> Analisando padrão do CSV com IA...</p>
+                  <p v-if="loadingSchema" class="import-feedback">
+                    <font-awesome-icon icon="circle-notch" spin /> Analisando padrão do CSV com
+                    IA...
+                  </p>
                   <div v-if="csvImportRows.length" class="csv-preview">
                     <div class="csv-preview-summary">
                       <span>{{ csvImportRows.length }} movimentos prontos</span>
-                      <strong>{{ money(csvImportTotals.expense) }} saídas · {{ money(csvImportTotals.income) }}
-                        entradas</strong>
+                      <strong
+                        >{{ money(csvImportTotals.expense) }} saídas ·
+                        {{ money(csvImportTotals.income) }} entradas</strong
+                      >
                     </div>
                     <div class="csv-preview-table">
                       <table>
                         <tbody>
-                          <tr v-for="(row, index) in csvImportRows.slice(0, 5)" :key="`${row.description}-${index}`">
+                          <tr
+                            v-for="(row, index) in csvImportRows.slice(0, 5)"
+                            :key="`${row.description}-${index}`"
+                          >
                             <td>{{ shortDate(row.transaction_date) }}</td>
                             <td>{{ row.description }}</td>
                             <td class="right">
-                              <strong :class="row.type">{{ row.type === "EXPENSE" ? "-" : "+" }}
-                                {{ money(row.amount) }}</strong>
+                              <strong :class="row.type"
+                                >{{ row.type === 'EXPENSE' ? '-' : '+' }}
+                                {{ money(row.amount) }}</strong
+                              >
                             </td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
                     <div class="csv-import-actions">
-                      <button class="text-btn" type="button" @click="resetCsvImport" :disabled="importingCsv">
+                      <button
+                        class="text-btn"
+                        type="button"
+                        @click="resetCsvImport"
+                        :disabled="importingCsv"
+                      >
                         Limpar
                       </button>
-                      <button class="primary-action compact" type="button" @click="confirmCsvImport"
-                        :disabled="importingCsv">
-                        <font-awesome-icon :icon="importingCsv ? 'circle-notch' : 'file-import'"
-                          :spin="importingCsv" />
+                      <button
+                        class="primary-action compact"
+                        type="button"
+                        @click="confirmCsvImport"
+                        :disabled="importingCsv"
+                      >
+                        <font-awesome-icon
+                          :icon="importingCsv ? 'circle-notch' : 'file-import'"
+                          :spin="importingCsv"
+                        />
                         Importar
                       </button>
                     </div>
@@ -196,28 +229,43 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="transaction in transactions" :key="transaction.local_id || transaction.id"
-                      :class="{ ignored: transaction.is_ignored }">
+                    <tr
+                      v-for="transaction in transactions"
+                      :key="transaction.local_id || transaction.id"
+                      :class="{ ignored: transaction.is_ignored }"
+                    >
                       <td>{{ shortDate(transaction.transaction_date) }}</td>
                       <td class="transaction-description-cell">
                         <strong>{{ transaction.description }}</strong>
-                        <small v-if="transaction.observation" class="transaction-observation">{{ transaction.observation }}</small>
+                        <small v-if="transaction.observation" class="transaction-observation">{{
+                          transaction.observation
+                        }}</small>
                       </td>
                       <td>
-                        <span v-if="categorizingIds.includes(transaction.id)" class="categorizing-loading-text">
+                        <span
+                          v-if="categorizingIds.includes(transaction.id)"
+                          class="categorizing-loading-text"
+                        >
                           <font-awesome-icon icon="circle-notch" spin /> Categorizando...
                         </span>
-                        <CategoryCombo v-else :model-value="transaction.category_id" :categories="categories"
+                        <CategoryCombo
+                          v-else
+                          :model-value="transaction.category_id"
+                          :categories="categories"
                           allow-create
                           placeholder="Sem categoria"
                           @update:modelValue="selectTransactionCategory(transaction, $event)"
-                          @create="openCategoryFormForTransaction(transaction, $event)" />
+                          @create="openCategoryFormForTransaction(transaction, $event)"
+                        />
                       </td>
                       <td>{{ sourceLabel(transaction.source) }}</td>
                       <td class="right value-cell">
                         <strong :class="transaction.type">{{ signedMoney(transaction) }}</strong>
                         <small
-                          v-if="transaction.original_type && transaction.original_type !== transaction.type"
+                          v-if="
+                            transaction.original_type &&
+                            transaction.original_type !== transaction.type
+                          "
                           class="original-type-label"
                         >
                           Original: {{ polarityLabel(transaction.original_type) }}
@@ -225,23 +273,37 @@
                       </td>
                       <td>
                         <div class="row-actions">
-                          <button class="icon-btn small" @click="openTransactionForm(transaction)" title="Editar">
+                          <button
+                            class="icon-btn small"
+                            @click="openTransactionForm(transaction)"
+                            title="Editar"
+                          >
                             <font-awesome-icon icon="pencil" />
                           </button>
-                          <button class="icon-btn small" @click="toggleIgnored(transaction)" title="Ignorar">
-                            <font-awesome-icon :icon="transaction.is_ignored ? 'eye-slash' : 'eye'" />
+                          <button
+                            class="icon-btn small"
+                            @click="toggleIgnored(transaction)"
+                            title="Ignorar"
+                          >
+                            <font-awesome-icon
+                              :icon="transaction.is_ignored ? 'eye-slash' : 'eye'"
+                            />
                           </button>
-                          <button class="icon-btn small danger" @click="requestDeleteTransaction(transaction)"
-                             title="Excluir">
-                             <font-awesome-icon icon="trash" />
-                           </button>
+                          <button
+                            class="icon-btn small danger"
+                            @click="requestDeleteTransaction(transaction)"
+                            title="Excluir"
+                          >
+                            <font-awesome-icon icon="trash" />
+                          </button>
                         </div>
                       </td>
-
                     </tr>
                   </tbody>
                 </table>
-                <p v-if="transactions.length === 0" class="empty-line">Nenhum lançamento encontrado.</p>
+                <p v-if="transactions.length === 0" class="empty-line">
+                  Nenhum lançamento encontrado.
+                </p>
               </div>
             </section>
           </template>
@@ -287,14 +349,29 @@
               </label>
               <label class="budget-inline-ai">
                 <span>Pedido rápido para IA</span>
-                <input v-model="budgetAiInlinePrompt" type="text" placeholder='IA: "Reduzir 10% em lazer"'
-                  @keyup.enter="runInlineBudgetAi" />
-                <button type="button" :disabled="!canUseAi || loadingAi" @click.prevent="runInlineBudgetAi">
-                  <font-awesome-icon :icon="loadingAi ? 'circle-notch' : 'wand-magic-sparkles'" :spin="loadingAi" />
+                <input
+                  v-model="budgetAiInlinePrompt"
+                  type="text"
+                  placeholder='IA: "Reduzir 10% em lazer"'
+                  @keyup.enter="runInlineBudgetAi"
+                />
+                <button
+                  type="button"
+                  :disabled="!canUseAi || loadingAi"
+                  @click.prevent="runInlineBudgetAi"
+                >
+                  <font-awesome-icon
+                    :icon="loadingAi ? 'circle-notch' : 'wand-magic-sparkles'"
+                    :spin="loadingAi"
+                  />
                   IA
                 </button>
-                <button type="button" class="ghost-inline-button" :disabled="!canUseAi"
-                  @click.prevent="openBudgetPlanModal">
+                <button
+                  type="button"
+                  class="ghost-inline-button"
+                  :disabled="!canUseAi"
+                  @click.prevent="openBudgetPlanModal"
+                >
                   Expandir
                 </button>
               </label>
@@ -306,14 +383,21 @@
 
             <section class="budget-panel">
               <TransitionGroup name="budget-row" tag="div" class="budget-groups">
-                <section v-for="group in budgets" :key="group._key" class="budget-group"
-                  :style="budgetGroupStyle(group)">
+                <section
+                  v-for="group in budgets"
+                  :key="group._key"
+                  class="budget-group"
+                  :style="budgetGroupStyle(group)"
+                >
                   <header class="budget-group-header" :style="budgetGroupHeaderStyle(group)">
                     <div class="budget-group-title">
                       <font-awesome-icon icon="folder" />
-                      <MacroCategoryCombo v-model="group.macro_category" :categories="categories"
+                      <MacroCategoryCombo
+                        v-model="group.macro_category"
+                        :categories="categories"
                         :macro-categories="macroCategories"
-                        @change="selectBudgetMacro(group, $event)" />
+                        @change="selectBudgetMacro(group, $event)"
+                      />
                     </div>
                     <div class="budget-group-totals">
                       <div>
@@ -326,10 +410,14 @@
                       </div>
                       <div>
                         <small>Impacto total</small>
-                        <strong>{{ budgetProgress(group, "planned_amount") }}%</strong>
+                        <strong>{{ budgetProgress(group, 'planned_amount') }}%</strong>
                       </div>
                     </div>
-                    <button class="icon-btn small danger" @click="removeBudgetGroup(group)" title="Remover macro">
+                    <button
+                      class="icon-btn small danger"
+                      @click="removeBudgetGroup(group)"
+                      title="Remover macro"
+                    >
                       <font-awesome-icon icon="trash" />
                     </button>
                   </header>
@@ -337,11 +425,19 @@
                   <div class="budget-macro-plan">
                     <label class="budget-labeled-control">
                       <span>Limite planejado da macro categoria</span>
-                      <input class="plain-control money-control" type="text" inputmode="numeric"
-                        :value="group.planned_amount_display" @input="updateBudgetGroupAmount($event, group)" />
+                      <input
+                        class="plain-control money-control"
+                        type="text"
+                        inputmode="numeric"
+                        :value="group.planned_amount_display"
+                        @input="updateBudgetGroupAmount($event, group)"
+                      />
                     </label>
                     <div class="budget-progress macro-progress">
-                      <span>{{ money(group.actual_amount || 0) }} / {{ money(group.planned_amount || 0) }}</span>
+                      <span
+                        >{{ money(group.actual_amount || 0) }} /
+                        {{ money(group.planned_amount || 0) }}</span
+                      >
                       <div>
                         <i :style="{ width: budgetProgress(group, 'planned_amount') + '%' }"></i>
                       </div>
@@ -359,22 +455,37 @@
                     <article v-for="item in group.items" :key="item._key" class="budget-child-row">
                       <label class="budget-labeled-control">
                         <span>Subcategoria</span>
-                        <CategoryCombo v-model="item.category_id" :categories="availableCategoriesForMacro(group, item)"
-                          placeholder="Selecionar categoria" @change="syncBudgetItemType(item)" />
+                        <CategoryCombo
+                          v-model="item.category_id"
+                          :categories="availableCategoriesForMacro(group, item)"
+                          placeholder="Selecionar categoria"
+                          @change="syncBudgetItemType(item)"
+                        />
                       </label>
                       <label class="budget-labeled-control">
                         <span>Limite da categoria</span>
-                        <input class="plain-control money-control" type="text" inputmode="numeric"
-                          :value="item.amount_display" @input="updateBudgetAmount($event, item)" />
+                        <input
+                          class="plain-control money-control"
+                          type="text"
+                          inputmode="numeric"
+                          :value="item.amount_display"
+                          @input="updateBudgetAmount($event, item)"
+                        />
                       </label>
                       <div class="budget-progress">
-                        <span>{{ money(item.actual_amount || 0) }} / {{ money(item.amount || 0) }}</span>
+                        <span
+                          >{{ money(item.actual_amount || 0) }} /
+                          {{ money(item.amount || 0) }}</span
+                        >
                         <div>
                           <i :style="{ width: budgetProgress(item) + '%' }"></i>
                         </div>
                       </div>
-                      <button class="icon-btn small danger" @click="removeBudgetItem(group, item)"
-                        title="Remover categoria">
+                      <button
+                        class="icon-btn small danger"
+                        @click="removeBudgetItem(group, item)"
+                        title="Remover categoria"
+                      >
                         <font-awesome-icon icon="trash" />
                       </button>
                     </article>
@@ -382,7 +493,7 @@
 
                   <button class="text-btn add-row" @click="addBudgetItem(group)">
                     <font-awesome-icon icon="plus" />
-                    Adicionar à {{ group.macro_category || "macro categoria" }}
+                    Adicionar à {{ group.macro_category || 'macro categoria' }}
                   </button>
                 </section>
               </TransitionGroup>
@@ -403,48 +514,68 @@
                 <span class="soon-kicker">Em breve</span>
                 <h3>Conexões bancárias automáticas</h3>
                 <p>
-                  O Kadem Nexo está preparando uma integração viável para produção. Por enquanto, use lançamento
-                  rápido no momento da compra e importe CSV para organizar o histórico.
+                  O Kadem Nexo está preparando uma integração viável para produção. Por enquanto,
+                  use lançamento rápido no momento da compra e importe CSV para organizar o
+                  histórico.
                 </p>
               </div>
-              <button class="primary-action compact" type="button" @click="setActiveTab('transactions')">
+              <button
+                class="primary-action compact"
+                type="button"
+                @click="setActiveTab('transactions')"
+              >
                 <font-awesome-icon icon="list" />
                 Ir para movimentos
               </button>
             </div>
             <template v-if="false">
-            <ProGate v-if="!isPaidPlan" @upgrade="showPlanModal = true" />
-            <div v-else class="panel">
-              <div class="panel-title">
-                <h3>Conexões</h3>
-                <div class="inline-actions">
-                  <button class="text-btn" @click="syncConnections" :disabled="syncingBanks">
-                    <font-awesome-icon :icon="syncingBanks ? 'circle-notch' : 'arrows-rotate'" :spin="syncingBanks" />
-                    Sincronizar
-                  </button>
-                  <button class="primary-action compact" @click="openPluggyWidget">
-                    <font-awesome-icon icon="link" />
-                    Conectar
-                  </button>
+              <ProGate v-if="!isPaidPlan" @upgrade="showPlanModal = true" />
+              <div v-else class="panel">
+                <div class="panel-title">
+                  <h3>Conexões</h3>
+                  <div class="inline-actions">
+                    <button class="text-btn" @click="syncConnections" :disabled="syncingBanks">
+                      <font-awesome-icon
+                        :icon="syncingBanks ? 'circle-notch' : 'arrows-rotate'"
+                        :spin="syncingBanks"
+                      />
+                      Sincronizar
+                    </button>
+                    <button class="primary-action compact" @click="openPluggyWidget">
+                      <font-awesome-icon icon="link" />
+                      Conectar
+                    </button>
+                  </div>
+                </div>
+
+                <div class="connection-grid">
+                  <article
+                    v-for="connection in connections"
+                    :key="connection.item_id"
+                    class="connection-card"
+                  >
+                    <div>
+                      <strong>{{ connection.connector_name }}</strong>
+                      <span>
+                        {{ connectionStatusLabel(connection.status) }} ·
+                        {{
+                          connection.last_sync_at
+                            ? shortDate(connection.last_sync_at)
+                            : 'sem sincronização'
+                        }}
+                      </span>
+                    </div>
+                    <button
+                      class="icon-btn small danger"
+                      @click="deleteConnection(connection.item_id)"
+                      title="Remover"
+                    >
+                      <font-awesome-icon icon="trash" />
+                    </button>
+                  </article>
+                  <p v-if="connections.length === 0" class="empty-line">Nenhuma conexão ativa.</p>
                 </div>
               </div>
-
-              <div class="connection-grid">
-                <article v-for="connection in connections" :key="connection.item_id" class="connection-card">
-                  <div>
-                    <strong>{{ connection.connector_name }}</strong>
-                    <span>
-                      {{ connectionStatusLabel(connection.status) }} ·
-                      {{ connection.last_sync_at ? shortDate(connection.last_sync_at) : "sem sincronização" }}
-                    </span>
-                  </div>
-                  <button class="icon-btn small danger" @click="deleteConnection(connection.item_id)" title="Remover">
-                    <font-awesome-icon icon="trash" />
-                  </button>
-                </article>
-                <p v-if="connections.length === 0" class="empty-line">Nenhuma conexão ativa.</p>
-              </div>
-            </div>
             </template>
           </template>
 
@@ -467,52 +598,88 @@
               <div class="category-filter">
                 <font-awesome-icon icon="magnifying-glass" />
                 <div class="form-group">
-                  <input v-model="categorySearch" id="filtrar-categorias" type="search" placeholder=" " />
+                  <input
+                    v-model="categorySearch"
+                    id="filtrar-categorias"
+                    type="search"
+                    placeholder=" "
+                  />
                   <label for="filtrar-categorias">Filtrar categorias</label>
                 </div>
               </div>
 
               <div class="macro-groups">
-                <section v-for="group in groupedCategories" :key="group.id || group.name" class="macro-group"
-                  :style="budgetGroupStyle({ macro_color: group.color })">
+                <section
+                  v-for="group in groupedCategories"
+                  :key="group.id || group.name"
+                  class="macro-group"
+                  :style="budgetGroupStyle({ macro_color: group.color })"
+                >
                   <header :style="budgetGroupHeaderStyle({ macro_color: group.color })">
                     <div class="macro-heading">
                       <span class="swatch" :style="{ background: group.color || '#999999' }"></span>
                       <div>
                         <h4>{{ group.name }}</h4>
-                        <span>{{ group.items.length }} {{ group.items.length === 1 ? "categoria" : "categorias"
-                        }}</span>
+                        <span
+                          >{{ group.items.length }}
+                          {{ group.items.length === 1 ? 'categoria' : 'categorias' }}</span
+                        >
                       </div>
                     </div>
                     <div class="row-actions">
-                      <button class="icon-btn small" @click="openMacroForm(group)" title="Editar macro">
+                      <button
+                        class="icon-btn small"
+                        @click="openMacroForm(group)"
+                        title="Editar macro"
+                      >
                         <font-awesome-icon icon="pen" />
                       </button>
-                      <button class="icon-btn small danger" @click="requestDeleteMacro(group)" title="Excluir macro">
+                      <button
+                        class="icon-btn small danger"
+                        @click="requestDeleteMacro(group)"
+                        title="Excluir macro"
+                      >
                         <font-awesome-icon icon="trash" />
                       </button>
                     </div>
                   </header>
                   <div class="category-grid">
-                    <article v-for="category in group.items" :key="category.local_id || category.id" class="category-card">
-                      <span class="swatch" :style="{ background: category.color || '#999999' }"></span>
+                    <article
+                      v-for="category in group.items"
+                      :key="category.local_id || category.id"
+                      class="category-card"
+                    >
+                      <span
+                        class="swatch"
+                        :style="{ background: category.color || '#999999' }"
+                      ></span>
                       <font-awesome-icon :icon="category.icon || 'tag'" class="category-icon" />
                       <div>
                         <strong>{{ category.name }}</strong>
                         <small>{{ typeLabel(category.type) }}</small>
                       </div>
                       <div class="row-actions">
-                        <button class="icon-btn small" @click="openCategoryForm(category)" title="Editar">
+                        <button
+                          class="icon-btn small"
+                          @click="openCategoryForm(category)"
+                          title="Editar"
+                        >
                           <font-awesome-icon icon="pen" />
                         </button>
-                        <button class="icon-btn small danger" @click="requestDeleteCategory(category)" title="Excluir">
+                        <button
+                          class="icon-btn small danger"
+                          @click="requestDeleteCategory(category)"
+                          title="Excluir"
+                        >
                           <font-awesome-icon icon="trash" />
                         </button>
                       </div>
                     </article>
                   </div>
                 </section>
-                <p v-if="filteredCategories.length === 0" class="empty-line">Nenhuma categoria encontrada.</p>
+                <p v-if="filteredCategories.length === 0" class="empty-line">
+                  Nenhuma categoria encontrada.
+                </p>
               </div>
             </section>
           </template>
@@ -526,7 +693,10 @@
                   <span>Automação, leitura mensal e apoio ao orçamento.</span>
                 </div>
                 <button class="text-btn" @click="loadInsights" :disabled="loadingAi">
-                  <font-awesome-icon :icon="loadingAi ? 'circle-notch' : 'chart-simple'" :spin="loadingAi" />
+                  <font-awesome-icon
+                    :icon="loadingAi ? 'circle-notch' : 'chart-simple'"
+                    :spin="loadingAi"
+                  />
                   Gerar insights
                 </button>
               </div>
@@ -536,7 +706,8 @@
                   <span>Créditos disponíveis</span>
                   <strong>{{ usage.remaining_credits || 0 }}</strong>
                   <small>
-                    {{ usage.used_credits || 0 }} usados de {{ usage.total_credits || usage.monthly_limit || 0 }}
+                    {{ usage.used_credits || 0 }} usados de
+                    {{ usage.total_credits || usage.monthly_limit || 0 }}
                   </small>
                   <div class="usage-track">
                     <i :style="{ width: usagePercent + '%' }"></i>
@@ -546,18 +717,27 @@
                 <section class="ai-summary">
                   <span>Mês em análise</span>
                   <strong>{{ monthLabel }}</strong>
-                  <small>Os insights usam os lançamentos e categorias visíveis neste período.</small>
+                  <small
+                    >Os insights usam os lançamentos e categorias visíveis neste período.</small
+                  >
                 </section>
               </div>
 
               <div class="insight-list">
-                <article v-for="(insight, index) in displayInsights" :key="index" class="insight-row">
+                <article
+                  v-for="(insight, index) in displayInsights"
+                  :key="index"
+                  class="insight-row"
+                >
                   <strong>{{ insight.title }}</strong>
                   <span v-if="insight.description">{{ insight.description }}</span>
                 </article>
                 <div v-if="displayInsights.length === 0" class="empty-state">
                   <strong>Nenhum insight gerado</strong>
-                  <span>Gere uma análise para este mês quando houver movimentos ou orçamento para comparar.</span>
+                  <span
+                    >Gere uma análise para este mês quando houver movimentos ou orçamento para
+                    comparar.</span
+                  >
                 </div>
               </div>
             </div>
@@ -569,39 +749,81 @@
     <Transition name="slide-over-root">
       <div v-if="showTransactionForm" class="modal-wrapper-fixed">
         <div class="modal-overlay" @click.self="closeTransactionForm"></div>
-        <form class="modal-content nexo-modal transaction-modal glass" :class="form.type.toLowerCase()"
-          @submit.prevent="saveTransaction">
-          <h3>{{ form.id ? "Editar lançamento" : "Novo lançamento" }}</h3>
+        <form
+          class="modal-content nexo-modal transaction-modal glass"
+          :class="form.type.toLowerCase()"
+          @submit.prevent="saveTransaction"
+        >
+          <h3>{{ form.id ? 'Editar lançamento' : 'Novo lançamento' }}</h3>
           <div class="segmented">
-            <button type="button" class="expense-toggle" :class="{ active: form.type === 'EXPENSE' }"
-              @click="form.type = 'EXPENSE'">Saída</button>
-            <button type="button" class="income-toggle" :class="{ active: form.type === 'INCOME' }"
-              @click="form.type = 'INCOME'">Entrada</button>
+            <button
+              type="button"
+              class="expense-toggle"
+              :class="{ active: form.type === 'EXPENSE' }"
+              @click="form.type = 'EXPENSE'"
+            >
+              Saída
+            </button>
+            <button
+              type="button"
+              class="income-toggle"
+              :class="{ active: form.type === 'INCOME' }"
+              @click="form.type = 'INCOME'"
+            >
+              Entrada
+            </button>
           </div>
           <div class="nexo-field static-label">
             <label for="transaction-description">Descrição</label>
-            <input id="transaction-description" v-model="form.description" placeholder="" required />
+            <input
+              id="transaction-description"
+              v-model="form.description"
+              placeholder=""
+              required
+            />
           </div>
           <div class="nexo-field static-label textarea">
             <label for="transaction-observation">Observação</label>
-            <textarea id="transaction-observation" v-model.trim="form.observation"
-              placeholder="Detalhe opcional para diferenciar este movimento"></textarea>
+            <textarea
+              id="transaction-observation"
+              v-model.trim="form.observation"
+              placeholder="Detalhe opcional para diferenciar este movimento"
+            ></textarea>
           </div>
           <div class="form-grid">
             <div class="nexo-field static-label">
               <label for="transaction-amount">Valor</label>
-              <input id="transaction-amount" v-model="form.amount_display" type="text" inputmode="numeric"
-                placeholder="" required @input="updateTransactionAmount" />
+              <input
+                id="transaction-amount"
+                v-model="form.amount_display"
+                type="text"
+                inputmode="numeric"
+                placeholder=""
+                required
+                @input="updateTransactionAmount"
+              />
             </div>
             <div class="nexo-field static-label">
               <label for="transaction-date">Data</label>
-              <input id="transaction-date" v-model="form.transaction_date" type="date" placeholder="" required />
+              <input
+                id="transaction-date"
+                v-model="form.transaction_date"
+                type="date"
+                placeholder=""
+                required
+              />
             </div>
           </div>
-          <CategoryCombo v-model="form.category_id" :categories="categories" placeholder="Sem categoria" />
+          <CategoryCombo
+            v-model="form.category_id"
+            :categories="categories"
+            placeholder="Sem categoria"
+          />
           <div class="modal-actions">
             <button type="button" class="text-btn" @click="closeTransactionForm">Cancelar</button>
-            <button type="submit" class="primary-action">{{ form.id ? "Salvar alterações" : "Salvar" }}</button>
+            <button type="submit" class="primary-action">
+              {{ form.id ? 'Salvar alterações' : 'Salvar' }}
+            </button>
           </div>
         </form>
       </div>
@@ -611,15 +833,19 @@
       <div v-if="showCategoryForm" class="modal-wrapper-fixed">
         <div class="modal-overlay" @click.self="closeCategoryForm"></div>
         <form class="modal-content nexo-modal glass" @submit.prevent="saveCategoryForm">
-          <h3>{{ categoryForm.id ? "Editar categoria" : "Nova categoria" }}</h3>
+          <h3>{{ categoryForm.id ? 'Editar categoria' : 'Nova categoria' }}</h3>
           <div class="nexo-field static-label">
             <label for="category-name">Nome da categoria</label>
             <input id="category-name" v-model="categoryForm.name" placeholder="" required />
           </div>
           <label class="field-caption">
             <span>Macro categoria</span>
-            <MacroCategoryCombo v-model="categoryForm.macro_category" :categories="categories"
-              :macro-categories="macroCategories" @change="onCategoryMacroChange" />
+            <MacroCategoryCombo
+              v-model="categoryForm.macro_category"
+              :categories="categories"
+              :macro-categories="macroCategories"
+              @change="onCategoryMacroChange"
+            />
           </label>
           <div class="form-grid">
             <div class="nexo-field static-label select-field">
@@ -631,15 +857,26 @@
             </div>
             <div class="nexo-field static-label color-field">
               <label for="category-macro-color">Cor da macro</label>
-              <input id="category-macro-color" v-model="categoryForm.macro_color" type="color" placeholder=""
-                title="Cor da macro categoria" />
+              <input
+                id="category-macro-color"
+                v-model="categoryForm.macro_color"
+                type="color"
+                placeholder=""
+                title="Cor da macro categoria"
+              />
             </div>
           </div>
           <div class="icon-picker">
             <span>Ícone da categoria</span>
             <div>
-              <button v-for="icon in categoryIcons" :key="icon" type="button" class="icon-choice"
-                :class="{ active: categoryForm.icon === icon }" @click="categoryForm.icon = icon">
+              <button
+                v-for="icon in categoryIcons"
+                :key="icon"
+                type="button"
+                class="icon-choice"
+                :class="{ active: categoryForm.icon === icon }"
+                @click="categoryForm.icon = icon"
+              >
                 <font-awesome-icon :icon="icon" />
               </button>
             </div>
@@ -656,7 +893,7 @@
       <div v-if="showMacroForm" class="modal-wrapper-fixed">
         <div class="modal-overlay" @click.self="showMacroForm = false"></div>
         <form class="modal-content nexo-modal glass" @submit.prevent="saveMacroForm">
-          <h3>{{ macroForm.id ? "Editar macro categoria" : "Nova macro categoria" }}</h3>
+          <h3>{{ macroForm.id ? 'Editar macro categoria' : 'Nova macro categoria' }}</h3>
           <div class="nexo-field static-label">
             <label for="macro-name">Nome da macro categoria</label>
             <input id="macro-name" v-model="macroForm.name" placeholder="" required />
@@ -676,21 +913,29 @@
     <Transition name="slide-over-root">
       <div v-if="showBudgetAiForm" class="modal-wrapper-fixed">
         <div class="modal-overlay" @click.self="showBudgetAiForm = false"></div>
-        <form class="modal-content nexo-modal budget-ai-modal glass" @submit.prevent="submitBudgetPlan">
+        <form
+          class="modal-content nexo-modal budget-ai-modal glass"
+          @submit.prevent="submitBudgetPlan"
+        >
           <div class="budget-ai-modal-header">
             <div>
               <h3>Planejamento com IA</h3>
               <p class="modal-help">
-                Descreva o objetivo do mês. Exemplo: reduzir lazer em 10% e reservar mais para impostos.
+                Descreva o objetivo do mês. Exemplo: reduzir lazer em 10% e reservar mais para
+                impostos.
               </p>
             </div>
             <span>{{ budgetAiContextLabel }}</span>
           </div>
 
           <div class="budget-ai-chat custom-scrollbar">
-            <article v-for="message in budgetAiConversation" :key="message.id" class="budget-ai-message"
-              :class="message.role">
-              <strong>{{ message.role === "assistant" ? "IA" : "Você" }}</strong>
+            <article
+              v-for="message in budgetAiConversation"
+              :key="message.id"
+              class="budget-ai-message"
+              :class="message.role"
+            >
+              <strong>{{ message.role === 'assistant' ? 'IA' : 'Você' }}</strong>
               <p>{{ message.content }}</p>
             </article>
             <p v-if="budgetAiConversation.length === 0" class="empty-line">
@@ -700,10 +945,17 @@
 
           <div class="nexo-field static-label textarea">
             <label for="budget-ai-prompt">Mensagem para o planejamento</label>
-            <textarea id="budget-ai-prompt" v-model="budgetAiPrompt" placeholder="" required></textarea>
+            <textarea
+              id="budget-ai-prompt"
+              v-model="budgetAiPrompt"
+              placeholder=""
+              required
+            ></textarea>
           </div>
           <div class="modal-actions">
-            <button type="button" class="text-btn" @click="showBudgetAiForm = false">Cancelar</button>
+            <button type="button" class="text-btn" @click="showBudgetAiForm = false">
+              Cancelar
+            </button>
             <button type="submit" class="primary-action" :disabled="loadingAi">
               <font-awesome-icon v-if="loadingAi" icon="circle-notch" spin />
               Gerar plano
@@ -742,23 +994,23 @@
 </template>
 
 <script>
-import { mapState } from "pinia";
-import { useAuthStore } from "@/stores/auth";
-import { financeService } from "@/services/financeService";
-import { getPlanLimits } from "@/services/subscription_plans";
-import { db } from "@/db";
-import SubscriptionModal from "@/components/SubscriptionModal.vue";
-import ConfirmationModal from "@/components/ConfirmationModal.vue";
-import CategoryCombo from "./CategoryCombo.vue";
-import MacroCategoryCombo from "./MacroCategoryCombo.vue";
+import { mapState } from 'pinia'
+import { useAuthStore } from '@/stores/auth'
+import { financeService } from '@/services/financeService'
+import { getPlanLimits } from '@/services/subscription_plans'
+import { db } from '@/db'
+import SubscriptionModal from '@/components/SubscriptionModal.vue'
+import ConfirmationModal from '@/components/ConfirmationModal.vue'
+import CategoryCombo from './CategoryCombo.vue'
+import MacroCategoryCombo from './MacroCategoryCombo.vue'
 
-const pluggyWidgetUrl = "https://cdn.pluggy.ai/pluggy-connect/latest/pluggy-connect.js";
+const pluggyWidgetUrl = 'https://cdn.pluggy.ai/pluggy-connect/latest/pluggy-connect.js'
 const includePluggySandbox =
-  import.meta.env.VITE_PLUGGY_INCLUDE_SANDBOX === "true" ||
-  (!import.meta.env.PROD && import.meta.env.VITE_PLUGGY_INCLUDE_SANDBOX !== "false");
+  import.meta.env.VITE_PLUGGY_INCLUDE_SANDBOX === 'true' ||
+  (!import.meta.env.PROD && import.meta.env.VITE_PLUGGY_INCLUDE_SANDBOX !== 'false')
 
 const ProGate = {
-  emits: ["upgrade"],
+  emits: ['upgrade'],
   template: `
     <div class="panel pro-gate">
       <font-awesome-icon icon="lock" />
@@ -770,20 +1022,19 @@ const ProGate = {
       </button>
     </div>
   `,
-};
+}
 
 export default {
-  name: "KademNexo",
+  name: 'KademNexo',
   components: { SubscriptionModal, ConfirmationModal, ProGate, CategoryCombo, MacroCategoryCombo },
   data() {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10)
     return {
-      activeTab: "overview",
+      activeTab: 'overview',
       selectedMonth: new Date().toISOString().slice(0, 7),
       loading: false,
       syncingBanks: false,
       loadingAi: false,
-      savingQuick: false,
       importingCsv: false,
       loadingSchema: false,
       showTransactionForm: false,
@@ -796,378 +1047,386 @@ export default {
       recentTransactions: [],
       categories: [],
       macroCategories: [],
-      categorySearch: "",
+      categorySearch: '',
       pendingCategorySelection: null,
       budgets: [],
       connections: [],
       macroDistribution: [],
       usage: {},
       insights: [],
-      budgetAiPrompt: "",
-      budgetAiInlinePrompt: "",
+      budgetAiPrompt: '',
+      budgetAiInlinePrompt: '',
       budgetAiConversation: [],
-      budgetAiContextSummary: "",
+      budgetAiContextSummary: '',
       categoryForm: {
         id: null,
-        name: "",
-        macro_category: "Geral",
-        macro_color: "#999999",
-        type: "EXPENSE",
-        icon: "tag",
+        name: '',
+        macro_category: 'Geral',
+        macro_color: '#999999',
+        type: 'EXPENSE',
+        icon: 'tag',
       },
       macroForm: {
         id: null,
-        name: "",
-        color: "#999999",
+        name: '',
+        color: '#999999',
       },
       confirmDelete: {
         visible: false,
         type: null,
         payload: null,
-        message: "",
+        message: '',
       },
       confirmationState: {
         show: false,
-        message: "",
-        confirmText: "Confirmar",
-        description: "",
+        message: '',
+        confirmText: 'Confirmar',
+        description: '',
         action: null,
       },
       categoryIcons: [
-        "tag",
-        "basket-shopping",
-        "house",
-        "car",
-        "briefcase",
-        "money-bill",
-        "screwdriver-wrench",
-        "utensils",
-        "heart-pulse",
-        "graduation-cap",
-        "plane",
-        "receipt",
+        'tag',
+        'basket-shopping',
+        'house',
+        'car',
+        'briefcase',
+        'money-bill',
+        'screwdriver-wrench',
+        'utensils',
+        'heart-pulse',
+        'graduation-cap',
+        'plane',
+        'receipt',
       ],
       form: {
         id: null,
-        type: "EXPENSE",
-        description: "",
-        observation: "",
+        type: 'EXPENSE',
+        description: '',
+        observation: '',
         amount: 0,
-        amount_display: "",
+        amount_display: '',
         category_id: null,
         transaction_date: today,
       },
-      quickForm: {
-        type: "EXPENSE",
-        description: "",
-        amount: 0,
-        amount_display: "",
-        category_id: null,
-        transaction_date: today,
-      },
-      csvImportError: "",
-      csvImportFileName: "",
+      csvImportError: '',
+      csvImportFileName: '',
       csvRawRows: [],
       csvImportRows: [],
       csvSkippedRows: 0,
       categorizingAi: false,
       categorizingIds: [],
       tabs: [
-        { id: "overview", label: "Visão", icon: "chart-simple" },
-        { id: "transactions", label: "Movimentos", icon: "list" },
-        { id: "budget", label: "Orçamento", icon: "clipboard" },
-        { id: "connections", label: "Conexões", icon: "link" },
-        { id: "categories", label: "Categorias", icon: "layer-group" },
-        { id: "ai", label: "IA", icon: "crown", pro: true },
+        { id: 'overview', label: 'Visão', icon: 'chart-simple' },
+        { id: 'transactions', label: 'Movimentos', icon: 'list' },
+        { id: 'budget', label: 'Orçamento', icon: 'clipboard' },
+        { id: 'connections', label: 'Conexões', icon: 'link' },
+        { id: 'categories', label: 'Categorias', icon: 'layer-group' },
+        { id: 'ai', label: 'IA', icon: 'crown', pro: true },
       ],
-    };
+    }
   },
   computed: {
-    ...mapState(useAuthStore, ["user"]),
+    ...mapState(useAuthStore, ['user']),
     activeTabIndex() {
-      return Math.max(0, this.tabs.findIndex((tab) => tab.id === this.activeTab));
+      return Math.max(
+        0,
+        this.tabs.findIndex((tab) => tab.id === this.activeTab),
+      )
     },
     trackStyle() {
-      const step = 100 / this.tabs.length;
+      const step = 100 / this.tabs.length
       return {
         width: `${this.tabs.length * 100}%`,
         transform: `translateX(-${this.activeTabIndex * step}%)`,
-      };
+      }
     },
     paneStyle() {
-      const size = `${100 / this.tabs.length}%`;
-      return { width: size, flexBasis: size };
+      const size = `${100 / this.tabs.length}%`
+      return { width: size, flexBasis: size }
     },
     limits() {
-      return getPlanLimits(this.user?.plan_tier || "free");
+      return getPlanLimits(this.user?.plan_tier || 'free')
     },
     isPaidPlan() {
-      return this.user?.plan_tier && this.user.plan_tier !== "free";
+      return this.user?.plan_tier && this.user.plan_tier !== 'free'
     },
     canUseAi() {
-      return this.isPaidPlan && Number(this.limits.finance_ai_monthly_credits || 0) > 0;
+      return this.isPaidPlan && Number(this.limits.finance_ai_monthly_credits || 0) > 0
     },
     planLabel() {
-      const labels = { free: "Free", pro: "Pro", enterprise: "Enterprise" };
-      return labels[this.user?.plan_tier] || "Free";
+      const labels = { free: 'Free', pro: 'Pro', enterprise: 'Enterprise' }
+      return labels[this.user?.plan_tier] || 'Free'
     },
     aiUsageLabel() {
-      if (!this.canUseAi) return "IA bloqueada";
-      return `${this.usage.remaining_credits ?? this.limits.finance_ai_monthly_credits} créditos IA`;
+      if (!this.canUseAi) return 'IA bloqueada'
+      return `${this.usage.remaining_credits ?? this.limits.finance_ai_monthly_credits} créditos IA`
     },
     expensePercent() {
-      if (!this.totals.income) return 0;
-      return Math.min(100, Math.round((this.totals.expense / this.totals.income) * 100));
+      if (!this.totals.income) return 0
+      return Math.min(100, Math.round((this.totals.expense / this.totals.income) * 100))
     },
     usagePercent() {
-      const total = Number(this.usage.total_credits || this.usage.monthly_limit || 0);
-      if (!total) return 0;
-      return Math.min(100, Math.round((Number(this.usage.used_credits || 0) / total) * 100));
+      const total = Number(this.usage.total_credits || this.usage.monthly_limit || 0)
+      if (!total) return 0
+      return Math.min(100, Math.round((Number(this.usage.used_credits || 0) / total) * 100))
     },
     budgetAiContextLabel() {
-      const total = this.budgetAiConversation.length;
-      if (!total) return "Sem histórico";
-      return `${total} ${total === 1 ? "interação" : "interações"} neste mês`;
+      const total = this.budgetAiConversation.length
+      if (!total) return 'Sem histórico'
+      return `${total} ${total === 1 ? 'interação' : 'interações'} neste mês`
     },
     monthLabel() {
-      const [year, month] = this.selectedMonth.split("-").map(Number);
-      return new Date(year, month - 1, 1).toLocaleDateString("pt-BR", {
-        month: "long",
-        year: "numeric",
-      });
+      const [year, month] = this.selectedMonth.split('-').map(Number)
+      return new Date(year, month - 1, 1).toLocaleDateString('pt-BR', {
+        month: 'long',
+        year: 'numeric',
+      })
     },
     budgetSummary() {
       const summary = this.budgets.reduce(
         (acc, group) => {
-          (group.items || []).forEach((item) => {
-            const category = this.findCategory(item.category_id);
-            const amount = Number(item.amount || 0);
-            if ((category?.type || item.type) === "INCOME") acc.plannedIncome += amount;
-            else acc.plannedExpense += amount;
-          });
-          return acc;
+          ;(group.items || []).forEach((item) => {
+            const category = this.findCategory(item.category_id)
+            const amount = Number(item.amount || 0)
+            if ((category?.type || item.type) === 'INCOME') acc.plannedIncome += amount
+            else acc.plannedExpense += amount
+          })
+          return acc
         },
         { plannedIncome: 0, plannedExpense: 0 },
-      );
+      )
 
-      const plannedBalance = summary.plannedIncome - summary.plannedExpense;
-      const unplannedExpense = Math.max(0, Number(this.totals.expense || 0) - summary.plannedExpense);
+      const plannedBalance = summary.plannedIncome - summary.plannedExpense
+      const unplannedExpense = Math.max(
+        0,
+        Number(this.totals.expense || 0) - summary.plannedExpense,
+      )
 
       return {
         ...summary,
         plannedBalance,
         unplannedExpense,
-      };
+      }
     },
     csvImportTotals() {
-      if (!Array.isArray(this.csvImportRows)) return { income: 0, expense: 0 };
+      if (!Array.isArray(this.csvImportRows)) return { income: 0, expense: 0 }
       return this.csvImportRows.reduce(
         (acc, row) => {
-          if (!row) return acc;
-          const amount = Number(row.amount || 0);
-          if (row.type === "INCOME") acc.income += amount;
-          else acc.expense += amount;
-          return acc;
+          if (!row) return acc
+          const amount = Number(row.amount || 0)
+          if (row.type === 'INCOME') acc.income += amount
+          else acc.expense += amount
+          return acc
         },
         { income: 0, expense: 0 },
-      );
+      )
     },
     filteredCategories() {
-      const term = this.normalize(this.categorySearch);
-      if (!term) return this.categories;
+      const term = this.normalize(this.categorySearch)
+      if (!term) return this.categories
       return this.categories.filter((category) =>
-        this.normalize(`${category.name} ${category.macro_category} ${this.typeLabel(category.type)}`).includes(term),
-      );
+        this.normalize(
+          `${category.name} ${category.macro_category} ${this.typeLabel(category.type)}`,
+        ).includes(term),
+      )
     },
     groupedCategories() {
-      const groups = new Map();
+      const groups = new Map()
       this.macroCategories.forEach((macro) => {
-        groups.set(macro.name, { ...macro, items: [] });
-      });
+        groups.set(macro.name, { ...macro, items: [] })
+      })
 
       this.filteredCategories.forEach((category) => {
-        const macroName = category.macro_category || "Geral";
+        const macroName = category.macro_category || 'Geral'
         if (!groups.has(macroName)) {
           groups.set(macroName, {
             id: category.macro_category_id || null,
             name: macroName,
-            color: category.macro_color || category.color || "#999999",
+            color: category.macro_color || category.color || '#999999',
             items: [],
-          });
+          })
         }
-        groups.get(macroName).items.push(category);
-      });
+        groups.get(macroName).items.push(category)
+      })
 
       return [...groups.values()]
         .map((group) => ({
           ...group,
-          items: group.items.slice().sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+          items: group.items.slice().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
         }))
         .filter((group) => group.items.length > 0 || !this.categorySearch)
-        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
     },
     displayInsights() {
       return this.insights.map((insight) => {
-        const title = insight.title || "Insight";
-        const description = insight.description || (typeof insight === "string" ? insight : "");
-        const normalizedTitle = this.normalize(title);
-        const normalizedDescription = this.normalize(description);
+        const title = insight.title || 'Insight'
+        const description = insight.description || (typeof insight === 'string' ? insight : '')
+        const normalizedTitle = this.normalize(title)
+        const normalizedDescription = this.normalize(description)
 
         if (
-          normalizedTitle.includes("sem transacoes") &&
-          normalizedDescription.includes("nao ha registros")
+          normalizedTitle.includes('sem transacoes') &&
+          normalizedDescription.includes('nao ha registros')
         ) {
-          return { title: "Movimentação do mês", description };
+          return { title: 'Movimentação do mês', description }
         }
 
         if (normalizedTitle && normalizedTitle === normalizedDescription) {
-          return { title, description: "" };
+          return { title, description: '' }
         }
 
-        return { title, description };
-      });
+        return { title, description }
+      })
     },
     donutGradient() {
-      const total = this.macroDistribution.reduce((sum, item) => sum + Number(item.total || 0), 0);
-      if (!total) return "conic-gradient(var(--gray-600) 0deg 360deg)";
+      const total = this.macroDistribution.reduce((sum, item) => sum + Number(item.total || 0), 0)
+      if (!total) return 'conic-gradient(var(--gray-600) 0deg 360deg)'
 
-      let cursor = 0;
+      let cursor = 0
       const parts = this.macroDistribution.map((item) => {
-        const degrees = (Number(item.total || 0) / total) * 360;
-        const part = `${item.color || "#999999"} ${cursor}deg ${cursor + degrees}deg`;
-        cursor += degrees;
-        return part;
-      });
-      return `conic-gradient(${parts.join(", ")})`;
+        const degrees = (Number(item.total || 0) / total) * 360
+        const part = `${item.color || '#999999'} ${cursor}deg ${cursor + degrees}deg`
+        cursor += degrees
+        return part
+      })
+      return `conic-gradient(${parts.join(', ')})`
     },
   },
   methods: {
     normalize(value) {
-      return String(value || "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
+      return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
-        .trim();
+        .trim()
     },
     sameId(left, right) {
-      return String(left ?? "") === String(right ?? "");
+      return String(left ?? '') === String(right ?? '')
     },
     setActiveTab(tabId) {
-      this.activeTab = tabId;
-      if (tabId === "transactions") {
-        this.loadTransactions();
+      this.activeTab = tabId
+      if (tabId === 'transactions') {
+        this.loadTransactions()
       }
     },
     money(value) {
       try {
-        const num = Number(value || 0);
-        return (Number.isFinite(num) ? num : 0).toLocaleString("pt-BR", {
-          style: "currency",
-          currency: "BRL",
-        });
+        const num = Number(value || 0)
+        return (Number.isFinite(num) ? num : 0).toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        })
       } catch {
-        return "R$ 0,00";
+        return 'R$ 0,00'
       }
     },
     parseMoneyInput(rawValue) {
-      const digits = String(rawValue || "").replace(/\D/g, "");
-      return Number(digits || 0) / 100;
+      const digits = String(rawValue || '').replace(/\D/g, '')
+      return Number(digits || 0) / 100
     },
     moneyInput(value) {
-      return this.money(value || 0);
+      return this.money(value || 0)
     },
     signedMoney(transaction) {
-      const prefix = transaction.type === "EXPENSE" ? "-" : "+";
-      return `${prefix} ${this.money(transaction.amount)}`;
+      const prefix = transaction.type === 'EXPENSE' ? '-' : '+'
+      return `${prefix} ${this.money(transaction.amount)}`
     },
     shortDate(value) {
-      if (!value) return "--";
+      if (!value) return '--'
       try {
-        const d = new Date(value);
-        if (Number.isNaN(d.getTime())) return "--";
-        return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+        const d = new Date(value)
+        if (Number.isNaN(d.getTime())) return '--'
+        return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
       } catch {
-        return "--";
+        return '--'
       }
     },
     categoryLabel(transaction) {
-      return transaction.category_name || this.findCategory(transaction.category_id)?.name || "Sem categoria";
+      return (
+        transaction.category_name ||
+        this.findCategory(transaction.category_id)?.name ||
+        'Sem categoria'
+      )
     },
     typeLabel(type) {
-      const labels = { EXPENSE: "Saída", INCOME: "Entrada" };
-      return labels[type] || "Não definido";
+      const labels = { EXPENSE: 'Saída', INCOME: 'Entrada' }
+      return labels[type] || 'Não definido'
     },
     polarityLabel(type) {
-      return type === "INCOME" ? "positivo" : "negativo";
+      return type === 'INCOME' ? 'positivo' : 'negativo'
     },
     sourceLabel(source) {
-      const labels = { MANUAL: "Manual", OPEN_FINANCE: "Open Finance", IMPORT: "CSV" };
-      return labels[source] || "Não definido";
+      const labels = { MANUAL: 'Manual', OPEN_FINANCE: 'Open Finance', IMPORT: 'CSV' }
+      return labels[source] || 'Não definido'
     },
     connectionStatusLabel(status) {
       const labels = {
-        UPDATED: "Atualizada",
-        UPDATING: "Atualizando",
-        LOGIN_ERROR: "Erro de acesso",
-        OUTDATED: "Desatualizada",
-        DELETED: "Removida",
-      };
-      return labels[status] || "Pendente";
+        UPDATED: 'Atualizada',
+        UPDATING: 'Atualizando',
+        LOGIN_ERROR: 'Erro de acesso',
+        OUTDATED: 'Desatualizada',
+        DELETED: 'Removida',
+      }
+      return labels[status] || 'Pendente'
     },
-    budgetProgress(budget, plannedKey = "amount") {
-      const planned = Number(budget[plannedKey] || 0);
-      if (!planned) return 0;
-      return Math.min(100, Math.round((Number(budget.actual_amount || 0) / planned) * 100));
+    budgetProgress(budget, plannedKey = 'amount') {
+      const planned = Number(budget[plannedKey] || 0)
+      if (!planned) return 0
+      return Math.min(100, Math.round((Number(budget.actual_amount || 0) / planned) * 100))
     },
     budgetGroupStyle(group) {
       return {
-        "--budget-macro-color": group.macro_color || "#999999",
-        "--budget-macro-soft": this.hexToRgba(group.macro_color || "#999999", 0.13),
-        "--budget-macro-border": this.hexToRgba(group.macro_color || "#999999", 0.28),
-      };
+        '--budget-macro-color': group.macro_color || '#999999',
+        '--budget-macro-soft': this.hexToRgba(group.macro_color || '#999999', 0.13),
+        '--budget-macro-border': this.hexToRgba(group.macro_color || '#999999', 0.28),
+      }
     },
     budgetGroupHeaderStyle(group) {
       return {
-        background: this.hexToRgba(group.macro_color || "#999999", 0.12),
-        borderColor: this.hexToRgba(group.macro_color || "#999999", 0.22),
-      };
+        background: this.hexToRgba(group.macro_color || '#999999', 0.12),
+        borderColor: this.hexToRgba(group.macro_color || '#999999', 0.22),
+      }
     },
     hexToRgba(hex, alpha = 1) {
-      const normalized = String(hex || "#999999").replace("#", "");
-      const safe = normalized.length === 3
-        ? normalized.split("").map((char) => char + char).join("")
-        : normalized.padEnd(6, "9").slice(0, 6);
-      const value = Number.parseInt(safe, 16);
-      const r = (value >> 16) & 255;
-      const g = (value >> 8) & 255;
-      const b = value & 255;
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      const normalized = String(hex || '#999999').replace('#', '')
+      const safe =
+        normalized.length === 3
+          ? normalized
+              .split('')
+              .map((char) => char + char)
+              .join('')
+          : normalized.padEnd(6, '9').slice(0, 6)
+      const value = Number.parseInt(safe, 16)
+      const r = (value >> 16) & 255
+      const g = (value >> 8) & 255
+      const b = value & 255
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`
     },
     budgetAiStorageKey() {
-      return `kadem:nexo:budget-ai:${this.user?.id || "local"}:${this.selectedMonth}`;
+      return `kadem:nexo:budget-ai:${this.user?.id || 'local'}:${this.selectedMonth}`
     },
     loadBudgetAiConversation() {
       try {
-        const raw = localStorage.getItem(this.budgetAiStorageKey());
-        const parsed = raw ? JSON.parse(raw) : {};
-        this.budgetAiConversation = Array.isArray(parsed.messages) ? parsed.messages : [];
-        this.budgetAiContextSummary = parsed.summary || "";
+        const raw = localStorage.getItem(this.budgetAiStorageKey())
+        const parsed = raw ? JSON.parse(raw) : {}
+        this.budgetAiConversation = Array.isArray(parsed.messages) ? parsed.messages : []
+        this.budgetAiContextSummary = parsed.summary || ''
       } catch {
-        this.budgetAiConversation = [];
-        this.budgetAiContextSummary = "";
+        this.budgetAiConversation = []
+        this.budgetAiContextSummary = ''
       }
     },
     saveBudgetAiConversation() {
-      const messages = this.budgetAiConversation.slice(-12);
-      this.budgetAiConversation = messages;
+      const messages = this.budgetAiConversation.slice(-12)
+      this.budgetAiConversation = messages
       this.budgetAiContextSummary = messages
         .slice(-6)
-        .map((message) => `${message.role === "assistant" ? "IA" : "Usuário"}: ${message.content}`)
-        .join("\n");
+        .map((message) => `${message.role === 'assistant' ? 'IA' : 'Usuário'}: ${message.content}`)
+        .join('\n')
       localStorage.setItem(
         this.budgetAiStorageKey(),
         JSON.stringify({ messages, summary: this.budgetAiContextSummary }),
-      );
+      )
     },
     appendBudgetAiMessage(role, content) {
       this.budgetAiConversation.push({
@@ -1175,11 +1434,11 @@ export default {
         role,
         content,
         created_at: new Date().toISOString(),
-      });
-      this.saveBudgetAiConversation();
+      })
+      this.saveBudgetAiConversation()
     },
     async reloadAll() {
-      this.loading = true;
+      this.loading = true
       try {
         await Promise.all([
           this.loadDashboard(),
@@ -1189,46 +1448,49 @@ export default {
           this.loadBudgets(),
           this.loadConnections(),
           this.loadUsage(),
-        ]);
-        this.loadBudgetAiConversation();
+        ])
+        this.loadBudgetAiConversation()
       } finally {
-        this.loading = false;
+        this.loading = false
       }
     },
     async loadDashboard() {
-      const { data } = await financeService.getDashboard({ month: this.selectedMonth });
-      this.totals = data.totals || { income: 0, expense: 0, balance: 0 };
-      this.recentTransactions = data.transactions || data.recent_transactions || [];
-      this.macroDistribution = data.macro_distribution || [];
+      const { data } = await financeService.getDashboard({ month: this.selectedMonth })
+      this.totals = data.totals || { income: 0, expense: 0, balance: 0 }
+      this.recentTransactions = data.transactions || data.recent_transactions || []
+      this.macroDistribution = data.macro_distribution || []
     },
     async loadTransactions() {
-      const { data } = await financeService.listTransactions({ month: this.selectedMonth, limit: 250 });
-      this.transactions = data || [];
+      const { data } = await financeService.listTransactions({
+        month: this.selectedMonth,
+        limit: 250,
+      })
+      this.transactions = data || []
     },
     async loadCategories() {
-      const { data } = await financeService.getCategories();
-      this.categories = data || [];
+      const { data } = await financeService.getCategories()
+      this.categories = data || []
     },
     async loadMacroCategories() {
-      const { data } = await financeService.getMacroCategories();
-      this.macroCategories = data || [];
+      const { data } = await financeService.getMacroCategories()
+      this.macroCategories = data || []
     },
     async loadBudgets() {
-      const { data } = await financeService.getBudgets({ month: this.selectedMonth });
-      this.budgets = (data || []).map((group) => this.hydrateBudgetGroup(group));
+      const { data } = await financeService.getBudgets({ month: this.selectedMonth })
+      this.budgets = (data || []).map((group) => this.hydrateBudgetGroup(group))
     },
     hydrateBudgetGroup(group) {
       return {
         ...group,
         _key: group._key || group.macro_category_id || `macro-${Date.now()}-${Math.random()}`,
         macro_category_id: group.macro_category_id || null,
-        macro_category: group.macro_category || "Geral",
-        macro_color: group.macro_color || "#999999",
+        macro_category: group.macro_category || 'Geral',
+        macro_color: group.macro_color || '#999999',
         planned_amount: Number(group.planned_amount || 0),
         planned_amount_display: this.moneyInput(group.planned_amount || 0),
         actual_amount: Number(group.actual_amount || 0),
         items: (group.items || []).map((item) => this.hydrateBudgetItem(item)),
-      };
+      }
     },
     hydrateBudgetItem(item) {
       return {
@@ -1237,325 +1499,334 @@ export default {
         amount: Number(item.amount || 0),
         amount_display: this.moneyInput(item.amount || 0),
         actual_amount: Number(item.actual_amount || 0),
-        type: item.type || this.findCategory(item.category_id)?.type || "EXPENSE",
-      };
+        type: item.type || this.findCategory(item.category_id)?.type || 'EXPENSE',
+      }
     },
     async loadConnections() {
-      if (!this.isPaidPlan) return;
-      const { data } = await financeService.getConnections();
-      this.connections = data || [];
+      if (!this.isPaidPlan) return
+      const { data } = await financeService.getConnections()
+      this.connections = data || []
     },
     async loadUsage() {
       if (!this.canUseAi) {
-        this.usage = {};
-        return;
+        this.usage = {}
+        return
       }
-      const { data } = await financeService.getUsage();
-      this.usage = data || {};
+      const { data } = await financeService.getUsage()
+      this.usage = data || {}
     },
     openTransactionForm(transaction = null) {
-      const amount = Number(transaction?.amount || 0);
+      if (transaction && typeof transaction.preventDefault === 'function') {
+        transaction = null
+      }
+
+      const amount = Number(transaction?.amount || 0)
+      const type = transaction?.type === 'INCOME' ? 'INCOME' : 'EXPENSE'
+
       this.form = {
         id: transaction?.id || transaction?.local_id || null,
-        type: transaction?.type || "EXPENSE",
-        description: transaction?.description || "",
-        observation: transaction?.observation || "",
+        type,
+        description: transaction?.description || '',
+        observation: transaction?.observation || '',
         amount,
-        amount_display: transaction ? this.moneyInput(amount) : "",
+        amount_display: transaction ? this.moneyInput(amount) : '',
         category_id: transaction?.category_id || null,
-        transaction_date: String(transaction?.transaction_date || new Date().toISOString().slice(0, 10)).slice(0, 10),
-      };
-      this.showTransactionForm = true;
+        transaction_date: String(
+          transaction?.transaction_date || new Date().toISOString().slice(0, 10),
+        ).slice(0, 10),
+      }
+      this.showTransactionForm = true
     },
     closeTransactionForm() {
-      this.showTransactionForm = false;
+      this.showTransactionForm = false
     },
     updateTransactionAmount(event) {
-      const value = this.parseMoneyInput(event.target.value);
-      this.form.amount = value;
-      this.form.amount_display = this.moneyInput(value);
-      event.target.value = this.form.amount_display;
+      const value = this.parseMoneyInput(event.target.value)
+      this.form.amount = value
+      this.form.amount_display = this.moneyInput(value)
+      event.target.value = this.form.amount_display
     },
     async saveTransaction() {
       const payload = {
         ...this.form,
         observation: this.form.observation || null,
         amount: Number(this.form.amount || 0),
-      };
-      let savedTransaction = null;
+      }
+      let savedTransaction = null
       if (this.form.id) {
-        const { data } = await financeService.updateTransaction(this.form.id, payload);
-        savedTransaction = data;
+        const { data } = await financeService.updateTransaction(this.form.id, payload)
+        savedTransaction = data
       } else {
-        const { data } = await financeService.createTransaction(payload);
-        savedTransaction = data;
+        const { data } = await financeService.createTransaction(payload)
+        savedTransaction = data
       }
       if (savedTransaction) {
-        this.upsertTransactionInList(savedTransaction);
+        this.upsertTransactionInList(savedTransaction)
       }
-      this.closeTransactionForm();
-      await this.loadDashboard();
-    },
-    resetQuickForm(keepType = true) {
-      this.quickForm = {
-        type: keepType ? this.quickForm.type : "EXPENSE",
-        description: "",
-        amount: 0,
-        amount_display: "",
-        category_id: null,
-        transaction_date: new Date().toISOString().slice(0, 10),
-      };
-    },
-    updateQuickAmount(event) {
-      const value = this.parseMoneyInput(event.target.value);
-      this.quickForm.amount = value;
-      this.quickForm.amount_display = this.moneyInput(value);
-      event.target.value = this.quickForm.amount_display;
-    },
-    async saveQuickTransaction() {
-      if (!this.quickForm.description || !Number(this.quickForm.amount)) return;
-      this.savingQuick = true;
-      try {
-        const { data } = await financeService.createTransaction({
-          ...this.quickForm,
-          amount: Number(this.quickForm.amount || 0),
-          source: "MANUAL",
-        });
-        if (data) {
-          this.upsertTransactionInList(data);
-        }
-        this.resetQuickForm();
-        await this.loadDashboard();
-      } finally {
-        this.savingQuick = false;
-      }
+      this.closeTransactionForm()
+      await this.loadDashboard()
     },
     getRefElement(ref) {
-      if (!ref) return null;
-      return Array.isArray(ref) ? ref[0] : ref;
+      if (!ref) return null
+      return Array.isArray(ref) ? ref[0] : ref
     },
     triggerCsvPicker() {
       if (!this.isPaidPlan) {
-        this.showPlanModal = true;
-        return;
+        this.showPlanModal = true
+        return
       }
-      this.getRefElement(this.$refs.csvInput)?.click();
+      this.getRefElement(this.$refs.csvInput)?.click()
     },
     resetCsvImport() {
-      this.csvImportError = "";
-      this.csvImportFileName = "";
-      this.csvRawRows = [];
-      this.csvImportRows = [];
-      this.csvSkippedRows = 0;
-      this.loadingSchema = false;
-      const csvInput = this.getRefElement(this.$refs.csvInput);
-      if (csvInput) csvInput.value = "";
+      this.csvImportError = ''
+      this.csvImportFileName = ''
+      this.csvRawRows = []
+      this.csvImportRows = []
+      this.csvSkippedRows = 0
+      this.loadingSchema = false
+      const csvInput = this.getRefElement(this.$refs.csvInput)
+      if (csvInput) csvInput.value = ''
     },
     async handleCsvFileChange(event) {
       if (!this.isPaidPlan) {
-        this.showPlanModal = true;
-        return;
+        this.showPlanModal = true
+        return
       }
-      const [file] = event.target.files || [];
-      if (!file) return;
-      this.csvImportError = "";
-      this.csvImportFileName = file.name;
-      this.csvRawRows = [];
-      this.csvImportRows = [];
-      this.loadingSchema = true;
+      const [file] = event.target.files || []
+      if (!file) return
+      this.csvImportError = ''
+      this.csvImportFileName = file.name
+      this.csvRawRows = []
+      this.csvImportRows = []
+      this.loadingSchema = true
 
       try {
-        const text = await file.text();
-        const clean = String(text || "").replace(/^\uFEFF/, "").trim();
-        const lines = clean.split(/\r?\n/).filter((line) => line.trim());
+        const text = await file.text()
+        const clean = String(text || '')
+          .replace(/^\uFEFF/, '')
+          .trim()
+        const lines = clean.split(/\r?\n/).filter((line) => line.trim())
         if (lines.length < 2) {
-          throw new Error("O CSV precisa ter cabeçalho e pelo menos uma linha.");
+          throw new Error('O CSV precisa ter cabeçalho e pelo menos uma linha.')
         }
 
-        const header = lines[0];
-        const samples = lines.slice(1, 4); // Take up to 3 lines
+        const header = lines[0]
+        const samples = lines.slice(1, 4) // Take up to 3 lines
 
         // Check local storage cache for this header to save credits and ensure determinism
-        const cacheKey = `kadem:nexo:csv-schema:${this.normalizeKey(header)}`;
-        let schema = null;
+        const cacheKey = `kadem:nexo:csv-schema:${this.normalizeKey(header)}`
+        let schema = null
         try {
-          const cached = localStorage.getItem(cacheKey);
+          const cached = localStorage.getItem(cacheKey)
           if (cached) {
-            schema = JSON.parse(cached);
-            console.log("[CSV Import] Reusing cached schema:", schema);
+            schema = JSON.parse(cached)
+            console.log('[CSV Import] Reusing cached schema:', schema)
           }
         } catch (err) {
-          console.warn("[CSV Import] Failed to read cached schema:", err);
+          console.warn('[CSV Import] Failed to read cached schema:', err)
         }
 
         if (!schema) {
           // Send to backend for schema analysis
-          const response = await financeService.analyzeCsvSchema({ header, samples });
-          schema = response.data;
+          const response = await financeService.analyzeCsvSchema({ header, samples })
+          schema = response.data
           if (!schema || !schema.dateColumn || !schema.descriptionColumn || !schema.amountColumn) {
-            throw new Error("A IA não conseguiu determinar o esquema de colunas deste CSV.");
+            throw new Error('A IA não conseguiu determinar o esquema de colunas deste CSV.')
           }
           // Save to cache
           try {
-            localStorage.setItem(cacheKey, JSON.stringify(schema));
-            console.log("[CSV Import] Cached new schema:", schema);
+            localStorage.setItem(cacheKey, JSON.stringify(schema))
+            console.log('[CSV Import] Cached new schema:', schema)
           } catch (err) {
-            console.warn("[CSV Import] Failed to cache schema:", err);
+            console.warn('[CSV Import] Failed to cache schema:', err)
           }
         }
 
-        await this.parseCsvWithSchema(lines, schema);
+        await this.parseCsvWithSchema(lines, schema)
       } catch (error) {
-        this.csvImportRows = [];
-        this.csvImportError = error.response?.data?.message || error.message || "Não foi possível processar o CSV.";
+        this.csvImportRows = []
+        this.csvImportError =
+          error.response?.data?.message || error.message || 'Não foi possível processar o CSV.'
       } finally {
-        this.loadingSchema = false;
-        const csvInput = this.getRefElement(this.$refs.csvInput);
-        if (csvInput) csvInput.value = "";
+        this.loadingSchema = false
+        const csvInput = this.getRefElement(this.$refs.csvInput)
+        if (csvInput) csvInput.value = ''
       }
     },
     cleanCsvCell(val) {
-      if (typeof val !== 'string') return '';
-      let clean = val.trim();
+      if (typeof val !== 'string') return ''
+      let clean = val.trim()
       // Remove enclosing quotes
-      while ((clean.startsWith('"') && clean.endsWith('"')) || (clean.startsWith("'") && clean.endsWith("'"))) {
-        clean = clean.substring(1, clean.length - 1).trim();
+      while (
+        (clean.startsWith('"') && clean.endsWith('"')) ||
+        (clean.startsWith("'") && clean.endsWith("'"))
+      ) {
+        clean = clean.substring(1, clean.length - 1).trim()
       }
       // Remove any leftover outer quotes or weird trailing quotes
-      clean = clean.replace(/^['"]|['"]$/g, '').trim();
-      return clean;
+      clean = clean.replace(/^['"]|['"]$/g, '').trim()
+      return clean
     },
     normalizeKey(key) {
-      return String(key || "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
+      return String(key || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
-        .replace(/[^a-z0-9]/g, "")
-        .trim();
+        .replace(/[^a-z0-9]/g, '')
+        .trim()
     },
     async parseCsvWithSchema(lines, schema) {
-      const delimiter = schema.delimiter || this.detectCsvDelimiter(lines[0]);
-      const rawHeaders = this.splitCsvLine(lines[0], delimiter).map(h => this.cleanCsvCell(h));
+      const delimiter = schema.delimiter || this.detectCsvDelimiter(lines[0])
+      const rawHeaders = this.splitCsvLine(lines[0], delimiter).map((h) => this.cleanCsvCell(h))
 
       // Find indices of columns
-      const dateIdx = rawHeaders.findIndex(h => this.normalizeKey(h) === this.normalizeKey(schema.dateColumn));
-      const descIdx = rawHeaders.findIndex(h => this.normalizeKey(h) === this.normalizeKey(schema.descriptionColumn));
-      const amountIdx = rawHeaders.findIndex(h => this.normalizeKey(h) === this.normalizeKey(schema.amountColumn));
-      const typeIdx = schema.typeColumn ? rawHeaders.findIndex(h => this.normalizeKey(h) === this.normalizeKey(schema.typeColumn)) : -1;
+      const dateIdx = rawHeaders.findIndex(
+        (h) => this.normalizeKey(h) === this.normalizeKey(schema.dateColumn),
+      )
+      const descIdx = rawHeaders.findIndex(
+        (h) => this.normalizeKey(h) === this.normalizeKey(schema.descriptionColumn),
+      )
+      const amountIdx = rawHeaders.findIndex(
+        (h) => this.normalizeKey(h) === this.normalizeKey(schema.amountColumn),
+      )
+      const typeIdx = schema.typeColumn
+        ? rawHeaders.findIndex((h) => this.normalizeKey(h) === this.normalizeKey(schema.typeColumn))
+        : -1
 
       if (dateIdx === -1 || descIdx === -1 || amountIdx === -1) {
-        throw new Error("Não foi possível mapear as colunas essenciais do CSV com o esquema detectado.");
+        throw new Error(
+          'Não foi possível mapear as colunas essenciais do CSV com o esquema detectado.',
+        )
       }
 
       // Build local history category memory on the fly
-      const localTxs = await db.finance_transactions.toArray();
+      const localTxs = await db.finance_transactions.toArray()
       const normalizeDesc = (desc) => {
-        return String(desc || "")
+        return String(desc || '')
           .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-z0-9]/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-      };
-      const freqMap = {};
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+      }
+      const freqMap = {}
       for (const tx of localTxs) {
         if (tx.category_id && !tx.is_ignored) {
-          const norm = normalizeDesc(tx.description);
+          const norm = normalizeDesc(tx.description)
           if (norm) {
-            if (!freqMap[norm]) freqMap[norm] = {};
-            const cid = String(tx.category_id);
-            freqMap[norm][cid] = (freqMap[norm][cid] || 0) + 1;
+            if (!freqMap[norm]) freqMap[norm] = {}
+            const cid = String(tx.category_id)
+            freqMap[norm][cid] = (freqMap[norm][cid] || 0) + 1
           }
         }
       }
-      const descriptionMemory = {};
+      const descriptionMemory = {}
       for (const norm in freqMap) {
-        let maxCount = 0;
-        let bestId = null;
+        let maxCount = 0
+        let bestId = null
         for (const cid in freqMap[norm]) {
           if (freqMap[norm][cid] > maxCount) {
-            maxCount = freqMap[norm][cid];
-            bestId = cid;
+            maxCount = freqMap[norm][cid]
+            bestId = cid
           }
         }
         if (bestId) {
-          descriptionMemory[norm] = bestId;
+          descriptionMemory[norm] = bestId
         }
       }
 
-      const rows = [];
-      let skipped = 0;
+      const rows = []
+      let skipped = 0
 
-      const normFn = this.normalize;
+      const normFn = this.normalize
       // Standard keywords for Brazilian Portuguese banking to guarantee determinism
-      const stdIncome = ["recebido", "resgatado", "credito", "entrada", "estorno", "rendimento", "deposito", "salario"];
-      const stdExpense = ["pago", "enviado", "compra", "debito", "saida", "pagamento", "tarifa", "iof", "juros"];
+      const stdIncome = [
+        'recebido',
+        'resgatado',
+        'credito',
+        'entrada',
+        'estorno',
+        'rendimento',
+        'deposito',
+        'salario',
+      ]
+      const stdExpense = [
+        'pago',
+        'enviado',
+        'compra',
+        'debito',
+        'saida',
+        'pagamento',
+        'tarifa',
+        'iof',
+        'juros',
+      ]
 
       for (let index = 1; index < lines.length; index += 1) {
-        const line = lines[index].trim();
-        if (!line) continue;
+        const line = lines[index].trim()
+        if (!line) continue
 
-        const values = this.splitCsvLine(line, delimiter).map(val => this.cleanCsvCell(val));
+        const values = this.splitCsvLine(line, delimiter).map((val) => this.cleanCsvCell(val))
 
-        const rawDate = dateIdx >= 0 ? values[dateIdx] : "";
-        const rawDesc = descIdx >= 0 ? values[descIdx] : "";
-        const rawAmount = amountIdx >= 0 ? values[amountIdx] : "";
-        const rawType = typeIdx >= 0 ? values[typeIdx] : "";
+        const rawDate = dateIdx >= 0 ? values[dateIdx] : ''
+        const rawDesc = descIdx >= 0 ? values[descIdx] : ''
+        const rawAmount = amountIdx >= 0 ? values[amountIdx] : ''
+        const rawType = typeIdx >= 0 ? values[typeIdx] : ''
 
-        const date = this.parseCsvDate(rawDate);
-        const description = rawDesc;
-        const parsedAmount = this.parseCsvSignedAmount(rawAmount);
+        const date = this.parseCsvDate(rawDate)
+        const description = rawDesc
+        const parsedAmount = this.parseCsvSignedAmount(rawAmount)
 
         if (!date || !description || !parsedAmount.amount) {
-          skipped += 1;
-          continue;
+          skipped += 1
+          continue
         }
 
-        let type = null;
+        let type = null
         if (parsedAmount.negative) {
-          type = "EXPENSE";
+          type = 'EXPENSE'
         } else {
-          const normalizedTypeVal = normFn(rawType || "");
-          const normalizedDesc = normFn(description || "");
+          const normalizedTypeVal = normFn(rawType || '')
+          const normalizedDesc = normFn(description || '')
 
           const isIncomePattern = (str) => {
-            if (!str) return false;
-            const norm = normFn(str);
-            const patterns = [...(schema.incomePatterns || []), ...stdIncome];
-            return patterns.some(pat => {
-              const normPat = normFn(pat);
-              return norm.includes(normPat);
-            });
-          };
+            if (!str) return false
+            const norm = normFn(str)
+            const patterns = [...(schema.incomePatterns || []), ...stdIncome]
+            return patterns.some((pat) => {
+              const normPat = normFn(pat)
+              return norm.includes(normPat)
+            })
+          }
 
           const isExpensePattern = (str) => {
-            if (!str) return false;
-            const norm = normFn(str);
-            const patterns = [...(schema.expensePatterns || []), ...stdExpense];
-            return patterns.some(pat => {
-              const normPat = normFn(pat);
-              return norm.includes(normPat);
-            });
-          };
+            if (!str) return false
+            const norm = normFn(str)
+            const patterns = [...(schema.expensePatterns || []), ...stdExpense]
+            return patterns.some((pat) => {
+              const normPat = normFn(pat)
+              return norm.includes(normPat)
+            })
+          }
 
           if (isIncomePattern(normalizedTypeVal) || isIncomePattern(normalizedDesc)) {
-            type = "INCOME";
+            type = 'INCOME'
           } else if (isExpensePattern(normalizedTypeVal) || isExpensePattern(normalizedDesc)) {
-            type = "EXPENSE";
+            type = 'EXPENSE'
           } else {
-            type = schema.defaultPositiveType || "EXPENSE";
+            type = schema.defaultPositiveType || 'EXPENSE'
           }
         }
 
         // Try mapping category from memory first
-        const normDescVal = normalizeDesc(description);
-        let categoryId = descriptionMemory[normDescVal] || null;
+        const normDescVal = normalizeDesc(description)
+        let categoryId = descriptionMemory[normDescVal] || null
 
         // Fall back to name matching if not found in memory
         if (!categoryId) {
-          const category = this.findCategoryByName(description, type);
-          categoryId = category?.id || null;
+          const category = this.findCategoryByName(description, type)
+          categoryId = category?.id || null
         }
 
         rows.push({
@@ -1564,130 +1835,137 @@ export default {
           type,
           category_id: categoryId,
           transaction_date: date,
-          status: "PAID",
-          source: "IMPORT",
-        });
+          status: 'PAID',
+          source: 'IMPORT',
+        })
       }
 
-      this.csvImportRows = rows;
-      this.csvSkippedRows = skipped;
+      this.csvImportRows = rows
+      this.csvSkippedRows = skipped
 
       if (!rows.length) {
-        this.csvImportError = "Nenhum movimento válido foi encontrado no CSV.";
+        this.csvImportError = 'Nenhum movimento válido foi encontrado no CSV.'
       } else if (skipped) {
-        this.csvImportError = `${skipped} linha(s) sem data, descrição ou valor foram ignoradas.`;
+        this.csvImportError = `${skipped} linha(s) sem data, descrição ou valor foram ignoradas.`
       } else {
-        this.csvImportError = "";
+        this.csvImportError = ''
       }
     },
     detectCsvDelimiter(headerLine) {
-      const options = [";", ",", "\t"];
+      const options = [';', ',', '\t']
       return options
         .map((delimiter) => ({ delimiter, count: this.splitCsvLine(headerLine, delimiter).length }))
-        .sort((a, b) => b.count - a.count)[0].delimiter;
+        .sort((a, b) => b.count - a.count)[0].delimiter
     },
     splitCsvLine(line, delimiter) {
-      const values = [];
-      let current = "";
-      let quoted = false;
+      const values = []
+      let current = ''
+      let quoted = false
 
       for (let index = 0; index < line.length; index += 1) {
-        const char = line[index];
-        const next = line[index + 1];
+        const char = line[index]
+        const next = line[index + 1]
 
         if (char === '"' && quoted && next === '"') {
-          current += '"';
-          index += 1;
+          current += '"'
+          index += 1
         } else if (char === '"') {
-          quoted = !quoted;
+          quoted = !quoted
         } else if (char === delimiter && !quoted) {
-          values.push(current.trim());
-          current = "";
+          values.push(current.trim())
+          current = ''
         } else {
-          current += char;
+          current += char
         }
       }
 
-      values.push(current.trim());
-      return values;
+      values.push(current.trim())
+      return values
     },
     parseCsvSignedAmount(rawValue) {
-      const raw = String(rawValue || "").trim();
-      if (!raw) return { amount: 0, negative: false };
+      const raw = String(rawValue || '').trim()
+      if (!raw) return { amount: 0, negative: false }
 
-      const negative = raw.includes("-") || (raw.includes("(") && raw.includes(")"));
-      let normalized = raw.replace(/\s/g, "").replace(/[R$()]/g, "").replace(/[^0-9,.-]/g, "");
-      const lastComma = normalized.lastIndexOf(",");
-      const lastDot = normalized.lastIndexOf(".");
+      const negative = raw.includes('-') || (raw.includes('(') && raw.includes(')'))
+      let normalized = raw
+        .replace(/\s/g, '')
+        .replace(/[R$()]/g, '')
+        .replace(/[^0-9,.-]/g, '')
+      const lastComma = normalized.lastIndexOf(',')
+      const lastDot = normalized.lastIndexOf('.')
 
       if (lastComma > -1 && lastDot > -1) {
-        normalized = lastComma > lastDot
-          ? normalized.replace(/\./g, "").replace(",", ".")
-          : normalized.replace(/,/g, "");
+        normalized =
+          lastComma > lastDot
+            ? normalized.replace(/\./g, '').replace(',', '.')
+            : normalized.replace(/,/g, '')
       } else if (lastComma > -1) {
-        normalized = normalized.replace(",", ".");
+        normalized = normalized.replace(',', '.')
       }
 
-      const amount = Math.abs(Number(normalized || 0));
-      return { amount: Number.isFinite(amount) ? amount : 0, negative };
+      const amount = Math.abs(Number(normalized || 0))
+      return { amount: Number.isFinite(amount) ? amount : 0, negative }
     },
     parseCsvDate(rawValue) {
-      const raw = String(rawValue || "").trim();
-      if (!raw) return "";
+      const raw = String(rawValue || '').trim()
+      if (!raw) return ''
 
-      const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+      const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+      if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`
 
-      const brMatch = raw.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/);
+      const brMatch = raw.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/)
       if (brMatch) {
-        const year = brMatch[3].length === 2 ? `20${brMatch[3]}` : brMatch[3];
-        return `${year}-${brMatch[2].padStart(2, "0")}-${brMatch[1].padStart(2, "0")}`;
+        const year = brMatch[3].length === 2 ? `20${brMatch[3]}` : brMatch[3]
+        return `${year}-${brMatch[2].padStart(2, '0')}-${brMatch[1].padStart(2, '0')}`
       }
 
-      const parsed = new Date(raw);
-      if (Number.isNaN(parsed.getTime())) return "";
-      return parsed.toISOString().slice(0, 10);
+      const parsed = new Date(raw)
+      if (Number.isNaN(parsed.getTime())) return ''
+      return parsed.toISOString().slice(0, 10)
     },
     findCategoryByName(name, type) {
-      const normalized = this.normalize(name);
-      if (!normalized) return null;
-      return this.categories.find((category) =>
-        this.normalize(category.name) === normalized && (!type || category.type === type),
-      ) || this.categories.find((category) => this.normalize(category.name) === normalized);
+      const normalized = this.normalize(name)
+      if (!normalized) return null
+      return (
+        this.categories.find(
+          (category) =>
+            this.normalize(category.name) === normalized && (!type || category.type === type),
+        ) || this.categories.find((category) => this.normalize(category.name) === normalized)
+      )
     },
     async confirmCsvImport() {
-      if (!this.csvImportRows.length) return;
-      this.importingCsv = true;
+      if (!this.csvImportRows.length) return
+      this.importingCsv = true
       try {
         const cleanRows = this.csvImportRows.map((row) => ({
-          description: String(row.description || ""),
+          description: String(row.description || ''),
           amount: Number(row.amount || 0),
-          type: String(row.type || "EXPENSE"),
+          type: String(row.type || 'EXPENSE'),
           category_id: row.category_id || null,
           transaction_date: String(row.transaction_date),
-          status: "PAID",
-          source: "IMPORT",
-        }));
-        await financeService.createTransactionsBatch(cleanRows);
-        this.resetCsvImport();
-        await this.loadDashboard();
+          status: 'PAID',
+          source: 'IMPORT',
+        }))
+        await financeService.createTransactionsBatch(cleanRows)
+        this.resetCsvImport()
+        await this.loadDashboard()
       } finally {
-        this.importingCsv = false;
+        this.importingCsv = false
       }
     },
 
     transactionKey(transaction) {
-      return transaction?.id || transaction?.local_id || null;
+      return transaction?.id || transaction?.local_id || null
     },
     transactionMatches(transaction, id) {
-      return this.sameId(transaction?.id, id) || this.sameId(transaction?.local_id, id);
+      return this.sameId(transaction?.id, id) || this.sameId(transaction?.local_id, id)
     },
     transactionBelongsToSelectedMonth(transaction) {
-      return String(transaction?.transaction_date || "").startsWith(this.selectedMonth);
+      return String(transaction?.transaction_date || '').startsWith(this.selectedMonth)
     },
     enrichTransactionForList(transaction = {}) {
-      const category = this.findCategory(transaction.category_id);
-      if (!category) return transaction;
+      const category = this.findCategory(transaction.category_id)
+      if (!category) return transaction
 
       return {
         ...transaction,
@@ -1697,198 +1975,218 @@ export default {
         macro_category_id: category.macro_category_id,
         category_icon: category.icon,
         category_color: category.macro_color || category.color,
-      };
+      }
     },
     sortTransactionsList() {
       this.transactions = [...this.transactions].sort((a, b) => {
-        const dateCompare = String(b.transaction_date || "").localeCompare(String(a.transaction_date || ""));
-        if (dateCompare !== 0) return dateCompare;
+        const dateCompare = String(b.transaction_date || '').localeCompare(
+          String(a.transaction_date || ''),
+        )
+        if (dateCompare !== 0) return dateCompare
 
-        const isNumericA = a.id && Number.isFinite(Number(a.id));
-        const isNumericB = b.id && Number.isFinite(Number(b.id));
+        const isNumericA = a.id && Number.isFinite(Number(a.id))
+        const isNumericB = b.id && Number.isFinite(Number(b.id))
 
-        if (isNumericA && isNumericB) return Number(b.id) - Number(a.id);
-        if (!isNumericA && isNumericB) return -1;
-        if (isNumericA && !isNumericB) return 1;
-        return (b.local_id || 0) - (a.local_id || 0);
-      });
+        if (isNumericA && isNumericB) return Number(b.id) - Number(a.id)
+        if (!isNumericA && isNumericB) return -1
+        if (isNumericA && !isNumericB) return 1
+        return (b.local_id || 0) - (a.local_id || 0)
+      })
     },
     upsertTransactionInList(transaction) {
-      const next = this.enrichTransactionForList(transaction);
-      const key = this.transactionKey(next);
-      const withoutCurrent = this.transactions.filter((item) => !this.transactionMatches(item, key));
+      const next = this.enrichTransactionForList(transaction)
+      const key = this.transactionKey(next)
+      const withoutCurrent = this.transactions.filter((item) => !this.transactionMatches(item, key))
 
       if (this.transactionBelongsToSelectedMonth(next)) {
-        this.transactions = [next, ...withoutCurrent];
-        this.sortTransactionsList();
+        this.transactions = [next, ...withoutCurrent]
+        this.sortTransactionsList()
       } else {
-        this.transactions = withoutCurrent;
+        this.transactions = withoutCurrent
       }
     },
     removeTransactionFromList(id) {
-      this.transactions = this.transactions.filter((transaction) => !this.transactionMatches(transaction, id));
+      this.transactions = this.transactions.filter(
+        (transaction) => !this.transactionMatches(transaction, id),
+      )
+      this.recentTransactions = this.recentTransactions.filter(
+        (transaction) => !this.transactionMatches(transaction, id),
+      )
     },
     async selectTransactionCategory(transaction, categoryId, options = {}) {
-      const category = this.findCategory(categoryId);
-      const update = { category_id: categoryId || null };
-      const originalType = transaction?.original_type || options.originalType || transaction?.type;
+      const category = this.findCategory(categoryId)
+      const update = { category_id: categoryId || null }
+      const originalType = transaction?.original_type || options.originalType || transaction?.type
 
       if (!categoryId && transaction?.original_type) {
-        update.type = transaction.original_type;
-        update.original_type = null;
+        update.type = transaction.original_type
+        update.original_type = null
       }
 
       if (category?.type) {
-        update.type = category.type;
+        update.type = category.type
         if (originalType) {
-          update.original_type = originalType;
+          update.original_type = originalType
         }
       }
 
-      await this.updateTransaction(this.transactionKey(transaction), update);
+      await this.updateTransaction(this.transactionKey(transaction), update)
     },
     resolveSavedCategory(savedCategory) {
-      if (!savedCategory) return null;
-      const savedName = this.normalize(savedCategory.name);
-      const savedMacro = this.normalize(savedCategory.macro_category);
+      if (!savedCategory) return null
+      const savedName = this.normalize(savedCategory.name)
+      const savedMacro = this.normalize(savedCategory.macro_category)
 
-      return this.categories.find((category) => (
-        this.sameId(category.id, savedCategory.id)
-          || this.sameId(category.local_id, savedCategory.local_id)
-          || (
-            this.normalize(category.name) === savedName
-            && this.normalize(category.macro_category) === savedMacro
-            && category.type === savedCategory.type
-          )
-      )) || savedCategory;
+      return (
+        this.categories.find(
+          (category) =>
+            this.sameId(category.id, savedCategory.id) ||
+            this.sameId(category.local_id, savedCategory.local_id) ||
+            (this.normalize(category.name) === savedName &&
+              this.normalize(category.macro_category) === savedMacro &&
+              category.type === savedCategory.type),
+        ) || savedCategory
+      )
     },
     async applyPendingCategorySelection(savedCategory) {
-      if (!this.pendingCategorySelection) return;
-      const pending = this.pendingCategorySelection;
-      const category = this.resolveSavedCategory(savedCategory);
-      const transaction = this.transactions.find((item) => (
-        this.transactionMatches(item, pending.transactionId)
-          || this.transactionMatches(item, pending.transactionLocalId)
-      ));
+      if (!this.pendingCategorySelection) return
+      const pending = this.pendingCategorySelection
+      const category = this.resolveSavedCategory(savedCategory)
+      const transaction = this.transactions.find(
+        (item) =>
+          this.transactionMatches(item, pending.transactionId) ||
+          this.transactionMatches(item, pending.transactionLocalId),
+      )
 
       if (transaction && category?.id) {
-        await this.selectTransactionCategory(transaction, category.id, { originalType: pending.originalType });
+        await this.selectTransactionCategory(transaction, category.id, {
+          originalType: pending.originalType,
+        })
       }
 
-      this.pendingCategorySelection = null;
+      this.pendingCategorySelection = null
     },
     applyTransactionPatch(id, data) {
       this.transactions = this.transactions.map((transaction) =>
         this.transactionMatches(transaction, id)
           ? this.enrichTransactionForList({ ...transaction, ...data })
           : transaction,
-      );
+      )
     },
     async updateTransaction(id, data) {
-      this.applyTransactionPatch(id, data);
-      const { data: local } = await financeService.updateTransaction(id, data);
+      this.applyTransactionPatch(id, data)
+      const { data: local } = await financeService.updateTransaction(id, data)
       if (local) {
-        this.upsertTransactionInList(local);
+        this.upsertTransactionInList(local)
       }
-      await this.loadDashboard();
+      await this.loadDashboard()
     },
     async toggleIgnored(transaction) {
-      const nextIgnored = !transaction.is_ignored;
-      this.applyTransactionPatch(transaction.id, { is_ignored: nextIgnored });
-      await this.updateTransaction(transaction.id, { is_ignored: nextIgnored });
+      const nextIgnored = !transaction.is_ignored
+      this.applyTransactionPatch(transaction.id, { is_ignored: nextIgnored })
+      await this.updateTransaction(transaction.id, { is_ignored: nextIgnored })
     },
     async deleteTransaction(id) {
-      await financeService.deleteTransaction(id);
-      this.removeTransactionFromList(id);
-      await this.loadDashboard();
+      await financeService.deleteTransaction(id)
+      this.removeTransactionFromList(id)
+      await this.loadDashboard()
     },
     findCategory(categoryId) {
-      return this.categories.find((category) => this.sameId(category.id, categoryId));
+      return this.categories.find((category) => this.sameId(category.id, categoryId))
     },
     findMacroByName(name) {
-      return this.macroCategories.find((macro) => this.normalize(macro.name) === this.normalize(name));
+      return this.macroCategories.find(
+        (macro) => this.normalize(macro.name) === this.normalize(name),
+      )
     },
     categoriesForMacro(group) {
-      return this.categories.filter((category) => this.normalize(category.macro_category) === this.normalize(group.macro_category));
+      return this.categories.filter(
+        (category) =>
+          this.normalize(category.macro_category) === this.normalize(group.macro_category),
+      )
     },
     availableCategoriesForMacro(group, currentItem) {
-      const allCategoriesForMacro = this.categoriesForMacro(group);
-      const usedCategoryIds = new Set();
+      const allCategoriesForMacro = this.categoriesForMacro(group)
+      const usedCategoryIds = new Set()
       this.budgets.forEach((g) => {
-        (g.items || []).forEach((item) => {
+        ;(g.items || []).forEach((item) => {
           if (item.category_id && item.category_id !== currentItem?.category_id) {
-            usedCategoryIds.add(String(item.category_id));
+            usedCategoryIds.add(String(item.category_id))
           }
-        });
-      });
-      return allCategoriesForMacro.filter((category) => !usedCategoryIds.has(String(category.id)));
+        })
+      })
+      return allCategoriesForMacro.filter((category) => !usedCategoryIds.has(String(category.id)))
     },
     nextBudgetCategoryId(group) {
-      const used = new Set();
+      const used = new Set()
       this.budgets.forEach((g) => {
-        (g.items || []).forEach((item) => {
-          if (item.category_id) used.add(String(item.category_id));
-        });
-      });
-      const candidate = this.categoriesForMacro(group).find((category) => !used.has(String(category.id)));
-      return candidate?.id || null;
+        ;(g.items || []).forEach((item) => {
+          if (item.category_id) used.add(String(item.category_id))
+        })
+      })
+      const candidate = this.categoriesForMacro(group).find(
+        (category) => !used.has(String(category.id)),
+      )
+      return candidate?.id || null
     },
     nextBudgetMacro() {
-      const used = new Set(this.budgets.map((group) => String(group.macro_category_id || "")).filter(Boolean));
-      return this.macroCategories.find((macro) => !used.has(String(macro.id))) || null;
+      const used = new Set(
+        this.budgets.map((group) => String(group.macro_category_id || '')).filter(Boolean),
+      )
+      return this.macroCategories.find((macro) => !used.has(String(macro.id))) || null
     },
     addBudgetGroup() {
       const group = this.hydrateBudgetGroup({
         _key: `local-macro-${Date.now()}`,
         macro_category_id: null,
-        macro_category: "",
-        macro_color: "#999999",
+        macro_category: '',
+        macro_color: '#999999',
         planned_amount: 0,
         actual_amount: 0,
         items: [],
-      });
-      this.budgets.push(group);
+      })
+      this.budgets.push(group)
     },
     removeBudgetGroup(group) {
-      this.budgets = this.budgets.filter((item) => item._key !== group._key);
+      this.budgets = this.budgets.filter((item) => item._key !== group._key)
     },
     selectBudgetMacro(group, macroName) {
-      const macro = this.findMacroByName(macroName);
-      group.macro_category_id = macro?.id || null;
-      group.macro_category = macroName;
-      group.macro_color = macro?.color || group.macro_color || "#999999";
-      group.items = [];
+      const macro = this.findMacroByName(macroName)
+      group.macro_category_id = macro?.id || null
+      group.macro_category = macroName
+      group.macro_color = macro?.color || group.macro_color || '#999999'
+      group.items = []
     },
     addBudgetItem(group) {
-      const categoryId = this.nextBudgetCategoryId(group);
-      const category = this.findCategory(categoryId);
+      const categoryId = this.nextBudgetCategoryId(group)
+      const category = this.findCategory(categoryId)
       group.items.push(
         this.hydrateBudgetItem({
           _key: `local-item-${Date.now()}-${Math.random()}`,
           category_id: categoryId,
-          type: category?.type || "EXPENSE",
+          type: category?.type || 'EXPENSE',
           amount: 0,
           actual_amount: 0,
         }),
-      );
+      )
     },
     removeBudgetItem(group, item) {
-      group.items = group.items.filter((current) => current._key !== item._key);
+      group.items = group.items.filter((current) => current._key !== item._key)
     },
     syncBudgetItemType(item) {
-      item.type = this.findCategory(item.category_id)?.type || "EXPENSE";
+      item.type = this.findCategory(item.category_id)?.type || 'EXPENSE'
     },
     updateBudgetGroupAmount(event, group) {
-      const value = this.parseMoneyInput(event.target.value);
-      group.planned_amount = value;
-      group.planned_amount_display = this.moneyInput(value);
-      event.target.value = group.planned_amount_display;
+      const value = this.parseMoneyInput(event.target.value)
+      group.planned_amount = value
+      group.planned_amount_display = this.moneyInput(value)
+      event.target.value = group.planned_amount_display
     },
     updateBudgetAmount(event, budget) {
-      const value = this.parseMoneyInput(event.target.value);
-      budget.amount = value;
-      budget.amount_display = this.moneyInput(value);
-      event.target.value = budget.amount_display;
+      const value = this.parseMoneyInput(event.target.value)
+      budget.amount = value
+      budget.amount_display = this.moneyInput(value)
+      event.target.value = budget.amount_display
     },
     async saveBudgets() {
       const groups = this.budgets
@@ -1905,335 +2203,350 @@ export default {
               category_id: item.category_id,
               amount: Number(item.amount || 0),
               actual_amount: Number(item.actual_amount || 0),
-              type: this.findCategory(item.category_id)?.type || item.type || "EXPENSE",
+              type: this.findCategory(item.category_id)?.type || item.type || 'EXPENSE',
             })),
-        }));
+        }))
 
-      await financeService.saveBudgets({ month: this.selectedMonth, groups });
-      await this.loadBudgets();
+      await financeService.saveBudgets({ month: this.selectedMonth, groups })
+      await this.loadBudgets()
     },
     openCategoryForm(category = null, pendingSelection = null) {
-      this.pendingCategorySelection = pendingSelection;
+      this.pendingCategorySelection = pendingSelection
       this.categoryForm = {
         id: category?.id || null,
-        name: category?.name || "",
-        macro_category: category?.macro_category || "Geral",
-        macro_color: category?.macro_color || category?.color || "#999999",
-        type: category?.type || "EXPENSE",
-        icon: category?.icon || "tag",
-      };
-      this.showCategoryForm = true;
+        name: category?.name || '',
+        macro_category: category?.macro_category || 'Geral',
+        macro_color: category?.macro_color || category?.color || '#999999',
+        type: category?.type || 'EXPENSE',
+        icon: category?.icon || 'tag',
+      }
+      this.showCategoryForm = true
     },
-    openCategoryFormForTransaction(transaction, suggestedName = "") {
+    openCategoryFormForTransaction(transaction, suggestedName = '') {
       this.openCategoryForm(
         {
           name: suggestedName,
-          macro_category: "Geral",
-          macro_color: "#999999",
-          type: transaction?.type || "EXPENSE",
-          icon: "tag",
+          macro_category: 'Geral',
+          macro_color: '#999999',
+          type: transaction?.type || 'EXPENSE',
+          icon: 'tag',
         },
         {
           transactionId: transaction?.id,
           transactionLocalId: transaction?.local_id,
           originalType: transaction?.original_type || transaction?.type,
         },
-      );
+      )
     },
     closeCategoryForm() {
-      this.showCategoryForm = false;
-      this.pendingCategorySelection = null;
+      this.showCategoryForm = false
+      this.pendingCategorySelection = null
     },
     onCategoryMacroChange(macroName) {
-      const macro = this.findMacroByName(macroName);
+      const macro = this.findMacroByName(macroName)
       if (macro?.color) {
-        this.categoryForm.macro_color = macro.color;
+        this.categoryForm.macro_color = macro.color
       }
     },
     async saveCategoryForm() {
-      let savedCategory = null;
+      let savedCategory = null
       if (this.categoryForm.id) {
-        const { data } = await financeService.updateCategory(this.categoryForm.id, this.categoryForm);
-        savedCategory = data;
+        const { data } = await financeService.updateCategory(
+          this.categoryForm.id,
+          this.categoryForm,
+        )
+        savedCategory = data
       } else {
-        const { data } = await financeService.createCategory(this.categoryForm);
-        savedCategory = data;
+        const { data } = await financeService.createCategory(this.categoryForm)
+        savedCategory = data
       }
-      this.showCategoryForm = false;
-      await Promise.all([this.loadMacroCategories(), this.loadCategories(), this.loadDashboard()]);
-      await this.applyPendingCategorySelection(savedCategory);
+      this.showCategoryForm = false
+      await Promise.all([this.loadMacroCategories(), this.loadCategories(), this.loadDashboard()])
+      await this.applyPendingCategorySelection(savedCategory)
     },
     openMacroForm(macro = null) {
       this.macroForm = {
         id: macro?.id || null,
-        name: macro?.name || "",
-        color: macro?.color || "#999999",
-      };
-      this.showMacroForm = true;
+        name: macro?.name || '',
+        color: macro?.color || '#999999',
+      }
+      this.showMacroForm = true
     },
     async saveMacroForm() {
       if (this.macroForm.id) {
-        await financeService.updateMacroCategory(this.macroForm.id, this.macroForm);
+        await financeService.updateMacroCategory(this.macroForm.id, this.macroForm)
       } else {
-        await financeService.createMacroCategory(this.macroForm);
+        await financeService.createMacroCategory(this.macroForm)
       }
-      this.showMacroForm = false;
-      await Promise.all([this.loadMacroCategories(), this.loadCategories(), this.loadBudgets(), this.loadDashboard()]);
+      this.showMacroForm = false
+      await Promise.all([
+        this.loadMacroCategories(),
+        this.loadCategories(),
+        this.loadBudgets(),
+        this.loadDashboard(),
+      ])
     },
     openConfirmation({ description, message, confirmText, action }) {
       this.confirmationState = {
         show: true,
         message: message,
-        confirmText: confirmText || "Confirmar",
+        confirmText: confirmText || 'Confirmar',
         action: action,
-        description: description || "",
-      };
+        description: description || '',
+      }
     },
     async execute_confirmation_action() {
       if (this.confirmationState.action) {
         try {
-          await this.confirmationState.action();
+          await this.confirmationState.action()
         } catch (err) {
-          console.error("Erro ao executar ação confirmada:", err);
+          console.error('Erro ao executar ação confirmada:', err)
         }
       }
-      this.confirmationState.show = false;
+      this.confirmationState.show = false
     },
     requestDeleteTransaction(transaction) {
       this.openConfirmation({
         message: `Excluir o lançamento "${transaction.description}"?`,
         description: `Esta ação excluirá o lançamento no valor de ${this.money(transaction.amount)} e não poderá ser desfeita.`,
-        confirmText: "Excluir",
+        confirmText: 'Excluir',
         action: async () => {
-          await financeService.deleteTransaction(transaction.id);
-          await Promise.all([
-            this.loadMacroCategories(),
-            this.loadCategories(),
-            this.loadBudgets(),
-            this.loadDashboard(),
-          ]);
+          const transactionId = this.transactionKey(transaction)
+          if (!transactionId) return
+          await this.deleteTransaction(transactionId)
         },
-      });
+      })
     },
     requestDeleteCategory(category) {
       this.confirmDelete = {
         visible: true,
-        type: "category",
+        type: 'category',
         payload: category,
         message: `Excluir a categoria "${category.name}"? Os lançamentos vinculados ficarão sem categoria.`,
-      };
+      }
     },
     requestDeleteMacro(macro) {
       this.confirmDelete = {
         visible: true,
-        type: "macro",
+        type: 'macro',
         payload: macro,
         message: `Excluir a macro categoria "${macro.name}"? As categorias filhas devem ser movidas antes para evitar perda de organização.`,
-      };
+      }
     },
     closeDeleteConfirm() {
-      this.confirmDelete = { visible: false, type: null, payload: null, message: "" };
+      this.confirmDelete = { visible: false, type: null, payload: null, message: '' }
     },
     async confirmDeleteAction() {
-      const { type, payload } = this.confirmDelete;
-      if (type === "category") {
-        await financeService.deleteCategory(payload.id);
+      const { type, payload } = this.confirmDelete
+      if (type === 'category') {
+        await financeService.deleteCategory(payload.id)
       }
-      if (type === "macro") {
-        await financeService.deleteMacroCategory(payload.id);
+      if (type === 'macro') {
+        await financeService.deleteMacroCategory(payload.id)
       }
-      this.closeDeleteConfirm();
-      await Promise.all([this.loadMacroCategories(), this.loadCategories(), this.loadBudgets(), this.loadDashboard()]);
+      this.closeDeleteConfirm()
+      await Promise.all([
+        this.loadMacroCategories(),
+        this.loadCategories(),
+        this.loadBudgets(),
+        this.loadDashboard(),
+      ])
     },
     loadPluggyScript() {
-      if (document.querySelector(`script[src="${pluggyWidgetUrl}"]`)) return Promise.resolve();
+      if (document.querySelector(`script[src="${pluggyWidgetUrl}"]`)) return Promise.resolve()
       return new Promise((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = pluggyWidgetUrl;
-        script.async = true;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-      });
+        const script = document.createElement('script')
+        script.src = pluggyWidgetUrl
+        script.async = true
+        script.onload = resolve
+        script.onerror = reject
+        document.head.appendChild(script)
+      })
     },
     async openPluggyWidget() {
-      await this.loadPluggyScript();
-      if (!window.PluggyConnect) throw new Error("Pluggy Connect indisponível.");
+      await this.loadPluggyScript()
+      if (!window.PluggyConnect) throw new Error('Pluggy Connect indisponível.')
 
-      const { data } = await financeService.getConnectToken();
+      const { data } = await financeService.getConnectToken()
       const widget = new window.PluggyConnect({
         connectToken: data.accessToken,
         includeSandbox: includePluggySandbox,
         onSuccess: async (itemData) => {
-          await financeService.saveConnection(itemData);
-          await this.reloadAll();
+          await financeService.saveConnection(itemData)
+          await this.reloadAll()
         },
-      });
-      widget.init();
+      })
+      widget.init()
     },
     async syncConnections() {
-      this.syncingBanks = true;
+      this.syncingBanks = true
       try {
-        await financeService.syncConnections();
-        await this.reloadAll();
+        await financeService.syncConnections()
+        await this.reloadAll()
       } finally {
-        this.syncingBanks = false;
+        this.syncingBanks = false
       }
     },
     async deleteConnection(itemId) {
-      await financeService.deleteConnection(itemId);
-      await this.loadConnections();
+      await financeService.deleteConnection(itemId)
+      await this.loadConnections()
     },
     async autoCategorize() {
       if (!this.canUseAi) {
-        this.showPlanModal = true;
-        return;
+        this.showPlanModal = true
+        return
       }
 
-      this.categorizingAi = true;
-      this.categorizingIds = [];
+      this.categorizingAi = true
+      this.categorizingIds = []
 
       try {
         // 1. Identify all uncategorized transactions currently on the screen/dashboard
-        const targetTransactions = this.transactions.filter(
-          (t) => !t.category_id && !t.is_ignored
-        );
+        const targetTransactions = this.transactions.filter((t) => !t.category_id && !t.is_ignored)
 
         if (targetTransactions.length === 0) {
           // No items to categorize
-          return;
+          return
         }
 
         // Helper to normalize transaction descriptions for matching
         const normalizeDesc = (desc) => {
-          return String(desc || "")
+          return String(desc || '')
             .toLowerCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "") // Remove accents/diacritics
-            .replace(/[^a-z0-9]/g, " ")      // Replace special characters and punctuation with spaces
-            .replace(/\s+/g, " ")            // Collapse multiple spaces
-            .trim();
-        };
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Remove accents/diacritics
+            .replace(/[^a-z0-9]/g, ' ') // Replace special characters and punctuation with spaces
+            .replace(/\s+/g, ' ') // Collapse multiple spaces
+            .trim()
+        }
 
         // 2. Fetch all local transactions from Dexie database to build the description category frequency map
-        const localTxs = await db.finance_transactions.toArray();
-        const freqMap = {}; // normalizedDesc -> { categoryId -> count }
+        const localTxs = await db.finance_transactions.toArray()
+        const freqMap = {} // normalizedDesc -> { categoryId -> count }
         for (const tx of localTxs) {
           // If transaction has an active, valid category and is not ignored
           if (tx.category_id && !tx.is_ignored) {
-            const norm = normalizeDesc(tx.description);
+            const norm = normalizeDesc(tx.description)
             if (norm) {
-              if (!freqMap[norm]) freqMap[norm] = {};
-              const catId = String(tx.category_id);
-              freqMap[norm][catId] = (freqMap[norm][catId] || 0) + 1;
+              if (!freqMap[norm]) freqMap[norm] = {}
+              const catId = String(tx.category_id)
+              freqMap[norm][catId] = (freqMap[norm][catId] || 0) + 1
             }
           }
         }
 
         // Select the most frequent category for each normalized description
-        const descriptionMemory = {};
+        const descriptionMemory = {}
         for (const norm in freqMap) {
-          let maxCount = 0;
-          let bestCatId = null;
+          let maxCount = 0
+          let bestCatId = null
           for (const catId in freqMap[norm]) {
             if (freqMap[norm][catId] > maxCount) {
-              maxCount = freqMap[norm][catId];
-              bestCatId = catId;
+              maxCount = freqMap[norm][catId]
+              bestCatId = catId
             }
           }
           if (bestCatId) {
-            descriptionMemory[norm] = bestCatId;
+            descriptionMemory[norm] = bestCatId
           }
         }
 
         // 3. Separate transactions into those resolvable locally and those requiring AI
-        const localMatchUpdates = [];
-        const remainingIds = [];
+        const localMatchUpdates = []
+        const remainingIds = []
 
         for (const tx of targetTransactions) {
-          const norm = normalizeDesc(tx.description);
-          const matchedCategoryId = descriptionMemory[norm];
+          const norm = normalizeDesc(tx.description)
+          const matchedCategoryId = descriptionMemory[norm]
           if (matchedCategoryId) {
-            localMatchUpdates.push({ id: tx.id, category_id: matchedCategoryId });
+            localMatchUpdates.push({ id: tx.id, category_id: matchedCategoryId })
           } else {
-            remainingIds.push(tx.id);
+            remainingIds.push(tx.id)
           }
         }
 
         // 4. Update locally resolved transactions immediately
         if (localMatchUpdates.length > 0) {
-          console.log(`[CategorizeMemory] Resolving ${localMatchUpdates.length} transactions locally from memory...`);
+          console.log(
+            `[CategorizeMemory] Resolving ${localMatchUpdates.length} transactions locally from memory...`,
+          )
           for (const update of localMatchUpdates) {
-            await financeService.updateTransaction(update.id, { category_id: update.category_id });
+            await financeService.updateTransaction(update.id, { category_id: update.category_id })
           }
         }
 
         // 5. Send remaining transactions to the AI backend if any exist
         if (remainingIds.length > 0) {
-          console.log(`[CategorizeMemory] Requesting AI categorization for ${remainingIds.length} unknown transactions...`);
-          this.categorizingIds = [...remainingIds];
-          await financeService.autoCategorize({ transaction_ids: remainingIds });
+          console.log(
+            `[CategorizeMemory] Requesting AI categorization for ${remainingIds.length} unknown transactions...`,
+          )
+          this.categorizingIds = [...remainingIds]
+          await financeService.autoCategorize({ transaction_ids: remainingIds })
         } else {
-          console.log(`[CategorizeMemory] All ${localMatchUpdates.length} transactions resolved from history! Bypassed AI call.`);
+          console.log(
+            `[CategorizeMemory] All ${localMatchUpdates.length} transactions resolved from history! Bypassed AI call.`,
+          )
         }
 
-        await Promise.all([this.loadDashboard(), this.loadUsage()]);
+        await Promise.all([this.loadDashboard(), this.loadUsage()])
       } catch (err) {
-        console.error("Erro na categorização:", err);
+        console.error('Erro na categorização:', err)
       } finally {
-        this.categorizingIds = [];
-        this.categorizingAi = false;
+        this.categorizingIds = []
+        this.categorizingAi = false
       }
     },
     openBudgetPlanModal() {
       if (!this.canUseAi) {
-        this.showPlanModal = true;
-        return;
+        this.showPlanModal = true
+        return
       }
-      this.loadBudgetAiConversation();
-      this.budgetAiPrompt = this.budgetAiInlinePrompt.trim();
-      this.showBudgetAiForm = true;
+      this.loadBudgetAiConversation()
+      this.budgetAiPrompt = this.budgetAiInlinePrompt.trim()
+      this.showBudgetAiForm = true
     },
     async runInlineBudgetAi() {
       if (!this.canUseAi) {
-        this.showPlanModal = true;
-        return;
+        this.showPlanModal = true
+        return
       }
-      this.budgetAiPrompt = this.budgetAiInlinePrompt.trim() || "Organizar meu orçamento mensal";
-      await this.submitBudgetPlan();
+      this.budgetAiPrompt = this.budgetAiInlinePrompt.trim() || 'Organizar meu orçamento mensal'
+      await this.submitBudgetPlan()
     },
     async submitBudgetPlan() {
-      if (!this.budgetAiPrompt.trim()) return;
-      this.loadingAi = true;
+      if (!this.budgetAiPrompt.trim()) return
+      this.loadingAi = true
       try {
-        const requestText = this.budgetAiPrompt.trim();
-        this.appendBudgetAiMessage("user", requestText);
+        const requestText = this.budgetAiPrompt.trim()
+        this.appendBudgetAiMessage('user', requestText)
         const { data } = await financeService.generateBudgetPlan({
           month: this.selectedMonth,
           text: requestText,
           conversation_summary: this.budgetAiContextSummary,
-        });
+        })
         if (Array.isArray(data.groups) && data.groups.length > 0) {
           this.budgets = data.groups.map((group) => {
-            const macro = this.macroCategories.find((item) => this.sameId(item.id, group.macro_category_id));
+            const macro = this.macroCategories.find((item) =>
+              this.sameId(item.id, group.macro_category_id),
+            )
             return this.hydrateBudgetGroup({
               ...group,
               _key: `ai-macro-${group.macro_category_id}-${Math.random()}`,
-              macro_category: macro?.name || "Geral",
-              macro_color: macro?.color || "#999999",
+              macro_category: macro?.name || 'Geral',
+              macro_color: macro?.color || '#999999',
               actual_amount: 0,
               items: (group.items || []).map((item) => ({
                 ...item,
-                type: this.findCategory(item.category_id)?.type || "EXPENSE",
+                type: this.findCategory(item.category_id)?.type || 'EXPENSE',
                 actual_amount: 0,
               })),
-            });
-          });
+            })
+          })
         } else {
-          const byMacro = new Map();
-          (data.budgets || []).forEach((budget) => {
-            const category = this.findCategory(budget.category_id);
-            if (!category?.macro_category_id) return;
+          const byMacro = new Map()
+          ;(data.budgets || []).forEach((budget) => {
+            const category = this.findCategory(budget.category_id)
+            if (!category?.macro_category_id) return
             if (!byMacro.has(category.macro_category_id)) {
               byMacro.set(category.macro_category_id, {
                 macro_category_id: category.macro_category_id,
@@ -2242,47 +2555,48 @@ export default {
                 planned_amount: 0,
                 actual_amount: 0,
                 items: [],
-              });
+              })
             }
-            const group = byMacro.get(category.macro_category_id);
-            group.planned_amount += Number(budget.amount || 0);
-            group.items.push({ ...budget, type: category.type, actual_amount: 0 });
-          });
-          this.budgets = [...byMacro.values()].map((group) => this.hydrateBudgetGroup(group));
+            const group = byMacro.get(category.macro_category_id)
+            group.planned_amount += Number(budget.amount || 0)
+            group.items.push({ ...budget, type: category.type, actual_amount: 0 })
+          })
+          this.budgets = [...byMacro.values()].map((group) => this.hydrateBudgetGroup(group))
         }
-        const insightText = Array.isArray(data.insights) && data.insights.length > 0
-          ? data.insights.slice(0, 2).join(" ")
-          : "Plano gerado para o mês com base no seu pedido.";
-        this.appendBudgetAiMessage("assistant", insightText);
-        this.budgetAiInlinePrompt = "";
-        this.budgetAiPrompt = "";
-        this.showBudgetAiForm = false;
-        await this.loadUsage();
+        const insightText =
+          Array.isArray(data.insights) && data.insights.length > 0
+            ? data.insights.slice(0, 2).join(' ')
+            : 'Plano gerado para o mês com base no seu pedido.'
+        this.appendBudgetAiMessage('assistant', insightText)
+        this.budgetAiInlinePrompt = ''
+        this.budgetAiPrompt = ''
+        this.showBudgetAiForm = false
+        await this.loadUsage()
       } finally {
-        this.loadingAi = false;
+        this.loadingAi = false
       }
     },
     async loadInsights() {
-      this.loadingAi = true;
+      this.loadingAi = true
       try {
-        const { data } = await financeService.getInsights({ month: this.selectedMonth });
-        this.insights = data || [];
-        await this.loadUsage();
+        const { data } = await financeService.getInsights({ month: this.selectedMonth })
+        this.insights = data || []
+        await this.loadUsage()
       } catch (err) {
-        console.error("Erro ao carregar insights:", err);
+        console.error('Erro ao carregar insights:', err)
       } finally {
-        this.loadingAi = false;
+        this.loadingAi = false
       }
     },
   },
   mounted() {
-    this.reloadAll();
-    document.addEventListener("keydown", this.handleGlobalKeydown);
+    this.reloadAll()
+    document.addEventListener('keydown', this.handleGlobalKeydown)
   },
   beforeUnmount() {
-    document.removeEventListener("keydown", this.handleGlobalKeydown);
+    document.removeEventListener('keydown', this.handleGlobalKeydown)
   },
-};
+}
 </script>
 
 <style scoped>
@@ -2371,8 +2685,11 @@ export default {
   min-height: 40px;
   border-radius: var(--radius-sm);
   font-weight: 600;
-  transition: transform var(--transition-fast), background var(--transition-fast),
-    box-shadow var(--transition-fast), filter var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast),
+    filter var(--transition-fast);
 }
 
 .primary-action {
@@ -2469,7 +2786,7 @@ button:disabled {
 }
 
 .nexo-tabs button.active::after {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
   right: 0;
@@ -2529,7 +2846,9 @@ button:disabled {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
-  transition: background var(--transition-base), border-color var(--transition-base);
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base);
 }
 
 .panel {
@@ -2543,7 +2862,7 @@ button:disabled {
   flex-wrap: wrap;
 }
 
-.panel-title>div {
+.panel-title > div {
   display: grid;
   gap: var(--space-1);
 }
@@ -2691,11 +3010,16 @@ button:disabled {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   background: var(--surface-1);
-  transition: background var(--transition-base), border-color var(--transition-base);
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base);
 }
 
 .quick-entry-card {
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1.35fr) 150px 150px minmax(210px, 1fr) auto;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1.35fr) 150px 150px minmax(
+      210px,
+      1fr
+    ) auto;
   align-items: end;
 }
 
@@ -2737,7 +3061,7 @@ button:disabled {
 }
 
 .quick-field span,
-.quick-category-field>span,
+.quick-category-field > span,
 .csv-positive-mode span {
   color: var(--text-secondary);
   font-size: var(--fontsize-xs);
@@ -2755,7 +3079,9 @@ button:disabled {
   padding: 0 var(--space-3);
   outline: none;
   box-shadow: none;
-  transition: border-color var(--transition-fast), background var(--transition-base);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-base);
 }
 
 .quick-field input:focus,
@@ -2776,7 +3102,7 @@ button:disabled {
   flex-wrap: wrap;
 }
 
-.csv-import-header>div:first-child {
+.csv-import-header > div:first-child {
   display: grid;
   gap: var(--space-1);
 }
@@ -3071,7 +3397,7 @@ tr.ignored {
   box-sizing: border-box;
 }
 
-.budget-inline-ai>span {
+.budget-inline-ai > span {
   position: absolute;
   left: var(--space-3);
   top: 3px;
@@ -3149,7 +3475,7 @@ tr.ignored {
   min-width: 0;
 }
 
-.budget-group-title>svg {
+.budget-group-title > svg {
   color: var(--budget-macro-color, var(--gray-100));
 }
 
@@ -3209,7 +3535,10 @@ tr.ignored {
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .budget-add-macro:hover {
@@ -3240,7 +3569,9 @@ tr.ignored {
   box-shadow: none;
   outline: none;
   font-size: var(--fontsize-xs);
-  transition: border-color var(--transition-fast), background var(--transition-base);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-base);
 }
 
 .plain-control:focus {
@@ -3276,7 +3607,9 @@ tr.ignored {
 
 .budget-row-enter-active,
 .budget-row-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .budget-row-enter-from {
@@ -3393,7 +3726,10 @@ tr.ignored {
   border: 1px solid var(--glass-border) !important;
   border-radius: var(--radius-sm) !important;
   box-shadow: var(--shadow-xs) !important;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast) !important;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast) !important;
 }
 
 .category-card:hover {
@@ -3478,7 +3814,7 @@ tr.ignored {
   margin: 0;
 }
 
-.budget-ai-modal-header>span {
+.budget-ai-modal-header > span {
   flex: 0 0 auto;
   border-radius: 999px;
   background: rgba(31, 39, 76, 0.08);
@@ -3537,7 +3873,7 @@ tr.ignored {
   gap: var(--space-3);
 }
 
-.pro-gate>svg {
+.pro-gate > svg {
   font-size: var(--fontsize-lg);
   color: #d4af37;
 }
@@ -3615,16 +3951,16 @@ tr.ignored {
   background: linear-gradient(160deg, rgba(243, 255, 247, 0.97), rgba(255, 255, 255, 0.95));
 }
 
-[data-theme="dark"] .nexo-modal {
+[data-theme='dark'] .nexo-modal {
   background: var(--surface-2);
   color: var(--text-primary);
 }
 
-[data-theme="dark"] .transaction-modal.expense {
+[data-theme='dark'] .transaction-modal.expense {
   background: linear-gradient(160deg, rgba(231, 76, 60, 0.12), var(--surface-2));
 }
 
-[data-theme="dark"] .transaction-modal.income {
+[data-theme='dark'] .transaction-modal.income {
   background: linear-gradient(160deg, rgba(46, 204, 113, 0.12), var(--surface-2));
 }
 
@@ -3649,7 +3985,9 @@ tr.ignored {
   color: var(--text-primary);
   padding: 0 var(--space-4);
   outline: none;
-  transition: border-color var(--transition-fast), background var(--transition-base);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-base);
 }
 
 .nexo-field input:focus,
@@ -3674,7 +4012,7 @@ tr.ignored {
   color: var(--black);
 }
 
-[data-theme="dark"] .nexo-field label {
+[data-theme='dark'] .nexo-field label {
   color: var(--gray-400);
 }
 
@@ -3684,8 +4022,8 @@ tr.ignored {
 }
 
 .nexo-field.static-label label,
-.field-caption>span,
-.icon-picker>span {
+.field-caption > span,
+.icon-picker > span {
   position: static;
   transform: none;
   font-size: var(--fontsize-xs);
@@ -3704,7 +4042,7 @@ tr.ignored {
   padding: var(--space-2) var(--space-3);
 }
 
-.icon-picker>div {
+.icon-picker > div {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
   gap: var(--space-2);
@@ -3717,7 +4055,10 @@ tr.ignored {
   background: var(--surface-1);
   color: var(--text-primary);
   cursor: pointer;
-  transition: transform var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .icon-choice:hover,
@@ -3747,7 +4088,10 @@ tr.ignored {
   height: 38px;
   cursor: pointer;
   font-weight: 600;
-  transition: transform var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .segmented button:hover,
@@ -3786,7 +4130,6 @@ tr.ignored {
 /* Definida em SideModal.vue e main.css, reutilizada aqui sem redeclaração */
 
 @media (max-width: 900px) {
-
   .summary-grid,
   .overview-grid,
   .allocation-body,
