@@ -107,7 +107,42 @@ export const financeRepository = {
     const current = await this.findMacroCategory(id);
     if (!current) return null;
     const payload = { ...changes, pending_sync: true, updated_at: now() };
-    await db.finance_macro_categories.update(current.local_id, payload);
+
+    await db.transaction("rw", db.finance_macro_categories, db.finance_categories, async () => {
+      await db.finance_macro_categories.update(current.local_id, payload);
+
+      if (changes.name && changes.name !== current.name) {
+        const categories = await db.finance_categories.where("macro_category").equals(current.name).toArray();
+        if (categories.length) {
+          await Promise.all(
+            categories.map((category) =>
+              db.finance_categories.update(category.local_id, {
+                macro_category: changes.name,
+                macro_color: changes.color || category.macro_color || "#999999",
+                color: changes.color || category.color || "#999999",
+                pending_sync: true,
+                updated_at: now(),
+              })
+            )
+          );
+        }
+      } else if (changes.color && changes.color !== current.color) {
+        const categories = await db.finance_categories.where("macro_category").equals(current.name).toArray();
+        if (categories.length) {
+          await Promise.all(
+            categories.map((category) =>
+              db.finance_categories.update(category.local_id, {
+                macro_color: changes.color,
+                color: changes.color,
+                pending_sync: true,
+                updated_at: now(),
+              })
+            )
+          );
+        }
+      }
+    });
+
     return { ...current, ...payload };
   },
 

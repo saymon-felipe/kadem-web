@@ -781,6 +781,22 @@ const updateFinanceLocalRecord = async (table, localId, serverData) => {
         ),
       );
     }
+
+    const categories = await db.finance_categories.where('macro_category').equals(current.name).toArray();
+    if (categories.length) {
+      await Promise.all(
+        categories.map(category =>
+          db.finance_categories.update(category.local_id, {
+            macro_category: serverData.name || current.name,
+            macro_category_id: serverData.id,
+            macro_color: serverData.color || category.macro_color || '#999999',
+            color: serverData.color || category.color || '#999999',
+            pending_sync: false,
+            updated_at: new Date().toISOString(),
+          }),
+        ),
+      );
+    }
   }
 };
 
