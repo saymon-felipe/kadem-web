@@ -97,7 +97,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f0f2f5;
+  background-color: var(--surface-3);
   background-image: url("@/assets/images/fundo-auth.webp");
   background-size: cover;
   background-position: center;
@@ -123,7 +123,7 @@ export default {
   height: 60px;
   width: auto;
   object-fit: contain;
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+  filter: drop-shadow(var(--shadow-xs));
 }
 
 .content-body {

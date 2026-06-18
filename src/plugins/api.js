@@ -43,6 +43,77 @@ const api = axios.create({
   withCredentials: true
 });
 
+const CSRF_COOKIE_NAME = 'csrf_token';
+const CSRF_HEADER_NAME = 'X-CSRF-Token';
+const MUTATION_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+const CSRF_EXEMPT_PATHS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/request_reset_password',
+  '/auth/validate_reset_token',
+  '/auth/reset_password',
+  '/auth/csrf',
+  '/alexa/token',
+  '/alexa/webhook',
+  '/alexa/link',
+  '/subscriptions/webhook',
+];
+
+let csrfRefreshPromise = null;
+
+const getCookie = (name) => {
+  const prefix = `${name}=`;
+  return document.cookie
+    .split(';')
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith(prefix))
+    ?.slice(prefix.length) || null;
+};
+
+const normalizePath = (url = '') => {
+  try {
+    return new URL(url, url_api).pathname.replace(/^\/api/, '');
+  } catch {
+    return String(url).split('?')[0];
+  }
+};
+
+const isCsrfExempt = (url) => {
+  const path = normalizePath(url);
+  return CSRF_EXEMPT_PATHS.some((exemptPath) => path === exemptPath);
+};
+
+const ensureCsrfToken = async () => {
+  const existingToken = getCookie(CSRF_COOKIE_NAME);
+  if (existingToken) return decodeURIComponent(existingToken);
+
+  if (!csrfRefreshPromise) {
+    csrfRefreshPromise = axios.get(`${url_api}/auth/csrf`, { withCredentials: true })
+      .then((response) => response.data?.csrf_token || getCookie(CSRF_COOKIE_NAME))
+      .finally(() => {
+        csrfRefreshPromise = null;
+      });
+  }
+
+  const token = await csrfRefreshPromise;
+  return token ? decodeURIComponent(token) : null;
+};
+
+api.interceptors.request.use(async (config) => {
+  const method = String(config.method || 'get').toLowerCase();
+
+  if (MUTATION_METHODS.has(method) && !isCsrfExempt(config.url)) {
+    const csrfToken = await ensureCsrfToken();
+
+    if (csrfToken) {
+      config.headers = config.headers || {};
+      config.headers[CSRF_HEADER_NAME] = csrfToken;
+    }
+  }
+
+  return config;
+});
+
 /**
  * Interceptor de Resposta
  * Gerencia erros globais de autenticação (401) e segurança de projetos (403).

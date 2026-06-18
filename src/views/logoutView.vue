@@ -94,7 +94,7 @@ export default {
   opacity: 0;
   transform: scale(0.95);
   transition: opacity 1s ease-out, transform 1s ease-out;
-  filter: drop-shadow(0px 2px 8px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(var(--shadow-window));
 }
 
 .logo.visible {

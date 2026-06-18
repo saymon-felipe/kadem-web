@@ -22,7 +22,7 @@
                             maxlength="6"
                             required
                         />
-                        <label for="pairing-code">Codigo da Alexa</label>
+                        <label for="pairing-code">Código da Alexa</label>
                     </div>
 
                     <div class="form-group">
@@ -111,17 +111,17 @@ export default {
         }
 
         if (!this.redirectUri || !this.stateParam) {
-            this.error = "Parametros de vinculo ausentes. Inicie pelo app da Alexa.";
+            this.error = "Parâmetros de vínculo ausentes. Inicie pelo app da Alexa.";
             return;
         }
 
         if (this.clientId !== "alexa") {
-            this.error = "client_id invalido.";
+            this.error = "client_id inválido.";
             return;
         }
 
         if (this.responseType !== "code") {
-            this.error = "response_type invalido.";
+            this.error = "response_type inválido.";
         }
     },
     methods: {
@@ -135,7 +135,7 @@ export default {
                 this.pairingCode = this.pairingCode.replace(/\D/g, "").slice(0, 6);
 
                 if (this.pairingCode.length !== 6) {
-                    this.error = "Informe o codigo de 6 digitos que a Alexa mostrou.";
+                    this.error = "Informe o código de 6 dígitos que a Alexa mostrou.";
                     return;
                 }
             }
@@ -163,7 +163,7 @@ export default {
                         token,
                     });
 
-                    this.success = "Agora volte para a Alexa e peca a musica novamente.";
+                    this.success = "Agora volte para a Alexa e peça a música novamente.";
                     return;
                 }
 
@@ -199,6 +199,20 @@ form {
     background-position: center center;
     background-size: cover;
     background-repeat: no-repeat;
+
+    & .form-group label {
+        color: var(--black);
+    }
+
+    & .btn {
+        background-color: var(--background-gray);
+        color: var(--black);
+    }
+
+    & .btn.btn-primary {
+        background-image: var(--deep-blue-gradient);
+        color: var(--white);
+    }
 
     & .auth-container {
         padding: var(--space-6);
@@ -280,8 +294,8 @@ form {
 }
 
 .alexa-badge {
-    background: #00CAFF;
-    color: white;
+    background: var(--blue);
+    color: var(--white);
     padding: 4px 12px;
     border-radius: 20px;
     font-size: var(--fontsize-xs);
