@@ -2,9 +2,9 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('KademDB');
 
-db.version(9).stores({
+db.version(10).stores({
   tasks: '++id, title, tempId',
-  syncQueue: '++id, type, timestamp',
+  syncQueue: '++id, type, timestamp, status, next_attempt_at, idempotency_key, compact_key',
   users: '&id',
   user_occupations: '++localId, &id, user_id',
   medals: '&id',

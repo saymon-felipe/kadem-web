@@ -994,7 +994,7 @@ export const syncService = {
           const orderA = creationOrder[a.type] || 10;
           const orderB = creationOrder[b.type] || 10;
           if (orderA !== orderB) return orderA - orderB;
-          return a.timestamp - b.timestamp;
+          return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
         });
 
         let hadDeferredDependency = false;
@@ -1035,14 +1035,21 @@ export const syncService = {
             const max_retries = 5;
 
             if (current_retries >= max_retries) {
-              console.error(`[SyncService] FALHA FINAL: Tarefa ${task.id} excedeu ${max_retries} tentativas. Removendo.`);
-              await syncQueueRepository.deleteTask(task.id);
+              console.error(`[SyncService] FALHA FINAL: Tarefa ${task.id} excedeu ${max_retries} tentativas.`);
+              await syncQueueRepository.updateTask(task.id, {
+                status: 'FAILED',
+                last_error: error.message || 'Erro desconhecido',
+              });
             } else {
               const new_count = current_retries + 1;
+              const retryDelayMs = Math.min(5 * 60 * 1000, 1000 * (2 ** (new_count - 1)));
               console.warn(`[SyncService] Falha na tarefa ${task.type}. Tentativa ${new_count}/${max_retries}.`);
 
               await syncQueueRepository.updateTask(task.id, {
-                retry_count: new_count
+                retry_count: new_count,
+                status: 'RETRY',
+                next_attempt_at: new Date(Date.now() + retryDelayMs).toISOString(),
+                last_error: error.message || 'Erro desconhecido',
               });
               hadFailure = true;
             }

@@ -1,37 +1,16 @@
-const media_dev = "http://localhost:3001/api/v1";
-const media_homolog = "https://kadem-media-engine-e16f2f36157e.herokuapp.com/api/v1";
-const media_prod = "https://kadem-media-engine-e16f2f36157e.herokuapp.com/api/v1";
+const isDevelopment = import.meta.env.DEV;
 
-let current_ambient = 2;
+const resolveRequiredUrl = (value, fallback, name) => {
+  if (value) return value;
+  if (isDevelopment && fallback) return fallback;
 
-const hostname = window.location.hostname;
-
-if (hostname.includes("localhost") || hostname.includes("192.168")) {
-  current_ambient = 0; // Local
-} else if (hostname.includes("dev") || hostname.includes("homolog") || hostname.includes("staging")) {
-  current_ambient = 1; // Homologação
-} else {
-  current_ambient = 2; // Produção
-}
-
-let media_engine_url = "";
-
-switch (current_ambient) {
-  case 0:
-    media_engine_url = media_dev || "http://localhost:3001/api/v1";
-    break;
-  case 1:
-    media_engine_url = media_homolog;
-    break;
-  case 2:
-    media_engine_url = media_prod;
-    break;
-}
-
-if (!media_engine_url && current_ambient !== 0) {
-  console.error("[Kadem Critical] URL do Media Engine não definida para este ambiente!");
-}
+  throw new Error(`[Kadem] Variável ${name} não definida.`);
+};
 
 export const apiServices = {
-  MEDIA_ENGINE: media_engine_url
+  MEDIA_ENGINE: resolveRequiredUrl(
+    import.meta.env.VITE_MEDIA_ENGINE_URL,
+    "http://localhost:3001/api/v1",
+    "VITE_MEDIA_ENGINE_URL",
+  ),
 };

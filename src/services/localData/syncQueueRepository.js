@@ -2,13 +2,49 @@ import { db } from '../../db';
 
 export const syncQueueRepository = {
   async getPendingTasks() {
-    return await db.syncQueue.orderBy('timestamp').toArray();
+    const now = new Date().toISOString();
+    const tasks = await db.syncQueue.orderBy('timestamp').toArray();
+    return tasks.filter((task) => {
+      const status = task.status || 'PENDING';
+      return ['PENDING', 'RETRY'].includes(status) && (!task.next_attempt_at || task.next_attempt_at <= now);
+    });
   },
   async getPendingTasksByType(type) {
-    return await db.syncQueue.where('type').equals(type).toArray();
+    const tasks = await this.getPendingTasks();
+    return tasks.filter((task) => task.type === type);
   },
   async addSyncQueueTask(task) {
-    const task_with_defaults = { ...task, retry_count: 0 };
+    const timestamp = task.timestamp || new Date().toISOString();
+    const idempotency_key = task.idempotency_key || crypto.randomUUID?.() || `${task.type}-${timestamp}-${Math.random()}`;
+    const task_with_defaults = {
+      ...task,
+      timestamp,
+      idempotency_key,
+      retry_count: task.retry_count || 0,
+      status: task.status || 'PENDING',
+      next_attempt_at: task.next_attempt_at || timestamp,
+      last_error: task.last_error || null,
+    };
+
+    if (task_with_defaults.compact_key) {
+      const existing = await db.syncQueue
+        .where('compact_key')
+        .equals(task_with_defaults.compact_key)
+        .filter((item) => ['PENDING', 'RETRY'].includes(item.status || 'PENDING'))
+        .first();
+
+      if (existing) {
+        await db.syncQueue.update(existing.id, {
+          ...task_with_defaults,
+          id: existing.id,
+          retry_count: 0,
+          status: 'PENDING',
+          last_error: null,
+        });
+        return existing.id;
+      }
+    }
+
     return await db.syncQueue.add(task_with_defaults);
   },
   async updateTask(task_id, updates) {

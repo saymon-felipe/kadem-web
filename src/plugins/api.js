@@ -1,46 +1,23 @@
 import axios from 'axios';
 import { useProjectStore } from '../stores/projects';
 
-const dev_environment = "http://localhost:3000/api";
-const homolog_environment = "https://coretest-kadem-d8b86a10b9e8.herokuapp.com/api";
-const prod_environment = "https://core-kadem-a06ada9519bc.herokuapp.com/api";
+const resolveApiUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
 
-let url_api;
+  if (import.meta.env.DEV) {
+    return 'http://localhost:3000/api';
+  }
 
-let ambient = 2;
+  throw new Error('[Kadem] Variável VITE_API_URL não definida.');
+};
 
-const hostname = window.location.hostname;
-
-if (hostname.includes("localhost") || hostname.includes("192.168") || hostname.includes("trycloudflare")) {
-  ambient = 0; // Local
-} else if (hostname.includes("dev") || hostname.includes("homolog") || hostname.includes("staging")) {
-  ambient = 1; // Homologação
-} else {
-  ambient = 2; // Produção
-}
-
-switch (ambient) {
-  case 0:
-    url_api = dev_environment || "http://localhost:3000/api";
-    console.log("[Kadem] Ambiente: Desenvolvimento (Local)");
-    break;
-  case 1:
-    url_api = homolog_environment;
-    console.log("[Kadem] Ambiente: Homologação");
-    break;
-  case 2:
-    url_api = prod_environment;
-    console.log("[Kadem] Ambiente: Produção");
-    break;
-}
-
-if (!url_api) {
-  console.error("[Kadem Critical] URL da API não definida para este ambiente!");
-}
+const url_api = resolveApiUrl();
 
 const api = axios.create({
   baseURL: url_api,
-  withCredentials: true
+  withCredentials: true,
 });
 
 const CSRF_COOKIE_NAME = 'csrf_token';
@@ -114,20 +91,13 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-/**
- * Interceptor de Resposta
- * Gerencia erros globais de autenticação (401) e segurança de projetos (403).
- */
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Tratamento de Sessão Expirada (401)
     if (error.response && error.response.status === 401) {
-      // Importação dinâmica para evitar dependência circular
       const { useAuthStore } = await import('../stores/auth');
       const authStore = useAuthStore();
 
-      // Evita loop se já estivermos na tela de auth
       if (!window.location.pathname.includes('/auth')) {
         console.warn('[API] Sessão expirada (401). Forçando logout.');
         await authStore.logout(true);
@@ -135,13 +105,12 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const originalRequest = error.config;
+    const originalRequest = error.config || {};
 
     if (error.response && error.response.status === 403) {
-
       let problematic_project_id = null;
 
-      const url_parts = originalRequest.url.split('/');
+      const url_parts = String(originalRequest.url || '').split('/');
       const projects_index = url_parts.indexOf('projects');
       if (projects_index !== -1 && url_parts[projects_index + 1]) {
         problematic_project_id = url_parts[projects_index + 1];
@@ -151,10 +120,12 @@ api.interceptors.response.use(
         try {
           const data = JSON.parse(originalRequest.data);
           if (data.project_id) problematic_project_id = data.project_id;
-        } catch (e) { /* ignore parse error */ }
+        } catch {
+          // Ignora payloads que não sejam JSON.
+        }
       }
 
-      if (!problematic_project_id && originalRequest.headers['X-Target-Project-ID']) {
+      if (!problematic_project_id && originalRequest.headers?.['X-Target-Project-ID']) {
         problematic_project_id = originalRequest.headers['X-Target-Project-ID'];
       }
 
@@ -165,18 +136,14 @@ api.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
-/**
- * @description Função para verificar a saúde (liveness) do Kadem Core API.
- * @returns {Promise<boolean>} Retorna true se a API estiver acessível e responder com sucesso (2xx);
- */
 const check_system_health = async () => {
   try {
     const response = await api.get('/system');
     return response.status >= 200 && response.status < 300;
-  } catch (error) {
+  } catch {
     return false;
   }
 };
@@ -186,5 +153,5 @@ export { api, check_system_health };
 export default {
   install(app) {
     app.config.globalProperties.api = api;
-  }
+  },
 };
