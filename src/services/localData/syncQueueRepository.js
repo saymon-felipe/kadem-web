@@ -2,11 +2,17 @@ import { db } from '../../db';
 
 export const syncQueueRepository = {
   async getPendingTasks() {
-    const now = new Date().toISOString();
+    const now = Date.now();
     const tasks = await db.syncQueue.orderBy('timestamp').toArray();
     return tasks.filter((task) => {
       const status = task.status || 'PENDING';
-      return ['PENDING', 'RETRY'].includes(status) && (!task.next_attempt_at || task.next_attempt_at <= now);
+      const nextAttemptAt = task.next_attempt_at || task.timestamp;
+      const nextAttemptTime = typeof nextAttemptAt === 'number'
+        ? nextAttemptAt
+        : Date.parse(nextAttemptAt);
+
+      return ['PENDING', 'RETRY'].includes(status)
+        && (!nextAttemptAt || !Number.isFinite(nextAttemptTime) || nextAttemptTime <= now);
     });
   },
   async getPendingTasksByType(type) {

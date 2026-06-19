@@ -41,12 +41,20 @@
             <div>
               <h4>{{ group.name }}</h4>
               <span>
+                <strong v-if="group.is_investment" class="investment-badge">Investimento</strong>
                 {{ group.items.length }}
                 {{ group.items.length === 1 ? 'categoria' : 'categorias' }}
               </span>
             </div>
           </div>
           <div class="row-actions">
+            <button
+              class="icon-btn small add-category"
+              title="Nova categoria nesta macro"
+              @click="$emit('new-category', group)"
+            >
+              <font-awesome-icon icon="plus" />
+            </button>
             <button class="icon-btn small" title="Editar macro" @click="$emit('edit-macro', group)">
               <font-awesome-icon icon="pen" />
             </button>
@@ -220,6 +228,11 @@ export default {
   font-size: var(--fontsize-xs);
 }
 
+.investment-badge {
+  margin-right: var(--space-2);
+  color: #0d8f6f;
+}
+
 .category-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -377,6 +390,25 @@ export default {
 .icon-btn.danger:hover {
   background: var(--red-high);
   color: var(--red);
+}
+
+.icon-btn.add-category {
+  background: rgba(53, 90, 253, 0.12);
+  color: var(--deep-blue);
+}
+
+.icon-btn.add-category:hover {
+  background: rgba(53, 90, 253, 0.2);
+  color: var(--deep-blue);
+}
+
+[data-theme='dark'] .icon-btn.add-category {
+  background: rgba(122, 144, 255, 0.16);
+  color: #dbe3ff;
+}
+
+[data-theme='dark'] .icon-btn.add-category:hover {
+  background: rgba(122, 144, 255, 0.24);
 }
 
 button:disabled {

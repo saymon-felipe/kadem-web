@@ -130,12 +130,19 @@ const sanitizeCategoryPayload = (data) => {
     'name',
     'type',
     'icon',
-    'color'
+    'color',
+    'investment_flow_type',
+    'linked_investment_category_id'
   ];
   const clean = {};
   allowedKeys.forEach(key => {
     if (data[key] !== undefined) {
-      clean[key] = data[key];
+      if (key === 'linked_investment_category_id') {
+        const numeric = Number(data[key]);
+        if (Number.isFinite(numeric)) clean[key] = numeric;
+      } else {
+        clean[key] = data[key];
+      }
     }
   });
   return clean;
@@ -145,7 +152,8 @@ const sanitizeMacroCategoryPayload = (data) => {
   if (!data) return {};
   const allowedKeys = [
     'name',
-    'color'
+    'color',
+    'is_investment'
   ];
   const clean = {};
   allowedKeys.forEach(key => {
@@ -326,7 +334,7 @@ async function _handleProjectTask(task) {
       serverId = task.payload.id;
       if (serverId) {
         try { await api.delete(`/projects/${serverId}`); }
-        catch (e) { if (e.response?.status !== 404) throw e; }
+        catch (e) { if (e.response.status !== 404) throw e; }
       }
       break;
 
@@ -360,7 +368,7 @@ async function _handleKanbanTask(task) {
       serverId = task.payload.id;
       if (!serverId) {
         const col = await kanbanRepository.get_column_by_local_id(task.entity_id);
-        if (!col?.id) throw new Error("COLUMN_NOT_SYNCED: Update em coluna sem ID server.");
+        if (!col.id) throw new Error("COLUMN_NOT_SYNCED: Update em coluna sem ID server.");
         serverId = col.id;
       }
 
@@ -375,7 +383,7 @@ async function _handleKanbanTask(task) {
       serverId = task.payload.id;
       if (serverId) {
         try { await api.delete(`/kanban/columns/${serverId}`); }
-        catch (e) { if (e.response?.status !== 404) throw e; }
+        catch (e) { if (e.response.status !== 404) throw e; }
       }
       break;
 
@@ -386,7 +394,7 @@ async function _handleKanbanTask(task) {
         let colServerId = c.id;
         if (!colServerId && c.local_id) {
           const localColumn = await kanbanRepository.get_column_by_local_id(c.local_id);
-          colServerId = localColumn?.id;
+          colServerId = localColumn.id;
         }
         if (colServerId) colsOrder.push({ id: colServerId, order: c.order });
       }
@@ -412,7 +420,7 @@ async function _handleKanbanTask(task) {
 
       if (!serverId) {
         const t = await kanbanRepository.get_task_by_local_id(task.entity_id);
-        serverId = t?.id;
+        serverId = t.id;
       }
 
       if (!serverId) {
@@ -430,7 +438,7 @@ async function _handleKanbanTask(task) {
       if (!attachment) return;
 
       const parentTaskForAttachment = await kanbanRepository.get_task_by_local_id(attachment.task_local_id);
-      if (!parentTaskForAttachment?.id) throw new Error("TASK_NOT_SYNCED: Anexo aguardando Task.");
+      if (!parentTaskForAttachment.id) throw new Error("TASK_NOT_SYNCED: Anexo aguardando Task.");
       if (!attachment.blob) throw new Error("ATTACHMENT_BLOB_MISSING");
 
       response = await api.post(`/kanban/tasks/${parentTaskForAttachment.id}/attachments`, attachment.blob, {
@@ -451,11 +459,11 @@ async function _handleKanbanTask(task) {
       serverId = task.payload.id;
       if (!serverId && task.payload.local_id) {
         const localAttachment = await kanbanRepository.get_attachment_by_local_id(task.payload.local_id);
-        serverId = localAttachment?.id;
+        serverId = localAttachment.id;
       }
       if (serverId) {
         try { await api.delete(`/kanban/attachments/${serverId}`); }
-        catch (e) { if (e.response?.status !== 404) throw e; }
+        catch (e) { if (e.response.status !== 404) throw e; }
       }
       break;
 
@@ -463,7 +471,7 @@ async function _handleKanbanTask(task) {
       serverId = task.payload.id;
       if (serverId) {
         try { await api.delete(`/kanban/tasks/${serverId}`); }
-        catch (e) { if (e.response?.status !== 404) throw e; }
+        catch (e) { if (e.response.status !== 404) throw e; }
       }
       break;
 
@@ -482,7 +490,7 @@ async function _handleKanbanTask(task) {
 
         if (!tServerId) {
           const localTaskData = await kanbanRepository.get_task_by_local_id(t.local_id);
-          tServerId = localTaskData?.id;
+          tServerId = localTaskData.id;
         }
 
         if (tServerId) {
@@ -504,7 +512,7 @@ async function _handleKanbanTask(task) {
 
     case 'CREATE_TASK_COMMENT':
       const localTask = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
-      if (!localTask?.id) throw new Error("TASK_NOT_SYNCED: Comentário aguardando Task.");
+      if (!localTask.id) throw new Error("TASK_NOT_SYNCED: Comentário aguardando Task.");
 
       response = await api.post(`/kanban/tasks/${localTask.id}/comments`, {
         content: task.payload.content,
@@ -536,9 +544,9 @@ async function _handleKanbanTask(task) {
       const lTaskLike = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
       if (!lTaskLike) return;
       const targetComment = lTaskLike.comments.find(c => c.local_id === task.payload.comment_local_id);
-      if (!targetComment?.id) throw new Error("COMMENT_NOT_SYNCED: Like aguardando comentário.");
+      if (!targetComment.id) throw new Error("COMMENT_NOT_SYNCED: Like aguardando comentário.");
       try { await api.post(`/kanban/comments/${targetComment.id}/like`); }
-      catch (e) { if (e.response?.status !== 404) throw e; }
+      catch (e) { if (e.response.status !== 404) throw e; }
       break;
   }
 }
@@ -562,7 +570,7 @@ async function _handleRadioTask(task) {
       serverId = task.payload.id;
       if (serverId) {
         try { await api.delete(`/radio/playlists/${serverId}`); }
-        catch (e) { if (e.response?.status !== 404) throw e; }
+        catch (e) { if (e.response.status !== 404) throw e; }
       }
       break;
 
@@ -570,7 +578,7 @@ async function _handleRadioTask(task) {
       serverId = task.payload.playlist_id;
       if (!serverId) {
         const localPl = await radioRepository.getLocalPlaylist(task.payload.localId);
-        serverId = localPl?.id;
+        serverId = localPl.id;
       }
       if (serverId) {
         await api.post(`/radio/playlists/${serverId}/sync`, {
@@ -604,7 +612,7 @@ async function _handleRadioTask(task) {
       serverId = task.payload.id;
       if (serverId) {
         try { await api.delete(`/radio/playlists/0/tracks/${serverId}`); }
-        catch (e) { if (e.response?.status !== 404) throw e; }
+        catch (e) { if (e.response.status !== 404) throw e; }
       }
       break;
   }
@@ -659,7 +667,7 @@ async function _handleDownloadLyricsTask(task) {
   try {
     const authStore = useAuthStore();
     const token = authStore.token || authStore.getToken;
-    const endpoint = `${apiServices.MEDIA_ENGINE}/subtitles/${video_id}?nocache=${Date.now()}`;
+    const endpoint = `${apiServices.MEDIA_ENGINE}/subtitles/${video_id}nocache=${Date.now()}`;
 
     const response = await api.get(endpoint, {
       headers: { 'Authorization': `Bearer ${token}` },
@@ -743,7 +751,7 @@ const updateFinanceLocalRecord = async (table, localId, serverData) => {
     updated_at: serverData.updated_at || new Date().toISOString(),
   });
 
-  if (table === 'finance_categories' && current?.id && serverData.id) {
+  if (table === 'finance_categories' && current.id && serverData.id) {
     const transactions = await db.finance_transactions.where('category_id').equals(current.id).toArray();
     if (transactions.length) {
       await Promise.all(
@@ -767,9 +775,21 @@ const updateFinanceLocalRecord = async (table, localId, serverData) => {
         ),
       );
     }
+
+    const linkedCategories = await db.finance_categories.where('linked_investment_category_id').equals(current.id).toArray();
+    if (linkedCategories.length) {
+      await Promise.all(
+        linkedCategories.map(category =>
+          db.finance_categories.update(category.local_id, {
+            linked_investment_category_id: serverData.id,
+            updated_at: category.updated_at || new Date().toISOString(),
+          }),
+        ),
+      );
+    }
   }
 
-  if (table === 'finance_macro_categories' && current?.id && serverData.id) {
+  if (table === 'finance_macro_categories' && current.id && serverData.id) {
     const budgetGroups = await db.finance_budget_groups.where('macro_category_id').equals(current.id).toArray();
     if (budgetGroups.length) {
       await Promise.all(
@@ -791,12 +811,43 @@ const updateFinanceLocalRecord = async (table, localId, serverData) => {
             macro_category_id: serverData.id,
             macro_color: serverData.color || category.macro_color || '#999999',
             color: serverData.color || category.color || '#999999',
+            ...(serverData.is_investment && category.investment_flow_type !== 'INVESTMENT_OUT' ? { type: 'EXPENSE' } : {}),
             pending_sync: false,
             updated_at: new Date().toISOString(),
           }),
         ),
       );
     }
+  }
+
+  if (table === 'finance_investment_events' && current.category_id && serverData.category_id) {
+    await db.finance_investment_events.update(localId, {
+      category_id: serverData.category_id,
+      pending_sync: false,
+      updated_at: serverData.updated_at || new Date().toISOString(),
+    });
+  }
+};
+
+const deleteFinanceLocalRecord = async (table, payload = {}) => {
+  if (payload.local_id) {
+    const current = await db[table].get(payload.local_id);
+    if (current) {
+      await db[table].delete(payload.local_id);
+      return;
+    }
+  }
+
+  const id = payload.server_id || payload.id;
+  if (!id) return;
+
+  const numeric = Number(id);
+  const current = Number.isFinite(numeric)
+    ? await db[table].where('id').equals(numeric).first()
+    : await db[table].where('local_key').equals(id).first();
+
+  if (current?.local_id) {
+    await db[table].delete(current.local_id);
   }
 };
 
@@ -805,7 +856,7 @@ const resolveFinanceServerId = async (table, payload) => {
   if (payload.id && Number.isFinite(Number(payload.id))) return Number(payload.id);
   if (!payload.local_id) throw new Error(`FINANCE_NOT_SYNCED: ${table} sem ID local`);
   const row = await db[table].get(payload.local_id);
-  if (row?.id && Number.isFinite(Number(row.id))) return Number(row.id);
+  if (row.id && Number.isFinite(Number(row.id))) return Number(row.id);
   throw new Error(`FINANCE_NOT_SYNCED: aguardando ID do servidor para ${table} local ${payload.local_id}`);
 };
 
@@ -814,7 +865,7 @@ const resolveFinanceEntityId = async (table, id) => {
   const numeric = Number(id);
   if (Number.isFinite(numeric)) return numeric;
   const row = await db[table].where('local_key').equals(id).first();
-  if (row?.id && Number.isFinite(Number(row.id))) return Number(row.id);
+  if (row.id && Number.isFinite(Number(row.id))) return Number(row.id);
   throw new Error(`FINANCE_NOT_SYNCED: aguardando ID do servidor para ${table} ${id}`);
 };
 
@@ -842,6 +893,34 @@ const resolveBudgetGroupsForServer = async (groups = []) => {
 
 const resolveTransactionPayloadForServer = async (data) => {
   const cleanData = sanitizeTransactionPayload(data);
+  if (cleanData.category_id) {
+    cleanData.category_id = await resolveFinanceEntityId('finance_categories', cleanData.category_id);
+  }
+  return cleanData;
+};
+
+const sanitizeInvestmentGoalPayload = (data) => {
+  if (!data) return {};
+  const allowedKeys = ['name', 'horizon', 'target_amount', 'target_date', 'current_amount', 'color'];
+  const clean = {};
+  allowedKeys.forEach((key) => {
+    if (data[key] !== undefined) clean[key] = data[key];
+  });
+  return clean;
+};
+
+const sanitizeInvestmentEventPayload = (data) => {
+  if (!data) return {};
+  const allowedKeys = ['category_id', 'event_type', 'description', 'amount', 'event_date', 'notes'];
+  const clean = {};
+  allowedKeys.forEach((key) => {
+    if (data[key] !== undefined) clean[key] = data[key];
+  });
+  return clean;
+};
+
+const resolveInvestmentEventPayloadForServer = async (data) => {
+  const cleanData = sanitizeInvestmentEventPayload(data);
   if (cleanData.category_id) {
     cleanData.category_id = await resolveFinanceEntityId('finance_categories', cleanData.category_id);
   }
@@ -902,6 +981,7 @@ async function _handleFinanceTask(task) {
     case 'DELETE_FINANCE_CATEGORY': {
       const id = await resolveFinanceServerId('finance_categories', payload);
       await api.delete(`/finance/categories/${id}`);
+      await deleteFinanceLocalRecord('finance_categories', payload);
       return;
     }
     case 'CREATE_FINANCE_MACRO_CATEGORY': {
@@ -920,6 +1000,7 @@ async function _handleFinanceTask(task) {
     case 'DELETE_FINANCE_MACRO_CATEGORY': {
       const id = await resolveFinanceServerId('finance_macro_categories', payload);
       await api.delete(`/finance/macro-categories/${id}`);
+      await deleteFinanceLocalRecord('finance_macro_categories', payload);
       return;
     }
     case 'SAVE_FINANCE_BUDGETS': {
@@ -929,6 +1010,42 @@ async function _handleFinanceTask(task) {
         groups,
       });
       await financeRepository.setBudgetGroups(payload.month, response.data || []);
+      return;
+    }
+    case 'CREATE_FINANCE_INVESTMENT_GOAL': {
+      const cleanData = sanitizeInvestmentGoalPayload(payload.data);
+      const response = await api.post('/finance/investments/goals', cleanData);
+      await updateFinanceLocalRecord('finance_investment_goals', payload.local_id, response.data);
+      return;
+    }
+    case 'UPDATE_FINANCE_INVESTMENT_GOAL': {
+      const id = await resolveFinanceServerId('finance_investment_goals', payload);
+      const cleanData = sanitizeInvestmentGoalPayload(payload.data);
+      const response = await api.put(`/finance/investments/goals/${id}`, cleanData);
+      await updateFinanceLocalRecord('finance_investment_goals', payload.local_id, response.data);
+      return;
+    }
+    case 'DELETE_FINANCE_INVESTMENT_GOAL': {
+      const id = await resolveFinanceServerId('finance_investment_goals', payload);
+      await api.delete(`/finance/investments/goals/${id}`);
+      return;
+    }
+    case 'CREATE_FINANCE_INVESTMENT_EVENT': {
+      const cleanData = await resolveInvestmentEventPayloadForServer(payload.data);
+      const response = await api.post('/finance/investments/events', cleanData);
+      await updateFinanceLocalRecord('finance_investment_events', payload.local_id, response.data);
+      return;
+    }
+    case 'UPDATE_FINANCE_INVESTMENT_EVENT': {
+      const id = await resolveFinanceServerId('finance_investment_events', payload);
+      const cleanData = await resolveInvestmentEventPayloadForServer(payload.data);
+      const response = await api.put(`/finance/investments/events/${id}`, cleanData);
+      await updateFinanceLocalRecord('finance_investment_events', payload.local_id, response.data);
+      return;
+    }
+    case 'DELETE_FINANCE_INVESTMENT_EVENT': {
+      const id = await resolveFinanceServerId('finance_investment_events', payload);
+      await api.delete(`/finance/investments/events/${id}`);
       return;
     }
     default:
@@ -1004,7 +1121,9 @@ export const syncService = {
           'CREATE_FINANCE_CATEGORY': 8,
           'CREATE_FINANCE_TRANSACTION': 9,
           'CREATE_FINANCE_TRANSACTIONS_BATCH': 9,
-          'SAVE_FINANCE_BUDGETS': 10
+          'CREATE_FINANCE_INVESTMENT_GOAL': 10,
+          'SAVE_FINANCE_BUDGETS': 11,
+          'CREATE_FINANCE_INVESTMENT_EVENT': 12
         };
         const sortedTasks = individualTasks.sort((a, b) => {
           const orderA = creationOrder[a.type] || 10;

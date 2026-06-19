@@ -69,7 +69,7 @@ export default {
       return (
         transaction.category_name ||
         this.categories.find(
-          (category) => String(category.id ?? '') === String(transaction.category_id ?? ''),
+          (category) => String(category.id || '') === String(transaction.category_id || ''),
         )?.name ||
         'Sem categoria'
       )

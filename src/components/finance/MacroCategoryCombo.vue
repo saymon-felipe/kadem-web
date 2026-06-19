@@ -90,7 +90,7 @@ export default {
         .map((category) => category.macro_category || "Geral")
         .filter(Boolean);
       const macroNames = this.macroCategories
-        .map((macro) => macro.name)
+        .map((macro) => macro?.name)
         .filter(Boolean);
       return [...new Set(["Geral", ...macroNames, ...categoryNames])].sort((a, b) => a.localeCompare(b, "pt-BR"));
     },
@@ -125,7 +125,7 @@ export default {
       this.filter = "";
       this.$nextTick(() => {
         this.updateDirection();
-        this.$refs.search?.focus();
+        this.$refs.search.focus();
       });
     },
     close() {
@@ -161,8 +161,9 @@ export default {
       if (this.filteredMacros[0]) this.select(this.filteredMacros[0]);
     },
     handleOutsideClick(event) {
-      const clickedRoot = this.$refs.root?.contains(event.target);
-      const clickedMenu = this.$refs.menu?.contains(event.target);
+      if (!this.isOpen) return;
+      const clickedRoot = this.$refs.root && this.$refs.root.contains(event.target);
+      const clickedMenu = this.$refs.menu && this.$refs.menu.contains(event.target);
       if (!clickedRoot && !clickedMenu) this.close();
     },
     handleViewportChange() {

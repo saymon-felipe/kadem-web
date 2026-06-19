@@ -12,6 +12,14 @@
       <span>Saldo</span>
       <strong :class="{ negative: totals.balance < 0 }">{{ formatMoney(totals.balance) }}</strong>
     </div>
+    <div v-if="investmentSummary" class="metric investment">
+      <span>Investido no mês</span>
+      <strong>{{ formatMoney(investmentSummary.month_invested || 0) }}</strong>
+    </div>
+    <div v-if="investmentSummary" class="metric investment-out">
+      <span>Resgatado no mês</span>
+      <strong>{{ formatMoney(investmentSummary.month_withdrawn || 0) }}</strong>
+    </div>
   </div>
 </template>
 
@@ -27,6 +35,10 @@ export default {
       type: Function,
       required: true,
     },
+    investmentSummary: {
+      type: Object,
+      default: null,
+    },
   },
 }
 </script>
@@ -34,7 +46,7 @@ export default {
 <style scoped>
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--space-4);
   margin-bottom: var(--space-4);
 }
@@ -69,6 +81,14 @@ export default {
 .metric.expense strong,
 .negative {
   color: var(--color-expense);
+}
+
+.metric.investment strong {
+  color: #0d8f6f;
+}
+
+.metric.investment-out strong {
+  color: #b77900;
 }
 
 @media (max-width: 900px) {

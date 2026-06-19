@@ -1,6 +1,10 @@
 <template>
   <div>
-    <NexoSummaryCards :totals="totals" :format-money="formatMoney" />
+    <NexoSummaryCards
+      :totals="totals"
+      :investment-summary="investmentSummary"
+      :format-money="formatMoney"
+    />
 
     <div class="overview-grid">
       <NexoAllocationDonut
@@ -65,6 +69,10 @@ export default {
       type: Function,
       required: true,
     },
+    investmentSummary: {
+      type: Object,
+      default: null,
+    },
   },
   data() {
     return {
@@ -74,10 +82,10 @@ export default {
   computed: {
     filteredRecentTransactions() {
       if (!this.selectedCategory) return this.recentTransactions
-      
+
       return this.recentTransactions.filter((transaction) => {
         const category = this.categories.find(
-          (c) => String(c.id ?? '') === String(transaction.category_id ?? '')
+          (current) => String(current.id || '') === String(transaction.category_id || ''),
         )
         const macroName = category?.macro_category || 'Geral'
         return macroName.toLowerCase() === this.selectedCategory.toLowerCase()
@@ -86,11 +94,7 @@ export default {
   },
   methods: {
     toggleCategoryFilter(categoryName) {
-      if (this.selectedCategory === categoryName) {
-        this.selectedCategory = null
-      } else {
-        this.selectedCategory = categoryName
-      }
+      this.selectedCategory = this.selectedCategory === categoryName ? null : categoryName
     },
   },
 }

@@ -30,6 +30,7 @@
               :categories="categories"
               :recent-transactions="recentTransactions"
               :macro-distribution="macroDistribution"
+              :investment-summary="investmentSummary"
               :format-money="money"
               :format-signed-money="signedMoney"
               :format-short-date="shortDate"
@@ -264,6 +265,28 @@
             </section>
           </template>
 
+          <template v-else-if="tab.id === 'investments'">
+            <NexoInvestmentsTab
+              :summary="investmentSummary"
+              :monthly-history="investmentMonthlyHistory"
+              :category-distribution="investmentCategoryDistribution"
+              :goals="investmentGoals"
+              :events="investmentEvents"
+              :categories="categories"
+              :rates="investmentRates"
+              :rates-loading="loadingInvestmentRates"
+              :selected-month="selectedMonth"
+              :format-money="money"
+              :format-signed-money="signedMoney"
+              :format-short-date="shortDate"
+              @save-goal="saveInvestmentGoal"
+              @delete-goal="deleteInvestmentGoal"
+              @save-event="saveInvestmentEvent"
+              @delete-event="deleteInvestmentEvent"
+              @refresh-rates="loadInvestmentRates"
+            />
+          </template>
+
           <template v-else-if="tab.id === 'connections'">
             <NexoConnectionsTab
               :is-paid-plan="isPaidPlan"
@@ -287,7 +310,7 @@
               :budget-group-style="budgetGroupStyle"
               :budget-group-header-style="budgetGroupHeaderStyle"
               @new-macro="openMacroForm"
-              @new-category="openCategoryForm"
+              @new-category="handleNewCategoryRequest"
               @edit-macro="openMacroForm"
               @delete-macro="requestDeleteMacro"
               @edit-category="openCategoryForm"
@@ -341,7 +364,7 @@
           <div class="form-grid">
             <div class="nexo-field static-label select-field">
               <label for="category-type">Tipo</label>
-              <select id="category-type" v-model="categoryForm.type" required>
+              <select id="category-type" v-model="categoryForm.type" :disabled="isCategoryFormInvestment" required>
                 <option value="EXPENSE">Saída</option>
                 <option value="INCOME">Entrada</option>
               </select>
@@ -357,6 +380,10 @@
               />
             </div>
           </div>
+          <small v-if="isCategoryFormInvestment" class="field-note compact">
+            <font-awesome-icon icon="circle-question" class="note-icon" />
+            <span>Categorias de investimento são sempre do tipo saída.</span>
+          </small>
           <div class="icon-picker">
             <span>Ícone da categoria</span>
             <div>
@@ -392,6 +419,13 @@
           <div class="nexo-field static-label color-field">
             <label for="macro-color">Cor da macro categoria</label>
             <input id="macro-color" v-model="macroForm.color" type="color" placeholder="" />
+          </div>
+          <div class="nexo-field static-label">
+            <label for="macro-investment-switch">Investimentos</label>
+            <div class="switch-field">
+              <FormSwitch id="macro-investment-switch" v-model="macroForm.is_investment" />
+              <span>Esta macro categoria representa investimentos</span>
+            </div>
           </div>
           <div class="modal-actions">
             <button type="button" class="text-btn" @click="showMacroForm = false">Cancelar</button>
@@ -492,11 +526,13 @@ import { getPlanLimits } from '@/services/subscription_plans'
 import { db } from '@/db'
 import SubscriptionModal from '@/components/SubscriptionModal.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
+import FormSwitch from '@/components/FormSwitch.vue'
 import CategoryCombo from './CategoryCombo.vue'
 import MacroCategoryCombo from './MacroCategoryCombo.vue'
 import NexoHeader from './nexo/NexoHeader.vue'
 import NexoTabs from './nexo/NexoTabs.vue'
 import NexoOverviewTab from './nexo/NexoOverviewTab.vue'
+import NexoInvestmentsTab from './nexo/NexoInvestmentsTab.vue'
 import NexoTransactionsTab from './nexo/NexoTransactionsTab.vue'
 import NexoTransactionModal from './nexo/NexoTransactionModal.vue'
 import NexoConnectionsTab from './nexo/NexoConnectionsTab.vue'
@@ -513,11 +549,13 @@ export default {
   components: {
     SubscriptionModal,
     ConfirmationModal,
+    FormSwitch,
     CategoryCombo,
     MacroCategoryCombo,
     NexoHeader,
     NexoTabs,
     NexoOverviewTab,
+    NexoInvestmentsTab,
     NexoTransactionsTab,
     NexoTransactionModal,
     NexoConnectionsTab,
@@ -549,6 +587,22 @@ export default {
       budgets: [],
       connections: [],
       macroDistribution: [],
+      investmentSummary: {
+        month_invested: 0,
+        month_withdrawn: 0,
+        month_net: 0,
+        total_invested: 0,
+        total_yield: 0,
+        total_withdrawn: 0,
+        total_adjustments: 0,
+        estimated_balance: 0,
+      },
+      investmentMonthlyHistory: [],
+      investmentCategoryDistribution: [],
+      investmentGoals: [],
+      investmentEvents: [],
+      investmentRates: [],
+      loadingInvestmentRates: false,
       usage: {},
       insights: [],
       budgetAiPrompt: '',
@@ -565,8 +619,10 @@ export default {
       },
       macroForm: {
         id: null,
+        original_id: null,
         name: '',
         color: '#999999',
+        is_investment: false,
       },
       confirmDelete: {
         visible: false,
@@ -616,6 +672,7 @@ export default {
         { id: 'overview', label: 'Visão', icon: 'chart-simple' },
         { id: 'transactions', label: 'Movimentos', icon: 'list' },
         { id: 'budget', label: 'Orçamento', icon: 'clipboard' },
+        { id: 'investments', label: 'Investimentos', icon: 'money-bill' },
         { id: 'connections', label: 'Conexões', icon: 'link' },
         { id: 'categories', label: 'Categorias', icon: 'layer-group' },
         { id: 'ai', label: 'IA', icon: 'crown', pro: true },
@@ -641,22 +698,28 @@ export default {
       const size = `${100 / this.tabs.length}%`
       return { width: size, flexBasis: size }
     },
+    categoryTargetMacro() {
+      return this.findMacroByName(this.categoryForm.macro_category)
+    },
+    isCategoryFormInvestment() {
+      return Boolean(this.categoryTargetMacro?.is_investment)
+    },
     limits() {
-      return getPlanLimits(this.user?.plan_tier || 'free')
+      return getPlanLimits(this.user.plan_tier || 'free')
     },
     isPaidPlan() {
-      return this.user?.plan_tier && this.user.plan_tier !== 'free'
+      return this.user.plan_tier && this.user.plan_tier !== 'free'
     },
     canUseAi() {
       return this.isPaidPlan && Number(this.limits.finance_ai_monthly_credits || 0) > 0
     },
     planLabel() {
       const labels = { free: 'Free', pro: 'Pro', enterprise: 'Enterprise' }
-      return labels[this.user?.plan_tier] || 'Free'
+      return labels[this.user.plan_tier] || 'Free'
     },
     aiUsageLabel() {
       if (!this.canUseAi) return 'IA bloqueada'
-      return `${this.usage.remaining_credits ?? this.limits.finance_ai_monthly_credits} créditos IA`
+      return `${this.usage.remaining_credits || this.limits.finance_ai_monthly_credits} créditos IA`
     },
     budgetAiContextLabel() {
       const total = this.budgetAiConversation.length
@@ -721,20 +784,36 @@ export default {
     groupedCategories() {
       const groups = new Map()
       this.macroCategories.forEach((macro) => {
-        groups.set(macro.name, { ...macro, items: [] })
+        groups.set(macro?.name, { ...macro, items: [] })
       })
 
       this.filteredCategories.forEach((category) => {
-        const macroName = category.macro_category || 'Geral'
+        const canonicalMacro = this.macroCategories.find(
+          (macro) =>
+            this.sameId(macro.id, category.macro_category_id) ||
+            this.sameId(macro.local_id, category.macro_category_id) ||
+            this.sameId(macro.local_key, category.macro_category_id) ||
+            this.normalize(macro?.name) === this.normalize(category.macro_category),
+        )
+        const macroName = canonicalMacro?.name || category.macro_category || 'Geral'
         if (!groups.has(macroName)) {
           groups.set(macroName, {
-            id: category.macro_category_id || null,
+            ...(canonicalMacro || {}),
+            id: canonicalMacro?.id || category.macro_category_id || null,
             name: macroName,
-            color: category.macro_color || category.color || '#999999',
+            color: canonicalMacro?.color || category.macro_color || category.color || '#999999',
+            is_investment: Boolean(canonicalMacro?.is_investment ?? category.is_investment),
             items: [],
           })
         }
-        groups.get(macroName).items.push(category)
+        groups.get(macroName).items.push({
+          ...category,
+          macro_category: macroName,
+          macro_category_id: canonicalMacro?.id || category.macro_category_id,
+          macro_color: canonicalMacro?.color || category.macro_color,
+          color: canonicalMacro?.color || category.color,
+          is_investment: Boolean(canonicalMacro?.is_investment ?? category.is_investment),
+        })
       })
 
       return [...groups.values()]
@@ -776,12 +855,16 @@ export default {
         .trim()
     },
     sameId(left, right) {
-      return String(left ?? '') === String(right ?? '')
+      return String(left || '') === String(right || '')
     },
     setActiveTab(tabId) {
       this.activeTab = tabId
       if (tabId === 'transactions') {
         this.loadTransactions()
+      }
+      if (tabId === 'investments') {
+        this.loadInvestments()
+        this.loadInvestmentRates()
       }
     },
     money(value) {
@@ -854,7 +937,7 @@ export default {
       return `rgba(${r}, ${g}, ${b}, ${alpha})`
     },
     budgetAiStorageKey() {
-      return `kadem:nexo:budget-ai:${this.user?.id || 'local'}:${this.selectedMonth}`
+      return `kadem:nexo:budget-ai:${this.user.id || 'local'}:${this.selectedMonth}`
     },
     loadBudgetAiConversation() {
       try {
@@ -872,7 +955,7 @@ export default {
       this.budgetAiConversation = messages
       this.budgetAiContextSummary = messages
         .slice(-6)
-        .map((message) => `${message.role === 'assistant' ? 'IA' : 'Usuário'}: ${message.content}`)
+        .map((message) => `${message.role === 'assistant' ? 'IA' : 'Você'}: ${message.content}`)
         .join('\n')
       localStorage.setItem(
         this.budgetAiStorageKey(),
@@ -898,6 +981,8 @@ export default {
           this.loadMacroCategories(),
           this.loadCategories(),
           this.loadBudgets(),
+          this.loadInvestments(),
+          this.loadInvestmentRates(),
           this.loadConnections(),
           this.loadUsage(),
         ])
@@ -911,6 +996,10 @@ export default {
       this.totals = data.totals || { income: 0, expense: 0, balance: 0 }
       this.recentTransactions = data.transactions || data.recent_transactions || []
       this.macroDistribution = data.macro_distribution || []
+      this.investmentSummary = {
+        ...this.investmentSummary,
+        ...data.investment_summary,
+      }
     },
     async loadTransactions() {
       const { data } = await financeService.listTransactions({
@@ -926,6 +1015,32 @@ export default {
     async loadMacroCategories() {
       const { data } = await financeService.getMacroCategories()
       this.macroCategories = data || []
+    },
+    async loadInvestments() {
+      const { data } = await financeService.getInvestments({ month: this.selectedMonth })
+      this.investmentSummary = data.summary || {
+        month_invested: 0,
+        month_withdrawn: 0,
+        month_net: 0,
+        total_invested: 0,
+        total_yield: 0,
+        total_withdrawn: 0,
+        total_adjustments: 0,
+        estimated_balance: 0,
+      }
+      this.investmentMonthlyHistory = data.monthly_history || []
+      this.investmentCategoryDistribution = data.category_distribution || []
+      this.investmentGoals = data.goals || []
+      this.investmentEvents = data.events || []
+    },
+    async loadInvestmentRates() {
+      this.loadingInvestmentRates = true
+      try {
+        const { data } = await financeService.getInvestmentRates()
+        this.investmentRates = data.rates || []
+      } finally {
+        this.loadingInvestmentRates = false
+      }
     },
     async loadBudgets() {
       const { data } = await financeService.getBudgets({ month: this.selectedMonth })
@@ -945,13 +1060,14 @@ export default {
       }
     },
     hydrateBudgetItem(item) {
+      const category = this.findCategory(item.category_id)
       return {
         ...item,
         _key: item._key || item.id || `item-${Date.now()}-${Math.random()}`,
         amount: Number(item.amount || 0),
         amount_display: this.moneyInput(item.amount || 0),
         actual_amount: Number(item.actual_amount || 0),
-        type: item.type || this.findCategory(item.category_id)?.type || 'EXPENSE',
+        type: item.type || category?.type || 'EXPENSE',
       }
     },
     async loadConnections() {
@@ -972,19 +1088,20 @@ export default {
         transaction = null
       }
 
-      const amount = Number(transaction?.amount || 0)
-      const type = transaction?.type === 'INCOME' ? 'INCOME' : 'EXPENSE'
+      const currentTransaction = transaction || {}
+      const amount = Number(currentTransaction.amount || 0)
+      const type = currentTransaction.type === 'INCOME' ? 'INCOME' : 'EXPENSE'
 
       this.form = {
-        id: transaction?.id || transaction?.local_id || null,
+        id: currentTransaction.id || currentTransaction.local_id || null,
         type,
-        description: transaction?.description || '',
-        observation: transaction?.observation || '',
+        description: currentTransaction.description || '',
+        observation: currentTransaction.observation || '',
         amount,
         amount_display: transaction ? this.moneyInput(amount) : '',
-        category_id: transaction?.category_id || null,
+        category_id: currentTransaction.category_id || null,
         transaction_date: String(
-          transaction?.transaction_date || new Date().toISOString().slice(0, 10),
+          currentTransaction.transaction_date || new Date().toISOString().slice(0, 10),
         ).slice(0, 10),
       }
       this.showTransactionForm = true
@@ -1019,7 +1136,7 @@ export default {
         this.upsertTransactionInList(savedTransaction)
       }
       this.closeTransactionForm()
-      await this.loadDashboard()
+      await Promise.all([this.loadDashboard(), this.loadInvestments()])
     },
     resetCsvImport() {
       this.csvImportError = ''
@@ -1047,7 +1164,7 @@ export default {
         const clean = String(text || '')
           .replace(/^\uFEFF/, '')
           .trim()
-        const lines = clean.split(/\r?\n/).filter((line) => line.trim())
+        const lines = clean.split(/\r\n/).filter((line) => line.trim())
         if (lines.length < 2) {
           throw new Error('O CSV precisa ter cabeçalho e pelo menos uma linha.')
         }
@@ -1088,7 +1205,7 @@ export default {
       } catch (error) {
         this.csvImportRows = []
         this.csvImportError =
-          error.response?.data?.message || error.message || 'Não foi possível processar o CSV.'
+          error.response.data.message || error.message || 'Não foi possível processar o CSV.'
       } finally {
         this.loadingSchema = false
       }
@@ -1266,7 +1383,7 @@ export default {
         // Fall back to name matching if not found in memory
         if (!categoryId) {
           const category = this.findCategoryByName(description, type)
-          categoryId = category?.id || null
+          categoryId = category.id || null
         }
 
         rows.push({
@@ -1334,11 +1451,11 @@ export default {
       const lastComma = normalized.lastIndexOf(',')
       const lastDot = normalized.lastIndexOf('.')
 
-      if (lastComma > -1 && lastDot > -1) {
-        normalized =
-          lastComma > lastDot
-            ? normalized.replace(/\./g, '').replace(',', '.')
-            : normalized.replace(/,/g, '')
+        if (lastComma > -1 && lastDot > -1) {
+          normalized =
+            lastComma > lastDot
+              ? normalized.replace(/\./g, '').replace(',', '.')
+              : normalized.replace(/,/g, '')
       } else if (lastComma > -1) {
         normalized = normalized.replace(',', '.')
       }
@@ -1353,9 +1470,9 @@ export default {
       const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
       if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`
 
-      const brMatch = raw.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/)
-      if (brMatch) {
-        const year = brMatch[3].length === 2 ? `20${brMatch[3]}` : brMatch[3]
+        const brMatch = raw.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/)
+        if (brMatch) {
+          const year = brMatch[3].length === 2 ? `20${brMatch[3]}` : brMatch[3]
         return `${year}-${brMatch[2].padStart(2, '0')}-${brMatch[1].padStart(2, '0')}`
       }
 
@@ -1388,20 +1505,39 @@ export default {
         }))
         await financeService.createTransactionsBatch(cleanRows)
         this.resetCsvImport()
-        await this.loadDashboard()
+        await Promise.all([this.loadDashboard(), this.loadInvestments()])
       } finally {
         this.importingCsv = false
       }
     },
 
     transactionKey(transaction) {
-      return transaction?.id || transaction?.local_id || null
+      return transaction.id || transaction.local_id || null
+    },
+    categoryKey(category) {
+      return category?.server_id || category?.id || category?.local_key || category?.local_id || null
+    },
+    macroKey(macro) {
+      const resolved = this.resolveMacroRecord(macro) || macro || {}
+      return (
+        resolved.server_id ||
+        resolved.id ||
+        resolved.local_key ||
+        resolved.local_id ||
+        resolved.macro_category_id ||
+        macro?.server_id ||
+        macro?.id ||
+        macro?.local_key ||
+        macro?.local_id ||
+        macro?.macro_category_id ||
+        null
+      )
     },
     transactionMatches(transaction, id) {
-      return this.sameId(transaction?.id, id) || this.sameId(transaction?.local_id, id)
+      return this.sameId(transaction.id, id) || this.sameId(transaction.local_id, id)
     },
     transactionBelongsToSelectedMonth(transaction) {
-      return String(transaction?.transaction_date || '').startsWith(this.selectedMonth)
+      return String(transaction.transaction_date || '').startsWith(this.selectedMonth)
     },
     enrichTransactionForList(transaction = {}) {
       const category = this.findCategory(transaction.category_id)
@@ -1456,9 +1592,9 @@ export default {
     async selectTransactionCategory(transaction, categoryId, options = {}) {
       const category = this.findCategory(categoryId)
       const update = { category_id: categoryId || null }
-      const originalType = transaction?.original_type || options.originalType || transaction?.type
+      const originalType = transaction.original_type || options.originalType || transaction.type
 
-      if (!categoryId && transaction?.original_type) {
+      if (!categoryId && transaction.original_type) {
         update.type = transaction.original_type
         update.original_type = null
       }
@@ -1498,7 +1634,7 @@ export default {
           this.transactionMatches(item, pending.transactionLocalId),
       )
 
-      if (transaction && category?.id) {
+      if (transaction && category.id) {
         await this.selectTransactionCategory(transaction, category.id, {
           originalType: pending.originalType,
         })
@@ -1519,7 +1655,7 @@ export default {
       if (local) {
         this.upsertTransactionInList(local)
       }
-      await this.loadDashboard()
+      await Promise.all([this.loadDashboard(), this.loadInvestments()])
     },
     async toggleIgnored(transaction) {
       const nextIgnored = !transaction.is_ignored
@@ -1529,15 +1665,43 @@ export default {
     async deleteTransaction(id) {
       await financeService.deleteTransaction(id)
       this.removeTransactionFromList(id)
-      await this.loadDashboard()
+      await Promise.all([this.loadDashboard(), this.loadInvestments()])
     },
     findCategory(categoryId) {
-      return this.categories.find((category) => this.sameId(category.id, categoryId))
+      return this.categories.find(
+        (category) =>
+          this.sameId(category.id, categoryId) ||
+          this.sameId(category.local_id, categoryId) ||
+          this.sameId(category.local_key, categoryId),
+      )
     },
     findMacroByName(name) {
       return this.macroCategories.find(
-        (macro) => this.normalize(macro.name) === this.normalize(name),
+        (macro) => this.normalize(macro?.name) === this.normalize(name),
       )
+    },
+    resolveMacroRecord(macro = null) {
+      if (!macro) return null
+
+      const candidates = [
+        macro.id,
+        macro.original_id,
+        macro.local_key,
+        macro.local_id,
+        macro.macro_category_id,
+      ].filter(Boolean)
+
+      for (const candidate of candidates) {
+        const found = this.macroCategories.find(
+          (current) =>
+            this.sameId(current.id, candidate) ||
+            this.sameId(current.local_key, candidate) ||
+            this.sameId(current.local_id, candidate),
+        )
+        if (found) return found
+      }
+
+      return this.findMacroByName(macro.name)
     },
     categoriesForMacro(group) {
       return this.categories.filter(
@@ -1550,7 +1714,7 @@ export default {
       const usedCategoryIds = new Set()
       this.budgets.forEach((g) => {
         ;(g.items || []).forEach((item) => {
-          if (item.category_id && item.category_id !== currentItem?.category_id) {
+          if (item.category_id && item.category_id !== currentItem.category_id) {
             usedCategoryIds.add(String(item.category_id))
           }
         })
@@ -1592,7 +1756,7 @@ export default {
     },
     selectBudgetMacro(group, macroName) {
       const macro = this.findMacroByName(macroName)
-      group.macro_category_id = macro?.id || null
+      group.macro_category_id = macro.id || null
       group.macro_category = macroName
       group.macro_color = macro?.color || group.macro_color || '#999999'
       group.items = []
@@ -1614,7 +1778,7 @@ export default {
       group.items = group.items.filter((current) => current._key !== item._key)
     },
     syncBudgetItemType(item) {
-      item.type = this.findCategory(item.category_id)?.type || 'EXPENSE'
+      item.type = this.findCategory(item.category_id)?.type || item.type || 'EXPENSE'
     },
     updateBudgetGroupAmount(event, group) {
       const value = this.parseMoneyInput(event.target.value)
@@ -1652,13 +1816,17 @@ export default {
     },
     openCategoryForm(category = null, pendingSelection = null) {
       this.pendingCategorySelection = pendingSelection
+      const currentCategory = category || {}
       this.categoryForm = {
-        id: category?.id || null,
-        name: category?.name || '',
-        macro_category: category?.macro_category || 'Geral',
-        macro_color: category?.macro_color || category?.color || '#999999',
-        type: category?.type || 'EXPENSE',
-        icon: category?.icon || 'tag',
+        id: currentCategory.id || null,
+        name: currentCategory.name || '',
+        macro_category: currentCategory.macro_category || 'Geral',
+        macro_color: currentCategory.macro_color || currentCategory.color || '#999999',
+        type: currentCategory.type || 'EXPENSE',
+        icon: currentCategory.icon || 'tag',
+      }
+      if (this.findMacroByName(this.categoryForm.macro_category)?.is_investment) {
+        this.categoryForm.type = 'EXPENSE'
       }
       this.showCategoryForm = true
     },
@@ -1668,15 +1836,28 @@ export default {
           name: suggestedName,
           macro_category: 'Geral',
           macro_color: '#999999',
-          type: transaction?.type || 'EXPENSE',
+          type: transaction.type || 'EXPENSE',
           icon: 'tag',
         },
         {
-          transactionId: transaction?.id,
-          transactionLocalId: transaction?.local_id,
-          originalType: transaction?.original_type || transaction?.type,
+          transactionId: transaction.id,
+          transactionLocalId: transaction.local_id,
+          originalType: transaction.original_type || transaction.type,
         },
       )
+    },
+    handleNewCategoryRequest(group = null) {
+      if (group?.name) {
+        this.openCategoryForm({
+          name: '',
+          macro_category: group.name,
+          macro_color: group.color || '#999999',
+          type: 'EXPENSE',
+          icon: 'tag',
+        })
+        return
+      }
+      this.openCategoryForm()
     },
     closeCategoryForm() {
       this.showCategoryForm = false
@@ -1685,7 +1866,10 @@ export default {
     onCategoryMacroChange(macroName) {
       const macro = this.findMacroByName(macroName)
       if (macro?.color) {
-        this.categoryForm.macro_color = macro.color
+        this.categoryForm.macro_color = macro?.color
+      }
+      if (macro?.is_investment) {
+        this.categoryForm.type = 'EXPENSE'
       }
     },
     async saveCategoryForm() {
@@ -1701,22 +1885,40 @@ export default {
         savedCategory = data
       }
       this.showCategoryForm = false
-      await Promise.all([this.loadMacroCategories(), this.loadCategories(), this.loadDashboard()])
+      await Promise.all([this.loadMacroCategories(), this.loadCategories(), this.loadDashboard(), this.loadInvestments()])
       await this.applyPendingCategorySelection(savedCategory)
     },
     openMacroForm(macro = null) {
+      const currentMacro = macro || {}
+      const resolvedMacro = this.resolveMacroRecord(currentMacro) || currentMacro
+      const resolvedId =
+        resolvedMacro.id ||
+        resolvedMacro.local_key ||
+        resolvedMacro.local_id ||
+        currentMacro.macro_category_id ||
+        null
+
       this.macroForm = {
-        id: macro?.id || null,
-        name: macro?.name || '',
-        color: macro?.color || '#999999',
+        id: resolvedId,
+        original_id: resolvedId,
+        name: resolvedMacro.name || '',
+        color: resolvedMacro.color || '#999999',
+        is_investment: Boolean(resolvedMacro.is_investment),
       }
       this.showMacroForm = true
     },
     async saveMacroForm() {
-      if (this.macroForm.id) {
-        await financeService.updateMacroCategory(this.macroForm.id, this.macroForm)
+      const macroId = this.macroForm.original_id || this.macroForm.id || null
+      const payload = {
+        name: this.macroForm.name,
+        color: this.macroForm.color,
+        is_investment: this.macroForm.is_investment,
+      }
+
+      if (macroId) {
+        await financeService.updateMacroCategory(macroId, payload)
       } else {
-        await financeService.createMacroCategory(this.macroForm)
+        await financeService.createMacroCategory(payload)
       }
       this.showMacroForm = false
       await Promise.all([
@@ -1724,7 +1926,36 @@ export default {
         this.loadCategories(),
         this.loadBudgets(),
         this.loadDashboard(),
+        this.loadInvestments(),
       ])
+    },
+    async saveInvestmentGoal(goal) {
+      if (goal.id) {
+        await financeService.updateInvestmentGoal(goal.id, goal)
+      } else {
+        await financeService.createInvestmentGoal(goal)
+      }
+      await this.loadInvestments()
+    },
+    async deleteInvestmentGoal(goal) {
+      const goalId = goal.id || goal.local_id
+      if (!goalId) return
+      await financeService.deleteInvestmentGoal(goalId)
+      await this.loadInvestments()
+    },
+    async saveInvestmentEvent(event) {
+      if (event.id) {
+        await financeService.updateInvestmentEvent(event.id, event)
+      } else {
+        await financeService.createInvestmentEvent(event)
+      }
+      await this.loadInvestments()
+    },
+    async deleteInvestmentEvent(event) {
+      const eventId = event.id || event.local_id
+      if (!eventId) return
+      await financeService.deleteInvestmentEvent(eventId)
+      await this.loadInvestments()
     },
     openConfirmation({ description, message, confirmText, action }) {
       this.confirmationState = {
@@ -1747,7 +1978,7 @@ export default {
     },
     requestDeleteTransaction(transaction) {
       this.openConfirmation({
-        message: `Excluir o lançamento "${transaction.description}"?`,
+        message: `Excluir o lançamento "${transaction.description}"`,
         description: `Esta ação excluirá o lançamento no valor de ${this.money(transaction.amount)} e não poderá ser desfeita.`,
         confirmText: 'Excluir',
         action: async () => {
@@ -1770,7 +2001,7 @@ export default {
         visible: true,
         type: 'macro',
         payload: macro,
-        message: `Excluir a macro categoria "${macro.name}"? As categorias filhas devem ser movidas antes para evitar perda de organização.`,
+        message: `Excluir a macro categoria "${macro?.name}"? As categorias filhas devem ser movidas antes para evitar perda de organização.`,
       }
     },
     closeDeleteConfirm() {
@@ -1779,10 +2010,12 @@ export default {
     async confirmDeleteAction() {
       const { type, payload } = this.confirmDelete
       if (type === 'category') {
-        await financeService.deleteCategory(payload.id)
+        const categoryId = this.categoryKey(payload)
+        if (categoryId) await financeService.deleteCategory(categoryId)
       }
       if (type === 'macro') {
-        await financeService.deleteMacroCategory(payload.id)
+        const macroId = this.macroKey(payload)
+        if (macroId) await financeService.deleteMacroCategory(macroId)
       }
       this.closeDeleteConfirm()
       await Promise.all([
@@ -1790,6 +2023,7 @@ export default {
         this.loadCategories(),
         this.loadBudgets(),
         this.loadDashboard(),
+        this.loadInvestments(),
       ])
     },
     loadPluggyScript() {
@@ -1928,7 +2162,7 @@ export default {
           )
         }
 
-        await Promise.all([this.loadDashboard(), this.loadUsage()])
+        await Promise.all([this.loadDashboard(), this.loadInvestments(), this.loadUsage()])
       } catch (err) {
         console.error('Erro na categorização:', err)
       } finally {
@@ -1977,7 +2211,7 @@ export default {
               actual_amount: 0,
               items: (group.items || []).map((item) => ({
                 ...item,
-                type: this.findCategory(item.category_id)?.type || 'EXPENSE',
+                type: this.findCategory(item.category_id)?.type || item.type || 'EXPENSE',
                 actual_amount: 0,
               })),
             })
@@ -2003,10 +2237,10 @@ export default {
           })
           this.budgets = [...byMacro.values()].map((group) => this.hydrateBudgetGroup(group))
         }
-        const insightText =
-          Array.isArray(data.insights) && data.insights.length > 0
-            ? data.insights.slice(0, 2).join(' ')
-            : 'Plano gerado para o mês com base no seu pedido.'
+          const insightText =
+            Array.isArray(data.insights) && data.insights.length > 0
+              ? data.insights.slice(0, 2).join(' ')
+              : 'Plano gerado para o mês com base no seu pedido.'
         this.appendBudgetAiMessage('assistant', insightText)
         this.budgetAiInlinePrompt = ''
         this.budgetAiPrompt = ''
@@ -2762,6 +2996,41 @@ button:disabled {
   gap: var(--space-2);
 }
 
+.field-note {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  padding-left: var(--space-1);
+  line-height: 1.35;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.field-note.compact {
+  margin-top: calc(var(--space-3) * -0.4);
+  padding-left: 0;
+}
+
+.note-icon {
+  margin-top: 0.08rem;
+  font-size: 0.7rem;
+  opacity: 0.9;
+}
+
+.switch-field {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-1);
+  color: var(--text-primary);
+}
+
+.switch-field span {
+  font-size: var(--fontsize-sm);
+  line-height: 1.4;
+}
+
 .color-field input {
   padding: var(--space-2) var(--space-3);
 }
@@ -2848,6 +3117,7 @@ button:disabled {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
+  align-items: start;
 }
 
 /* Animação dos modais do Nexo - usa a mesma do SideModal global (floating-modal) */

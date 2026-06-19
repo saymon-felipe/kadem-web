@@ -127,7 +127,7 @@ export default {
         .trim();
     },
     sameId(left, right) {
-      return String(left ?? "") === String(right ?? "");
+      return String(left || "") === String(right || "");
     },
     toggle() {
       this.isOpen ? this.close() : this.open();
@@ -138,7 +138,7 @@ export default {
 
       this.$nextTick(() => {
         this.updateDirection();
-        this.$refs.search?.focus();
+        this.$refs.search.focus();
       });
     },
     close() {
@@ -173,8 +173,9 @@ export default {
       this.close();
     },
     handleOutsideClick(event) {
-      const clickedRoot = this.$refs.root?.contains(event.target);
-      const clickedMenu = this.$refs.menu?.contains(event.target);
+      if (!this.isOpen) return;
+      const clickedRoot = this.$refs.root && this.$refs.root.contains(event.target);
+      const clickedMenu = this.$refs.menu && this.$refs.menu.contains(event.target);
       if (!clickedRoot && !clickedMenu) {
         this.close();
       }
