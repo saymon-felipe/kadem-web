@@ -22,6 +22,8 @@
         :format-signed-money="formatSignedMoney"
         @view-all="$emit('view-transactions')"
         @clear-filter="selectedCategory = null"
+        @toggle-ignored="$emit('toggle-ignored', $event)"
+        @delete-transaction="$emit('delete-transaction', $event)"
       />
     </div>
   </div>
@@ -39,7 +41,7 @@ export default {
     NexoRecentTransactions,
     NexoSummaryCards,
   },
-  emits: ['view-transactions'],
+  emits: ['view-transactions', 'toggle-ignored', 'delete-transaction'],
   props: {
     totals: {
       type: Object,

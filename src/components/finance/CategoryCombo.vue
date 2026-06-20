@@ -36,8 +36,8 @@
             />
           </div>
 
-          <button type="button" class="combo-option clear" @click="select(null)">
-            Sem categoria
+          <button v-if="showClearOption" type="button" class="combo-option clear" @click="select(clearOptionValue)">
+            {{ clearOptionLabel }}
           </button>
 
           <button v-if="allowCreate" type="button" class="combo-create" @click="requestCreate">
@@ -93,6 +93,18 @@ export default {
     allowCreate: {
       type: Boolean,
       default: false,
+    },
+    showClearOption: {
+      type: Boolean,
+      default: true,
+    },
+    clearOptionLabel: {
+      type: String,
+      default: "Sem categoria",
+    },
+    clearOptionValue: {
+      type: [Number, String, null],
+      default: null,
     },
   },
   emits: ["update:modelValue", "change", "create"],

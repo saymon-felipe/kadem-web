@@ -30,6 +30,28 @@
         @reset="$emit('reset-csv')"
         @confirm="$emit('confirm-csv')"
       />
+      <div class="transaction-filters">
+        <label class="filter-field">
+          <span>Buscar</span>
+          <input
+            :value="transactionSearch"
+            type="search"
+            placeholder="Buscar por valor, texto ou descricao"
+            @input="$emit('update:transactionSearch', $event.target.value)"
+          />
+        </label>
+        <label class="filter-field">
+          <span>Categoria</span>
+          <CategoryCombo
+            :model-value="categoryComboValue"
+            :categories="categoryOptions"
+            :placeholder="categoryFilterPlaceholder"
+            clear-option-label="Todas as categorias"
+            clear-option-value=""
+            @update:modelValue="handleCategoryFilterChange"
+          />
+        </label>
+      </div>
     </div>
     <NexoTransactionsTable
       :transactions="transactions"
@@ -47,12 +69,14 @@
 </template>
 
 <script>
+import CategoryCombo from '../CategoryCombo.vue'
 import NexoCsvImportCard from './NexoCsvImportCard.vue'
 import NexoTransactionsTable from './NexoTransactionsTable.vue'
 
 export default {
   name: 'NexoTransactionsTab',
   components: {
+    CategoryCombo,
     NexoCsvImportCard,
     NexoTransactionsTable,
   },
@@ -66,6 +90,8 @@ export default {
     'reset-csv',
     'select-category',
     'toggle-ignored',
+    'update:transactionCategoryFilter',
+    'update:transactionSearch',
     'upgrade',
   ],
   props: {
@@ -105,6 +131,14 @@ export default {
       type: Object,
       required: true,
     },
+    transactionSearch: {
+      type: String,
+      default: '',
+    },
+    transactionCategoryFilter: {
+      type: String,
+      default: '',
+    },
     transactions: {
       type: Array,
       required: true,
@@ -130,7 +164,31 @@ export default {
       required: true,
     },
   },
+  computed: {
+    categoryComboValue() {
+      return this.transactionCategoryFilter || null
+    },
+    categoryFilterPlaceholder() {
+      return 'Todas as categorias'
+    },
+    categoryOptions() {
+      return [...this.categories].sort((left, right) =>
+        `${left.macro_category || ''} ${left.name || ''}`.localeCompare(
+          `${right.macro_category || ''} ${right.name || ''}`,
+          'pt-BR',
+        ),
+      )
+    },
+  },
   methods: {
+    categoryOptionValue(category) {
+      return String(
+        category?.server_id || category?.id || category?.local_key || category?.local_id || '',
+      )
+    },
+    handleCategoryFilterChange(categoryId) {
+      this.$emit('update:transactionCategoryFilter', categoryId || '')
+    },
     emitSelectCategory(transaction, categoryId) {
       this.$emit('select-category', transaction, categoryId)
     },
@@ -171,6 +229,47 @@ export default {
   margin-bottom: var(--space-4);
 }
 
+.transaction-filters {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.3fr) minmax(220px, 1fr);
+  gap: var(--space-3);
+}
+
+.filter-field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.filter-field span {
+  color: var(--text-secondary);
+  font-size: var(--fontsize-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.filter-field input {
+  width: 100%;
+  min-height: 42px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  padding: 0 var(--space-3);
+  outline: none;
+  box-sizing: border-box;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.filter-field input:focus,
+.filter-field :deep(.combo-trigger.open) {
+  border-color: var(--deep-blue);
+  box-shadow: 0 0 0 3px rgba(44, 98, 246, 0.14);
+}
+
 .text-btn {
   border: none;
   cursor: pointer;
@@ -205,6 +304,10 @@ button:disabled {
 @media (max-width: 760px) {
   .panel {
     padding: var(--space-4);
+  }
+
+  .transaction-filters {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -35,6 +35,8 @@
               :format-signed-money="signedMoney"
               :format-short-date="shortDate"
               @view-transactions="setActiveTab('transactions')"
+              @toggle-ignored="toggleIgnored"
+              @delete-transaction="requestDeleteTransaction"
             />
           </template>
 
@@ -49,7 +51,9 @@
               :csv-import-file-name="csvImportFileName"
               :csv-import-rows="csvImportRows"
               :csv-import-totals="csvImportTotals"
-              :transactions="transactions"
+              :transaction-search="transactionSearch"
+              :transaction-category-filter="transactionCategoryFilter"
+              :transactions="filteredTransactions"
               :categories="categories"
               :categorizing-ids="categorizingIds"
               :format-money="money"
@@ -65,6 +69,8 @@
               @delete-transaction="requestDeleteTransaction"
               @select-category="selectTransactionCategory"
               @create-category-for-transaction="openCategoryFormForTransaction"
+              @update:transaction-search="transactionSearch = $event"
+              @update:transaction-category-filter="transactionCategoryFilter = $event"
             />
           </template>
 
@@ -583,6 +589,8 @@ export default {
       categories: [],
       macroCategories: [],
       categorySearch: '',
+      transactionSearch: '',
+      transactionCategoryFilter: '',
       pendingCategorySelection: null,
       budgets: [],
       connections: [],
@@ -771,6 +779,16 @@ export default {
         },
         { income: 0, expense: 0 },
       )
+    },
+    filteredTransactions() {
+      const normalizedSearch = this.normalize(this.transactionSearch)
+
+      return this.transactions.filter((transaction) => {
+        return (
+          this.matchesTransactionCategoryFilter(transaction) &&
+          this.matchesTransactionSearch(transaction, normalizedSearch)
+        )
+      })
     },
     filteredCategories() {
       const term = this.normalize(this.categorySearch)
@@ -1083,6 +1101,13 @@ export default {
       const { data } = await financeService.getUsage()
       this.usage = data || {}
     },
+    async refreshTransactionDrivenViews({ includeTransactions = true } = {}) {
+      const loaders = [this.loadDashboard(), this.loadBudgets(), this.loadInvestments()]
+      if (includeTransactions) {
+        loaders.push(this.loadTransactions())
+      }
+      await Promise.all(loaders)
+    },
     openTransactionForm(transaction = null) {
       if (transaction && typeof transaction.preventDefault === 'function') {
         transaction = null
@@ -1136,7 +1161,7 @@ export default {
         this.upsertTransactionInList(savedTransaction)
       }
       this.closeTransactionForm()
-      await Promise.all([this.loadDashboard(), this.loadInvestments()])
+      await this.refreshTransactionDrivenViews()
     },
     resetCsvImport() {
       this.csvImportError = ''
@@ -1505,7 +1530,7 @@ export default {
         }))
         await financeService.createTransactionsBatch(cleanRows)
         this.resetCsvImport()
-        await Promise.all([this.loadDashboard(), this.loadInvestments()])
+        await this.refreshTransactionDrivenViews()
       } finally {
         this.importingCsv = false
       }
@@ -1589,6 +1614,52 @@ export default {
         (transaction) => !this.transactionMatches(transaction, id),
       )
     },
+    matchesTransactionCategoryFilter(transaction) {
+      if (!this.transactionCategoryFilter) return true
+      if (this.transactionCategoryFilter === '__uncategorized__') {
+        return !transaction.category_id
+      }
+
+      const category = this.findCategory(transaction.category_id)
+      return (
+        this.sameId(transaction.category_id, this.transactionCategoryFilter) ||
+        this.sameId(this.categoryKey(category), this.transactionCategoryFilter)
+      )
+    },
+    buildTransactionSearchText(transaction) {
+      const amount = Math.abs(Number(transaction.amount || 0))
+      const category = this.findCategory(transaction.category_id)
+      const amountBr = Number.isFinite(amount)
+        ? amount.toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        : ''
+      const amountFixed = Number.isFinite(amount) ? amount.toFixed(2) : ''
+      const amountInteger = Number.isFinite(amount) ? String(Math.trunc(amount)) : ''
+      const amountDigits = Number.isFinite(amount) ? String(Math.round(amount * 100)) : ''
+
+      return this.normalize(
+        [
+          transaction.title,
+          transaction.description,
+          transaction.observation,
+          transaction.category_name,
+          category?.name,
+          this.typeLabel(transaction.type),
+          amountBr,
+          amountFixed,
+          amountInteger,
+          amountDigits,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      )
+    },
+    matchesTransactionSearch(transaction, normalizedSearch) {
+      if (!normalizedSearch) return true
+      return this.buildTransactionSearchText(transaction).includes(normalizedSearch)
+    },
     async selectTransactionCategory(transaction, categoryId, options = {}) {
       const category = this.findCategory(categoryId)
       const update = { category_id: categoryId || null }
@@ -1648,6 +1719,11 @@ export default {
           ? this.enrichTransactionForList({ ...transaction, ...data })
           : transaction,
       )
+      this.recentTransactions = this.recentTransactions.map((transaction) =>
+        this.transactionMatches(transaction, id)
+          ? this.enrichTransactionForList({ ...transaction, ...data })
+          : transaction,
+      )
     },
     async updateTransaction(id, data) {
       this.applyTransactionPatch(id, data)
@@ -1655,17 +1731,19 @@ export default {
       if (local) {
         this.upsertTransactionInList(local)
       }
-      await Promise.all([this.loadDashboard(), this.loadInvestments()])
+      await this.refreshTransactionDrivenViews()
     },
     async toggleIgnored(transaction) {
+      const transactionId = this.transactionKey(transaction)
+      if (!transactionId) return
       const nextIgnored = !transaction.is_ignored
-      this.applyTransactionPatch(transaction.id, { is_ignored: nextIgnored })
-      await this.updateTransaction(transaction.id, { is_ignored: nextIgnored })
+      this.applyTransactionPatch(transactionId, { is_ignored: nextIgnored })
+      await this.updateTransaction(transactionId, { is_ignored: nextIgnored })
     },
     async deleteTransaction(id) {
       await financeService.deleteTransaction(id)
       this.removeTransactionFromList(id)
-      await Promise.all([this.loadDashboard(), this.loadInvestments()])
+      await this.refreshTransactionDrivenViews()
     },
     findCategory(categoryId) {
       return this.categories.find(
@@ -2162,7 +2240,7 @@ export default {
           )
         }
 
-        await Promise.all([this.loadDashboard(), this.loadInvestments(), this.loadUsage()])
+        await Promise.all([this.refreshTransactionDrivenViews(), this.loadUsage()])
       } catch (err) {
         console.error('Erro na categorização:', err)
       } finally {

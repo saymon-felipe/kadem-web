@@ -4,7 +4,11 @@
       <div class="title-group">
         <h3>Recentes</h3>
         <Transition name="fade-scale">
-          <span v-if="selectedCategory" class="filter-pill" :style="{ '--pill-color': activeCategoryColor }">
+          <span
+            v-if="selectedCategory"
+            class="filter-pill"
+            :style="{ '--pill-color': activeCategoryColor }"
+          >
             {{ selectedCategory }}
             <button class="clear-pill-btn" @click="$emit('clear-filter')" title="Remover filtro">
               &times;
@@ -15,16 +19,39 @@
       <button class="text-btn" @click="$emit('view-all')">Ver todos</button>
     </div>
     <div class="compact-list">
-      <article v-for="transaction in recentTransactions.slice(0, 8)" :key="transaction.local_id || transaction.id"
-        class="movement-row">
-        <div>
+      <article
+        v-for="transaction in recentTransactions.slice(0, 8)"
+        :key="transaction.local_id || transaction.id"
+        class="movement-row"
+        :class="{ ignored: transaction.is_ignored }"
+      >
+        <div class="movement-copy">
           <strong>{{ transaction.description }}</strong>
-          <span>{{ categoryLabel(transaction) }} ·
-            {{ formatShortDate(transaction.transaction_date) }}</span>
+          <span>{{ categoryLabel(transaction) }} | {{ formatShortDate(transaction.transaction_date) }}</span>
         </div>
-        <b :class="transaction.type">{{ formatSignedMoney(transaction) }}</b>
+        <div class="movement-actions">
+          <b :class="transaction.type">{{ formatSignedMoney(transaction) }}</b>
+          <div class="row-actions">
+            <button
+              type="button"
+              class="icon-btn"
+              :title="transaction.is_ignored ? 'Reexibir' : 'Ignorar'"
+              @click="$emit('toggle-ignored', transaction)"
+            >
+              <font-awesome-icon :icon="transaction.is_ignored ? 'eye-slash' : 'eye'" />
+            </button>
+            <button
+              type="button"
+              class="icon-btn danger"
+              title="Excluir"
+              @click="$emit('delete-transaction', transaction)"
+            >
+              <font-awesome-icon icon="trash" />
+            </button>
+          </div>
+        </div>
       </article>
-      <p v-if="recentTransactions.length === 0" class="empty-line">Nenhum lançamento.</p>
+      <p v-if="recentTransactions.length === 0" class="empty-line">Nenhum lancamento.</p>
     </div>
   </section>
 </template>
@@ -32,7 +59,7 @@
 <script>
 export default {
   name: 'NexoRecentTransactions',
-  emits: ['view-all', 'clear-filter'],
+  emits: ['view-all', 'clear-filter', 'toggle-ignored', 'delete-transaction'],
   props: {
     recentTransactions: {
       type: Array,
@@ -59,10 +86,11 @@ export default {
     activeCategoryColor() {
       if (!this.selectedCategory) return '#eab308'
       const category = this.categories.find(
-        (c) => String(c.macro_category || '').toLowerCase() === this.selectedCategory.toLowerCase()
+        (current) =>
+          String(current.macro_category || '').toLowerCase() === this.selectedCategory.toLowerCase(),
       )
       return category?.macro_color || category?.color || '#eab308'
-    }
+    },
   },
   methods: {
     categoryLabel(transaction) {
@@ -153,7 +181,7 @@ export default {
   transform: scale(1.1);
 }
 
-[data-theme="dark"] .clear-pill-btn:hover {
+[data-theme='dark'] .clear-pill-btn:hover {
   background: var(--color-expense, #ef4444);
   color: #ffffff !important;
 }
@@ -179,7 +207,11 @@ export default {
   background: var(--surface-2);
 }
 
-.movement-row div {
+.movement-row.ignored {
+  opacity: 0.5;
+}
+
+.movement-copy {
   min-width: 0;
 }
 
@@ -197,8 +229,52 @@ export default {
   font-size: var(--fontsize-xs);
 }
 
+.movement-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
 .movement-row b {
   margin-left: auto;
+}
+
+.row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.icon-btn {
+  border: none;
+  cursor: pointer;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.icon-btn:hover {
+  background: var(--dark-yellow-2);
+}
+
+.icon-btn.danger:hover {
+  background: rgba(231, 76, 60, 0.12);
+  color: var(--red);
+}
+
+.icon-btn:active {
+  transform: scale(0.97);
 }
 
 .INCOME {
@@ -237,7 +313,8 @@ export default {
 
 .fade-scale-enter-active,
 .fade-scale-leave-active {
-  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+  transition:
+    opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
     transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -250,6 +327,16 @@ export default {
 @media (max-width: 760px) {
   .panel {
     padding: var(--space-4);
+  }
+
+  .movement-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .movement-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 </style>
