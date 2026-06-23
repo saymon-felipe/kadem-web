@@ -10,6 +10,7 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import vAnimateHeight from './directives/v-animate-height.js';
 import { useUtilsStore } from '@/stores/utils';
+import { initializeLocalDb } from "@/db";
 
 import {
   faForwardStep,
@@ -232,5 +233,7 @@ app.component('font-awesome-icon', FontAwesomeIcon);
 
 const utils_store = useUtilsStore();
 utils_store.init_connection_monitor();
+
+initializeLocalDb().catch(() => {});
 
 app.mount('#app');

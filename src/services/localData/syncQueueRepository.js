@@ -1,18 +1,23 @@
-import { db } from '../../db';
+import { db, runDbOperation } from "../../db";
 
 export const syncQueueRepository = {
   async getPendingTasks() {
-    const now = Date.now();
-    const tasks = await db.syncQueue.orderBy('timestamp').toArray();
-    return tasks.filter((task) => {
-      const status = task.status || 'PENDING';
-      const nextAttemptAt = task.next_attempt_at || task.timestamp;
-      const nextAttemptTime = typeof nextAttemptAt === 'number'
-        ? nextAttemptAt
-        : Date.parse(nextAttemptAt);
+    return runDbOperation(async () => {
+      const now = Date.now();
+      const tasks = await db.syncQueue.orderBy("timestamp").toArray();
+      return tasks.filter((task) => {
+        const status = task.status || "PENDING";
+        const nextAttemptAt = task.next_attempt_at || task.timestamp;
+        const nextAttemptTime =
+          typeof nextAttemptAt === "number" ? nextAttemptAt : Date.parse(nextAttemptAt);
 
-      return ['PENDING', 'RETRY'].includes(status)
-        && (!nextAttemptAt || !Number.isFinite(nextAttemptTime) || nextAttemptTime <= now);
+        return (
+          ["PENDING", "RETRY"].includes(status)
+          && (!nextAttemptAt || !Number.isFinite(nextAttemptTime) || nextAttemptTime <= now)
+        );
+      });
+    }, {
+      userMessage: "Não foi possível ler a fila de sincronização offline deste navegador.",
     });
   },
   async getPendingTasksByType(type) {
@@ -20,53 +25,67 @@ export const syncQueueRepository = {
     return tasks.filter((task) => task.type === type);
   },
   async addSyncQueueTask(task) {
-    const timestamp = task.timestamp || new Date().toISOString();
-    const idempotency_key = task.idempotency_key || crypto.randomUUID?.() || `${task.type}-${timestamp}-${Math.random()}`;
-    const task_with_defaults = {
-      ...task,
-      timestamp,
-      idempotency_key,
-      retry_count: task.retry_count || 0,
-      status: task.status || 'PENDING',
-      next_attempt_at: task.next_attempt_at || timestamp,
-      last_error: task.last_error || null,
-    };
+    return runDbOperation(async () => {
+      const timestamp = task.timestamp || new Date().toISOString();
+      const idempotency_key =
+        task.idempotency_key || crypto.randomUUID?.() || `${task.type}-${timestamp}-${Math.random()}`;
+      const task_with_defaults = {
+        ...task,
+        timestamp,
+        idempotency_key,
+        retry_count: task.retry_count || 0,
+        status: task.status || "PENDING",
+        next_attempt_at: task.next_attempt_at || timestamp,
+        last_error: task.last_error || null,
+      };
 
-    if (task_with_defaults.compact_key) {
-      const existing = await db.syncQueue
-        .where('compact_key')
-        .equals(task_with_defaults.compact_key)
-        .filter((item) => ['PENDING', 'RETRY'].includes(item.status || 'PENDING'))
-        .first();
+      if (task_with_defaults.compact_key) {
+        const existing = await db.syncQueue
+          .where("compact_key")
+          .equals(task_with_defaults.compact_key)
+          .filter((item) => ["PENDING", "RETRY"].includes(item.status || "PENDING"))
+          .first();
 
-      if (existing) {
-        await db.syncQueue.update(existing.id, {
-          ...task_with_defaults,
-          id: existing.id,
-          retry_count: 0,
-          status: 'PENDING',
-          last_error: null,
-        });
-        return existing.id;
+        if (existing) {
+          await db.syncQueue.update(existing.id, {
+            ...task_with_defaults,
+            id: existing.id,
+            retry_count: 0,
+            status: "PENDING",
+            last_error: null,
+          });
+          return existing.id;
+        }
       }
-    }
 
-    return await db.syncQueue.add(task_with_defaults);
+      return db.syncQueue.add(task_with_defaults);
+    }, {
+      userMessage: "Não foi possível gravar a fila de sincronização offline deste navegador.",
+    });
   },
   async updateTask(task_id, updates) {
-    return await db.syncQueue.update(task_id, updates);
+    return runDbOperation(() => db.syncQueue.update(task_id, updates), {
+      userMessage: "Não foi possível atualizar a fila de sincronização offline deste navegador.",
+    });
   },
   async deleteTask(taskId) {
-    return await db.syncQueue.delete(taskId);
+    return runDbOperation(() => db.syncQueue.delete(taskId), {
+      userMessage: "Não foi possível remover um item da fila de sincronização offline.",
+    });
   },
   async deleteTasks(taskIds) {
     if (!taskIds || taskIds.length === 0) {
       return;
     }
+
     console.log(`[SyncQueue] Deletando ${taskIds.length} tarefas em lote.`);
-    return await db.syncQueue.bulkDelete(taskIds);
+    return runDbOperation(() => db.syncQueue.bulkDelete(taskIds), {
+      userMessage: "Não foi possível limpar parte da fila de sincronização offline.",
+    });
   },
   async clearSyncQueue() {
-    return await db.syncQueue.clear();
+    return runDbOperation(() => db.syncQueue.clear(), {
+      userMessage: "Não foi possível limpar a fila de sincronização offline deste navegador.",
+    });
   },
 };

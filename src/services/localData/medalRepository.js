@@ -1,14 +1,22 @@
-import { db } from '../../db';
+import { db, runDbOperation } from "../../db";
 
 export const medalRepository = {
-    async getLocalMedals() {
-        return await db.medals.toArray();
-    },
-    async setLocalMedals(medalsArray) {
-        await db.medals.clear();
-        return await db.medals.bulkPut(medalsArray);
-    },
-    async clearLocalMedals() {
-        return await db.medals.clear();
-    }
+  async getLocalMedals() {
+    return runDbOperation(() => db.medals.toArray(), {
+      userMessage: "Não foi possível ler as medalhas salvas neste navegador.",
+    });
+  },
+  async setLocalMedals(medalsArray) {
+    return runDbOperation(async () => {
+      await db.medals.clear();
+      return db.medals.bulkPut(medalsArray);
+    }, {
+      userMessage: "Não foi possível salvar as medalhas no armazenamento local.",
+    });
+  },
+  async clearLocalMedals() {
+    return runDbOperation(() => db.medals.clear(), {
+      userMessage: "Não foi possível limpar as medalhas locais deste navegador.",
+    });
+  },
 };

@@ -11,9 +11,9 @@
 
           <div v-if="isRegister" class="form-group">
             <input
-              type="text"
               id="name"
               v-model="name"
+              type="text"
               maxlength="255"
               placeholder=""
               required
@@ -23,9 +23,9 @@
 
           <div class="form-group">
             <input
-              type="email"
               id="email"
               v-model="email"
+              type="email"
               maxlength="255"
               placeholder=""
               required
@@ -35,14 +35,14 @@
 
           <div class="form-group password-group">
             <input
-              :type="passwordFieldType"
               id="password"
               v-model="password"
-              @input="updatePasswordStrength"
+              :type="passwordFieldType"
               maxlength="255"
               placeholder=""
               required
               minlength="6"
+              @input="updatePasswordStrength"
             />
             <label for="password">Senha</label>
             <font-awesome-icon
@@ -56,16 +56,14 @@
 
           <div v-if="isRegister && password.length > 0" class="strength-meter">
             <div class="strength-bar" :class="passwordStrength.class"></div>
-            <span
-              >Força: <strong>{{ passwordStrength.text }}</strong></span
-            >
+            <span>Força: <strong>{{ passwordStrength.text }}</strong></span>
           </div>
 
           <div v-if="isRegister" class="form-group password-group">
             <input
-              :type="repeatPasswordFieldType"
               id="repeat-password"
               v-model="repeatPassword"
+              :type="repeatPasswordFieldType"
               maxlength="255"
               placeholder=""
               required
@@ -83,6 +81,7 @@
           <button type="submit" class="btn btn-primary">
             {{ isRegister ? "Criar conta" : "Entrar" }}
           </button>
+
           <div class="form-group">
             <p v-if="isRegister">
               Já tem uma conta?
@@ -91,21 +90,31 @@
             <div v-else class="auth-details">
               <p>
                 Não tem uma conta?
-                <strong style="cursor: pointer" @click="authType = 'register'"
-                  >Cadastre-se</strong
-                >
+                <strong style="cursor: pointer" @click="authType = 'register'">Cadastre-se</strong>
               </p>
               <p style="cursor: pointer" @click="handleResetPassword">
                 Esqueci minha senha
               </p>
             </div>
           </div>
+
           <LoadingResponse
             :msg="response"
             :type="responseType"
             styletype="small"
             :loading="loading"
           />
+
+          <div v-if="localDbIssue" class="storage-actions">
+            <button
+              type="button"
+              class="btn"
+              :disabled="repairingStorage"
+              @click="repairStorage"
+            >
+              {{ repairingStorage ? "Reparando ambiente..." : "Reparar armazenamento local" }}
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -117,6 +126,13 @@ import LoadingResponse from "@/components/loadingResponse.vue";
 import switchComponent from "../components/switchComponent.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useVaultStore } from "@/stores/vault";
+import {
+  consumeLocalDbIssue,
+  initializeLocalDb,
+  isLocalDbUnavailableError,
+  onLocalDbIssue,
+  repairLocalEnvironment,
+} from "@/db";
 
 export default {
   components: {
@@ -139,6 +155,9 @@ export default {
       passwordStrength: { text: "", class: "" },
       inviteToken: null,
       from_site: false,
+      localDbIssue: null,
+      repairingStorage: false,
+      removeLocalDbIssueListener: null,
     };
   },
   computed: {
@@ -146,13 +165,33 @@ export default {
       return this.authType === "register";
     },
   },
-  mounted: function () {
+  mounted() {
     if (
-      this.$route.query.authtype == "login" ||
-      this.$route.query.authtype == "register"
+      this.$route.query.authtype === "login"
+      || this.$route.query.authtype === "register"
     ) {
       this.authType = this.$route.query.authtype;
     }
+
+    this.localDbIssue = consumeLocalDbIssue();
+    if (this.localDbIssue) {
+      this.setResponse("error", this.localDbIssue.message, false);
+    }
+
+    this.removeLocalDbIssueListener = onLocalDbIssue((issue) => {
+      this.localDbIssue = issue;
+
+      if (issue?.message) {
+        this.setResponse("error", issue.message, false);
+      }
+    });
+
+    initializeLocalDb().catch((error) => {
+      if (isLocalDbUnavailableError(error)) {
+        this.localDbIssue = consumeLocalDbIssue();
+        this.setResponse("error", error.message, false);
+      }
+    });
 
     this.$nextTick(() => {
       if (this.$route.query.invite_token) {
@@ -164,14 +203,17 @@ export default {
       }
 
       if (
-        this.$route.query.from_site === "true" ||
-        this.$route.query.from_site === true ||
-        this.$route.query.from_site === 1 ||
-        this.$route.query.from_site === "1"
+        this.$route.query.from_site === "true"
+        || this.$route.query.from_site === true
+        || this.$route.query.from_site === 1
+        || this.$route.query.from_site === "1"
       ) {
         this.from_site = true;
       }
     });
+  },
+  beforeUnmount() {
+    this.removeLocalDbIssueListener?.();
   },
   watch: {
     authType() {
@@ -181,6 +223,10 @@ export default {
       this.repeatPassword = "";
       this.passwordStrength = { text: "", class: "" };
       this.resetResponse();
+
+      if (this.localDbIssue) {
+        this.setResponse("error", this.localDbIssue.message, false);
+      }
     },
   },
   methods: {
@@ -190,8 +236,8 @@ export default {
       if (!this.email) {
         this.setResponse(
           "error",
-          "Por favor, digite seu e-mail no campo 'E-mail' para solicitar a redefinição.",
-          false
+          "Por favor, digite seu e-mail no campo “E-mail” para solicitar a redefinição.",
+          false,
         );
         return;
       }
@@ -201,14 +247,32 @@ export default {
 
       try {
         const message = await authStore.requestPasswordReset(this.email);
-
         this.setResponse("success", message, false);
       } catch (error) {
         const errorMsg =
-          error.response?.data?.message ||
-          error.message ||
-          "Ocorreu um erro desconhecido.";
+          error.response?.data?.message
+          || error.message
+          || "Ocorreu um erro desconhecido.";
         this.setResponse("error", errorMsg, false);
+      }
+    },
+    async repairStorage() {
+      if (this.repairingStorage) {
+        return;
+      }
+
+      this.repairingStorage = true;
+
+      try {
+        await repairLocalEnvironment();
+      } catch (error) {
+        this.setResponse(
+          "error",
+          error?.message || "Não foi possível concluir o reparo automático do ambiente local.",
+          false,
+        );
+      } finally {
+        this.repairingStorage = false;
       }
     },
     showPassword() {
@@ -243,21 +307,27 @@ export default {
     async auth() {
       this.resetResponse();
 
+      if (this.localDbIssue) {
+        this.setResponse("error", this.localDbIssue.message, false);
+      }
+
       if (this.password.length < 6) {
         this.setResponse("error", "A senha deve ter no mínimo 6 caracteres.", false);
         return;
       }
+
       if (this.isRegister) {
         if (this.password !== this.repeatPassword) {
           this.setResponse("error", "As senhas não conferem.", false);
           return;
         }
+
         const strength = this.checkPasswordStrength(this.password);
         if (strength.class !== "strong") {
           this.setResponse(
             "error",
             "Sua senha não é forte o suficiente. Deve conter maiúscula, minúscula, número e caractere especial (!@#$%&*).",
-            false
+            false,
           );
           return;
         }
@@ -284,7 +354,7 @@ export default {
           this.setResponse("success", "Registro realizado", false);
 
           setTimeout(() => {
-            let email = this.email;
+            const email = this.email;
 
             this.$nextTick(() => {
               this.authType = "login";
@@ -295,7 +365,6 @@ export default {
           this.setResponse("success", "Login realizado", false);
 
           const vaultStore = useVaultStore();
-
           vaultStore.setupVault(this.password, this.email);
 
           if (this.from_site) {
@@ -306,15 +375,21 @@ export default {
         }
       } catch (error) {
         const errorMsg =
-          error.response?.data?.message ||
-          error.message ||
-          "Ocorreu um erro desconhecido.";
+          error.response?.data?.message
+          || error.message
+          || "Ocorreu um erro desconhecido.";
+
+        if (isLocalDbUnavailableError(error)) {
+          this.localDbIssue = consumeLocalDbIssue() || this.localDbIssue;
+        }
+
         this.setResponse("error", errorMsg, false);
       }
     },
   },
 };
 </script>
+
 <style scoped>
 form {
   & button[type="submit"] {
@@ -443,6 +518,16 @@ form {
   width: 100%;
   gap: var(--space-3);
   flex-wrap: wrap;
+}
+
+.storage-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-2);
+}
+
+.storage-actions .btn {
+  width: 100%;
 }
 
 @media (max-width: 960px) {

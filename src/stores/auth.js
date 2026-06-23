@@ -10,6 +10,7 @@ import { useAppStore } from "./app";
 import { useKanbanStore } from "./kanban";
 import { useRadioStore } from "./radio";
 import { usePlayerStore } from "./player";
+import { isLocalDbUnavailableError } from "@/db";
 
 import {
   userRepository,
@@ -57,8 +58,17 @@ export const useAuthStore = defineStore("auth", {
         await this._saveUserData(user);
         return response;
       } catch (error) {
+        if (isLocalDbUnavailableError(error)) {
+          try {
+            await api.post("/auth/logout");
+          } catch (logoutError) {
+            console.warn("Login aceito, mas o logout de compensação falhou.", logoutError);
+          }
+        }
+
         this.user = {};
         this.isAuthenticated = false;
+        this.token = null;
         throw error;
       }
     },
@@ -108,7 +118,7 @@ export const useAuthStore = defineStore("auth", {
           windowStore.clearWindowsForUser(userIdToClear);
         }
 
-        await Promise.all([
+        const cleanupResults = await Promise.allSettled([
           userRepository.clearLocalProfile(),
           occupationRepository.clearLocalUserOccupations(),
           medalRepository.clearLocalMedals(),
@@ -120,8 +130,15 @@ export const useAuthStore = defineStore("auth", {
           financeRepository.clearLocalFinance(),
         ]);
 
+        cleanupResults
+          .filter((result) => result.status === "rejected")
+          .forEach((result) => {
+            console.warn("Falha ao limpar parte do armazenamento local durante o logout.", result.reason);
+          });
+
         this.user = {};
         this.isAuthenticated = false;
+        this.token = null;
         this.lastSyncTimestamp = null;
         projectStore.projects = [];
         projectStore.lastSyncTimestamp = null;
