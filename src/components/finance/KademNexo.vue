@@ -816,7 +816,7 @@ export default {
         const macroName = canonicalMacro?.name || category.macro_category || 'Geral'
         if (!groups.has(macroName)) {
           groups.set(macroName, {
-            ...(canonicalMacro || {}),
+            ...canonicalMacro,
             id: canonicalMacro?.id || category.macro_category_id || null,
             name: macroName,
             color: canonicalMacro?.color || category.macro_color || category.color || '#999999',

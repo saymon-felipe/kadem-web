@@ -136,10 +136,24 @@
               <font-awesome-icon icon="spinner" spin />
               Sincronizando
             </span>
-            <button type="button" class="btn-attachment-delete" @click.stop="remove_attachment(attachment)"
-              title="Excluir anexo">
-              <font-awesome-icon icon="trash-can" />
-            </button>
+            <div class="attachment-actions">
+              <button
+                type="button"
+                class="btn-attachment-action"
+                @click.stop="download_attachment(attachment)"
+                title="Baixar anexo"
+              >
+                <font-awesome-icon icon="download" />
+              </button>
+              <button
+                type="button"
+                class="btn-attachment-action btn-attachment-delete"
+                @click.stop="remove_attachment(attachment)"
+                title="Excluir anexo"
+              >
+                <font-awesome-icon icon="trash-can" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -237,10 +251,15 @@
           <header class="attachment-preview-header">
             <strong>{{ preview_attachment.name }}</strong>
             <div class="preview-actions">
-              <a v-if="preview_url" class="preview-action" :href="preview_url" :download="preview_attachment.name"
-                target="_blank" rel="noopener" title="Baixar">
+              <button
+                v-if="preview_attachment"
+                type="button"
+                class="preview-action"
+                @click="download_attachment(preview_attachment)"
+                title="Baixar"
+              >
                 <font-awesome-icon icon="download" />
-              </a>
+              </button>
               <button type="button" class="preview-action" @click="close_attachment_preview" title="Fechar">
                 <font-awesome-icon icon="xmark" />
               </button>
@@ -606,6 +625,61 @@ export default {
       );
     },
 
+    get_attachment_download_name(attachment) {
+      return attachment?.name || "arquivo";
+    },
+
+    trigger_browser_download(url, file_name) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = file_name;
+      link.rel = "noopener";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    },
+
+    async download_attachment(attachment) {
+      if (!attachment) return;
+
+      this.attachment_error = "";
+
+      let download_url = "";
+      let should_revoke_url = false;
+
+      try {
+        if (attachment.blob) {
+          download_url = URL.createObjectURL(attachment.blob);
+          should_revoke_url = true;
+        } else if (attachment.url) {
+          const response = await fetch(attachment.url);
+          if (!response.ok) {
+            throw new Error("Falha ao baixar o arquivo.");
+          }
+
+          const blob = await response.blob();
+          download_url = URL.createObjectURL(blob);
+          should_revoke_url = true;
+        } else {
+          throw new Error("Arquivo indisponivel para download.");
+        }
+
+        this.trigger_browser_download(
+          download_url,
+          this.get_attachment_download_name(attachment)
+        );
+      } catch (error) {
+        console.error("Erro ao baixar anexo:", error);
+        this.attachment_error =
+          error?.message || "Nao foi possivel baixar este arquivo.";
+      } finally {
+        if (should_revoke_url && download_url) {
+          window.setTimeout(() => URL.revokeObjectURL(download_url), 1000);
+        }
+      }
+    },
+
     attachment_icon(attachment) {
       const kind = this.get_attachment_kind(attachment);
       if (kind === "image") return "image";
@@ -649,7 +723,7 @@ export default {
           this.preview_text = attachment.blob
             ? await attachment.blob.text()
             : await (await fetch(attachment.url)).text();
-        } catch (error) {
+        } catch {
           this.preview_text = "Nao foi possivel carregar a previa deste arquivo.";
         }
       }
@@ -859,7 +933,7 @@ export default {
 .action-btn,
 .btn-icon-small,
 .preview-action,
-.btn-attachment-delete,
+.btn-attachment-action,
 .btn-send {
   display: grid;
   place-items: center;
@@ -1220,7 +1294,7 @@ export default {
 .attachment-item {
   min-height: 54px;
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
+  grid-template-columns: 38px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--space-3);
   border: 1px solid var(--glass-border);
@@ -1277,7 +1351,13 @@ export default {
   white-space: nowrap;
 }
 
-.btn-attachment-delete {
+.attachment-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-attachment-action {
   width: 30px;
   height: 30px;
   border: none;
@@ -1286,6 +1366,11 @@ export default {
   cursor: pointer;
   border-radius: var(--radius-sm);
   transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.btn-attachment-action:hover {
+  color: var(--color-info);
+  background: var(--surface-3);
 }
 
 .btn-attachment-delete:hover {
@@ -1665,11 +1750,18 @@ export default {
   }
 
   .attachment-item {
-    grid-template-columns: 34px minmax(0, 1fr) 30px;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    row-gap: var(--space-2);
   }
 
   .attachment-status {
     grid-column: 2;
+  }
+
+  .attachment-actions {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
   }
 
   .comment-content-wrapper {
