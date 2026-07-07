@@ -1,6 +1,8 @@
 import { defineStore } from "pinia";
 
 const lightThemePaths = ["/auth", "/reset_password", "/invite/landing", "/alexa-auth"];
+const LEGACY_THEME_STORAGE_KEY = "kadem-theme";
+const ANONYMOUS_THEME_STORAGE_KEY = "kadem-theme:anonymous";
 let pendingThemeTransition = null;
 
 const cancelPendingThemeTransition = () => {
@@ -16,15 +18,35 @@ const cancelPendingThemeTransition = () => {
 };
 
 const isLightThemePath = (path) => lightThemePaths.some((item) => path === item || path.startsWith(`${item}/`));
+const normalizeTheme = (theme) => (theme === "dark" ? "dark" : "light");
+const systemTheme = () => (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+const resolveThemeUserId = (user) => user?.id || user?.email || null;
+const buildThemeStorageKey = (user) => {
+  const userId = resolveThemeUserId(user);
+  return userId ? `kadem-theme:user:${userId}` : ANONYMOUS_THEME_STORAGE_KEY;
+};
+const readStoredTheme = (storageKey, { fallbackToLegacy = false } = {}) => {
+  const storedTheme = localStorage.getItem(storageKey);
+  if (storedTheme === "dark" || storedTheme === "light") {
+    return storedTheme;
+  }
+
+  if (!fallbackToLegacy) {
+    return null;
+  }
+
+  const legacyTheme = localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
+  return legacyTheme === "dark" || legacyTheme === "light" ? legacyTheme : null;
+};
 
 export const useAppStore = defineStore("app", {
   state: () => ({
     system: {},
     isStartMenuOpen: false,
     isMobile: window.innerWidth < 1100,
-    theme: localStorage.getItem("kadem-theme") ||
-      (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
+    theme: systemTheme(),
     themeOverride: null,
+    themeStorageKey: ANONYMOUS_THEME_STORAGE_KEY,
   }),
   getters: {
     getIsMobile: (state) => state.isMobile,
@@ -33,11 +55,32 @@ export const useAppStore = defineStore("app", {
   },
   actions: {
     initTheme() {
+      this.loadAnonymousTheme({ apply: false, fallbackToLegacy: true });
       this.themeOverride = isLightThemePath(window.location.pathname) ? "light" : null;
-      document.documentElement.setAttribute("data-theme", this.activeTheme);
+      this.applyTheme();
     },
     applyTheme() {
       document.documentElement.setAttribute("data-theme", this.activeTheme);
+    },
+    loadAnonymousTheme({ apply = true, fallbackToLegacy = true } = {}) {
+      this.themeStorageKey = ANONYMOUS_THEME_STORAGE_KEY;
+      this.theme = readStoredTheme(ANONYMOUS_THEME_STORAGE_KEY, { fallbackToLegacy }) || systemTheme();
+      if (apply) {
+        this.applyTheme();
+      }
+    },
+    loadThemeForUser(user, { apply = true } = {}) {
+      const storageKey = buildThemeStorageKey(user);
+      this.themeStorageKey = storageKey;
+      this.theme = readStoredTheme(storageKey) || systemTheme();
+      if (apply) {
+        this.applyTheme();
+      }
+    },
+    persistTheme(theme) {
+      this.theme = normalizeTheme(theme);
+      localStorage.setItem(this.themeStorageKey || ANONYMOUS_THEME_STORAGE_KEY, this.theme);
+      this.applyTheme();
     },
     isLightThemeRoute(route) {
       return Boolean(route?.meta?.forceLightTheme || route?.matched?.some((record) => record.meta?.forceLightTheme));
@@ -72,14 +115,10 @@ export const useAppStore = defineStore("app", {
       this.setThemeOverride(null);
     },
     toggleTheme() {
-      this.theme = this.theme === "dark" ? "light" : "dark";
-      localStorage.setItem("kadem-theme", this.theme);
-      this.applyTheme();
+      this.persistTheme(this.theme === "dark" ? "light" : "dark");
     },
     setTheme(theme) {
-      this.theme = theme;
-      localStorage.setItem("kadem-theme", this.theme);
-      this.applyTheme();
+      this.persistTheme(theme);
     },
     setThemeOverride(theme) {
       cancelPendingThemeTransition();

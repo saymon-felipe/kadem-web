@@ -2,16 +2,9 @@
   <section class="panel">
     <div class="panel-title">
       <h3>Movimentos</h3>
-      <button
-        class="text-btn"
-        :disabled="!canUseAi || categorizingAi"
-        @click="$emit('auto-categorize')"
-      >
-        <font-awesome-icon
-          :icon="categorizingAi ? 'circle-notch' : 'chart-simple'"
-          :spin="categorizingAi"
-        />
-        {{ categorizingAi ? 'Categorizando...' : 'Categorizar IA' }}
+      <button class="text-btn" :disabled="!canUseAi || categorizingAi" @click="$emit('auto-categorize')">
+        <font-awesome-icon :icon="categorizingAi ? 'circle-notch' : 'chart-simple'" :spin="categorizingAi" />
+        {{ categorizingAi ? "Categorizando..." : "Categorizar IA" }}
       </button>
     </div>
     <div class="transaction-tools">
@@ -21,12 +14,15 @@
         :loading-schema="loadingSchema"
         :csv-import-error="csvImportError"
         :csv-import-file-name="csvImportFileName"
+        :csv-preview-rows="csvPreviewRows"
         :csv-import-rows="csvImportRows"
         :csv-import-totals="csvImportTotals"
+        :csv-import-summary="csvImportSummary"
         :format-money="formatMoney"
-        :format-short-date="formatShortDate"
+        :format-date-time="formatDateTime"
         @upgrade="$emit('upgrade')"
         @file-change="$emit('csv-file-change', $event)"
+        @open-preview="$emit('open-csv-preview')"
         @reset="$emit('reset-csv')"
         @confirm="$emit('confirm-csv')"
       />
@@ -59,6 +55,7 @@
       :categorizing-ids="categorizingIds"
       :format-signed-money="formatSignedMoney"
       :format-short-date="formatShortDate"
+      :pagination-reset-key="paginationResetKey"
       @edit="$emit('edit-transaction', $event)"
       @toggle-ignored="$emit('toggle-ignored', $event)"
       @delete="$emit('delete-transaction', $event)"
@@ -69,30 +66,31 @@
 </template>
 
 <script>
-import CategoryCombo from '../CategoryCombo.vue'
-import NexoCsvImportCard from './NexoCsvImportCard.vue'
-import NexoTransactionsTable from './NexoTransactionsTable.vue'
+import CategoryCombo from "../CategoryCombo.vue";
+import NexoCsvImportCard from "./NexoCsvImportCard.vue";
+import NexoTransactionsTable from "./NexoTransactionsTable.vue";
 
 export default {
-  name: 'NexoTransactionsTab',
+  name: "NexoTransactionsTab",
   components: {
     CategoryCombo,
     NexoCsvImportCard,
     NexoTransactionsTable,
   },
   emits: [
-    'auto-categorize',
-    'confirm-csv',
-    'create-category-for-transaction',
-    'csv-file-change',
-    'delete-transaction',
-    'edit-transaction',
-    'reset-csv',
-    'select-category',
-    'toggle-ignored',
-    'update:transactionCategoryFilter',
-    'update:transactionSearch',
-    'upgrade',
+    "auto-categorize",
+    "confirm-csv",
+    "create-category-for-transaction",
+    "csv-file-change",
+    "delete-transaction",
+    "edit-transaction",
+    "open-csv-preview",
+    "reset-csv",
+    "select-category",
+    "toggle-ignored",
+    "update:transactionCategoryFilter",
+    "update:transactionSearch",
+    "upgrade",
   ],
   props: {
     isPaidPlan: {
@@ -117,11 +115,15 @@ export default {
     },
     csvImportError: {
       type: String,
-      default: '',
+      default: "",
     },
     csvImportFileName: {
       type: String,
-      default: '',
+      default: "",
+    },
+    csvPreviewRows: {
+      type: Array,
+      required: true,
     },
     csvImportRows: {
       type: Array,
@@ -131,13 +133,17 @@ export default {
       type: Object,
       required: true,
     },
+    csvImportSummary: {
+      type: Object,
+      required: true,
+    },
     transactionSearch: {
       type: String,
-      default: '',
+      default: "",
     },
     transactionCategoryFilter: {
       type: String,
-      default: '',
+      default: "",
     },
     transactions: {
       type: Array,
@@ -163,40 +169,46 @@ export default {
       type: Function,
       required: true,
     },
+    formatDateTime: {
+      type: Function,
+      required: true,
+    },
+    paginationResetKey: {
+      type: String,
+      default: "",
+    },
   },
   computed: {
     categoryComboValue() {
-      return this.transactionCategoryFilter || null
+      return this.transactionCategoryFilter || null;
     },
     categoryFilterPlaceholder() {
-      return 'Todas as categorias'
+      return "Todas as categorias";
     },
     categoryOptions() {
       return [...this.categories].sort((left, right) =>
-        `${left.macro_category || ''} ${left.name || ''}`.localeCompare(
-          `${right.macro_category || ''} ${right.name || ''}`,
-          'pt-BR',
+        `${left.macro_category || ""} ${left.name || ""}`.localeCompare(
+          `${right.macro_category || ""} ${right.name || ""}`,
+          "pt-BR",
         ),
-      )
+      );
     },
   },
   methods: {
     categoryOptionValue(category) {
-      return String(
-        category?.server_id || category?.id || category?.local_key || category?.local_id || '',
-      )
+      return String(category?.server_id || category?.id || category?.local_key || category?.local_id || "");
     },
     handleCategoryFilterChange(categoryId) {
-      this.$emit('update:transactionCategoryFilter', categoryId || '')
+      this.$emit("update:transactionCategoryFilter", categoryId || "");
     },
     emitSelectCategory(transaction, categoryId) {
-      this.$emit('select-category', transaction, categoryId)
+      this.$emit("select-category", transaction, categoryId);
     },
     emitCreateCategoryForTransaction(transaction, suggestedName) {
-      this.$emit('create-category-for-transaction', transaction, suggestedName)
+      this.$emit("create-category-for-transaction", transaction, suggestedName);
     },
   },
-}
+};
 </script>
 
 <style scoped>

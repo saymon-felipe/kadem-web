@@ -33,7 +33,7 @@ export const useAuthStore = defineStore("auth", {
   }),
   getters: {
     isLoggedIn: (state) => state.isAuthenticated === true,
-    getToken: (state) => state.token
+    getToken: (state) => state.token,
   },
   actions: {
     async requestPasswordReset(email) {
@@ -156,16 +156,15 @@ export const useAuthStore = defineStore("auth", {
         localStorage.removeItem("kadem_vault_last_sync");
         localStorage.removeItem("kadem_projects_last_sync");
         localStorage.removeItem("kadem_kanban_syncs");
+        appStore.loadAnonymousTheme();
 
         if (!not_redirect) {
           if (
             this.$route &&
-            (
-              this.$route.query.from_site === "true" ||
+            (this.$route.query.from_site === "true" ||
               this.$route.query.from_site === true ||
               this.$route.query.from_site === 1 ||
-              this.$route.query.from_site === "1"
-            )
+              this.$route.query.from_site === "1")
           ) {
             this.$router.push({ path: "/auth", query: { from_site: "from_site" } });
           } else {
@@ -226,6 +225,7 @@ export const useAuthStore = defineStore("auth", {
       try {
         const localUser = await userRepository.getLocalUserProfile();
         if (localUser) {
+          const appStore = useAppStore();
           const localOccupations = await occupationRepository.getLocalUserOccupations();
           const localMedals = await medalRepository.getLocalMedals();
 
@@ -235,6 +235,7 @@ export const useAuthStore = defineStore("auth", {
             medals: localMedals,
           };
           this.isAuthenticated = true;
+          appStore.loadThemeForUser(this.user);
           return true;
         }
       } catch (err) {
@@ -276,12 +277,16 @@ export const useAuthStore = defineStore("auth", {
       }
 
       if (recursive) {
-        setTimeout(() => {
-          this.syncProfile(recursive);
-        }, 10 * 60 * 1000); // 10 minutos
+        setTimeout(
+          () => {
+            this.syncProfile(recursive);
+          },
+          10 * 60 * 1000,
+        ); // 10 minutos
       }
     },
     async _saveUserData(apiUserData) {
+      const appStore = useAppStore();
       const { occupations, medals, ...profileData } = apiUserData;
 
       await userRepository.saveLocalUserProfile(profileData);
@@ -297,6 +302,7 @@ export const useAuthStore = defineStore("auth", {
         medals: mergedMedals,
       };
       this.isAuthenticated = true;
+      appStore.loadThemeForUser(this.user);
     },
     async updateUserBio(newBio) {
       const currentUser = this.user;
@@ -359,9 +365,7 @@ export const useAuthStore = defineStore("auth", {
       };
 
       try {
-        const newLocalId = await occupationRepository.addLocalUserOccupation(
-          newOccupationData
-        );
+        const newLocalId = await occupationRepository.addLocalUserOccupation(newOccupationData);
 
         await syncQueueRepository.addSyncQueueTask({
           type: "CREATE_OCCUPATION",
@@ -396,9 +400,7 @@ export const useAuthStore = defineStore("auth", {
           });
         }
 
-        this.user.occupations = this.user.occupations.filter(
-          (o) => o.localId !== occupation.localId
-        );
+        this.user.occupations = this.user.occupations.filter((o) => o.localId !== occupation.localId);
 
         syncService.processSyncQueue();
       } catch (error) {

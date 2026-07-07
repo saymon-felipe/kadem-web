@@ -26,10 +26,14 @@
           </div>
 
           <div class="modal-body">
-            <p>Detectamos que sua senha foi alterada. Por segurança, suas contas ainda estão criptografadas e precisam
-              ser migradas.</p>
-            <p>Para recuperar o acesso, insira seu <strong>Código de Recuperação (Senha Mestra)</strong> que você salvou
-              anteriormente.</p>
+            <p>
+              Detectamos que sua senha foi alterada. Por segurança, suas contas ainda estão criptografadas e precisam
+              ser migradas.
+            </p>
+            <p>
+              Para recuperar o acesso, insira seu
+              <strong>Código de Recuperação (Senha Mestra)</strong> que você salvou anteriormente.
+            </p>
 
             <div class="form-group mt-4">
               <input id="recovery-code" type="text" v-model="migration_recovery_code" placeholder=" " />
@@ -37,13 +41,23 @@
             </div>
 
             <div class="form-group password-group mt-2">
-              <input id="new-pw" :type="show_current_password ? 'text' : 'password'"
-                v-model="migration_current_password" placeholder=" " @keyup.enter="run_migration" />
+              <input
+                id="new-pw"
+                :type="show_current_password ? 'text' : 'password'"
+                v-model="migration_current_password"
+                placeholder=" "
+                @keyup.enter="run_migration"
+              />
               <label for="new-pw">Confirme sua Senha Atual do Sistema</label>
 
-              <span class="toggle-password" @mousedown="show_current_password = true"
-                @mouseup="show_current_password = false" @mouseleave="show_current_password = false"
-                @touchstart.prevent="show_current_password = true" @touchend.prevent="show_current_password = false">
+              <span
+                class="toggle-password"
+                @mousedown="show_current_password = true"
+                @mouseup="show_current_password = false"
+                @mouseleave="show_current_password = false"
+                @touchstart.prevent="show_current_password = true"
+                @touchend.prevent="show_current_password = false"
+              >
                 <font-awesome-icon :icon="show_current_password ? 'eye-slash' : 'eye'" />
               </span>
             </div>
@@ -52,8 +66,11 @@
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-primary" @click="run_migration"
-              :disabled="is_migrating || !migration_recovery_code || !migration_current_password">
+            <button
+              class="btn btn-primary"
+              @click="run_migration"
+              :disabled="is_migrating || !migration_recovery_code || !migration_current_password"
+            >
               {{ is_migrating ? "Descriptografando..." : "Migrar Cofre" }}
             </button>
           </div>
@@ -64,24 +81,35 @@
     <Transition name="slide-over-root">
       <div v-if="show_recovery_setup" class="modal-overlay">
         <div class="modal-content glass" role="dialog" aria-modal="true">
-
           <div class="modal-header">
             <h3>Atenção à Segurança 🔒</h3>
           </div>
 
           <div class="modal-body">
-            <p>Para garantir que você nunca perca suas senhas se esquecer o login, precisamos gerar sua <strong>Senha
-                Mestra (Código E2EE)</strong>.</p>
+            <p>
+              Para garantir que você nunca perca suas senhas se esquecer o login, precisamos gerar sua
+              <strong>Senha Mestra (Código E2EE)</strong>.
+            </p>
 
             <div v-if="!generated_code" class="mt-4">
               <div class="form-group password-group">
-                <input id="setup-password" :type="show_setup_password ? 'text' : 'password'" v-model="setup_password"
-                  placeholder=" " @keyup.enter="generate_recovery" />
+                <input
+                  id="setup-password"
+                  :type="show_setup_password ? 'text' : 'password'"
+                  v-model="setup_password"
+                  placeholder=" "
+                  @keyup.enter="generate_recovery"
+                />
                 <label for="setup-password">Digite sua senha atual</label>
 
-                <span class="toggle-password" @mousedown="show_setup_password = true"
-                  @mouseup="show_setup_password = false" @mouseleave="show_setup_password = false"
-                  @touchstart.prevent="show_setup_password = true" @touchend.prevent="show_setup_password = false">
+                <span
+                  class="toggle-password"
+                  @mousedown="show_setup_password = true"
+                  @mouseup="show_setup_password = false"
+                  @mouseleave="show_setup_password = false"
+                  @touchstart.prevent="show_setup_password = true"
+                  @touchend.prevent="show_setup_password = false"
+                >
                   <font-awesome-icon :icon="show_setup_password ? 'eye-slash' : 'eye'" />
                 </span>
               </div>
@@ -99,15 +127,16 @@
           </div>
 
           <div class="modal-footer">
-            <button v-if="!generated_code" class="btn btn-primary" @click="generate_recovery"
-              :disabled="!setup_password">
+            <button
+              v-if="!generated_code"
+              class="btn btn-primary"
+              @click="generate_recovery"
+              :disabled="!setup_password"
+            >
               Gerar Senha Mestra
             </button>
-            <button v-else class="btn btn-success" @click="confirm_saved">
-              Eu guardei o código com segurança
-            </button>
+            <button v-else class="btn btn-success" @click="confirm_saved">Eu guardei o código com segurança</button>
           </div>
-
         </div>
       </div>
     </Transition>
@@ -172,7 +201,7 @@ export default {
       migration_current_password: "",
       migration_error: "",
       is_migrating: false,
-      show_current_password: false
+      show_current_password: false,
     };
   },
   watch: {
@@ -229,7 +258,7 @@ export default {
     ...mapActions(useAuthStore, ["setUser", "checkAuthStatus"]),
     ...mapActions(useAppStore, ["setSystem", "updateMobileStatus"]),
     handle_forgot_password() {
-      this.$router.push('/logout');
+      this.$router.push("/logout");
     },
     handleVisibilityChange() {
       if (document.visibilityState === "visible") {
@@ -244,7 +273,7 @@ export default {
       if (this.user.has_recovery_payload === false) {
         this.show_recovery_setup = true;
         return;
-      };
+      }
     },
 
     async run_migration() {
@@ -256,7 +285,7 @@ export default {
         await vault_store.execute_home_migration(
           this.migration_recovery_code,
           this.migration_current_password,
-          this.user.email
+          this.user.email,
         );
 
         this.user.needs_vault_migration = false;
@@ -264,12 +293,11 @@ export default {
         this.migration_current_password = "";
 
         this.show_current_password = false;
-
       } catch (error) {
         this.migration_error = error.message || "Código E2EE ou Senha incorretos. Tente novamente.";
       } finally {
         this.is_migrating = false;
-      };
+      }
     },
 
     async generate_recovery() {
@@ -286,7 +314,7 @@ export default {
         this.user.has_recovery_payload = true;
       } catch (err) {
         this.recovery_error = err.message;
-      };
+      }
     },
 
     confirm_saved() {
@@ -366,7 +394,7 @@ export default {
   position: relative;
   overflow: hidden;
 }
- 
+
 .desktop-bg {
   position: absolute;
   top: 0;
@@ -381,7 +409,7 @@ export default {
   transition: opacity 0.5s ease-in-out;
   pointer-events: none;
 }
- 
+
 .desktop-bg.active {
   opacity: 1;
 }
@@ -392,7 +420,7 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--overlay-heavy);
   backdrop-filter: blur(4px);
   display: grid;
   place-items: center;
@@ -400,27 +428,37 @@ export default {
 }
 
 .modal-content {
-  background: #ffffff;
+  background: var(--surface-0);
   border-radius: var(--radius-lg);
   width: 90%;
   max-width: 450px;
   padding: var(--space-6);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-float);
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  color: var(--deep-blue);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
 }
 
 .modal-header h3 {
   margin-bottom: var(--space-2);
+  color: var(--text-primary);
 }
 
 .modal-body {
   width: 100%;
   margin-bottom: var(--space-4);
+}
+
+.modal-body p {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.modal-body p strong {
+  color: var(--text-primary);
 }
 
 .modal-footer {
@@ -435,22 +473,23 @@ export default {
 }
 
 .generated-code-box {
-  background: var(--background-gray);
+  background: var(--surface-1);
   border-radius: var(--radius-md);
   padding: var(--space-4);
-  border: 1px dashed var(--primary-color);
+  border: 1px dashed var(--glass-border);
 }
 
 .code-display {
   font-family: monospace;
   font-size: 1.25rem;
   letter-spacing: 2px;
-  background: #222;
+  background: var(--surface-2);
   padding: var(--space-3);
   border-radius: 8px;
   color: var(--green);
   user-select: all;
   margin-top: var(--space-3);
+  box-shadow: inset 0 0 0 1px var(--glass-border);
 }
 
 .warning-text {
@@ -501,15 +540,17 @@ export default {
 }
 
 .forgot-link {
-  color: var(--primary-color);
+  color: var(--color-info);
   font-size: var(--fontsize-xs);
   font-weight: 600;
   text-decoration: none;
-  transition: color 0.2s ease, opacity 0.2s ease;
+  transition:
+    color 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .forgot-link:hover {
-  color: var(--deep-blue);
+  color: var(--text-primary);
   text-decoration: underline;
 }
 </style>

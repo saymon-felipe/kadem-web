@@ -3,12 +3,18 @@ import { financeRepository, syncQueueRepository } from "@/services/localData";
 import { syncService } from "@/services/syncService";
 
 const response = (data) => ({ data });
+const FINANCE_BATCH_LIMIT = 100;
 const isServerId = (id) => id !== null && id !== undefined && Number.isFinite(Number(id));
 const sameId = (left, right) => String(left ?? "") === String(right ?? "");
+const chunkItems = (items = [], size = FINANCE_BATCH_LIMIT) => {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+};
 const entityReferenceIds = (entity) =>
-  [entity?.server_id, entity?.id, entity?.local_key].filter(
-    (value) => value !== null && value !== undefined,
-  );
+  [entity?.server_id, entity?.id, entity?.local_key].filter((value) => value !== null && value !== undefined);
 const entityServerId = (...ids) => {
   const id = ids.find((value) => isServerId(value));
   return id === undefined ? null : Number(id);
@@ -58,11 +64,13 @@ const removeDeletedCategoryReferencesFromQueue = async (category) => {
   const tasks = await syncQueueRepository.getPendingTasks();
   const deletedCategories = category.deleted_categories || [category];
   for (const deletedCategory of deletedCategories) {
-    await removePendingEntityTasks(tasks, ["CREATE_FINANCE_CATEGORY", "UPDATE_FINANCE_CATEGORY"], deletedCategory.local_id);
+    await removePendingEntityTasks(
+      tasks,
+      ["CREATE_FINANCE_CATEGORY", "UPDATE_FINANCE_CATEGORY"],
+      deletedCategory.local_id,
+    );
   }
-  const deletedCategoryIds = deletedCategories.flatMap((deletedCategory) =>
-    entityReferenceIds(deletedCategory),
-  );
+  const deletedCategoryIds = deletedCategories.flatMap((deletedCategory) => entityReferenceIds(deletedCategory));
 
   for (const task of tasks) {
     if (task.type === "CREATE_FINANCE_TRANSACTION" || task.type === "UPDATE_FINANCE_TRANSACTION") {
@@ -103,7 +111,11 @@ const removeDeletedCategoryReferencesFromQueue = async (category) => {
 
 const removeDeletedMacroReferencesFromQueue = async (macro) => {
   const tasks = await syncQueueRepository.getPendingTasks();
-  await removePendingEntityTasks(tasks, ["CREATE_FINANCE_MACRO_CATEGORY", "UPDATE_FINANCE_MACRO_CATEGORY"], macro.local_id);
+  await removePendingEntityTasks(
+    tasks,
+    ["CREATE_FINANCE_MACRO_CATEGORY", "UPDATE_FINANCE_MACRO_CATEGORY"],
+    macro.local_id,
+  );
   const deletedMacroIds = entityReferenceIds(macro);
 
   for (const task of tasks) {
@@ -130,11 +142,9 @@ const removeDeletedMacroReferencesFromQueue = async (macro) => {
 
 const findLocalMacro = (macros, id) => {
   if (!id) return null;
-  return macros.find((macro) =>
-    sameId(macro.id, id) ||
-    sameId(macro.local_id, id) ||
-    sameId(macro.local_key, id),
-  ) || null;
+  return (
+    macros.find((macro) => sameId(macro.id, id) || sameId(macro.local_id, id) || sameId(macro.local_key, id)) || null
+  );
 };
 
 const preparePendingMacroUpdate = async (current, local, changes) => {
@@ -233,15 +243,19 @@ const localDashboard = async (month) => {
   const month_invested = visible
     .filter((item) => {
       const category = categoryMap.get(String(item.category_id || ""));
-      return Boolean(macroMap.get(category?.macro_category || "Geral")?.is_investment)
-        && category?.investment_flow_type === "INVESTMENT_IN";
+      return (
+        Boolean(macroMap.get(category?.macro_category || "Geral")?.is_investment) &&
+        category?.investment_flow_type === "INVESTMENT_IN"
+      );
     })
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const month_withdrawn = visible
     .filter((item) => {
       const category = categoryMap.get(String(item.category_id || ""));
-      return Boolean(macroMap.get(category?.macro_category || "Geral")?.is_investment)
-        && category?.investment_flow_type === "INVESTMENT_OUT";
+      return (
+        Boolean(macroMap.get(category?.macro_category || "Geral")?.is_investment) &&
+        category?.investment_flow_type === "INVESTMENT_OUT"
+      );
     })
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
   return {
@@ -290,8 +304,41 @@ export const financeService = {
 
   async listTransactions(params = {}) {
     try {
-      const result = await api.get("/finance/transactions", { params });
-      await financeRepository.setTransactions(result.data || []);
+      const requestedLimit = Number(params.limit || 0);
+      const requestedOffset = Number(params.offset || 0);
+      const chunkLimit = 250;
+
+      let items = [];
+
+      if (requestedLimit > chunkLimit) {
+        let offset = requestedOffset;
+        let remaining = requestedLimit;
+
+        while (remaining > 0) {
+          const currentLimit = Math.min(chunkLimit, remaining);
+          const result = await api.get("/finance/transactions", {
+            params: {
+              ...params,
+              limit: currentLimit,
+              offset,
+            },
+          });
+          const chunkItems = Array.isArray(result.data) ? result.data : [];
+          items = items.concat(chunkItems);
+
+          if (chunkItems.length < currentLimit) {
+            break;
+          }
+
+          offset += currentLimit;
+          remaining -= currentLimit;
+        }
+      } else {
+        const result = await api.get("/finance/transactions", { params });
+        items = Array.isArray(result.data) ? result.data : [];
+      }
+
+      await financeRepository.setTransactions(items);
       return response(await financeRepository.getTransactions(params));
     } catch {
       return response(await financeRepository.getTransactions(params));
@@ -308,13 +355,18 @@ export const financeService = {
   async createTransactionsBatch(transactions) {
     const cleanTransactions = toPlain(transactions, []);
     const local = await financeRepository.createLocalTransactionsBatch(cleanTransactions);
-    await enqueue("CREATE_FINANCE_TRANSACTIONS_BATCH", {
-      local_ids: local.map((item) => item.local_id),
-      transactions: cleanTransactions,
-    });
+    const localIds = local.map((item) => item.local_id);
+    const transactionChunks = chunkItems(cleanTransactions);
+    const localIdChunks = chunkItems(localIds);
+
+    for (let index = 0; index < transactionChunks.length; index += 1) {
+      await enqueue("CREATE_FINANCE_TRANSACTIONS_BATCH", {
+        local_ids: localIdChunks[index] || [],
+        transactions: transactionChunks[index] || [],
+      });
+    }
     return response(local);
   },
-
 
   async updateTransaction(id, data) {
     const cleanData = toPlain(data);
@@ -350,7 +402,11 @@ export const financeService = {
           }
         }
       } else {
-        await enqueue("DELETE_FINANCE_TRANSACTION", { id: local.id, server_id: local.id, local_id: local.local_id });
+        await enqueue("DELETE_FINANCE_TRANSACTION", {
+          id: local.id,
+          server_id: local.id,
+          local_id: local.local_id,
+        });
       }
     }
     return response(null);
@@ -392,7 +448,11 @@ export const financeService = {
     if (!local) throw new Error("Macro categoria local não encontrada.");
     const shouldEnqueueUpdate = await preparePendingMacroUpdate(current, local, cleanData);
     if (shouldEnqueueUpdate) {
-      await enqueue("UPDATE_FINANCE_MACRO_CATEGORY", { id, local_id: local.local_id, data: cleanData });
+      await enqueue("UPDATE_FINANCE_MACRO_CATEGORY", {
+        id,
+        local_id: local.local_id,
+        data: cleanData,
+      });
     } else {
       await syncService.processSyncQueue();
     }
@@ -406,10 +466,18 @@ export const financeService = {
       await removeDeletedMacroReferencesFromQueue(local);
       const serverId = requestedServerId || entityServerId(local.id, local.server_id);
       if (serverId) {
-        await enqueue("DELETE_FINANCE_MACRO_CATEGORY", { id: serverId, server_id: serverId, local_id: local.local_id });
+        await enqueue("DELETE_FINANCE_MACRO_CATEGORY", {
+          id: serverId,
+          server_id: serverId,
+          local_id: local.local_id,
+        });
       }
     } else if (requestedServerId) {
-      await enqueue("DELETE_FINANCE_MACRO_CATEGORY", { id: requestedServerId, server_id: requestedServerId, local_id: null });
+      await enqueue("DELETE_FINANCE_MACRO_CATEGORY", {
+        id: requestedServerId,
+        server_id: requestedServerId,
+        local_id: null,
+      });
     }
     return response(null);
   },
@@ -424,7 +492,11 @@ export const financeService = {
   async updateInvestmentGoal(id, data) {
     const cleanData = toPlain(data);
     const local = await financeRepository.updateLocalInvestmentGoal(id, cleanData);
-    await enqueue("UPDATE_FINANCE_INVESTMENT_GOAL", { id, local_id: local.local_id, data: cleanData });
+    await enqueue("UPDATE_FINANCE_INVESTMENT_GOAL", {
+      id,
+      local_id: local.local_id,
+      data: cleanData,
+    });
     return response(local);
   },
 
@@ -434,9 +506,17 @@ export const financeService = {
       const isLocalOnly = !local.id || !Number.isFinite(Number(local.id));
       if (isLocalOnly) {
         const tasks = await syncQueueRepository.getPendingTasks();
-        await removePendingEntityTasks(tasks, ["CREATE_FINANCE_INVESTMENT_GOAL", "UPDATE_FINANCE_INVESTMENT_GOAL"], local.local_id);
+        await removePendingEntityTasks(
+          tasks,
+          ["CREATE_FINANCE_INVESTMENT_GOAL", "UPDATE_FINANCE_INVESTMENT_GOAL"],
+          local.local_id,
+        );
       } else {
-        await enqueue("DELETE_FINANCE_INVESTMENT_GOAL", { id: local.id, server_id: local.id, local_id: local.local_id });
+        await enqueue("DELETE_FINANCE_INVESTMENT_GOAL", {
+          id: local.id,
+          server_id: local.id,
+          local_id: local.local_id,
+        });
       }
     }
     return response(null);
@@ -452,7 +532,11 @@ export const financeService = {
   async updateInvestmentEvent(id, data) {
     const cleanData = toPlain(data);
     const local = await financeRepository.updateLocalInvestmentEvent(id, cleanData);
-    await enqueue("UPDATE_FINANCE_INVESTMENT_EVENT", { id, local_id: local.local_id, data: cleanData });
+    await enqueue("UPDATE_FINANCE_INVESTMENT_EVENT", {
+      id,
+      local_id: local.local_id,
+      data: cleanData,
+    });
     return response(local);
   },
 
@@ -462,9 +546,17 @@ export const financeService = {
       const isLocalOnly = !local.id || !Number.isFinite(Number(local.id));
       if (isLocalOnly) {
         const tasks = await syncQueueRepository.getPendingTasks();
-        await removePendingEntityTasks(tasks, ["CREATE_FINANCE_INVESTMENT_EVENT", "UPDATE_FINANCE_INVESTMENT_EVENT"], local.local_id);
+        await removePendingEntityTasks(
+          tasks,
+          ["CREATE_FINANCE_INVESTMENT_EVENT", "UPDATE_FINANCE_INVESTMENT_EVENT"],
+          local.local_id,
+        );
       } else {
-        await enqueue("DELETE_FINANCE_INVESTMENT_EVENT", { id: local.id, server_id: local.id, local_id: local.local_id });
+        await enqueue("DELETE_FINANCE_INVESTMENT_EVENT", {
+          id: local.id,
+          server_id: local.id,
+          local_id: local.local_id,
+        });
       }
     }
     return response(null);
@@ -511,7 +603,11 @@ export const financeService = {
         });
       }
     } else if (requestedServerId) {
-      await enqueue("DELETE_FINANCE_CATEGORY", { id: requestedServerId, server_id: requestedServerId, local_id: null });
+      await enqueue("DELETE_FINANCE_CATEGORY", {
+        id: requestedServerId,
+        server_id: requestedServerId,
+        local_id: null,
+      });
     }
     return response(null);
   },
@@ -529,7 +625,10 @@ export const financeService = {
   async saveBudgets(data) {
     const cleanData = toPlain(data, { groups: [] });
     const local = await financeRepository.replaceLocalBudgetGroups(cleanData.month, cleanData.groups || []);
-    await enqueue("SAVE_FINANCE_BUDGETS", { month: cleanData.month, groups: cleanData.groups || [] });
+    await enqueue("SAVE_FINANCE_BUDGETS", {
+      month: cleanData.month,
+      groups: cleanData.groups || [],
+    });
     return response(local);
   },
 

@@ -2,21 +2,13 @@
   <div class="config-wrapper">
     <section class="config-section">
       <h3>Aparência</h3>
-      <p>Escolha o tema visual do Kadem. A preferência é salva localmente no navegador.</p>
+      <p>Escolha o tema visual do Kadem. A preferência é salva neste navegador para a sua conta.</p>
       <div class="theme-options">
-        <button
-          class="theme-option"
-          :class="{ active: !isDark }"
-          @click="setTheme('light')"
-        >
+        <button class="theme-option" :class="{ active: !isDark }" @click="setTheme('light')">
           <font-awesome-icon icon="sun" />
           <span>Claro</span>
         </button>
-        <button
-          class="theme-option"
-          :class="{ active: isDark }"
-          @click="setTheme('dark')"
-        >
+        <button class="theme-option" :class="{ active: isDark }" @click="setTheme('dark')">
           <font-awesome-icon icon="moon" />
           <span>Escuro</span>
         </button>
@@ -25,9 +17,7 @@
 
     <section class="config-section">
       <h3>Segurança</h3>
-      <p>
-        Para redefinir sua senha, enviaremos um link de recuperação para o seu e-mail.
-      </p>
+      <p>Para redefinir sua senha, enviaremos um link de recuperação para o seu e-mail.</p>
       <button
         class="btn btn-primary"
         :disabled="!connection.connected || isLoading"
@@ -36,19 +26,14 @@
       >
         {{ isLoading ? "Enviando..." : "Solicitar redefinição de senha" }}
       </button>
-      <LoadingResponse
-        :msg="responseMsg"
-        :type="responseType"
-        styletype="small"
-        :loading="false"
-      />
+      <LoadingResponse :msg="responseMsg" :type="responseType" styletype="small" :loading="false" />
     </section>
 
     <section class="config-section">
       <h3>Conta</h3>
       <p>
-        Esta é uma ação irreversível. Todos os seus dados, projetos e informações do cofre
-        serão permanentemente excluídos do Kadem.
+        Esta é uma ação irreversível. Todos os seus dados, projetos e informações do cofre serão permanentemente
+        excluídos do Kadem.
       </p>
       <button
         class="btn btn-red"
@@ -124,8 +109,7 @@ export default {
         this.responseMsg = "E-mail de redefinição enviado com sucesso.";
       } catch (error) {
         this.responseType = "error";
-        this.responseMsg =
-          error.response?.data?.message || "Falha ao solicitar a redefinição de senha.";
+        this.responseMsg = error.response?.data?.message || "Falha ao solicitar a redefinição de senha.";
       } finally {
         this.isLoading = false;
       }
