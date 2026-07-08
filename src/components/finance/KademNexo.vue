@@ -1326,6 +1326,38 @@ export default {
         .replace(/[^a-z0-9]/g, "")
         .trim();
     },
+    findColumnIndex(headers, columnName, fallbackPatterns) {
+      if (!columnName) {
+        for (const pattern of fallbackPatterns) {
+          const normPattern = this.normalizeKey(pattern);
+          const idx = headers.findIndex((h) => this.normalizeKey(h).includes(normPattern));
+          if (idx !== -1) return idx;
+        }
+        return -1;
+      }
+
+      const normTarget = this.normalizeKey(columnName);
+
+      // 1. Exact match
+      let idx = headers.findIndex((h) => this.normalizeKey(h) === normTarget);
+      if (idx !== -1) return idx;
+
+      // 2. Substring match
+      idx = headers.findIndex((h) => {
+        const normH = this.normalizeKey(h);
+        return normH.includes(normTarget) || normTarget.includes(normH);
+      });
+      if (idx !== -1) return idx;
+
+      // 3. Fallback keywords match
+      for (const pattern of fallbackPatterns) {
+        const normPattern = this.normalizeKey(pattern);
+        idx = headers.findIndex((h) => this.normalizeKey(h).includes(normPattern));
+        if (idx !== -1) return idx;
+      }
+
+      return -1;
+    },
     resolveKnownCsvSchema(headers = []) {
       const normalizedHeaders = headers.map((header) => this.normalizeKey(header));
       const required = ["data", "hora", "tipo", "origemdestino", "valor"];
@@ -1352,11 +1384,35 @@ export default {
       const rawHeaders = (parsedRows[0] || []).map((header) => this.cleanCsvCell(header));
 
       // Find indices of columns
-      const dateIdx = rawHeaders.findIndex((h) => this.normalizeKey(h) === this.normalizeKey(schema.dateColumn));
-      const descIdx = rawHeaders.findIndex((h) => this.normalizeKey(h) === this.normalizeKey(schema.descriptionColumn));
-      const amountIdx = rawHeaders.findIndex((h) => this.normalizeKey(h) === this.normalizeKey(schema.amountColumn));
+      const dateIdx = this.findColumnIndex(rawHeaders, schema.dateColumn, [
+        "data",
+        "date",
+        "dia",
+        "periodo",
+        "lançamento",
+      ]);
+      const descIdx = this.findColumnIndex(rawHeaders, schema.descriptionColumn, [
+        "descricao",
+        "description",
+        "historico",
+        "origem",
+        "destino",
+        "estabelecimento",
+        "detalhe",
+        "nome",
+        "texto",
+      ]);
+      const amountIdx = this.findColumnIndex(rawHeaders, schema.amountColumn, [
+        "valor",
+        "amount",
+        "quantia",
+        "monto",
+        "total",
+        "saldo",
+        "pago",
+      ]);
       const typeIdx = schema.typeColumn
-        ? rawHeaders.findIndex((h) => this.normalizeKey(h) === this.normalizeKey(schema.typeColumn))
+        ? this.findColumnIndex(rawHeaders, schema.typeColumn, ["tipo", "type", "categoria", "operacao", "movimento"])
         : -1;
 
       if (dateIdx === -1 || descIdx === -1 || amountIdx === -1) {
@@ -1498,17 +1554,47 @@ export default {
       const delimiter = schema.delimiter || fallbackDelimiter || ",";
       const rawHeaders = (parsedRows[0] || []).map((header) => this.cleanCsvCell(header));
 
-      const dateIdx = rawHeaders.findIndex((h) => this.normalizeKey(h) === this.normalizeKey(schema.dateColumn));
+      const dateIdx = this.findColumnIndex(rawHeaders, schema.dateColumn, [
+        "data",
+        "date",
+        "dia",
+        "periodo",
+        "lançamento",
+      ]);
       const timeIdx = schema.timeColumn
-        ? rawHeaders.findIndex((h) => this.normalizeKey(h) === this.normalizeKey(schema.timeColumn))
+        ? this.findColumnIndex(rawHeaders, schema.timeColumn, ["hora", "time", "horario"])
         : -1;
-      const descIdx = rawHeaders.findIndex((h) => this.normalizeKey(h) === this.normalizeKey(schema.descriptionColumn));
-      const amountIdx = rawHeaders.findIndex((h) => this.normalizeKey(h) === this.normalizeKey(schema.amountColumn));
+      const descIdx = this.findColumnIndex(rawHeaders, schema.descriptionColumn, [
+        "descricao",
+        "description",
+        "historico",
+        "origem",
+        "destino",
+        "estabelecimento",
+        "detalhe",
+        "nome",
+        "texto",
+      ]);
+      const amountIdx = this.findColumnIndex(rawHeaders, schema.amountColumn, [
+        "valor",
+        "amount",
+        "quantia",
+        "monto",
+        "total",
+        "saldo",
+        "pago",
+      ]);
       const typeIdx = schema.typeColumn
-        ? rawHeaders.findIndex((h) => this.normalizeKey(h) === this.normalizeKey(schema.typeColumn))
+        ? this.findColumnIndex(rawHeaders, schema.typeColumn, ["tipo", "type", "categoria", "operacao", "movimento"])
         : -1;
       const observationIdx = schema.observationColumn
-        ? rawHeaders.findIndex((h) => this.normalizeKey(h) === this.normalizeKey(schema.observationColumn))
+        ? this.findColumnIndex(rawHeaders, schema.observationColumn, [
+            "forma",
+            "pagamento",
+            "observacao",
+            "nota",
+            "obs",
+          ])
         : -1;
 
       if (dateIdx === -1 || descIdx === -1 || amountIdx === -1) {
