@@ -659,6 +659,9 @@ export const financeService = {
   generateBudgetPlan(data) {
     return api.post("/finance/ai/budget-plan", data);
   },
+  getBudgetPlanJob(jobId) {
+    return api.get(`/finance/ai/budget-plan/${jobId}`);
+  },
   getInsights(params) {
     return api.get("/finance/ai/insights", { params });
   },

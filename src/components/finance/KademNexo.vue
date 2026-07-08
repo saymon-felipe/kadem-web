@@ -2805,17 +2805,37 @@ export default {
       this.budgetAiPrompt = this.budgetAiInlinePrompt.trim() || "Organizar meu orçamento mensal";
       await this.submitBudgetPlan();
     },
+    async waitForBudgetPlanJob(jobId) {
+      const startedAt = Date.now();
+      const timeoutMs = 240000;
+      const delayMs = 10000;
+
+      while (Date.now() - startedAt < timeoutMs) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        const { data } = await financeService.getBudgetPlanJob(jobId);
+
+        if (data?.status === "COMPLETED") return data.result || {};
+        if (data?.status === "FAILED") throw new Error(data.error_message || "Não foi possível gerar o planejamento financeiro.");
+      }
+
+      throw new Error("O planejamento ainda está sendo gerado. Tente consultar novamente em alguns instantes.");
+    },
     async submitBudgetPlan() {
       if (!this.budgetAiPrompt.trim()) return;
       this.loadingAi = true;
       try {
         const requestText = this.budgetAiPrompt.trim();
         this.appendBudgetAiMessage("user", requestText);
-        const { data } = await financeService.generateBudgetPlan({
+        const response = await financeService.generateBudgetPlan({
           month: this.selectedMonth,
           text: requestText,
           conversation_summary: this.budgetAiContextSummary,
         });
+        let data = response.data?.result || response.data || {};
+        if (response.data?.job_id && response.data?.status !== "COMPLETED") {
+          this.appendBudgetAiMessage("assistant", "Estou gerando seu planejamento. Isso pode levar alguns instantes.");
+          data = await this.waitForBudgetPlanJob(response.data.job_id);
+        }
         if (Array.isArray(data.groups) && data.groups.length > 0) {
           this.budgets = data.groups.map((group) => {
             const macro = this.macroCategories.find((item) => this.sameId(item.id, group.macro_category_id));
@@ -2862,6 +2882,10 @@ export default {
         this.budgetAiPrompt = "";
         this.showBudgetAiForm = false;
         await this.loadUsage();
+      } catch (err) {
+        const message = err?.response?.data?.message || err.message || "Não foi possível gerar o planejamento financeiro.";
+        console.error("Erro ao gerar planejamento financeiro:", err);
+        this.appendBudgetAiMessage("assistant", message);
       } finally {
         this.loadingAi = false;
       }
