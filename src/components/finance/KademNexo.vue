@@ -1257,7 +1257,8 @@ export default {
           .trim();
         const delimiter = this.detectCsvDelimiter(clean);
         const parsedRows = this.parseCsvDocument(clean, delimiter);
-        const meaningfulRows = parsedRows.filter((row) => row.some((cell) => String(cell || "").trim()));
+        const normalizedRows = this.normalizeParsedCsvRows(parsedRows, delimiter);
+        const meaningfulRows = normalizedRows.filter((row) => row.some((cell) => String(cell || "").trim()));
         if (meaningfulRows.length < 2) {
           throw new Error("O CSV precisa ter cabeçalho e pelo menos uma linha.");
         }
@@ -1298,7 +1299,7 @@ export default {
         }
 
         this.csvRawRows = meaningfulRows;
-        await this.parseCsvWithSchemaEnhanced(meaningfulRows, schema, delimiter);
+        await this.parseCsvWithSchemaEnhanced(meaningfulRows, schema);
       } catch (error) {
         this.csvPreviewRows = [];
         this.csvImportRows = [];
@@ -1550,8 +1551,7 @@ export default {
         this.csvImportError = "";
       }
     },
-    async parseCsvWithSchemaEnhanced(parsedRows, schema, fallbackDelimiter = null) {
-      const delimiter = schema.delimiter || fallbackDelimiter || ",";
+    async parseCsvWithSchemaEnhanced(parsedRows, schema) {
       const rawHeaders = (parsedRows[0] || []).map((header) => this.cleanCsvCell(header));
 
       const dateIdx = this.findColumnIndex(rawHeaders, schema.dateColumn, [
@@ -1895,12 +1895,41 @@ export default {
     },
     detectCsvDelimiter(content) {
       const options = [";", ",", "\t"];
+      const lines = content.split(/\r?\n/).slice(0, 15);
       return options
-        .map((delimiter) => ({
-          delimiter,
-          count: (this.parseCsvDocument(content, delimiter)[0] || []).length,
-        }))
+        .map((delimiter) => {
+          let count = 0;
+          for (const line of lines) {
+            const directCount = this.countCsvDelimiters(line, delimiter);
+            count += directCount || this.countCsvDelimiters(this.unwrapCsvEnvelope(line), delimiter);
+          }
+          return { delimiter, count };
+        })
         .sort((a, b) => b.count - a.count)[0].delimiter;
+    },
+    countCsvDelimiters(line, delimiter) {
+      let count = 0;
+      let quoted = false;
+
+      for (let index = 0; index < line.length; index += 1) {
+        const char = line[index];
+        const next = line[index + 1];
+
+        if (char === '"' && quoted && next === '"') {
+          index += 1;
+        } else if (char === '"') {
+          quoted = !quoted;
+        } else if (char === delimiter && !quoted) {
+          count += 1;
+        }
+      }
+
+      return count;
+    },
+    unwrapCsvEnvelope(line) {
+      const value = String(line || "").trim();
+      if (!value.startsWith('"') || !value.endsWith('"')) return value;
+      return value.slice(1, -1).replace(/""/g, '"');
     },
     parseCsvDocument(content, delimiter) {
       const rows = [];
@@ -1945,6 +1974,28 @@ export default {
       }
 
       return rows;
+    },
+    normalizeParsedCsvRows(rows, delimiter) {
+      const safeRows = Array.isArray(rows) ? rows : [];
+      const meaningfulRows = safeRows.filter((row) => Array.isArray(row) && row.some((cell) => String(cell || "").trim()));
+      if (!meaningfulRows.length) return safeRows;
+
+      const shouldNormalize = meaningfulRows.every((row) => this.isWrappedCsvRow(row, delimiter));
+      if (!shouldNormalize) return safeRows;
+
+      return safeRows.map((row) => this.expandWrappedCsvRow(row, delimiter));
+    },
+    isWrappedCsvRow(row, delimiter) {
+      if (!Array.isArray(row) || row.length !== 1) return false;
+
+      const value = String(row[0] || "").trim();
+      if (!value || !value.includes(delimiter)) return false;
+
+      return this.splitCsvLine(value, delimiter).length > 1;
+    },
+    expandWrappedCsvRow(row, delimiter) {
+      if (!this.isWrappedCsvRow(row, delimiter)) return row;
+      return this.splitCsvLine(String(row[0] || ""), delimiter);
     },
     splitCsvLine(line, delimiter) {
       const values = [];
@@ -2000,7 +2051,7 @@ export default {
       const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
       if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
 
-      const brMatch = raw.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/);
+      const brMatch = raw.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/);
       if (brMatch) {
         const year = brMatch[3].length === 2 ? `20${brMatch[3]}` : brMatch[3];
         return `${year}-${brMatch[2].padStart(2, "0")}-${brMatch[1].padStart(2, "0")}`;
