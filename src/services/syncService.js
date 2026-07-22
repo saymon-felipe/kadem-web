@@ -715,7 +715,7 @@ async function _handleDownloadLyricsTask(task) {
   try {
     const authStore = useAuthStore();
     const token = authStore.token || authStore.getToken;
-    const endpoint = `${apiServices.MEDIA_ENGINE}/subtitles/${video_id}nocache=${Date.now()}`;
+    const endpoint = `${apiServices.MEDIA_ENGINE}/subtitles/${video_id}?nocache=${Date.now()}`;
 
     const response = await api.get(endpoint, {
       headers: { Authorization: `Bearer ${token}` },
