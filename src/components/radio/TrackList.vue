@@ -90,7 +90,7 @@
                   title="Legenda disponível"
                 />
                 <font-awesome-icon
-                  v-else-if="track.lyrics_unavailable"
+                  v-else-if="track_lyrics_unavailable(track)"
                   icon="closed-captioning"
                   class="status-icon disabled"
                   title="Nenhuma legenda encontrada"
@@ -310,6 +310,7 @@ export default {
       "removeTrackFromPlaylist",
       "downloadTrack",
       "trackHasLyrics",
+      "trackLyricsUnavailable",
     ]),
     decode_html_entities,
 
@@ -346,6 +347,9 @@ export default {
     },
     track_has_lyrics(track) {
       return this.trackHasLyrics(track);
+    },
+    track_lyrics_unavailable(track) {
+      return this.trackLyricsUnavailable(track);
     },
     is_in_queue(track) {
       if (!this.queue || !track) return false;

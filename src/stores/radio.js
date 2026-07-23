@@ -18,6 +18,7 @@ export const useRadioStore = defineStore("radio", {
     downloaded_youtube_ids: {},
     active_lyrics_downloads: {},
     downloaded_lyrics_map: {},
+    lyrics_status_by_video_id: {},
   }),
 
   getters: {
@@ -39,8 +40,16 @@ export const useRadioStore = defineStore("radio", {
     },
     trackHasLyrics: (state) => (track) => {
       if (!track || !track.youtube_id) return false;
+      const status = state.lyrics_status_by_video_id[track.youtube_id];
+      if (status) return !!status.has_lyrics;
       if (state.downloaded_lyrics_map[track.youtube_id]) return true;
       return !!track.has_lyrics;
+    },
+    trackLyricsUnavailable: (state) => (track) => {
+      if (!track || !track.youtube_id) return false;
+      const status = state.lyrics_status_by_video_id[track.youtube_id];
+      if (status) return !!status.lyrics_unavailable;
+      return !!track.lyrics_unavailable;
     },
   },
 
@@ -499,8 +508,17 @@ export const useRadioStore = defineStore("radio", {
     },
 
     update_track_lyrics_status_in_memory(video_id, { has_lyrics, lyrics_unavailable }) {
+      const previousStatus = this.lyrics_status_by_video_id[video_id] || {};
+      this.lyrics_status_by_video_id[video_id] = {
+        has_lyrics: has_lyrics ?? previousStatus.has_lyrics ?? false,
+        lyrics_unavailable:
+          lyrics_unavailable ?? previousStatus.lyrics_unavailable ?? false,
+      };
+
       if (has_lyrics) {
         this.downloaded_lyrics_map[video_id] = true;
+      } else if (has_lyrics === false) {
+        delete this.downloaded_lyrics_map[video_id];
       }
 
       const updatePayload = {};
@@ -547,7 +565,12 @@ export const useRadioStore = defineStore("radio", {
     },
 
     async queue_lyrics_download(track) {
-      if (!track.youtube_id || track.has_lyrics || track.lyrics_unavailable) return;
+      if (
+        !track.youtube_id ||
+        this.trackHasLyrics(track) ||
+        this.trackLyricsUnavailable(track)
+      )
+        return;
 
       this.set_lyric_downloading(track.youtube_id, true);
 
@@ -571,7 +594,7 @@ export const useRadioStore = defineStore("radio", {
       let count = 0;
 
       for (const track of tracks) {
-        if (!this.trackHasLyrics(track) && !track.lyrics_unavailable) {
+        if (!this.trackHasLyrics(track) && !this.trackLyricsUnavailable(track)) {
           await this.queue_lyrics_download(track);
           count++;
         }

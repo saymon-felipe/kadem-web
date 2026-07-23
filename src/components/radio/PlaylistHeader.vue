@@ -161,6 +161,7 @@ export default {
     ...mapState(useRadioStore, [
       "active_downloads",
       "trackHasLyrics",
+      "trackLyricsUnavailable",
       "isLyricDownloading",
       "isTrackOffline",
     ]),
@@ -172,7 +173,7 @@ export default {
       return this.tracks.some((t) => {
         if (!t.youtube_id) return false;
         if (this.trackHasLyrics(t)) return false;
-        if (t.lyrics_unavailable) return false;
+        if (this.trackLyricsUnavailable(t)) return false;
 
         return true;
       });
@@ -181,7 +182,11 @@ export default {
       if (!this.playlist || !this.tracks) return 0;
 
       return this.tracks.filter((t) => {
-        return t.youtube_id && !this.trackHasLyrics(t) && !t.lyrics_unavailable;
+        return (
+          t.youtube_id &&
+          !this.trackHasLyrics(t) &&
+          !this.trackLyricsUnavailable(t)
+        );
       }).length;
     },
     is_downloading_lyrics() {
