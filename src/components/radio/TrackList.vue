@@ -91,9 +91,9 @@
                 />
                 <font-awesome-icon
                   v-else-if="track.lyrics_unavailable"
-                  icon="microphone-slash"
+                  icon="closed-captioning"
                   class="status-icon disabled"
-                  title="Legenda indisponível"
+                  title="Nenhuma legenda encontrada"
                 />
               </div>
 
@@ -931,7 +931,7 @@ export default {
 
 .lyrics-indicator .status-icon.disabled {
   color: var(--text-secondary);
-  opacity: 0.5;
+  opacity: 0.35;
 }
 
 @container (max-width: 1100px) {
