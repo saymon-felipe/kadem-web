@@ -11,6 +11,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import vAnimateHeight from './directives/v-animate-height.js';
 import { useUtilsStore } from '@/stores/utils';
 import { initializeLocalDb } from "@/db";
+import "./services/pwaInstall";
 
 import {
   faForwardStep,
@@ -108,6 +109,7 @@ import {
   faMoon,
   faCamera,
   faMicrophoneSlash,
+  faFingerprint,
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -206,6 +208,7 @@ library.add(
   faMoon,
   faCamera,
   faMicrophoneSlash,
+  faFingerprint,
 );
 
 window.addEventListener('error', (event) => {

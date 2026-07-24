@@ -11,6 +11,7 @@ import { useKanbanStore } from "./kanban";
 import { useRadioStore } from "./radio";
 import { usePlayerStore } from "./player";
 import { isLocalDbUnavailableError } from "@/db";
+import { authenticateWithBiometrics } from "@/services/biometricAuth";
 
 import {
   userRepository,
@@ -78,6 +79,33 @@ export const useAuthStore = defineStore("auth", {
         let response = await api.post("/auth/register", userData);
         return response;
       } catch (error) {
+        throw error;
+      }
+    },
+
+    async loginWithBiometrics(email) {
+      try {
+        const response = await authenticateWithBiometrics(email);
+        const { token, user } = response.data;
+
+        if (token) {
+          this.token = token;
+        }
+
+        await this._saveUserData(user);
+        return response;
+      } catch (error) {
+        if (isLocalDbUnavailableError(error)) {
+          try {
+            await api.post("/auth/logout");
+          } catch (logoutError) {
+            console.warn("Login biométrico aceito, mas o logout de compensação falhou.", logoutError);
+          }
+        }
+
+        this.user = {};
+        this.isAuthenticated = false;
+        this.token = null;
         throw error;
       }
     },

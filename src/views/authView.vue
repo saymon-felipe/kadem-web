@@ -10,48 +10,22 @@
           <h2>{{ isRegister ? "Crie uma conta" : "Entre" }}</h2>
 
           <div v-if="isRegister" class="form-group">
-            <input
-              id="name"
-              v-model="name"
-              type="text"
-              maxlength="255"
-              placeholder=""
-              required
-            />
+            <input id="name" v-model="name" type="text" maxlength="255" placeholder="" required />
             <label for="name">Nome</label>
           </div>
 
           <div class="form-group">
-            <input
-              id="email"
-              v-model="email"
-              type="email"
-              maxlength="255"
-              placeholder=""
-              required
-            />
+            <input id="email" v-model="email" type="email" maxlength="255" placeholder="" autocomplete="username"
+              required />
             <label for="email">E-mail</label>
           </div>
 
           <div class="form-group password-group">
-            <input
-              id="password"
-              v-model="password"
-              :type="passwordFieldType"
-              maxlength="255"
-              placeholder=""
-              required
-              minlength="6"
-              @input="updatePasswordStrength"
-            />
+            <input id="password" v-model="password" :type="passwordFieldType" maxlength="255" placeholder=""
+              autocomplete="current-password" required minlength="6" @input="updatePasswordStrength" />
             <label for="password">Senha</label>
-            <font-awesome-icon
-              icon="eye"
-              class="password-icon"
-              @mousedown="showPassword"
-              @mouseup="hidePassword"
-              @mouseleave="hidePassword"
-            />
+            <font-awesome-icon icon="eye" class="password-icon" @pointerdown.prevent="showPassword"
+              @pointerup="hidePassword" @pointercancel="hidePassword" @pointerleave="hidePassword" />
           </div>
 
           <div v-if="isRegister && password.length > 0" class="strength-meter">
@@ -60,26 +34,26 @@
           </div>
 
           <div v-if="isRegister" class="form-group password-group">
-            <input
-              id="repeat-password"
-              v-model="repeatPassword"
-              :type="repeatPasswordFieldType"
-              maxlength="255"
-              placeholder=""
-              required
-            />
+            <input id="repeat-password" v-model="repeatPassword" :type="repeatPasswordFieldType" maxlength="255"
+              placeholder="" required />
             <label for="repeat-password">Repita a senha</label>
-            <font-awesome-icon
-              icon="eye"
-              class="password-icon"
-              @mousedown="showRepeatPassword"
-              @mouseup="hideRepeatPassword"
-              @mouseleave="hideRepeatPassword"
-            />
+            <font-awesome-icon icon="eye" class="password-icon" @pointerdown.prevent="showRepeatPassword"
+              @pointerup="hideRepeatPassword" @pointercancel="hideRepeatPassword" @pointerleave="hideRepeatPassword" />
           </div>
 
-          <button type="submit" class="btn btn-primary">
+          <label v-if="!isRegister" class="remember-email">
+            <input v-model="rememberUser" type="checkbox" />
+            <span>Lembrar meu e-mail neste dispositivo</span>
+          </label>
+
+          <button type="submit" class="btn btn-primary" :disabled="loading">
             {{ isRegister ? "Criar conta" : "Entrar" }}
+          </button>
+
+          <button v-if="canUseBiometrics" type="button" class="btn biometric-login-button"
+            :disabled="isBiometricLoading" @click="loginWithBiometrics">
+            <font-awesome-icon icon="fingerprint" />
+            {{ isBiometricLoading ? "Validando..." : "Entrar com biometria" }}
           </button>
 
           <div class="form-group">
@@ -98,34 +72,37 @@
             </div>
           </div>
 
-          <LoadingResponse
-            :msg="response"
-            :type="responseType"
-            styletype="small"
-            :loading="loading"
-          />
+          <LoadingResponse :msg="response" :type="responseType" styletype="small" :loading="loading" />
 
           <div v-if="localDbIssue" class="storage-actions">
-            <button
-              type="button"
-              class="btn"
-              :disabled="repairingStorage"
-              @click="repairStorage"
-            >
+            <button type="button" class="btn" :disabled="repairingStorage" @click="repairStorage">
               {{ repairingStorage ? "Reparando ambiente..." : "Reparar armazenamento local" }}
             </button>
           </div>
         </form>
       </div>
     </div>
+
+    <ConfirmationModal v-model="showBiometricPrompt" message="Ativar login com biometria?"
+      :description="biometricPromptDescription"
+      :confirm-text="isActivatingBiometrics ? 'Ativando...' : biometricPromptError ? 'Tentar novamente' : 'Ativar agora'"
+      @confirmed="confirmBiometrics" @cancelled="declineBiometrics" />
   </section>
 </template>
 
 <script>
 import LoadingResponse from "@/components/loadingResponse.vue";
+import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import switchComponent from "../components/switchComponent.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useVaultStore } from "@/stores/vault";
+import {
+  biometricDeclinedKey,
+  getBiometricStatus,
+  isBiometricSupported,
+  registerBiometricCredential,
+  rememberedEmailKey,
+} from "@/services/biometricAuth";
 import {
   consumeLocalDbIssue,
   initializeLocalDb,
@@ -138,11 +115,14 @@ export default {
   components: {
     switchComponent,
     LoadingResponse,
+    ConfirmationModal,
   },
   data() {
+    const rememberedEmail = localStorage.getItem(rememberedEmailKey) || "";
+
     return {
       name: "",
-      email: "",
+      email: rememberedEmail,
       password: "",
       repeatPassword: "",
       authType: "login",
@@ -158,11 +138,26 @@ export default {
       localDbIssue: null,
       repairingStorage: false,
       removeLocalDbIssueListener: null,
+      rememberUser: Boolean(rememberedEmail),
+      biometricSupported: false,
+      isBiometricLoading: false,
+      isActivatingBiometrics: false,
+      showBiometricPrompt: false,
+      biometricPromptError: "",
     };
   },
   computed: {
     isRegister() {
       return this.authType === "register";
+    },
+    canUseBiometrics() {
+      return !this.isRegister
+        && this.biometricSupported
+        && Boolean(localStorage.getItem(rememberedEmailKey));
+    },
+    biometricPromptDescription() {
+      return this.biometricPromptError
+        || "Use a biometria deste dispositivo para entrar no Kadem mais rapidamente.";
     },
   },
   mounted() {
@@ -192,6 +187,8 @@ export default {
         this.setResponse("error", error.message, false);
       }
     });
+
+    this.checkBiometricSupport();
 
     this.$nextTick(() => {
       if (this.$route.query.invite_token) {
@@ -230,6 +227,90 @@ export default {
     },
   },
   methods: {
+    getErrorMessage(error, fallback) {
+      return error.response?.data?.message || error.message || fallback;
+    },
+    saveRememberedEmail() {
+      if (this.rememberUser) {
+        localStorage.setItem(rememberedEmailKey, this.email.trim());
+      } else {
+        localStorage.removeItem(rememberedEmailKey);
+      }
+    },
+    async checkBiometricSupport() {
+      this.biometricSupported = await isBiometricSupported();
+    },
+    async shouldPromptForBiometrics() {
+      if (!this.biometricSupported) {
+        await this.checkBiometricSupport();
+      }
+
+      if (!this.biometricSupported || localStorage.getItem(biometricDeclinedKey(this.email))) {
+        return false;
+      }
+
+      try {
+        return !(await getBiometricStatus());
+      } catch {
+        return false;
+      }
+    },
+    finishLogin() {
+      this.showBiometricPrompt = false;
+      this.biometricPromptError = "";
+
+      if (this.from_site) {
+        this.$router.push({ path: "/", query: { source: "site_landing" } });
+      } else {
+        this.$router.push("/");
+      }
+    },
+    async confirmBiometrics() {
+      if (this.isActivatingBiometrics) return;
+
+      this.isActivatingBiometrics = true;
+      this.biometricPromptError = "";
+      try {
+        await registerBiometricCredential();
+        localStorage.setItem(rememberedEmailKey, this.email.trim());
+        localStorage.removeItem(biometricDeclinedKey(this.email));
+        this.finishLogin();
+      } catch (error) {
+        this.biometricPromptError = this.getErrorMessage(
+          error,
+          "N\u00e3o foi poss\u00edvel ativar a biometria. Tente novamente.",
+        );
+        console.warn("Não foi possível ativar a biometria após o login.", error);
+      } finally {
+        this.isActivatingBiometrics = false;
+      }
+    },
+    declineBiometrics() {
+      localStorage.setItem(biometricDeclinedKey(this.email), "true");
+      this.finishLogin();
+    },
+    async loginWithBiometrics() {
+      const rememberedEmail = localStorage.getItem(rememberedEmailKey);
+      if (!rememberedEmail) return;
+
+      this.isBiometricLoading = true;
+      this.resetResponse();
+
+      try {
+        const authStore = useAuthStore();
+        await authStore.loginWithBiometrics(rememberedEmail);
+        this.setResponse("success", "Login realizado", false);
+        this.finishLogin();
+      } catch (error) {
+        this.setResponse(
+          "error",
+          this.getErrorMessage(error, "Não foi possível validar a biometria."),
+          false,
+        );
+      } finally {
+        this.isBiometricLoading = false;
+      }
+    },
     async handleResetPassword() {
       this.resetResponse();
 
@@ -347,7 +428,17 @@ export default {
 
           await authStore.register(data);
         } else {
-          await authStore.login(this.email, this.password, this.inviteToken);
+          const loginPassword = this.password;
+          await authStore.login(this.email, loginPassword, this.inviteToken);
+          this.saveRememberedEmail();
+
+          const vaultStore = useVaultStore();
+          try {
+            await vaultStore.setupVault(loginPassword, this.email);
+          } catch (vaultError) {
+            console.warn("O Cofre não pôde ser preparado nesta conexão.", vaultError);
+          }
+          this.password = "";
         }
 
         if (this.isRegister) {
@@ -364,13 +455,10 @@ export default {
         } else {
           this.setResponse("success", "Login realizado", false);
 
-          const vaultStore = useVaultStore();
-          vaultStore.setupVault(this.password, this.email);
-
-          if (this.from_site) {
-            this.$router.push({ path: "/", query: { source: "site_landing" } });
+          if (this.rememberUser && await this.shouldPromptForBiometrics()) {
+            this.showBiometricPrompt = true;
           } else {
-            this.$router.push("/");
+            this.finishLogin();
           }
         }
       } catch (error) {
@@ -518,6 +606,60 @@ form {
   width: 100%;
   gap: var(--space-3);
   flex-wrap: wrap;
+}
+
+.remember-email {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--fontsize-xs);
+  cursor: pointer;
+}
+
+.remember-email input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  display: grid;
+  flex: 0 0 20px;
+  place-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid var(--deep-blue);
+  border-radius: 4px;
+  background: var(--white);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.remember-email input[type="checkbox"]:checked {
+  background: var(--deep-blue);
+}
+
+.remember-email input[type="checkbox"]:checked::after {
+  width: 8px;
+  height: 4px;
+  border: solid var(--white);
+  border-width: 0 0 2px 2px;
+  content: "";
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.remember-email input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--deep-blue);
+  outline-offset: 2px;
+}
+
+.biometric-login-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
 }
 
 .storage-actions {

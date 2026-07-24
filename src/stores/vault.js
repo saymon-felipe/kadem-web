@@ -39,15 +39,26 @@ export const useVaultStore = defineStore('vault', () => {
   const last_sync_timestamp = ref(localStorage.getItem('kadem_vault_last_sync') || null);
 
   // --- CRIPTOGRAFIA (Web Crypto API) ---
+  const _getWebCrypto = () => {
+    const webCrypto = globalThis.crypto;
+
+    if (!webCrypto?.subtle) {
+      throw new Error("O Cofre exige uma conexão segura (HTTPS) e um navegador compatível com Web Crypto.");
+    }
+
+    return webCrypto;
+  };
+
   const _deriveKey = async (password, salt) => {
-    const keyMaterial = await window.crypto.subtle.importKey(
+    const webCrypto = _getWebCrypto();
+    const keyMaterial = await webCrypto.subtle.importKey(
       "raw",
       encoder.encode(password),
       "PBKDF2",
       false,
       ["deriveKey"]
     );
-    return await window.crypto.subtle.deriveKey(
+    return await webCrypto.subtle.deriveKey(
       {
         name: "PBKDF2",
         salt: encoder.encode(salt),
@@ -64,8 +75,9 @@ export const useVaultStore = defineStore('vault', () => {
   const _encrypt = async (data, key = _mek.value) => {
     if (!key) throw new Error("Cofre está trancado ou chave não fornecida.");
 
-    const iv = window.crypto.getRandomValues(new Uint8Array(12));
-    const encryptedData = await window.crypto.subtle.encrypt(
+    const webCrypto = _getWebCrypto();
+    const iv = webCrypto.getRandomValues(new Uint8Array(12));
+    const encryptedData = await webCrypto.subtle.encrypt(
       { name: "AES-GCM", iv: iv },
       key,
       encoder.encode(data)
@@ -80,11 +92,12 @@ export const useVaultStore = defineStore('vault', () => {
   const _decrypt = async (encryptedBlob, key = _mek.value) => {
     if (!key) throw new Error("Cofre está trancado ou chave não fornecida.");
 
+    const webCrypto = _getWebCrypto();
     const { iv: ivB64, data: dataB64 } = JSON.parse(encryptedBlob);
     const iv = base64ToBuffer(ivB64);
     const data = base64ToBuffer(dataB64);
 
-    const decryptedBuffer = await window.crypto.subtle.decrypt(
+    const decryptedBuffer = await webCrypto.subtle.decrypt(
       { name: "AES-GCM", iv: iv },
       key,
       data
@@ -204,7 +217,7 @@ export const useVaultStore = defineStore('vault', () => {
       if (!encryptedValidation) {
         console.log("Configurando o cofre pela primeira vez...");
         await setupVault(masterPassword, userSalt);
-        encrypted_validation = localStorage.getItem('vault_validation');
+        encryptedValidation = localStorage.getItem('vault_validation');
       }
 
       try {
@@ -382,7 +395,7 @@ export const useVaultStore = defineStore('vault', () => {
 
   const generate_recovery_code = () => {
     const array = new Uint8Array(12);
-    window.crypto.getRandomValues(array);
+    _getWebCrypto().getRandomValues(array);
     const hex = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
     return hex.match(/.{1,4}/g).join('-').toUpperCase();
   };

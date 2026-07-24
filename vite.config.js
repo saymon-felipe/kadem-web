@@ -97,8 +97,13 @@ export default defineConfig(({ mode }) => {
         manifest: {
           name: 'Kadem',
           short_name: 'Kadem',
-          description: '',
+          description: 'Organize seus projetos, tarefas e informações em um só lugar.',
+          lang: 'pt-BR',
+          start_url: '/',
+          scope: '/',
+          display: 'standalone',
           theme_color: '#1F274C',
+          background_color: '#1F274C',
           icons: [
             {
               src: 'pwa-192x192.png',
@@ -123,6 +128,15 @@ export default defineConfig(({ mode }) => {
         },
       },
       sourcemap: false
+    },
+    server: {
+      allowedHosts: ['reclining-banknote-clumsily.ngrok-free.dev'],
+      proxy: {
+        '/api': {
+          target: env.VITE_API_PROXY_TARGET || 'http://localhost:3000',
+          changeOrigin: true,
+        },
+      },
     },
     resolve: {
       alias: {

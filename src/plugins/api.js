@@ -30,6 +30,8 @@ const CSRF_EXEMPT_PATHS = [
   '/auth/validate_reset_token',
   '/auth/reset_password',
   '/auth/csrf',
+  '/auth/biometrics/login/options',
+  '/auth/biometrics/login/verify',
   '/alexa/token',
   '/alexa/webhook',
   '/alexa/link',

@@ -19,6 +19,7 @@
     "@fortawesome/fontawesome-svg-core": "^7.1.0",
     "@fortawesome/free-solid-svg-icons": "^7.1.0",
     "@fortawesome/vue-fontawesome": "^3.1.2",
+    "@simplewebauthn/browser": "^13.3.0",
     "axios": "^1.13.1",
     "dexie": "^4.2.1",
     "lodash.isequal": "^4.5.0",

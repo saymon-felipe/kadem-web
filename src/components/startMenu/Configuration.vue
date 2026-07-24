@@ -27,6 +27,36 @@
         {{ isLoading ? "Enviando..." : "Solicitar redefinição de senha" }}
       </button>
       <LoadingResponse :msg="responseMsg" :type="responseType" styletype="small" :loading="false" />
+
+      <template v-if="biometricSupported">
+        <p>Use a biometria deste dispositivo para entrar no Kadem mais rapidamente.</p>
+        <button
+          class="btn"
+          :class="biometricRegistered ? 'btn-red' : 'btn-primary'"
+          :disabled="!connection.connected || isBiometricLoading"
+          :title="!connection.connected ? 'Esta ação requer conexão com a internet.' : ''"
+          @click="toggleBiometrics"
+        >
+          {{ isBiometricLoading ? "Processando..." : biometricRegistered ? "Desativar login com biometria" : "Ativar login com biometria" }}
+        </button>
+      </template>
+      <p v-else>Este dispositivo não oferece suporte a biometria para acesso.</p>
+      <LoadingResponse :msg="biometricMsg" :type="biometricMsgType" styletype="small" :loading="false" />
+    </section>
+
+    <section class="config-section">
+      <h3>Aplicativo</h3>
+      <p v-if="!pwaInstalled">Instale o Kadem no celular para abri-lo como aplicativo.</p>
+      <p v-else>O Kadem já está instalado neste dispositivo.</p>
+      <button
+        v-if="!pwaInstalled"
+        class="btn btn-primary"
+        :disabled="isInstallingPwa"
+        @click="handlePwaInstall"
+      >
+        {{ isInstallingPwa ? "Instalando..." : isIOS ? "Como instalar" : "Instalar aplicativo" }}
+      </button>
+      <LoadingResponse :msg="pwaMsg" :type="pwaMsgType" styletype="small" :loading="false" />
     </section>
 
     <section class="config-section">
@@ -70,6 +100,20 @@ import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import BaseModal from "@/components/BaseModal.vue";
 import DeleteAccountForm from "./DeleteAccountForm.vue";
 import LoadingResponse from "@/components/loadingResponse.vue";
+import {
+  biometricDeclinedKey,
+  getBiometricStatus,
+  isBiometricSupported,
+  registerBiometricCredential,
+  rememberedEmailKey,
+  removeBiometricCredentials,
+} from "@/services/biometricAuth";
+import {
+  getPwaInstallUnavailableMessage,
+  isIOSDevice,
+  isPwaInstalled,
+  requestPwaInstall,
+} from "@/services/pwaInstall";
 
 export default {
   components: {
@@ -85,6 +129,16 @@ export default {
       responseType: "",
       showResetModal: false,
       showDeleteModal: false,
+      biometricSupported: false,
+      biometricRegistered: false,
+      isBiometricLoading: false,
+      biometricMsg: "",
+      biometricMsgType: "",
+      isIOS: false,
+      isInstallingPwa: false,
+      pwaInstalled: false,
+      pwaMsg: "",
+      pwaMsgType: "",
     };
   },
   computed: {
@@ -114,6 +168,79 @@ export default {
         this.isLoading = false;
       }
     },
+    async loadBiometricStatus() {
+      if (!this.biometricSupported || !this.connection.connected) return;
+
+      try {
+        this.biometricRegistered = await getBiometricStatus();
+      } catch (error) {
+        this.biometricMsgType = "error";
+        this.biometricMsg = error.response?.data?.message || "Não foi possível consultar a biometria.";
+      }
+    },
+    async toggleBiometrics() {
+      if (this.isBiometricLoading) return;
+
+      this.isBiometricLoading = true;
+      this.biometricMsg = "";
+      this.biometricMsgType = "";
+
+      try {
+        if (this.biometricRegistered) {
+          await removeBiometricCredentials();
+          localStorage.setItem(biometricDeclinedKey(this.user.email), "true");
+          this.biometricRegistered = false;
+          this.biometricMsg = "Login com biometria desativado.";
+        } else {
+          await registerBiometricCredential();
+          localStorage.setItem(rememberedEmailKey, this.user.email);
+          localStorage.removeItem(biometricDeclinedKey(this.user.email));
+          this.biometricRegistered = true;
+          this.biometricMsg = "Biometria ativada neste dispositivo.";
+        }
+        this.biometricMsgType = "success";
+      } catch (error) {
+        this.biometricMsgType = "error";
+        this.biometricMsg = error.response?.data?.message || "Não foi possível atualizar a biometria.";
+      } finally {
+        this.isBiometricLoading = false;
+      }
+    },
+    async handlePwaInstall() {
+      this.pwaMsg = "";
+      this.pwaMsgType = "";
+
+      if (this.isIOS) {
+        this.pwaMsgType = "success";
+        this.pwaMsg = "No Safari, toque em Compartilhar e escolha “Adicionar à Tela de Início”.";
+        return;
+      }
+
+      this.isInstallingPwa = true;
+      try {
+        const outcome = await requestPwaInstall();
+
+        if (outcome === "accepted") {
+          this.pwaInstalled = true;
+          this.pwaMsgType = "success";
+          this.pwaMsg = "Aplicativo instalado com sucesso.";
+        } else if (outcome === "dismissed") {
+          this.pwaMsgType = "error";
+          this.pwaMsg = "A instalação foi cancelada. Você pode tentar novamente quando quiser.";
+        } else {
+          this.pwaMsgType = "error";
+          this.pwaMsg = getPwaInstallUnavailableMessage();
+        }
+      } finally {
+        this.isInstallingPwa = false;
+      }
+    },
+  },
+  async mounted() {
+    this.isIOS = isIOSDevice();
+    this.pwaInstalled = isPwaInstalled();
+    this.biometricSupported = await isBiometricSupported();
+    await this.loadBiometricStatus();
   },
 };
 </script>
