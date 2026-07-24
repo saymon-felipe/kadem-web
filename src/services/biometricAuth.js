@@ -3,6 +3,16 @@ import { api } from "@/plugins/api";
 export const rememberedEmailKey = "kadem_remembered_email";
 export const biometricDeclinedKey = (email) => `kadem_biometric_prompt_declined:${String(email || "").trim().toLowerCase()}`;
 
+export function isBiometricCancellationError(error) {
+  const errorName = String(error?.name || "");
+  const errorMessage = String(error?.message || "").toLowerCase();
+
+  return ["NotAllowedError", "AbortError", "TimeoutError"].includes(errorName)
+    || errorMessage.includes("operation either timed out or was not allowed")
+    || errorMessage.includes("the operation was canceled")
+    || errorMessage.includes("the operation was cancelled");
+}
+
 const getWebAuthn = () => import("@simplewebauthn/browser");
 
 export async function isBiometricSupported() {

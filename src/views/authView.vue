@@ -100,6 +100,7 @@ import {
   biometricDeclinedKey,
   getBiometricStatus,
   isBiometricSupported,
+  isBiometricCancellationError,
   registerBiometricCredential,
   rememberedEmailKey,
 } from "@/services/biometricAuth";
@@ -302,6 +303,10 @@ export default {
         this.setResponse("success", "Login realizado", false);
         this.finishLogin();
       } catch (error) {
+        if (isBiometricCancellationError(error)) {
+          return;
+        }
+
         this.setResponse(
           "error",
           this.getErrorMessage(error, "Não foi possível validar a biometria."),
