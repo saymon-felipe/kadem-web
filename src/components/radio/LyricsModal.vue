@@ -33,6 +33,7 @@
                   if (index === active_index) active_lyric_el = el;
                 }
               "
+              :data-lyric-index="index"
               class="lyric-item"
               :class="{
                 'is-past': index < active_index,
@@ -73,6 +74,8 @@ export default {
       active_lyric_el: null,
       is_manual_scrolling: false,
       scroll_timeout: null,
+      is_auto_scrolling: false,
+      auto_scroll_timeout: null,
       is_closing: false,
       is_at_top: true,
       is_at_bottom: false,
@@ -80,34 +83,65 @@ export default {
   },
   watch: {
     current_time(val) {
-      if (this.lyrics && this.lyrics.length > 0) {
+      if (this.modelValue && this.lyrics && this.lyrics.length > 0) {
         this.sync_lyrics_index(val);
       }
     },
     active_index() {
       this.perform_auto_scroll();
     },
+    track(new_track, old_track) {
+      if (this.get_track_key(new_track) !== this.get_track_key(old_track)) {
+        this.reset_lyrics_state();
+      }
+    },
+    lyrics: {
+      handler() {
+        this.reset_lyrics_state();
+
+        if (this.modelValue) {
+          this.$nextTick(() => {
+            this.sync_lyrics_index(this.current_time);
+            this.check_scroll_position();
+            this.perform_auto_scroll();
+          });
+        }
+      },
+    },
     modelValue(val) {
       if (val) {
         this.$nextTick(() => {
+          this.sync_lyrics_index(this.current_time);
           this.check_scroll_position();
           this.perform_auto_scroll();
         });
+      } else {
+        this.reset_lyrics_state();
       }
     },
   },
   methods: {
+    get_track_key(track) {
+      return track?.youtube_id || track?.local_id || track?.id || null;
+    },
     sync_lyrics_index(time) {
-      const index = this.lyrics.findIndex((line, i) => {
-        const next = this.lyrics[i + 1];
-        return time >= line.start && (!next || time < next.start);
-      });
-      if (index !== -1 && index !== this.active_index) {
+      const current_time = Number(time);
+      const index = Number.isFinite(current_time)
+        ? this.lyrics.findIndex((line, i) => {
+            const next = this.lyrics[i + 1];
+            return current_time >= line.start && (!next || current_time < next.start);
+          })
+        : -1;
+
+      if (index !== this.active_index) {
         this.active_index = index;
       }
     },
     handle_scroll() {
       this.check_scroll_position();
+
+      if (this.is_auto_scrolling) return;
+
       this.is_manual_scrolling = true;
       clearTimeout(this.scroll_timeout);
 
@@ -123,14 +157,62 @@ export default {
       this.is_at_bottom = Math.abs(scrollBottom) <= 2;
     },
     perform_auto_scroll() {
-      if (!this.active_lyric_el || this.is_manual_scrolling || !this.modelValue) return;
+      if (this.active_index < 0 || this.is_manual_scrolling || !this.modelValue) {
+        return;
+      }
 
-      this.active_lyric_el.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
+      this.$nextTick(() => {
+        const container = this.$refs.scrollContainer;
+        const active_el = container?.querySelector(`[data-lyric-index="${this.active_index}"]`);
+
+        if (!container || !active_el) return;
+
+        this.active_lyric_el = active_el;
+
+        const container_rect = container.getBoundingClientRect();
+        const active_rect = active_el.getBoundingClientRect();
+        const active_top = container.scrollTop + active_rect.top - container_rect.top;
+        const max_scroll_top = Math.max(0, container.scrollHeight - container.clientHeight);
+        const centered_scroll_top = active_top - (container.clientHeight - active_el.offsetHeight) / 2;
+        const is_first_lyric = this.active_index === 0;
+        const is_last_lyric = this.active_index === this.lyrics.length - 1;
+        const target_scroll_top = is_first_lyric
+          ? 0
+          : is_last_lyric
+            ? max_scroll_top
+            : Math.min(Math.max(centered_scroll_top, 0), max_scroll_top);
+
+        if (Math.abs(container.scrollTop - target_scroll_top) <= 1) {
+          this.check_scroll_position();
+          return;
+        }
+
+        this.is_auto_scrolling = true;
+        clearTimeout(this.auto_scroll_timeout);
+        container.scrollTo({ top: target_scroll_top, behavior: "smooth" });
+        this.auto_scroll_timeout = setTimeout(() => {
+          this.is_auto_scrolling = false;
+        }, 500);
       });
     },
+    reset_lyrics_state() {
+      clearTimeout(this.scroll_timeout);
+      clearTimeout(this.auto_scroll_timeout);
+
+      this.active_index = -1;
+      this.active_lyric_el = null;
+      this.is_manual_scrolling = false;
+      this.is_auto_scrolling = false;
+      this.scroll_timeout = null;
+      this.auto_scroll_timeout = null;
+      this.is_at_top = true;
+      this.is_at_bottom = false;
+
+      const container = this.$refs.scrollContainer;
+      if (container) container.scrollTo({ top: 0, behavior: "auto" });
+    },
     close_modal() {
+      this.reset_lyrics_state();
       this.is_closing = true;
       setTimeout(() => {
         this.$emit("update:modelValue", false);
@@ -222,26 +304,14 @@ export default {
 .lyrics-scroll-area {
   flex-grow: 1;
   overflow-y: auto;
-  padding: 0 var(--space-4) 40vh;
+  padding: 0 var(--space-4);
   text-align: center;
 
   --mask-top: transparent;
   --mask-bottom: transparent;
 
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    var(--mask-top) 0%,
-    black 15%,
-    black 85%,
-    var(--mask-bottom) 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    var(--mask-top) 0%,
-    black 15%,
-    black 85%,
-    var(--mask-bottom) 100%
-  );
+  -webkit-mask-image: linear-gradient(to bottom, var(--mask-top) 0%, black 15%, black 85%, var(--mask-bottom) 100%);
+  mask-image: linear-gradient(to bottom, var(--mask-top) 0%, black 15%, black 85%, var(--mask-bottom) 100%);
 }
 
 .lyrics-scroll-area.is-at-top {
