@@ -195,10 +195,12 @@ export default {
 }
 
 .account-item {
+  position: relative;
   padding: var(--space-4);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--space-4);
   background: var(--dark-yellow);
 }
@@ -207,9 +209,9 @@ export default {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  flex-shrink: 0;
-  width: 30%;
-  min-width: 180px;
+  width: 100%;
+  min-width: unset;
+  padding-right: 108px;
 }
 
 .account-icon {
@@ -244,11 +246,11 @@ export default {
 }
 
 .account-credentials {
-  flex-grow: 1;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  min-width: 250px;
+  min-width: unset;
 }
 
 .credential-field {
@@ -291,12 +293,15 @@ export default {
 }
 
 .account-actions {
+  position: absolute;
+  z-index: 1;
+  top: var(--space-3);
+  right: var(--space-3);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: var(--space-2);
-  align-self: flex-start;
   flex-shrink: 0;
-  padding-top: var(--space-2);
+  padding-top: 0;
 }
 
 .action-btn {
@@ -329,31 +334,11 @@ export default {
   color: var(--red-low);
 }
 
-@media (max-width: 960px) {
-  .account-item {
-    flex-wrap: wrap;
-  }
-
-  .account-meta {
-    width: 100%;
-    min-width: unset;
-  }
-
-  .account-credentials {
-    width: calc(100% - 40px);
-    min-width: unset;
-  }
-
-  .account-actions {
-    position: absolute;
-    right: 10px;
-    top: 10px;
-    flex-direction: row;
-    padding-top: 0;
-  }
-}
-
 @media (max-width: 600px) {
+  .account-meta {
+    padding-right: 0;
+  }
+
   .account-credentials {
     flex-direction: column;
     width: 100%;
