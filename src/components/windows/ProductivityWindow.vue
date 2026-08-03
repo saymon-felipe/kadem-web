@@ -27,13 +27,19 @@
         </div>
       </div>
 
-      <div v-else class="active-app-view" key="app">
-        <button class="back-btn" @click="close_app">
-          <font-awesome-icon icon="arrow-left" /> Voltar
-        </button>
-        <component :is="apps[active_app]" />
-      </div>
     </transition>
+
+    <div v-show="active_app" class="active-app-view">
+      <button class="back-btn" @click="close_app">
+        <font-awesome-icon icon="arrow-left" /> Voltar
+      </button>
+
+      <RadioFlow
+        v-if="has_opened_radio"
+        v-show="active_app === 'radio_flow'"
+      />
+      <KademNexo v-if="active_app === 'kadem_nexo'" />
+    </div>
   </div>
 </template>
 
@@ -49,10 +55,7 @@ export default {
   props: ["windowId"], // Recebe o ID da janela do BaseWindow
   data() {
     return {
-      apps: {
-        radio_flow: "RadioFlow",
-        kadem_nexo: "KademNexo",
-      },
+      has_opened_radio: false,
     };
   },
   computed: {
@@ -62,6 +65,9 @@ export default {
     ...mapActions(usePlayerStore, ["setActiveApp"]),
 
     open_app(app_key) {
+      if (app_key === "radio_flow") {
+        this.has_opened_radio = true;
+      }
       this.setActiveApp(app_key);
     },
     close_app() {
@@ -73,6 +79,11 @@ export default {
 
     if (!windowStore.currentUserWindows[this.windowId]) {
       this.setActiveApp(null);
+    }
+  },
+  mounted() {
+    if (this.active_app === "radio_flow") {
+      this.has_opened_radio = true;
     }
   },
 };
