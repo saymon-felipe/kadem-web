@@ -827,11 +827,11 @@ export default {
 
       this.filteredCategories.forEach((category) => {
         const canonicalMacro = this.macroCategories.find(
-          (macro) =>
-            this.sameId(macro.id, category.macro_category_id) ||
-            this.sameId(macro.local_id, category.macro_category_id) ||
-            this.sameId(macro.local_key, category.macro_category_id) ||
-            this.normalize(macro?.name) === this.normalize(category.macro_category),
+          (macro) => this.sameId(macro.id, category.macro_category_id),
+        ) || this.macroCategories.find(
+          (macro) => this.sameId(macro.local_key, category.macro_category_id),
+        ) || this.macroCategories.find(
+          (macro) => this.normalize(macro?.name) === this.normalize(category.macro_category),
         );
         const macroName = canonicalMacro?.name || category.macro_category || "Geral";
         if (!groups.has(macroName)) {
