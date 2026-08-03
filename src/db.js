@@ -13,8 +13,6 @@ const LOCAL_DB_ERROR_NAMES = new Set([
   "QuotaExceededError",
 ]);
 
-const PERSISTED_MEDIA_STORES = new Set(["global_audio_cache", "lyrics"]);
-
 const SCHEMA_V5 = {
   tasks: "++id, title, tempId",
   syncQueue: "++id, type, timestamp",
@@ -68,42 +66,14 @@ db.version(7).stores(SCHEMA_V7);
 db.version(9).stores(SCHEMA_V9);
 db.version(10).stores(SCHEMA_V10);
 db.version(14).stores(SCHEMA_V14);
-db.version(15)
-  .stores(SCHEMA_V14)
-  .upgrade(async (transaction) => {
-    await clearVolatileStores(transaction, SCHEMA_V14);
-  });
-// Reapply the schema for browsers that reached v15 with an incomplete IndexedDB
-// schema. Dexie creates any missing stores during this version upgrade.
+db.version(15).stores(SCHEMA_V14);
+// Schema-only upgrades let Dexie create any missing stores without accessing an
+// object store while IndexedDB is still applying the version change.
 db.version(16).stores(SCHEMA_V14);
-// Re-run the schema repair for clients that already opened the faulty v16 schema.
 db.version(17).stores(SCHEMA_V14);
+db.version(18).stores(SCHEMA_V14);
 
 let dbOpenPromise = null;
-
-function clearVolatileStores(transaction, schema) {
-  const volatileStoreNames = Object.keys(schema).filter(
-    (storeName) => !PERSISTED_MEDIA_STORES.has(storeName),
-  );
-
-  return Promise.all(
-    volatileStoreNames.map(async (storeName) => {
-      // A previous interrupted upgrade can leave the database version ahead of
-      // its physical stores. Opening one of those absent stores aborts the whole
-      // upgrade with NotFoundError, preventing Dexie from recreating it later.
-      if (!transaction.idbtrans.objectStoreNames.contains(storeName)) {
-        console.warn(`[DB] Store ${storeName} ausente durante migração; será recriada.`);
-        return;
-      }
-
-      try {
-        await transaction.table(storeName).clear();
-      } catch (error) {
-        console.warn(`[DB] Falha ao limpar store ${storeName} durante migração.`, error);
-      }
-    }),
-  );
-}
 
 function canUseBrowserStorage() {
   return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
