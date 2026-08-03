@@ -84,21 +84,25 @@ const normalizeCategoryMacroReferences = async () => {
     db.finance_macro_categories.toArray(),
     db.finance_categories.toArray(),
   ]);
-  const macrosById = new Map();
+  const macrosByServerId = new Map();
+  const macrosByLocalReference = new Map();
   const macrosByName = new Map();
 
   macros.forEach((macro) => {
     if (!macro) return;
-    [macro.id, macro.local_id, macro.local_key].filter(Boolean).forEach((key) => {
-      macrosById.set(String(key), macro);
-    });
+    if (isServerId(macro.id)) macrosByServerId.set(String(macro.id), macro);
+    // A local_id is only an IndexedDB row number and may equal an unrelated
+    // server ID. Local macros use their local_key as the stable reference.
+    if (macro.local_key) macrosByLocalReference.set(String(macro.local_key), macro);
+    if (!isServerId(macro.id) && macro.id) macrosByLocalReference.set(String(macro.id), macro);
     macrosByName.set(String(macro.name || "").toLowerCase(), macro);
   });
 
   await Promise.all(
     categories.map((category) => {
       const macro =
-        macrosById.get(String(category.macro_category_id || "")) ||
+        macrosByServerId.get(String(category.macro_category_id || "")) ||
+        macrosByLocalReference.get(String(category.macro_category_id || "")) ||
         macrosByName.get(String(category.macro_category || "").toLowerCase());
       if (!macro) return null;
 
