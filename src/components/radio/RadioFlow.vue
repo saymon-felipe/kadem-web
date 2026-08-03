@@ -397,7 +397,6 @@ export default {
       handler(isMobile) {
         if (isMobile) {
           if (this.view_mode === "search") this.close_search();
-          this.forceMobileVolume();
         }
       },
     },
@@ -417,8 +416,8 @@ export default {
       "set_queue",
       "set_mobile_tab",
       "setCurrentPlaylist",
-      "set_volume",
       "setViewedPlaylistId",
+      "handle_youtube_state_change",
     ]),
     ...mapActions(useRadioStore, [
       "pullPlaylists",
@@ -431,10 +430,6 @@ export default {
       "checkOfflineAvailability",
       "update_playlist_cover",
     ]),
-    forceMobileVolume() {
-      this.set_volume(100);
-    },
-
     async load_data() {
       if (this.connection.connected) {
         await this.pullPlaylists();
@@ -753,11 +748,11 @@ export default {
           onReady: (event) => {
             console.log("[RadioFlow] YouTube Player Pronto.");
             this.register_yt_instance(event.target);
-            if (this.is_mobile) this.forceMobileVolume();
             if (typeof this.restorePlayerConnection === "function")
               this.restorePlayerConnection();
           },
           onStateChange: (event) => {
+            this.handle_youtube_state_change(event);
             if (event.data === 0) this.next();
           },
         },

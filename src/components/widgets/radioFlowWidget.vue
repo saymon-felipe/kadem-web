@@ -104,6 +104,7 @@ export default {
       "current_playlist",
       "is_playing",
       "is_loading",
+      "playback_position",
     ]),
     is_disabled_controls() {
       return !this.current_music || this.is_loading;
@@ -127,11 +128,19 @@ export default {
     current_music: {
       handler(newVal) {
         if (newVal) {
-          this.ui_current_time = 0;
+          this.ui_current_time = Number(this.playback_position) || 0;
           this.duration = newVal.duration_seconds || 0;
         } else {
           this.ui_current_time = 0;
           this.duration = 0;
+        }
+      },
+      immediate: true,
+    },
+    playback_position: {
+      handler(position) {
+        if (!this.is_dragging && Number.isFinite(Number(position))) {
+          this.ui_current_time = Number(position);
         }
       },
       immediate: true,

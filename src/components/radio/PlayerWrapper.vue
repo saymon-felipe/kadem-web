@@ -169,6 +169,7 @@ export default {
       "current_music",
       "is_playing",
       "volume",
+      "playback_position",
       "is_loading",
       "current_playlist",
     ]),
@@ -226,6 +227,7 @@ export default {
       "set_volume",
       "get_current_time",
       "get_duration",
+      "update_playback_position",
     ]),
     decode_html_entities,
     toggle_lyrics() {
@@ -260,6 +262,7 @@ export default {
       this.timer_interval = setInterval(() => {
         if (!this.is_dragging && this.is_playing) {
           this.ui_current_time = this.get_current_time();
+          this.update_playback_position(this.ui_current_time);
           if (this.duration === 0 || isNaN(this.duration)) {
             this.duration = this.get_duration();
           }
@@ -311,7 +314,7 @@ export default {
     current_music: {
       handler(new_val) {
         if (new_val) {
-          this.ui_current_time = 0;
+          this.ui_current_time = Number(this.playback_position) || 0;
           this.duration = new_val.duration_seconds || 0;
         } else {
           this.ui_current_time = 0;
@@ -344,6 +347,14 @@ export default {
     volume: {
       handler(new_vol) {
         this.ui_volume = new_vol;
+      },
+      immediate: true,
+    },
+    playback_position: {
+      handler(position) {
+        if (!this.is_dragging && Number.isFinite(Number(position))) {
+          this.ui_current_time = Number(position);
+        }
       },
       immediate: true,
     },

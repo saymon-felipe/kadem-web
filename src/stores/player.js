@@ -20,6 +20,9 @@ function debounce(func, wait) {
   };
 }
 
+const DEFAULT_PLAYER_VOLUME = 1;
+const PLAYER_VOLUME_STORAGE_PREFIX = "kadem_radio_player_volume";
+
 export const usePlayerStore = defineStore("player", {
   state: () => ({
     current_music: null,
@@ -30,12 +33,15 @@ export const usePlayerStore = defineStore("player", {
     is_loading: false,
     is_playing: false,
     player_mode: "none",
-    volume: 0.5,
+    volume: DEFAULT_PLAYER_VOLUME,
+    playback_position: 0,
+    last_playback_position_sync_at: 0,
     is_shuffle: false,
     active_app: null,
     mobile_tab: "playlists",
     is_initialized: false,
     yt_player_instance: null,
+    pending_youtube_restore: null,
     native_audio_instance: markRaw(new Audio()),
     current_audio_url: null,
     current_lyrics: [],
@@ -168,6 +174,7 @@ export const usePlayerStore = defineStore("player", {
       this.native_audio_instance.removeAttribute("src");
       this.native_audio_instance.onended = null;
       this.native_audio_instance.ontimeupdate = null;
+      this.native_audio_instance.onloadedmetadata = null;
     },
 
     /**
@@ -215,7 +222,7 @@ export const usePlayerStore = defineStore("player", {
       });
     },
 
-    async _handle_native_playback(track, blob, should_play) {
+    async _handle_native_playback(track, blob, should_play, start_seconds = 0) {
       const audio = this._ensure_audio_instance();
       this.is_loading = true;
 
@@ -224,6 +231,13 @@ export const usePlayerStore = defineStore("player", {
         audio.src = this.current_audio_url;
         audio.loop = false;
         audio.volume = this.volume;
+
+        const resume_position = Math.max(0, Number(start_seconds) || 0);
+        audio.onloadedmetadata = () => {
+          if (resume_position > 0 && Number.isFinite(audio.duration)) {
+            audio.currentTime = Math.min(resume_position, Math.max(0, audio.duration - 0.25));
+          }
+        };
 
         audio.ontimeupdate = () => {
           if (Math.floor(audio.currentTime) % 5 === 0)
@@ -246,7 +260,7 @@ export const usePlayerStore = defineStore("player", {
       }
     },
 
-    async _playYoutube(track, should_play = true) {
+    async _playYoutube(track, should_play = true, start_seconds = 0) {
       if (
         this.yt_player_instance &&
         typeof this.yt_player_instance.loadVideoById === "function"
@@ -257,14 +271,14 @@ export const usePlayerStore = defineStore("player", {
         if (should_play) {
           await this.yt_player_instance.loadVideoById({
             videoId: track.youtube_id,
-            startSeconds: 0,
+            startSeconds: Math.max(0, Number(start_seconds) || 0),
           });
           this.is_playing = true;
           this._activate_silent_anchor();
         } else {
           await this.yt_player_instance.cueVideoById({
             videoId: track.youtube_id,
-            startSeconds: 0,
+            startSeconds: Math.max(0, Number(start_seconds) || 0),
           });
           this.is_playing = false;
         }
@@ -312,6 +326,7 @@ export const usePlayerStore = defineStore("player", {
     },
 
     async play_track(track, playlist = null) {
+      this.pending_youtube_restore = null;
       const isSameTrack =
         this.current_music &&
         ((track.youtube_id && track.youtube_id === this.current_music.youtube_id) ||
@@ -387,6 +402,8 @@ export const usePlayerStore = defineStore("player", {
 
       const { audio_blob, ...cleanTrack } = targetTrack;
       this.current_music = cleanTrack;
+      this.playback_position = 0;
+      this.last_playback_position_sync_at = 0;
 
       this.is_loading = true;
       this.is_playing = false;
@@ -447,6 +464,8 @@ export const usePlayerStore = defineStore("player", {
 
     async toggle_play() {
       if (!this.current_music) return;
+
+      this.update_playback_position(this.get_current_time(), { force_sync: true });
 
       this.$patch((state) => {
         state.is_playing = !state.is_playing;
@@ -526,11 +545,13 @@ export const usePlayerStore = defineStore("player", {
     },
 
     seek_to(seconds) {
+      const position = Math.max(0, Number(seconds) || 0);
       if (this.player_mode === "native") {
-        this.native_audio_instance.currentTime = seconds;
+        this.native_audio_instance.currentTime = position;
       } else if (this.player_mode === "youtube" && this.yt_player_instance) {
-        this.yt_player_instance.seekTo(seconds, true);
+        this.yt_player_instance.seekTo(position, true);
       }
+      this.update_playback_position(position, { force_sync: true });
       this._update_media_session_position();
     },
 
@@ -555,13 +576,48 @@ export const usePlayerStore = defineStore("player", {
       return 0;
     },
 
-    set_volume(val) {
-      this.volume = Math.min(Math.max(val, 0), 1);
+    _get_local_volume_storage_key() {
+      const user_id = useAuthStore().user?.id;
+      return user_id ? `${PLAYER_VOLUME_STORAGE_PREFIX}:${user_id}` : null;
+    },
+
+    restore_local_volume() {
+      const storage_key = this._get_local_volume_storage_key();
+      if (!storage_key) return;
+
+      try {
+        const saved_volume = localStorage.getItem(storage_key);
+        this.set_volume(
+          saved_volume === null ? DEFAULT_PLAYER_VOLUME : saved_volume,
+          { persist: false },
+        );
+      } catch (error) {
+        console.warn("[PlayerStore] Falha ao restaurar o volume local:", error);
+      }
+    },
+
+    _persist_local_volume() {
+      const storage_key = this._get_local_volume_storage_key();
+      if (!storage_key) return;
+
+      try {
+        localStorage.setItem(storage_key, String(this.volume));
+      } catch (error) {
+        console.warn("[PlayerStore] Falha ao persistir o volume local:", error);
+      }
+    },
+
+    set_volume(val, { persist = true } = {}) {
+      let normalized_volume = Number(val);
+      if (!Number.isFinite(normalized_volume)) return;
+      if (normalized_volume > 1) normalized_volume /= 100;
+
+      this.volume = Math.min(Math.max(normalized_volume, 0), 1);
       if (this.native_audio_instance) this.native_audio_instance.volume = this.volume;
       if (this.yt_player_instance?.setVolume) {
         this.yt_player_instance.setVolume(this.volume * 100);
-        this.syncState();
       }
+      if (persist) this._persist_local_volume();
     },
 
     register_yt_instance(player) {
@@ -598,15 +654,42 @@ export const usePlayerStore = defineStore("player", {
       this.mobile_tab = t;
     },
 
+    update_playback_position(seconds, { force_sync = false } = {}) {
+      const position = Number(seconds);
+      if (!Number.isFinite(position) || position < 0) return;
+
+      this.playback_position = Math.round(position * 1000) / 1000;
+
+      const now = Date.now();
+      if (
+        this.is_initialized &&
+        (force_sync || now - this.last_playback_position_sync_at >= 5000)
+      ) {
+        this.last_playback_position_sync_at = now;
+        this.syncState();
+      }
+    },
+
     /* ==========================================================================
        SECTION 4: STATE MANAGEMENT & SYNC
        ========================================================================== */
 
     async restorePlayerConnection() {
       this._ensure_audio_instance();
+      this.restore_local_volume();
+      const resume_position = Math.max(0, Number(this.playback_position) || 0);
+      let waiting_for_youtube_cue = false;
 
       if (this.current_music && this.player_mode === "youtube") {
         if (this.yt_player_instance?.cueVideoById) {
+          this.pending_youtube_restore =
+            resume_position > 0
+              ? {
+                  youtube_id: this.current_music.youtube_id,
+                  position: resume_position,
+                }
+              : null;
+          waiting_for_youtube_cue = !!this.pending_youtube_restore;
           await this.yt_player_instance.cueVideoById({
             videoId: this.current_music.youtube_id,
             startSeconds: 0,
@@ -616,7 +699,12 @@ export const usePlayerStore = defineStore("player", {
         try {
           const blob = await radioRepository.getTrackBlob(this.current_music.local_id);
           if (blob) {
-            await this._handle_native_playback(this.current_music, blob, false);
+            await this._handle_native_playback(
+              this.current_music,
+              blob,
+              false,
+              resume_position,
+            );
           }
         } catch (e) {
           console.warn("Falha ao restaurar nativo:", e);
@@ -626,20 +714,46 @@ export const usePlayerStore = defineStore("player", {
       if (this.current_music) {
         this._refresh_media_session(this.current_music, false);
       }
-      this.is_loading = false;
+      this.is_loading = waiting_for_youtube_cue && !!this.pending_youtube_restore;
       this.is_playing = false;
     },
 
+    handle_youtube_state_change(event) {
+      if (event?.data !== 5 || !this.pending_youtube_restore) return;
+
+      const pending_restore = this.pending_youtube_restore;
+      if (this.current_music?.youtube_id !== pending_restore.youtube_id) {
+        this.pending_youtube_restore = null;
+        this.is_loading = false;
+        return;
+      }
+
+      if (this.yt_player_instance?.seekTo) {
+        this.yt_player_instance.seekTo(pending_restore.position, true);
+        this.yt_player_instance.pauseVideo?.();
+      }
+
+      this.playback_position = pending_restore.position;
+      this.pending_youtube_restore = null;
+      this.is_playing = false;
+      this.is_loading = false;
+      this._update_media_session_position();
+    },
+
     async pullPlayerState() {
+      this.restore_local_volume();
+
       try {
         const response = await api.get("/radio/preferences");
         const prefs = response.data;
 
         if (prefs && Object.keys(prefs).length > 0) {
-          if (prefs.volume !== undefined) this.volume = prefs.volume;
           if (prefs.is_shuffle !== undefined) this.is_shuffle = !!prefs.is_shuffle;
           if (prefs.active_app) this.active_app = prefs.active_app;
           if (prefs.queue) this.queue = prefs.queue;
+          if (prefs.playback_position !== undefined) {
+            this.playback_position = Math.max(0, Number(prefs.playback_position) || 0);
+          }
 
           // Restaura Playlist
           if (prefs.current_playlist_id) {
@@ -676,6 +790,9 @@ export const usePlayerStore = defineStore("player", {
         console.warn("[PlayerStore] Falha ao carregar preferências:", error.message);
       } finally {
         this.is_initialized = true;
+        if (this.current_music && this.yt_player_instance && !this.is_playing) {
+          await this.restorePlayerConnection();
+        }
       }
     },
 
@@ -715,8 +832,8 @@ export const usePlayerStore = defineStore("player", {
 
       const payload = {
         active_app: this.active_app,
-        volume: this.volume,
         is_shuffle: this.is_shuffle,
+        playback_position: this.playback_position,
         current_playlist_id: plId,
         current_track_id: trId,
         queue: sanitizedQueue,
@@ -748,7 +865,7 @@ export const usePlayerStore = defineStore("player", {
       "viewed_playlist_id",
       "queue",
       "played_history",
-      "volume",
+      "playback_position",
       "is_shuffle",
       "active_app",
       "mobile_tab",
@@ -766,7 +883,7 @@ export const usePlayerStore = defineStore("player", {
       ctx.store.is_loading = false;
       ctx.store.current_audio_url = null;
 
-      if (ctx.store.volume > 1) ctx.store.volume = ctx.store.volume / 100;
+      ctx.store.volume = DEFAULT_PLAYER_VOLUME;
 
       if (
         !ctx.store.native_audio_instance ||
