@@ -175,6 +175,9 @@ export default {
     timeLabel(value) {
       const raw = String(value || "").trim();
       if (!raw || raw.length <= 10) return "";
+      const rawTime = raw.match(/^\d{4}-\d{2}-\d{2}[T\s](\d{2}:\d{2})/);
+      if (rawTime) return rawTime[1] === "00:00" ? "" : rawTime[1];
+
       const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(raw) ? raw.replace(" ", "T") : raw;
       const parsed = new Date(normalized);
       if (Number.isNaN(parsed.getTime())) return "";

@@ -613,7 +613,7 @@ export const financeRepository = {
   },
 
   async createLocalTransactionsBatch(items) {
-    return db.transaction("rw", db.finance_transactions, async () => {
+    return db.transaction("rw", db.finance_transactions, db.finance_categories, async () => {
       const createdItems = [];
       for (const data of items) {
         let category_id = data.category_id || null;

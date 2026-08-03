@@ -937,6 +937,25 @@ export default {
       const parsed = new Date(candidate);
       return Number.isNaN(parsed.getTime()) ? null : parsed;
     },
+    calendarDateParts(value) {
+      const raw = String(value || "").trim();
+      const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/);
+      if (match) {
+        return {
+          day: match[3],
+          month: match[2],
+          time: match[4] ? `${match[4]}:${match[5]}` : "",
+        };
+      }
+
+      const date = this.parseDisplayDate(value);
+      if (!date) return null;
+      return {
+        day: String(date.getDate()).padStart(2, "0"),
+        month: String(date.getMonth() + 1).padStart(2, "0"),
+        time: `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`,
+      };
+    },
     signedMoney(transaction) {
       const prefix = transaction.type === "EXPENSE" ? "-" : "+";
       return `${prefix} ${this.money(transaction.amount)}`;
@@ -944,9 +963,8 @@ export default {
     shortDate(value) {
       if (!value) return "--";
       try {
-        const d = this.parseDisplayDate(value);
-        if (!d) return "--";
-        return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+        const parts = this.calendarDateParts(value);
+        return parts ? `${parts.day}/${parts.month}` : "--";
       } catch {
         return "--";
       }
@@ -954,16 +972,11 @@ export default {
     shortDateTime(value) {
       if (!value) return "--";
       try {
-        const d = this.parseDisplayDate(value);
-        if (!d) return "--";
+        const parts = this.calendarDateParts(value);
+        if (!parts) return "--";
 
-        const date = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-        const time = d.toLocaleTimeString("pt-BR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        const hasTime = String(value).trim().length > 10 && time !== "00:00";
-        return hasTime ? `${date} ${time}` : date;
+        const date = `${parts.day}/${parts.month}`;
+        return parts.time && parts.time !== "00:00" ? `${date} ${parts.time}` : date;
       } catch {
         return "--";
       }
@@ -1784,6 +1797,15 @@ export default {
     csvDateOnly(value) {
       return String(value || "").slice(0, 10);
     },
+    normalizeCsvDateTimeSignature(value) {
+      const raw = String(value || "").trim();
+      const match = raw.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{1,2}):(\d{2}))?/);
+
+      if (!match) return raw;
+      if (!match[2]) return match[1];
+
+      return `${match[1]} ${match[2].padStart(2, "0")}:${match[3]}`;
+    },
     csvHasMeaningfulTime(value) {
       const raw = String(value || "").trim();
       if (!raw || raw.length <= 10) return false;
@@ -1792,7 +1814,7 @@ export default {
     },
     buildCsvExactKey(row = {}) {
       return [
-        String(row.transaction_date || ""),
+        this.normalizeCsvDateTimeSignature(row.transaction_date),
         String(row.type || ""),
         this.csvAmountKey(row.amount),
         this.normalizeCsvSignatureText(row.description),
