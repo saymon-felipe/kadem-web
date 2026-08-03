@@ -505,7 +505,7 @@ import { mapState } from "pinia";
 import { useAuthStore } from "@/stores/auth";
 import { financeService } from "@/services/financeService";
 import { getPlanLimits } from "@/services/subscription_plans";
-import { db } from "@/db";
+import { db, runDbOperation } from "@/db";
 import SubscriptionModal from "@/components/SubscriptionModal.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import FormSwitch from "@/components/FormSwitch.vue";
@@ -1235,6 +1235,12 @@ export default {
       this.showCsvPreviewModal = false;
       this.loadingSchema = false;
     },
+    async loadLocalTransactionsForMemory() {
+      return runDbOperation(() => db.finance_transactions.toArray(), {
+        userMessage:
+          "O armazenamento local esta inconsistente. Redefina o armazenamento local para baixar uma copia nova dos seus dados.",
+      });
+    },
     async handleCsvFileChange(event) {
       if (!this.isPaidPlan) {
         this.showPlanModal = true;
@@ -1421,7 +1427,7 @@ export default {
       }
 
       // Build local history category memory on the fly
-      const localTxs = await db.finance_transactions.toArray();
+      const localTxs = await this.loadLocalTransactionsForMemory();
       const normalizeDesc = (desc) => {
         return String(desc || "")
           .toLowerCase()
@@ -1601,7 +1607,7 @@ export default {
         throw new Error("Não foi possível mapear as colunas essenciais do CSV com o esquema detectado.");
       }
 
-      const localTxs = await db.finance_transactions.toArray();
+      const localTxs = await this.loadLocalTransactionsForMemory();
       const freqMap = {};
       for (const tx of localTxs) {
         if (tx.category_id && !tx.is_ignored) {
@@ -2715,7 +2721,7 @@ export default {
         };
 
         // 2. Fetch all local transactions from Dexie database to build the description category frequency map
-        const localTxs = await db.finance_transactions.toArray();
+        const localTxs = await this.loadLocalTransactionsForMemory();
         const freqMap = {}; // normalizedDesc -> { categoryId -> count }
         for (const tx of localTxs) {
           // If transaction has an active, valid category and is not ignored

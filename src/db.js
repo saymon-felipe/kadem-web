@@ -76,6 +76,8 @@ db.version(15)
 // Reapply the schema for browsers that reached v15 with an incomplete IndexedDB
 // schema. Dexie creates any missing stores during this version upgrade.
 db.version(16).stores(SCHEMA_V14);
+// Re-run the schema repair for clients that already opened the faulty v16 schema.
+db.version(17).stores(SCHEMA_V14);
 
 let dbOpenPromise = null;
 
