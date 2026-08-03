@@ -7,6 +7,7 @@ const LOCAL_DB_ERROR_NAMES = new Set([
   "DatabaseClosedError",
   "UnknownError",
   "InvalidStateError",
+  "NotFoundError",
   "VersionError",
   "AbortError",
   "QuotaExceededError",
@@ -72,6 +73,9 @@ db.version(15)
   .upgrade(async (transaction) => {
     await clearVolatileStores(transaction, SCHEMA_V14);
   });
+// Reapply the schema for browsers that reached v15 with an incomplete IndexedDB
+// schema. Dexie creates any missing stores during this version upgrade.
+db.version(16).stores(SCHEMA_V14);
 
 let dbOpenPromise = null;
 
@@ -82,6 +86,14 @@ function clearVolatileStores(transaction, schema) {
 
   return Promise.all(
     volatileStoreNames.map(async (storeName) => {
+      // A previous interrupted upgrade can leave the database version ahead of
+      // its physical stores. Opening one of those absent stores aborts the whole
+      // upgrade with NotFoundError, preventing Dexie from recreating it later.
+      if (!transaction.idbtrans.objectStoreNames.contains(storeName)) {
+        console.warn(`[DB] Store ${storeName} ausente durante migração; será recriada.`);
+        return;
+      }
+
       try {
         await transaction.table(storeName).clear();
       } catch (error) {
