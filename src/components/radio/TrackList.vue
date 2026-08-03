@@ -39,40 +39,23 @@
 
             <div class="track-title-col">
               <div class="thumb-wrapper">
-                <img
-                  :src="track.thumbnail"
-                  class="mini-thumb"
-                  :class="{ grayscale: is_track_unavailable(track) }"
-                />
+                <img :src="track.thumbnail" class="mini-thumb" :class="{ grayscale: is_track_unavailable(track) }" />
 
                 <div
                   v-if="!is_mobile && !is_track_unavailable(track)"
                   class="play-overlay"
                   @click.stop="play_track(track, null)"
                 >
-                  <font-awesome-icon
-                    icon="pause"
-                    v-if="is_track_playing(track) && is_playing"
-                  />
-                  <font-awesome-icon
-                    icon="play"
-                    v-if="!is_track_playing(track) || !is_playing"
-                  />
+                  <font-awesome-icon icon="pause" v-if="is_track_playing(track) && is_playing" />
+                  <font-awesome-icon icon="play" v-if="!is_track_playing(track) || !is_playing" />
                 </div>
               </div>
 
               <div class="meta">
-                <div
-                  class="title-row"
-                  style="display: flex; align-items: center; gap: 6px"
-                >
-                  <strong :title="decode_html_entities(track.title)">{{
-                    decode_html_entities(track.title)
-                  }}</strong>
+                <div class="title-row" style="display: flex; align-items: center; gap: 6px">
+                  <strong :title="decode_html_entities(track.title)">{{ decode_html_entities(track.title) }}</strong>
                 </div>
-                <small class="mobile-only-artist">{{
-                  decode_html_entities(track.channel)
-                }}</small>
+                <small class="mobile-only-artist">{{ decode_html_entities(track.channel) }}</small>
               </div>
 
               <div class="lyrics-indicator">
@@ -99,10 +82,7 @@
 
               <div
                 class="status-icons"
-                v-if="
-                  radioStore.isTrackOffline(track) ||
-                  active_downloads[track.local_id] !== undefined
-                "
+                v-if="radioStore.isTrackOffline(track) || active_downloads[track.local_id] !== undefined"
               >
                 <div
                   v-if="active_downloads[track.local_id] !== undefined"
@@ -139,9 +119,7 @@
                       cx="10"
                       cy="10"
                       stroke-dasharray="50.26"
-                      :stroke-dashoffset="
-                        get_progress_offset(active_downloads[track.local_id])
-                      "
+                      :stroke-dashoffset="get_progress_offset(active_downloads[track.local_id])"
                     />
                   </svg>
                 </div>
@@ -176,15 +154,9 @@
                 @click.stop="$emit('request-add', track, $event)"
                 class="btn-circle add"
                 :class="{ 'success-state': success_feedback_map[track.youtube_id] }"
-                :title="
-                  success_feedback_map[track.youtube_id]
-                    ? 'Adicionado!'
-                    : 'Adicionar à Playlist'
-                "
+                :title="success_feedback_map[track.youtube_id] ? 'Adicionado!' : 'Adicionar à Playlist'"
               >
-                <font-awesome-icon
-                  :icon="success_feedback_map[track.youtube_id] ? 'check' : 'circle-plus'"
-                />
+                <font-awesome-icon :icon="success_feedback_map[track.youtube_id] ? 'check' : 'circle-plus'" />
               </button>
             </div>
           </div>
@@ -196,12 +168,7 @@
         ref="infiniteScrollTrigger"
         class="infinite-scroll-trigger"
       >
-        <font-awesome-icon
-          v-if="is_loading_more"
-          icon="spinner"
-          spin
-          class="loading-more-icon"
-        />
+        <font-awesome-icon v-if="is_loading_more" icon="spinner" spin class="loading-more-icon" />
       </div>
 
       <Teleport to="body">
@@ -209,9 +176,17 @@
           v-model="show_options_menu"
           :position="options_position"
           :is-in-queue="is_in_queue(selected_track_for_menu)"
+          :is-offline="radioStore.isTrackOffline(selected_track_for_menu)"
+          :is-downloading-audio="is_audio_downloading(selected_track_for_menu)"
+          :has-lyrics="track_has_lyrics(selected_track_for_menu)"
+          :is-downloading-lyrics="is_lyric_loading(selected_track_for_menu?.youtube_id)"
+          :lyrics-unavailable="track_lyrics_unavailable(selected_track_for_menu)"
+          :can-download="can_download_individually"
           @close="show_options_menu = false"
           @copy-link="handle_copy_link"
           @delete="handle_delete"
+          @download-audio="handle_download_audio"
+          @download-lyrics="handle_download_lyrics"
           @add-queue="handle_add_queue"
         />
       </Teleport>
@@ -225,8 +200,10 @@ import { mapState, mapActions } from "pinia";
 import { useRadioStore } from "@/stores/radio";
 import { useUtilsStore } from "@/stores/utils";
 import { usePlayerStore } from "@/stores/player";
+import { useAuthStore } from "@/stores/auth";
 import TrackOptionsMenu from "./TrackOptionsMenu.vue";
 import { decode_html_entities } from "@/utils/string_helpers";
+import { getPlanLimits } from "@/services/subscription_plans.js";
 
 export default {
   name: "TrackList",
@@ -267,7 +244,8 @@ export default {
 
   setup() {
     const radioStore = useRadioStore();
-    return { radioStore };
+    const authStore = useAuthStore();
+    return { radioStore, authStore };
   },
 
   data() {
@@ -287,6 +265,9 @@ export default {
 
     is_offline_mode() {
       return !this.connection.connected;
+    },
+    can_download_individually() {
+      return this.connection.connected && getPlanLimits(this.authStore.user?.plan_tier).can_use_offline_radio;
     },
   },
 
@@ -309,6 +290,7 @@ export default {
     ...mapActions(useRadioStore, [
       "removeTrackFromPlaylist",
       "downloadTrack",
+      "queue_lyrics_download",
       "trackHasLyrics",
       "trackLyricsUnavailable",
     ]),
@@ -333,7 +315,7 @@ export default {
           root: null,
           rootMargin: "100px",
           threshold: 0.1,
-        }
+        },
       );
 
       this.observer.observe(this.$refs.infiniteScrollTrigger);
@@ -351,13 +333,12 @@ export default {
     track_lyrics_unavailable(track) {
       return this.trackLyricsUnavailable(track);
     },
+    is_audio_downloading(track) {
+      return !!track && this.active_downloads[track.local_id] !== undefined;
+    },
     is_in_queue(track) {
       if (!this.queue || !track) return false;
-      return this.queue.some(
-        (t) =>
-          (t.local_id && t.local_id === track.local_id) ||
-          t.youtube_id === track.youtube_id
-      );
+      return this.queue.some((t) => (t.local_id && t.local_id === track.local_id) || t.youtube_id === track.youtube_id);
     },
 
     trigger_add_feedback(track) {
@@ -440,6 +421,26 @@ export default {
         this.trigger_add_feedback(this.selected_track_for_menu);
         this.$emit("add-to-queue", this.selected_track_for_menu);
       }
+      this.show_options_menu = false;
+    },
+
+    handle_download_audio() {
+      const track = this.selected_track_for_menu;
+      if (!track || !this.can_download_individually) return;
+
+      this.downloadTrack(track, {
+        force: this.radioStore.isTrackOffline(track),
+      });
+      this.show_options_menu = false;
+    },
+
+    handle_download_lyrics() {
+      const track = this.selected_track_for_menu;
+      if (!track || !this.can_download_individually) return;
+
+      this.queue_lyrics_download(track, {
+        force: this.track_has_lyrics(track) || this.track_lyrics_unavailable(track),
+      });
       this.show_options_menu = false;
     },
 
@@ -865,7 +866,10 @@ export default {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  transition: background 0.2s, transform 0.2s, color 0.2s;
+  transition:
+    background 0.2s,
+    transform 0.2s,
+    color 0.2s;
   color: var(--text-secondary);
 }
 

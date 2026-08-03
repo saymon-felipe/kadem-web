@@ -683,7 +683,7 @@ async function _handleUserTask(task) {
 // ============================================================================
 
 async function _handleDownloadLyricsTask(task) {
-  const { video_id, track_local_id } = task.payload;
+  const { video_id, track_local_id, force = false } = task.payload;
   const radioStore = useRadioStore();
 
   // 1. Verifica Cache Local antes de bater na API
@@ -695,7 +695,7 @@ async function _handleDownloadLyricsTask(task) {
       ((Array.isArray(existing.content) && existing.content.length > 0) ||
         (typeof existing.content === "string" && existing.content.trim().length > 0));
 
-    if (hasCachedContent) {
+    if (hasCachedContent && !force) {
       console.log(`[SyncService] Legenda recuperada do cache local: ${video_id}`);
       await radioRepository.updateLocalTrack(track_local_id, {
         has_lyrics: true,
