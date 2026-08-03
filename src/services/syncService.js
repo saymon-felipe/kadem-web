@@ -795,6 +795,41 @@ async function _handleDownloadLyricsTask(task) {
   }
 }
 
+const remapQueuedFinanceCategoryReferences = async (currentCategory, serverCategoryId) => {
+  if (!currentCategory || !serverCategoryId) return;
+
+  const temporaryIds = new Set(
+    [currentCategory.id, currentCategory.local_key]
+      .filter((value) => value !== null && value !== undefined)
+      .map((value) => String(value)),
+  );
+  if (!temporaryIds.size) return;
+
+  const tasks = await syncQueueRepository.getPendingTasks();
+  for (const task of tasks) {
+    let changed = false;
+
+    if (["CREATE_FINANCE_TRANSACTION", "UPDATE_FINANCE_TRANSACTION"].includes(task.type)) {
+      const data = task.payload?.data;
+      if (data && temporaryIds.has(String(data.category_id ?? ""))) {
+        data.category_id = serverCategoryId;
+        changed = true;
+      }
+    }
+
+    if (task.type === "CREATE_FINANCE_TRANSACTIONS_BATCH") {
+      for (const transaction of task.payload?.transactions || []) {
+        if (temporaryIds.has(String(transaction.category_id ?? ""))) {
+          transaction.category_id = serverCategoryId;
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) await syncQueueRepository.updateTask(task.id, { payload: task.payload });
+  }
+};
+
 const updateFinanceLocalRecord = async (table, localId, serverData) => {
   if (!localId || !serverData) return;
   const current = await db[table].get(localId);
@@ -843,6 +878,8 @@ const updateFinanceLocalRecord = async (table, localId, serverData) => {
         ),
       );
     }
+
+    await remapQueuedFinanceCategoryReferences(current, serverData.id);
   }
 
   if (table === "finance_macro_categories" && current.id && serverData.id) {
