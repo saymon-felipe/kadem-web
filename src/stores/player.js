@@ -46,6 +46,7 @@ export const usePlayerStore = defineStore("player", {
     current_audio_url: null,
     current_lyrics: [],
     show_lyrics: false,
+    is_video_active: false,
   }),
 
   actions: {
@@ -422,6 +423,11 @@ export const usePlayerStore = defineStore("player", {
             finalAudioBlob = await radioRepository.getGlobalAudioBlob(
               targetTrack.youtube_id
             );
+            if (!finalAudioBlob) {
+              finalAudioBlob = await radioRepository.getGlobalVideoBlob(
+                targetTrack.youtube_id
+              );
+            }
           }
         } catch (e) {
           console.warn("[PlayerStore] Blob não encontrado:", e);
@@ -620,6 +626,23 @@ export const usePlayerStore = defineStore("player", {
       if (persist) this._persist_local_volume();
     },
 
+    set_video_modal_active(active) {
+      this.is_video_active = !!active;
+      if (this.native_audio_instance) {
+        this.native_audio_instance.muted = !!active;
+      }
+      if (this.yt_player_instance) {
+        if (active && this.yt_player_instance.mute) {
+          this.yt_player_instance.mute();
+        } else if (!active && this.yt_player_instance.unMute) {
+          this.yt_player_instance.unMute();
+          if (this.yt_player_instance.setVolume) {
+            this.yt_player_instance.setVolume(this.volume * 100);
+          }
+        }
+      }
+    },
+
     register_yt_instance(player) {
       this.yt_player_instance = markRaw(player);
       if (this.yt_player_instance?.setVolume)
@@ -780,7 +803,7 @@ export const usePlayerStore = defineStore("player", {
             if (track) {
               this.current_music = track;
               this.queue = this.queue.filter((t) => t.youtube_id !== track.youtube_id);
-              const hasBlob = await radioRepository.hasGlobalAudio(track.youtube_id);
+              const hasBlob = await radioRepository.hasGlobalPlayableMedia(track.youtube_id);
               this.player_mode = hasBlob ? "native" : "youtube";
               this.is_playing = false;
             }

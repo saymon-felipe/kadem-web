@@ -75,7 +75,7 @@ export const radioRepository = {
   async deleteLocalTrack(id) { return await db.tracks.delete(id); },
 
   /* ========================================================================
-     SECTION 3: GLOBAL CACHE (APENAS AUDIO)
+     SECTION 3: GLOBAL CACHE (AUDIO E VIDEO)
      ======================================================================== */
 
   async saveTrackAudio(trackLocalId, youtubeId, audioBlob) {
@@ -111,6 +111,35 @@ export const radioRepository = {
     return record ? record.audio_blob : null;
   },
 
+  async saveTrackVideo(trackLocalId, youtubeId, videoBlob) {
+    if (!videoBlob) {
+      throw new Error("Tentativa de salvar blob de vídeo nulo ou indefinido.");
+    }
+
+    if (videoBlob.size < 50000) {
+      throw new Error(`Blob de vídeo suspeito detectado (${videoBlob.size} bytes). Abortando persistência.`);
+    }
+
+    return await db.transaction('rw', db.tracks, db.global_video_cache, async () => {
+      await db.global_video_cache.put({
+        youtube_id: youtubeId,
+        video_blob: videoBlob,
+        created_at: new Date().toISOString(),
+      });
+
+      await db.tracks.update(trackLocalId, {
+        is_offline: true,
+        is_video_offline: true,
+      });
+    });
+  },
+
+  async getGlobalVideoBlob(youtubeId) {
+    if (!youtubeId) return null;
+    const record = await db.global_video_cache.get(youtubeId);
+    return record ? record.video_blob : null;
+  },
+
   async getTrackBlob(trackLocalId) {
     const track = await db.tracks.get(trackLocalId);
 
@@ -121,7 +150,9 @@ export const radioRepository = {
     }
 
     if (track.youtube_id) {
-      return await this.getGlobalAudioBlob(track.youtube_id);
+      const audioBlob = await this.getGlobalAudioBlob(track.youtube_id);
+      if (audioBlob) return audioBlob;
+      return await this.getGlobalVideoBlob(track.youtube_id);
     }
 
     return null;
@@ -135,7 +166,7 @@ export const radioRepository = {
     if (!track) return false;
 
     if (track.is_offline && track.youtube_id) {
-      return await this.hasGlobalAudio(track.youtube_id);
+      return await this.hasGlobalPlayableMedia(track.youtube_id);
     }
 
     return !!track.audio_blob;
@@ -150,6 +181,20 @@ export const radioRepository = {
     return count > 0;
   },
 
+  async hasGlobalVideo(youtube_id) {
+    if (!youtube_id) return false;
+    const count = await db.global_video_cache.where('youtube_id').equals(youtube_id).count();
+    return count > 0;
+  },
+
+  async hasGlobalPlayableMedia(youtube_id) {
+    const [hasAudio, hasVideo] = await Promise.all([
+      this.hasGlobalAudio(youtube_id),
+      this.hasGlobalVideo(youtube_id),
+    ]);
+    return hasAudio || hasVideo;
+  },
+
   async filterExistingAudioIds(youtubeIds) {
     if (!youtubeIds || youtubeIds.length === 0) return [];
     const uniqueIds = [...new Set(youtubeIds)];
@@ -159,9 +204,27 @@ export const radioRepository = {
       .map(item => item.youtube_id);
   },
 
+  async filterExistingVideoIds(youtubeIds) {
+    if (!youtubeIds || youtubeIds.length === 0) return [];
+    const uniqueIds = [...new Set(youtubeIds)];
+    const results = await db.global_video_cache.bulkGet(uniqueIds);
+    return results
+      .filter(item => item !== undefined && item !== null)
+      .map(item => item.youtube_id);
+  },
+
   async getAllDownloadedVideoIds() {
     try {
       const files = await db.global_audio_cache.toArray();
+      return files.map(f => f.youtube_id);
+    } catch (e) {
+      return [];
+    }
+  },
+
+  async getAllDownloadedVideoMediaIds() {
+    try {
+      const files = await db.global_video_cache.toArray();
       return files.map(f => f.youtube_id);
     } catch (e) {
       return [];
@@ -194,7 +257,7 @@ export const radioRepository = {
 
     console.log(`[RadioRepo] Processando Sync de ${playlistsFromServer.length} playlists.`);
 
-    return db.transaction('rw', db.playlists, db.tracks, db.lyrics, db.global_audio_cache, async () => {
+    return db.transaction('rw', db.playlists, db.tracks, db.lyrics, db.global_audio_cache, db.global_video_cache, async () => {
 
       const serverIdsSet = new Set(playlistsFromServer.map(p => p.id));
       const allLocalPlaylists = await db.playlists.toArray();
@@ -250,7 +313,8 @@ export const radioRepository = {
 
             const lyricsStatus = await this._checkRealLyricsStatus(apiTrack.youtube_id);
             const hasAudio = await this.hasGlobalAudio(apiTrack.youtube_id);
-            const isOffline = hasAudio || (existingTrack && (!!existingTrack.audio_blob || !!existingTrack.is_offline));
+            const hasVideo = await this.hasGlobalVideo(apiTrack.youtube_id);
+            const isOffline = hasAudio || hasVideo || (existingTrack && (!!existingTrack.audio_blob || !!existingTrack.is_offline));
 
             const trackPayload = {
               id: apiTrack.id,
@@ -264,7 +328,8 @@ export const radioRepository = {
               created_at: apiTrack.created_at,
               has_lyrics: lyricsStatus.has_lyrics,
               lyrics_unavailable: lyricsStatus.lyrics_unavailable,
-              is_offline: !!isOffline
+              is_offline: !!isOffline,
+              is_video_offline: hasVideo || !!existingTrack?.is_video_offline,
             };
 
             if (existingTrack) {

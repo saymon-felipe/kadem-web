@@ -697,6 +697,7 @@ async function _handleDownloadLyricsTask(task) {
 
     if (hasCachedContent && !force) {
       console.log(`[SyncService] Legenda recuperada do cache local: ${video_id}`);
+      radioStore.update_track_lyrics_content_in_memory(video_id, existing.content);
       await radioRepository.updateLocalTrack(track_local_id, {
         has_lyrics: true,
         lyrics_unavailable: false,
@@ -760,6 +761,7 @@ async function _handleDownloadLyricsTask(task) {
       has_lyrics: true,
       lyrics_unavailable: false,
     });
+    radioStore.update_track_lyrics_content_in_memory(video_id, final_content);
 
     console.log(`[SyncService] Legendas baixadas e salvas para ${video_id}`);
   } catch (error) {

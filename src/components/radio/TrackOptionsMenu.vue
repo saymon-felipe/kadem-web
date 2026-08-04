@@ -31,25 +31,63 @@
             class="download-submenu"
             :style="download_submenu_style"
             role="menu"
+            @mouseenter="cancel_download_menu_close"
+            @mouseleave="close_download_menu_on_hover"
           >
             <button
               class="menu-item"
-              :class="{ 'disabled-item': !canDownload || isDownloadingAudio }"
-              :disabled="!canDownload || isDownloadingAudio"
+              :class="{ 'disabled-item': !canDownloadAudio || isDownloadingAudio || isDownloadingVideo }"
+              :disabled="!canDownloadAudio || isDownloadingAudio || isDownloadingVideo"
               :title="download_unavailable_title"
               @click="$emit('download-audio')"
             >
               <font-awesome-icon
-                :icon="isDownloadingAudio ? 'spinner' : isOffline ? 'arrows-rotate' : 'download'"
+                :icon="isDownloadingAudio ? 'spinner' : hasAudio ? 'arrows-rotate' : 'music'"
                 :spin="isDownloadingAudio"
               />
               <span>{{ audio_download_label }}</span>
             </button>
 
             <button
+              ref="videoQualityTrigger"
               class="menu-item"
-              :class="{ 'disabled-item': !canDownload || isDownloadingLyrics }"
-              :disabled="!canDownload || isDownloadingLyrics"
+              :class="{ 'disabled-item': !canDownloadVideo || isDownloadingAudio || isDownloadingVideo, 'submenu-open': show_video_quality_menu }"
+              :disabled="!canDownloadVideo || isDownloadingAudio || isDownloadingVideo || videoQualities.length === 0"
+              :title="video_download_unavailable_title"
+              @click.stop="toggle_video_quality_menu"
+            >
+              <font-awesome-icon
+                :icon="isDownloadingVideo ? 'spinner' : hasVideo ? 'arrows-rotate' : 'film'"
+                :spin="isDownloadingVideo"
+              />
+              <span>{{ video_download_label }}</span>
+              <font-awesome-icon icon="chevron-right" class="submenu-chevron" />
+            </button>
+
+            <div
+              v-if="show_video_quality_menu"
+              ref="videoQualityMenu"
+              class="video-quality-submenu"
+              :style="video_quality_submenu_style"
+              role="menu"
+              @mouseenter="cancel_download_menu_close"
+              @mouseleave="close_download_menu_on_hover"
+            >
+              <button
+                v-for="quality in videoQualities"
+                :key="quality.height"
+                class="menu-item"
+                @click="$emit('download-video', quality.height)"
+              >
+                <font-awesome-icon icon="film" />
+                <span>{{ quality.label }}</span>
+              </button>
+            </div>
+
+            <button
+              class="menu-item"
+              :class="{ 'disabled-item': !canDownloadAudio || isDownloadingLyrics }"
+              :disabled="!canDownloadAudio || isDownloadingLyrics"
               :title="download_unavailable_title"
               @click="$emit('download-lyrics')"
             >
@@ -87,30 +125,44 @@ export default {
     modelValue: { type: Boolean, required: true },
     position: { type: Object, default: () => ({ x: 0, y: 0 }) },
     isInQueue: { type: Boolean, default: false },
-    isOffline: { type: Boolean, default: false },
+    hasAudio: { type: Boolean, default: false },
+    hasVideo: { type: Boolean, default: false },
     isDownloadingAudio: { type: Boolean, default: false },
+    isDownloadingVideo: { type: Boolean, default: false },
     hasLyrics: { type: Boolean, default: false },
     isDownloadingLyrics: { type: Boolean, default: false },
     lyricsUnavailable: { type: Boolean, default: false },
-    canDownload: { type: Boolean, default: false },
+    canDownloadAudio: { type: Boolean, default: false },
+    canDownloadVideo: { type: Boolean, default: false },
+    videoQualities: { type: Array, default: () => [] },
   },
-  emits: ["update:modelValue", "delete", "download-audio", "download-lyrics", "add-queue", "copy-link"],
+  emits: ["update:modelValue", "delete", "download-audio", "download-video", "download-lyrics", "add-queue", "copy-link"],
   data() {
     return {
       show_download_menu: false,
+      show_video_quality_menu: false,
+      download_menu_close_timer: null,
       download_submenu_position: { top: -9999, left: -9999, transformOrigin: "top left" },
+      video_quality_submenu_position: { top: -9999, left: -9999, transformOrigin: "top left" },
     };
   },
   watch: {
     modelValue(isOpen) {
-      if (!isOpen) this.show_download_menu = false;
+      if (!isOpen) {
+        this.cancel_download_menu_close();
+        this.show_download_menu = false;
+        this.show_video_quality_menu = false;
+      }
     },
   },
   mounted() {
     window.addEventListener("resize", this.position_download_submenu);
+    window.addEventListener("resize", this.position_video_quality_submenu);
   },
   beforeUnmount() {
     window.removeEventListener("resize", this.position_download_submenu);
+    window.removeEventListener("resize", this.position_video_quality_submenu);
+    this.cancel_download_menu_close();
   },
   computed: {
     position_style() {
@@ -121,7 +173,11 @@ export default {
     },
     audio_download_label() {
       if (this.isDownloadingAudio) return "Baixando música...";
-      return this.isOffline ? "Refazer download da música" : "Baixar música";
+      return this.hasAudio ? "Refazer download do áudio" : "Baixar só o áudio";
+    },
+    video_download_label() {
+      if (this.isDownloadingVideo) return "Baixando áudio e vídeo...";
+      return this.hasVideo ? "Refazer download de áudio e vídeo" : "Baixar áudio e vídeo";
     },
     lyrics_download_label() {
       if (this.isDownloadingLyrics) return "Baixando legenda...";
@@ -130,14 +186,25 @@ export default {
       return "Baixar legenda";
     },
     download_unavailable_title() {
-      if (this.canDownload) return "";
+      if (this.canDownloadAudio) return "";
       return "Disponível online para planos com modo offline";
+    },
+    video_download_unavailable_title() {
+      if (this.canDownloadVideo) return "";
+      return "Seu plano não permite baixar vídeos offline";
     },
     download_submenu_style() {
       return {
         top: `${this.download_submenu_position.top}px`,
         left: `${this.download_submenu_position.left}px`,
         transformOrigin: this.download_submenu_position.transformOrigin,
+      };
+    },
+    video_quality_submenu_style() {
+      return {
+        top: `${this.video_quality_submenu_position.top}px`,
+        left: `${this.video_quality_submenu_position.left}px`,
+        transformOrigin: this.video_quality_submenu_position.transformOrigin,
       };
     },
   },
@@ -152,7 +219,19 @@ export default {
       if (this.supports_hover()) this.open_download_menu();
     },
     close_download_menu_on_hover() {
-      if (this.supports_hover()) this.show_download_menu = false;
+      if (!this.supports_hover()) return;
+      this.cancel_download_menu_close();
+      this.download_menu_close_timer = window.setTimeout(() => {
+        this.show_download_menu = false;
+        this.show_video_quality_menu = false;
+        this.download_menu_close_timer = null;
+      }, 180);
+    },
+    cancel_download_menu_close() {
+      if (this.download_menu_close_timer !== null) {
+        window.clearTimeout(this.download_menu_close_timer);
+        this.download_menu_close_timer = null;
+      }
     },
     toggle_download_menu_on_touch() {
       if (this.supports_hover()) return;
@@ -163,9 +242,22 @@ export default {
       this.open_download_menu();
     },
     async open_download_menu() {
+      this.cancel_download_menu_close();
       this.show_download_menu = true;
+      this.show_video_quality_menu = false;
       await this.$nextTick();
       this.position_download_submenu();
+    },
+    async toggle_video_quality_menu() {
+      if (this.show_video_quality_menu) {
+        this.show_video_quality_menu = false;
+        return;
+      }
+
+      this.cancel_download_menu_close();
+      this.show_video_quality_menu = true;
+      await this.$nextTick();
+      this.position_video_quality_submenu();
     },
     position_download_submenu() {
       if (!this.show_download_menu) return;
@@ -176,7 +268,7 @@ export default {
 
       const trigger_rect = trigger.getBoundingClientRect();
       const submenu_rect = submenu.getBoundingClientRect();
-      const gap = 4;
+      const gap = 0;
       const margin = 8;
       const max_left = Math.max(margin, window.innerWidth - submenu_rect.width - margin);
       const max_top = Math.max(margin, window.innerHeight - submenu_rect.height - margin);
@@ -200,6 +292,39 @@ export default {
       }
 
       this.download_submenu_position = { top, left, transformOrigin };
+    },
+    position_video_quality_submenu() {
+      if (!this.show_video_quality_menu) return;
+
+      const trigger = this.$refs.videoQualityTrigger;
+      const submenu = this.$refs.videoQualityMenu;
+      if (!trigger || !submenu) return;
+
+      const trigger_rect = trigger.getBoundingClientRect();
+      const submenu_rect = submenu.getBoundingClientRect();
+      const margin = 8;
+      const has_space_right = window.innerWidth - trigger_rect.right >= submenu_rect.width + margin;
+      const has_space_left = trigger_rect.left >= submenu_rect.width + margin;
+      const max_left = Math.max(margin, window.innerWidth - submenu_rect.width - margin);
+      const max_top = Math.max(margin, window.innerHeight - submenu_rect.height - margin);
+
+      let left;
+      let top;
+      let transformOrigin;
+
+      if (has_space_right || has_space_left) {
+        left = has_space_right ? trigger_rect.right : trigger_rect.left - submenu_rect.width;
+        top = Math.min(Math.max(trigger_rect.top, margin), max_top);
+        transformOrigin = has_space_right ? "top left" : "top right";
+      } else {
+        const has_space_below = window.innerHeight - trigger_rect.bottom >= submenu_rect.height + margin;
+        left = Math.min(Math.max(trigger_rect.left, margin), max_left);
+        top = has_space_below ? trigger_rect.bottom : trigger_rect.top - submenu_rect.height;
+        top = Math.min(Math.max(top, margin), max_top);
+        transformOrigin = has_space_below ? "top center" : "bottom center";
+      }
+
+      this.video_quality_submenu_position = { top, left, transformOrigin };
     },
   },
 };
@@ -274,6 +399,17 @@ export default {
   position: fixed;
   z-index: 1;
   width: 220px;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: var(--shadow-float);
+}
+
+.video-quality-submenu {
+  position: fixed;
+  z-index: 2;
+  width: 130px;
   background: var(--surface-2);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);

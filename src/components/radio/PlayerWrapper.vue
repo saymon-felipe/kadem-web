@@ -7,9 +7,42 @@
           <strong :title="decode_html_entities(current_music?.title)">{{
             decode_html_entities(current_music?.title) || "Aguardando música"
           }}</strong>
-          <small :title="decode_html_entities(current_music?.channel)">{{
-            decode_html_entities(current_music?.channel) || "Radio Flow"
-          }}</small>
+          <div class="music-subtitle-row">
+            <small :title="decode_html_entities(current_music?.channel)">{{
+              decode_html_entities(current_music?.channel) || "Radio Flow"
+            }}</small>
+            <div
+              class="player-status-icons"
+              v-if="
+                current_music &&
+                (radioStore.isTrackOffline(current_music) ||
+                  radioStore.hasTrackVideo(current_music) ||
+                  radioStore.active_downloads[current_music?.local_id] !== undefined)
+              "
+            >
+              <span
+                v-if="radioStore.active_downloads[current_music?.local_id] !== undefined"
+                class="player-status-icon downloading"
+                :title="`Baixando (${radioStore.active_download_types[current_music?.local_id] === 'video' ? 'vídeo' : 'áudio'}): ${radioStore.active_downloads[current_music?.local_id]}%`"
+              >
+                <font-awesome-icon icon="spinner" spin />
+              </span>
+              <span
+                v-if="radioStore.isTrackOffline(current_music)"
+                class="player-status-icon offline-ready"
+                title="Áudio disponível offline"
+              >
+                <font-awesome-icon icon="circle-check" />
+              </span>
+              <span
+                v-if="radioStore.hasTrackVideo(current_music)"
+                class="player-status-icon video-ready"
+                title="Vídeo disponível offline"
+              >
+                <font-awesome-icon icon="film" />
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -75,39 +108,74 @@
           />
         </div>
       </div>
-      <button
-        v-if="
-          radioStore.trackHasLyrics(current_music) ||
-          radioStore.isLyricDownloading(current_music?.youtube_id)
-        "
-        class="btn-icon lyrics-btn"
-        @click="toggle_lyrics"
-        :class="{ active: show_lyrics_modal }"
-        :disabled="radioStore.isLyricDownloading(current_music?.youtube_id)"
-        :title="
-          radioStore.isLyricDownloading(current_music?.youtube_id)
-            ? 'Baixando legenda...'
-            : show_lyrics_modal
-            ? 'Ocultar legendas'
-            : 'Mostrar legendas'
-        "
-      >
-        <font-awesome-icon
-          v-if="radioStore.isLyricDownloading(current_music?.youtube_id)"
-          icon="spinner"
-          spin
-        />
-        <font-awesome-icon v-else icon="closed-captioning" />
-      </button>
-      <button
-        class="btn-icon pip-btn"
-        @click="handle_pip_toggle"
-        :disabled="!is_playing"
-        :title="pip_is_active ? 'Fechar Mini Player' : 'Abrir Mini Player'"
-        :class="{ active: pip_is_active }"
-      >
-        <font-awesome-icon icon="up-right-from-square" />
-      </button>
+
+      <div class="player-extra-actions">
+        <button
+          v-if="
+            radioStore.hasTrackVideo(current_music) ||
+            (radioStore.active_downloads[current_music?.local_id] !== undefined &&
+              radioStore.active_download_types[current_music?.local_id] === 'video')
+          "
+          class="btn-icon video-btn"
+          @click="toggle_video"
+          :class="{ active: show_video_modal }"
+          :disabled="
+            radioStore.active_downloads[current_music?.local_id] !== undefined &&
+            radioStore.active_download_types[current_music?.local_id] === 'video'
+          "
+          :title="
+            radioStore.active_downloads[current_music?.local_id] !== undefined &&
+            radioStore.active_download_types[current_music?.local_id] === 'video'
+              ? `Baixando vídeo (${radioStore.active_downloads[current_music?.local_id]}%)...`
+              : show_video_modal
+              ? 'Fechar vídeo'
+              : 'Mostrar vídeo baixado'
+          "
+        >
+          <font-awesome-icon
+            v-if="
+              radioStore.active_downloads[current_music?.local_id] !== undefined &&
+              radioStore.active_download_types[current_music?.local_id] === 'video'
+            "
+            icon="spinner"
+            spin
+          />
+          <font-awesome-icon v-else icon="film" />
+        </button>
+        <button
+          v-if="
+            radioStore.trackHasLyrics(current_music) ||
+            radioStore.isLyricDownloading(current_music?.youtube_id)
+          "
+          class="btn-icon lyrics-btn"
+          @click="toggle_lyrics"
+          :class="{ active: show_lyrics_modal }"
+          :disabled="radioStore.isLyricDownloading(current_music?.youtube_id)"
+          :title="
+            radioStore.isLyricDownloading(current_music?.youtube_id)
+              ? 'Baixando legenda...'
+              : show_lyrics_modal
+              ? 'Ocultar legendas'
+              : 'Mostrar legendas'
+          "
+        >
+          <font-awesome-icon
+            v-if="radioStore.isLyricDownloading(current_music?.youtube_id)"
+            icon="spinner"
+            spin
+          />
+          <font-awesome-icon v-else icon="closed-captioning" />
+        </button>
+        <button
+          class="btn-icon pip-btn"
+          @click="handle_pip_toggle"
+          :disabled="!is_playing"
+          :title="pip_is_active ? 'Fechar Mini Player' : 'Abrir Mini Player'"
+          :class="{ active: pip_is_active }"
+        >
+          <font-awesome-icon icon="up-right-from-square" />
+        </button>
+      </div>
     </div>
 
     <PipManager
@@ -122,13 +190,27 @@
       @set-volume="update_volume_from_external"
     />
 
-    <LyricsModal
-      v-model="show_lyrics_modal"
-      :lyrics="current_music?.lyrics"
-      :current_time="ui_current_time"
-      :track="current_music"
-      :default_cover="kadem_default_music"
-    />
+    <div @mousedown="bring_lyrics_to_front" @touchstart="bring_lyrics_to_front">
+      <LyricsModal
+        v-model="show_lyrics_modal"
+        :lyrics="current_music?.lyrics"
+        :current_time="ui_current_time"
+        :track="current_music"
+        :default_cover="kadem_default_music"
+        :z_index="lyrics_z_index"
+      />
+    </div>
+
+    <div @mousedown="bring_video_to_front" @touchstart="bring_video_to_front">
+      <VideoModal
+        v-model="show_video_modal"
+        :track="current_music"
+        :current_time="ui_current_time"
+        :is_playing="is_playing"
+        :default_cover="kadem_default_music"
+        :z_index="video_z_index"
+      />
+    </div>
   </div>
 </template>
 
@@ -141,11 +223,13 @@ import { decode_html_entities } from "@/utils/string_helpers";
 import kadem_default_music from "@/assets/images/kadem-default-music.jpg";
 import { db } from "@/db";
 import LyricsModal from "./LyricsModal.vue";
+import VideoModal from "./VideoModal.vue";
 
 export default {
   components: {
     PipManager,
     LyricsModal,
+    VideoModal,
   },
   setup() {
     const radioStore = useRadioStore();
@@ -162,6 +246,10 @@ export default {
       pip_is_active: false,
       kadem_default_music,
       show_lyrics_modal: false,
+      show_video_modal: false,
+      top_z_index: 2500,
+      lyrics_z_index: 2500,
+      video_z_index: 2500,
     };
   },
   computed: {
@@ -232,6 +320,9 @@ export default {
     decode_html_entities,
     toggle_lyrics() {
       this.show_lyrics_modal = !this.show_lyrics_modal;
+    },
+    toggle_video() {
+      this.show_video_modal = !this.show_video_modal;
     },
     async load_lyrics_from_cache() {
       if (!this.current_music || !this.current_music.youtube_id) return;
@@ -309,10 +400,35 @@ export default {
     on_pip_closed() {
       this.pip_is_active = false;
     },
+    toggle_lyrics() {
+      if (!this.show_lyrics_modal) {
+        this.bring_lyrics_to_front();
+        this.show_lyrics_modal = true;
+      } else {
+        this.show_lyrics_modal = false;
+      }
+    },
+    toggle_video() {
+      if (!this.show_video_modal) {
+        this.bring_video_to_front();
+        this.show_video_modal = true;
+      } else {
+        this.show_video_modal = false;
+      }
+    },
+    bring_lyrics_to_front() {
+      this.top_z_index += 1;
+      this.lyrics_z_index = this.top_z_index;
+    },
+    bring_video_to_front() {
+      this.top_z_index += 1;
+      this.video_z_index = this.top_z_index;
+    },
   },
   watch: {
     current_music: {
       handler(new_val) {
+        this.show_video_modal = false;
         if (new_val) {
           this.ui_current_time = Number(this.playback_position) || 0;
           this.duration = new_val.duration_seconds || 0;
@@ -530,7 +646,7 @@ export default {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding-right: var(--space-8);
+  padding-right: 70px;
   justify-content: flex-end;
   flex-shrink: 0;
 }
@@ -574,31 +690,87 @@ export default {
 }
 
 .music-info {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
 
-  & strong,
+  & strong {
+    font-weight: bold;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    width: 100%;
+  }
+}
+
+.music-subtitle-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+
   & small {
-    flex-grow: 1;
     min-width: 0;
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;
+    font-size: 0.8rem;
+    opacity: 0.7;
   }
 }
 
-.pip-btn,
-.lyrics-btn {
-  margin-left: 10px;
-  transition: all 0.2s ease;
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  margin: auto;
-  right: var(--space-5);
+.player-status-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
-.lyrics-btn {
-  right: var(--space-12);
+.player-status-icon {
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+}
+
+.player-status-icon.offline-ready {
+  color: var(--color-income);
+}
+
+.player-status-icon.video-ready {
+  color: var(--color-info);
+}
+
+.player-status-icon.downloading {
+  color: var(--color-info);
+}
+
+.player-extra-actions {
+  position: absolute;
+  right: var(--space-5);
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: auto 0;
+}
+
+.pip-btn,
+.lyrics-btn,
+.video-btn {
+  position: static;
+  margin: 0;
+  transition: all 0.2s ease;
+}
+
+.video-btn.active,
+.lyrics-btn.active {
+  color: var(--color-info);
+  opacity: 1;
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
 }
 
 .pip-btn:hover {
@@ -635,6 +807,7 @@ export default {
     padding: var(--space-3);
     gap: var(--space-2);
     transform: initial;
+    position: relative;
   }
 
   /* Esconde volume e botão de lista no mobile para simplificar */
@@ -645,7 +818,31 @@ export default {
 
   .music-element {
     width: 100%;
+    display: flex;
+    align-items: center;
     justify-content: flex-start;
+    padding-right: 23px;
+  }
+
+  .music-info {
+    flex-grow: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    padding-right: 0;
+  }
+
+  .player-extra-actions {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    bottom: initial;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: var(--space-3);
+    margin: 0;
   }
 
   .controls-center {
@@ -656,26 +853,6 @@ export default {
     justify-content: center;
     width: 100%;
     margin-top: var(--space-2);
-  }
-
-  .pip-btn {
-    top: var(--space-5);
-    bottom: initial;
-    right: var(--space-5);
-    margin-left: 0;
-  }
-
-  .lyrics-btn {
-    right: var(--space-5) !important;
-    display: inline-block;
-    height: fit-content;
-  }
-
-  .music-info {
-    max-width: 83%;
-    display: flex;
-    flex-direction: column;
-    padding-right: 40px;
   }
 }
 </style>

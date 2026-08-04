@@ -49,6 +49,7 @@ import {
   faSyncAlt,
   faClipboard,
   faMusic,
+  faFilm,
   faListCheck,
   faArrowLeft,
   faShuffle,
@@ -110,6 +111,8 @@ import {
   faCamera,
   faMicrophoneSlash,
   faFingerprint,
+  faExpand,
+  faCompress,
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -148,6 +151,7 @@ library.add(
   faSyncAlt,
   faClipboard,
   faMusic,
+  faFilm,
   faListCheck,
   faArrowLeft,
   faShuffle,
@@ -209,6 +213,8 @@ library.add(
   faCamera,
   faMicrophoneSlash,
   faFingerprint,
+  faExpand,
+  faCompress,
 );
 
 window.addEventListener('error', (event) => {

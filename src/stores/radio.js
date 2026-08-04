@@ -14,8 +14,10 @@ export const useRadioStore = defineStore("radio", {
     lastSyncTimestamp: localStorage.getItem("kadem_radio_last_sync") || null,
     loading: false,
     active_downloads: {},
+    active_download_types: {},
     offline_synced_ids: {},
     downloaded_youtube_ids: {},
+    downloaded_video_youtube_ids: {},
     active_lyrics_downloads: {},
     downloaded_lyrics_map: {},
     lyrics_status_by_video_id: {},
@@ -34,6 +36,17 @@ export const useRadioStore = defineStore("radio", {
       }
 
       return !!track.is_offline;
+    },
+    hasTrackAudio: (state) => (track) => {
+      if (!track) return false;
+      return !!(
+        track.youtube_id &&
+        (state.downloaded_youtube_ids[track.youtube_id] || state.downloaded_video_youtube_ids[track.youtube_id])
+      ) || !!track.audio_blob || !!track.is_offline;
+    },
+    hasTrackVideo: (state) => (track) => {
+      if (!track) return false;
+      return !!(track.youtube_id && state.downloaded_video_youtube_ids[track.youtube_id]) || !!track.is_video_offline;
     },
     isLyricDownloading: (state) => (video_id) => {
       return !!state.active_lyrics_downloads[video_id];
@@ -92,14 +105,22 @@ export const useRadioStore = defineStore("radio", {
 
         this.playlists = await radioRepository.getLocalPlaylists();
 
-        const offlineIds = await radioRepository.getAllDownloadedVideoIds();
+        const [audioIds, videoIds] = await Promise.all([
+          radioRepository.getAllDownloadedVideoIds(),
+          radioRepository.getAllDownloadedVideoMediaIds(),
+        ]);
 
         this.downloaded_youtube_ids = {};
-        offlineIds.forEach((id) => {
+        this.downloaded_video_youtube_ids = {};
+        audioIds.forEach((id) => {
           this.downloaded_youtube_ids[id] = true;
         });
+        videoIds.forEach((id) => {
+          this.downloaded_youtube_ids[id] = true;
+          this.downloaded_video_youtube_ids[id] = true;
+        });
 
-        console.log(`[RadioStore] Sistema Offline Inicializado: ${offlineIds.length} faixas disponíveis.`);
+        console.log(`[RadioStore] Sistema Offline Inicializado: ${new Set([...audioIds, ...videoIds]).size} faixas disponíveis.`);
       } catch (error) {
         console.error("[RadioStore] Falha ao carregar do Dexie:", error);
       }
@@ -110,6 +131,7 @@ export const useRadioStore = defineStore("radio", {
       this.lastSyncTimestamp = null;
       this.offline_synced_ids = {};
       this.downloaded_youtube_ids = {};
+      this.downloaded_video_youtube_ids = {};
       localStorage.removeItem("kadem_radio_last_sync");
     },
 
@@ -215,21 +237,31 @@ export const useRadioStore = defineStore("radio", {
       if (allYoutubeIds.length === 0) return;
 
       try {
-        const foundIds = await radioRepository.filterExistingAudioIds(allYoutubeIds);
-        const foundSet = new Set(foundIds);
+        const [foundAudioIds, foundVideoIds] = await Promise.all([
+          radioRepository.filterExistingAudioIds(allYoutubeIds),
+          radioRepository.filterExistingVideoIds(allYoutubeIds),
+        ]);
+        const foundAudioSet = new Set(foundAudioIds);
+        const foundVideoSet = new Set(foundVideoIds);
         const corrections = [];
 
         tracks.forEach((track) => {
-          const existsReal = foundSet.has(track.youtube_id);
+          const hasAudio = foundAudioSet.has(track.youtube_id);
+          const hasVideo = foundVideoSet.has(track.youtube_id);
+          const existsReal = hasAudio || hasVideo;
           const flagLocal = track.is_offline;
 
           if (existsReal) {
             this.downloaded_youtube_ids[track.youtube_id] = true;
-            if (!flagLocal) {
+            if (hasVideo) this.downloaded_video_youtube_ids[track.youtube_id] = true;
+            else delete this.downloaded_video_youtube_ids[track.youtube_id];
+            if (!flagLocal || !!track.is_video_offline !== hasVideo) {
               track.is_offline = true;
+              track.is_video_offline = hasVideo;
               corrections.push(
                 radioRepository.updateLocalTrack(track.local_id, {
                   is_offline: true,
+                  is_video_offline: hasVideo,
                 }),
               );
             }
@@ -238,11 +270,13 @@ export const useRadioStore = defineStore("radio", {
               console.warn(`[RadioStore] Inconsistência: ${track.title} sem binário.`);
               track.is_offline = false;
               delete this.downloaded_youtube_ids[track.youtube_id];
+              delete this.downloaded_video_youtube_ids[track.youtube_id];
 
               corrections.push(
                 radioRepository.updateLocalTrack(track.local_id, {
                   is_offline: false,
                   audio_blob: null,
+                  is_video_offline: false,
                 }),
               );
             }
@@ -257,43 +291,61 @@ export const useRadioStore = defineStore("radio", {
       }
     },
 
-    async downloadPlaylist(playlist) {
+    async downloadPlaylist(playlist, { media = "audio", video_quality = 480 } = {}) {
       const tracks = await radioRepository.getLocalTracks(playlist.local_id);
       if (!tracks || tracks.length === 0) return;
 
-      console.log(`[RadioStore] Download Playlist: ${playlist.name}`);
-      const tracksToDownload = tracks.filter((t) => !this.isTrackOffline(t));
+      console.log(`[RadioStore] Download Playlist (${media}): ${playlist.name}`);
+      const tracksToDownload = tracks.filter((track) => {
+        return media === "video" ? !this.hasTrackVideo(track) : !this.hasTrackAudio(track);
+      });
 
       for (const track of tracksToDownload) {
-        await this.downloadTrack(track);
+        await this.downloadTrack(track, { media, video_quality });
       }
     },
 
-    async downloadTrack(track, { force = false } = {}) {
+    async downloadTrack(track, { force = false, media = "audio", video_quality = 480 } = {}) {
       if (this.active_downloads[track.local_id] !== undefined) return;
 
-      const has_audio = this.downloaded_youtube_ids[track.youtube_id];
-      if (has_audio && !force) {
+      const has_media = media === "video" ? this.hasTrackVideo(track) : this.hasTrackAudio(track);
+      if (has_media && !force) {
         track.is_offline = true;
         return;
       }
 
       this.active_downloads[track.local_id] = 0;
+      this.active_download_types[track.local_id] = media;
 
-      const BYTES_PER_SECOND = 16000;
+      const video_quality_number = Number(video_quality) || 480;
+      const video_bytes_per_second = {
+        360: 55000,
+        480: 90000,
+        720: 170000,
+        1080: 300000,
+      };
+      const BYTES_PER_SECOND = media === "video"
+        ? (video_bytes_per_second[video_quality_number] || video_bytes_per_second[480])
+        : 16000;
 
       const estimatedTotal = (track.duration_seconds || 0) * BYTES_PER_SECOND;
 
       try {
-        const is_audio_cached = await radioRepository.hasGlobalAudio(track.youtube_id);
-        let audio_blob = null;
+        const is_cached = media === "video"
+          ? await radioRepository.hasGlobalVideo(track.youtube_id)
+          : await radioRepository.hasGlobalAudio(track.youtube_id);
+        let media_blob = null;
 
-        if (!is_audio_cached || force) {
-          console.log(`[RadioStore] Baixando Áudio: ${track.title}`);
+        if (!is_cached || force) {
+          console.log(
+            `[RadioStore] Baixando ${media === "video" ? `vídeo ${video_quality_number}p` : "áudio"}: ${track.title}`,
+          );
           const authStore = useAuthStore();
           const token = authStore.getToken;
 
-          const endpoint = `${apiServices.MEDIA_ENGINE}/stream/${track.youtube_id}?nocache=${Date.now()}`;
+          const query = new URLSearchParams({ nocache: String(Date.now()) });
+          if (media === "video") query.set("quality", String(video_quality_number));
+          const endpoint = `${apiServices.MEDIA_ENGINE}/${media === "video" ? "video" : "stream"}/${track.youtube_id}?${query.toString()}`;
 
           const response = await api.get(endpoint, {
             responseType: "blob",
@@ -315,28 +367,36 @@ export const useRadioStore = defineStore("radio", {
               }
             },
           });
-          audio_blob = response.data;
+          media_blob = response.data;
         }
 
-        if (audio_blob) {
-          await radioRepository.saveTrackAudio(track.local_id, track.youtube_id, audio_blob);
+        if (media_blob) {
+          if (media === "video") {
+            await radioRepository.saveTrackVideo(track.local_id, track.youtube_id, media_blob);
+          } else {
+            await radioRepository.saveTrackAudio(track.local_id, track.youtube_id, media_blob);
+          }
         }
 
         this.active_downloads[track.local_id] = 100;
 
         this.queue_lyrics_download(track);
 
-        const has_audio = this.downloaded_youtube_ids[track.youtube_id];
-
         setTimeout(() => {
           delete this.active_downloads[track.local_id];
+          delete this.active_download_types[track.local_id];
           this.downloaded_youtube_ids[track.youtube_id] = true;
-          this._updateLocalState(track.local_id, { is_offline: true });
+          if (media === "video") this.downloaded_video_youtube_ids[track.youtube_id] = true;
+          this._updateLocalState(track.local_id, {
+            is_offline: true,
+            ...(media === "video" ? { is_video_offline: true } : {}),
+          });
         }, 500);
       } catch (error) {
         console.error(`[RadioStore] Erro download:`, error);
         track.is_offline = false;
         delete this.active_downloads[track.local_id];
+        delete this.active_download_types[track.local_id];
       }
     },
 
@@ -531,6 +591,30 @@ export const useRadioStore = defineStore("radio", {
 
         if (has_lyrics !== undefined) playerStore.current_music.has_lyrics = has_lyrics;
         if (lyrics_unavailable !== undefined) playerStore.current_music.lyrics_unavailable = lyrics_unavailable;
+      }
+    },
+
+    update_track_lyrics_content_in_memory(video_id, lyrics) {
+      if (!video_id || !Array.isArray(lyrics)) return;
+
+      const updatePayload = { lyrics };
+
+      this.playlists.forEach((playlist) => {
+        if (!Array.isArray(playlist.tracks)) return;
+        playlist.tracks
+          .filter((track) => track.youtube_id === video_id)
+          .forEach((track) => Object.assign(track, updatePayload));
+      });
+
+      const playerStore = usePlayerStore();
+      if (Array.isArray(playerStore.queue)) {
+        playerStore.queue
+          .filter((track) => track.youtube_id === video_id)
+          .forEach((track) => Object.assign(track, updatePayload));
+      }
+
+      if (playerStore.current_music?.youtube_id === video_id) {
+        playerStore.current_music.lyrics = lyrics;
       }
     },
 

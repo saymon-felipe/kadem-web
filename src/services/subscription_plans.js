@@ -8,6 +8,8 @@ export const SUBSCRIPTION_PLANS = {
       max_projects: 3,
       max_members_by_project: 3,
       can_use_offline_radio: false,
+      can_download_offline_video: true,
+      max_offline_video_height: 480,
       max_task_attachment_size_bytes: 5 * 1024 * 1024,
       finance_open_finance_enabled: false,
       finance_ai_monthly_credits: 0,
@@ -17,7 +19,8 @@ export const SUBSCRIPTION_PLANS = {
     features: [
       "Limite de 3 Projetos",
       "Até 3 membros/projeto",
-      "Radio Flow (Online apenas)",
+      "Radio Flow online",
+      "Vídeos offline em até 480p",
     ],
   },
   pro: {
@@ -29,6 +32,8 @@ export const SUBSCRIPTION_PLANS = {
       max_projects: 7,
       max_members_by_project: 7,
       can_use_offline_radio: true,
+      can_download_offline_video: true,
+      max_offline_video_height: 720,
       max_task_attachment_size_bytes: 50 * 1024 * 1024,
       finance_open_finance_enabled: true,
       finance_ai_monthly_credits: 300,
@@ -39,6 +44,7 @@ export const SUBSCRIPTION_PLANS = {
       "Até 7 Projetos",
       "Até 5 membros/projeto",
       "Radio Flow (Online/Offline)",
+      "Vídeos offline em até 720p",
       "Sync Prioritário",
     ],
   },
@@ -51,6 +57,8 @@ export const SUBSCRIPTION_PLANS = {
       max_projects: 999,
       max_members_by_project: 999,
       can_use_offline_radio: true,
+      can_download_offline_video: true,
+      max_offline_video_height: 1080,
       max_task_attachment_size_bytes: 1024 * 1024 * 1024,
       finance_open_finance_enabled: true,
       finance_ai_monthly_credits: 1500,
@@ -61,6 +69,7 @@ export const SUBSCRIPTION_PLANS = {
       "Projetos Ilimitados",
       "Membros Ilimitados",
       "Acesso Total Offline",
+      "Vídeos offline em até 1080p",
       "Suporte Prioritário 24/7",
     ],
   },
@@ -69,4 +78,15 @@ export const SUBSCRIPTION_PLANS = {
 export const getPlanLimits = (planTier) => {
   const plan = SUBSCRIPTION_PLANS[planTier] || SUBSCRIPTION_PLANS["free"];
   return plan.limits;
+};
+
+const VIDEO_RESOLUTIONS = [360, 480, 720, 1080];
+
+export const getOfflineVideoQualities = (planTier) => {
+  const limits = getPlanLimits(planTier);
+  if (!limits.can_download_offline_video) return [];
+
+  return VIDEO_RESOLUTIONS
+    .filter((height) => height <= limits.max_offline_video_height)
+    .map((height) => ({ height, label: `${height}p` }));
 };

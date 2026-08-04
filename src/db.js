@@ -59,6 +59,11 @@ const SCHEMA_V14 = {
   finance_investment_events: "++local_id, local_key, id, event_date, event_type, category_id",
 };
 
+const SCHEMA_V19 = {
+  ...SCHEMA_V14,
+  global_video_cache: "&youtube_id, created_at",
+};
+
 export const db = new Dexie("KademDB");
 
 db.version(5).stores(SCHEMA_V5);
@@ -72,6 +77,7 @@ db.version(15).stores(SCHEMA_V14);
 db.version(16).stores(SCHEMA_V14);
 db.version(17).stores(SCHEMA_V14);
 db.version(18).stores(SCHEMA_V14);
+db.version(19).stores(SCHEMA_V19);
 
 let dbOpenPromise = null;
 

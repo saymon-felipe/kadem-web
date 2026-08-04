@@ -1,14 +1,14 @@
 <template>
   <transition name="lyrics-fade">
-    <div class="lyrics-modal-overlay" v-if="modelValue" @click.self="close_modal">
+    <div class="lyrics-modal-overlay" v-if="modelValue" :style="{ zIndex: z_index }" @click.self="close_modal">
       <div class="lyrics-modal-content glass" :class="{ 'is-closing': is_closing }">
         <div class="modal-drag-indicator"></div>
 
         <div class="lyrics-header">
           <img :src="track?.thumbnail || default_cover" class="track-art" />
           <div class="track-info-meta">
-            <strong class="track-title">{{ track?.title }}</strong>
-            <span class="track-channel">{{ track?.channel }}</span>
+            <strong class="track-title">{{ decode_html_entities(track?.title) }}</strong>
+            <span class="track-channel">{{ decode_html_entities(track?.channel) }}</span>
           </div>
           <button class="close-modal-btn" @click="close_modal" title="Fechar">
             <font-awesome-icon icon="xmark" />
@@ -56,6 +56,8 @@
 </template>
 
 <script>
+import { decode_html_entities } from "@/utils/string_helpers";
+
 export default {
   name: "LyricsModal",
   props: {
@@ -67,6 +69,10 @@ export default {
     current_time: Number,
     track: Object,
     default_cover: String,
+    z_index: {
+      type: Number,
+      default: 2500,
+    },
   },
   data() {
     return {
@@ -121,6 +127,7 @@ export default {
     },
   },
   methods: {
+    decode_html_entities,
     get_track_key(track) {
       return track?.youtube_id || track?.local_id || track?.id || null;
     },

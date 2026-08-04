@@ -47,21 +47,60 @@
           class="badge-dot"
         ></span>
       </button>
-      <button
-        v-if="connection.connected && allow_offline && track_count > 0"
-        class="btn-options"
-        :class="{
-          'downloaded-state': is_fully_downloaded,
-          'downloading-state': is_downloading_playlist,
-        }"
-        @click.stop="handle_download_action"
-        :title="download_tooltip"
-        :disabled="is_downloading_playlist"
+      <div
+        v-if="connection.connected && (allow_offline || allow_offline_video) && track_count > 0"
+        class="download-options-wrapper"
+        v-click-outside="close_download_menu"
       >
-        <font-awesome-icon v-if="is_downloading_playlist" icon="spinner" spin />
-        <font-awesome-icon v-else-if="is_fully_downloaded" icon="circle-check" />
-        <font-awesome-icon v-else icon="download" />
-      </button>
+        <button
+          class="btn-options"
+          :class="{
+            'downloaded-state': is_fully_downloaded && !has_downloadable_video_tracks,
+            'downloading-state': is_downloading_playlist,
+          }"
+          @click.stop="toggle_download_menu"
+          :title="download_tooltip"
+          :disabled="is_downloading_playlist"
+        >
+          <font-awesome-icon v-if="is_downloading_playlist" icon="spinner" spin />
+          <font-awesome-icon v-else-if="is_fully_downloaded && !has_downloadable_video_tracks" icon="circle-check" />
+          <font-awesome-icon v-else icon="download" />
+        </button>
+
+        <transition name="menu-pop">
+          <div v-if="show_download_menu" class="download-options-dropdown">
+            <button
+              class="dropdown-item"
+              :disabled="!allow_offline || !has_downloadable_audio_tracks"
+              :class="{ 'btn-disabled': !allow_offline || !has_downloadable_audio_tracks }"
+              @click="handle_download_action('audio')"
+            >
+              <font-awesome-icon icon="music" /> Baixar só o áudio
+            </button>
+            <button
+              ref="video_quality_trigger"
+              class="dropdown-item"
+              :disabled="!allow_offline_video || !has_downloadable_video_tracks"
+              :class="{ 'btn-disabled': !allow_offline_video || !has_downloadable_video_tracks, 'submenu-open': show_video_quality_menu }"
+              @click.stop="toggle_video_quality_menu"
+            >
+              <font-awesome-icon icon="film" />
+              <span>Baixar áudio e vídeo</span>
+              <font-awesome-icon icon="chevron-right" class="quality-chevron" />
+            </button>
+            <div v-if="show_video_quality_menu" class="video-quality-dropdown">
+              <button
+                v-for="quality in video_quality_options"
+                :key="quality.height"
+                class="dropdown-item"
+                @click="handle_download_action('video', quality.height)"
+              >
+                <font-awesome-icon icon="film" /> {{ quality.label }}
+              </button>
+            </div>
+          </div>
+        </transition>
+      </div>
 
       <button class="btn-options" @click.stop="showMenu = !showMenu">
         <font-awesome-icon icon="ellipsis-vertical" />
@@ -107,7 +146,7 @@ import { useUtilsStore } from "@/stores/utils";
 import { useAuthStore } from "@/stores/auth";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import ImageCropperModal from "@/components/ImageCropperModal.vue";
-import { getPlanLimits } from "@/services/subscription_plans.js";
+import { getOfflineVideoQualities, getPlanLimits } from "@/services/subscription_plans.js";
 
 export default {
   name: "PlaylistHeader",
@@ -152,8 +191,9 @@ export default {
       isEditing: false,
       tempName: "",
       showDeleteModal: false,
+      show_download_menu: false,
+      show_video_quality_menu: false,
       is_crop_modal_open: false,
-      allow_offline: getPlanLimits(useAuthStore().user.plan_tier).can_use_offline_radio,
     };
   },
 
@@ -164,8 +204,24 @@ export default {
       "trackLyricsUnavailable",
       "isLyricDownloading",
       "isTrackOffline",
+      "hasTrackAudio",
+      "hasTrackVideo",
     ]),
     ...mapState(useUtilsStore, ["connection"]),
+    ...mapState(useAuthStore, ["user"]),
+
+    plan_limits() {
+      return getPlanLimits(this.user?.plan_tier);
+    },
+    allow_offline() {
+      return this.plan_limits.can_use_offline_radio;
+    },
+    allow_offline_video() {
+      return this.plan_limits.can_download_offline_video;
+    },
+    video_quality_options() {
+      return getOfflineVideoQualities(this.user?.plan_tier);
+    },
 
     has_missing_lyrics() {
       if (!this.playlist || !this.tracks) return false;
@@ -217,13 +273,21 @@ export default {
 
     is_downloading_playlist() {
       if (!this.tracks) return false;
-      return this.tracks.some((t) => this.active_downloads[t.local_id]);
+      return this.tracks.some((t) => this.active_downloads[t.local_id] !== undefined);
+    },
+
+    has_downloadable_audio_tracks() {
+      return this.tracks.some((track) => !this.hasTrackAudio(track));
+    },
+
+    has_downloadable_video_tracks() {
+      return this.tracks.some((track) => !this.hasTrackVideo(track));
     },
 
     download_tooltip() {
       if (this.is_downloading_playlist) return "Baixando músicas...";
-      if (this.is_fully_downloaded) return "Playlist baixada (Disponível Offline)";
-      return "Baixar músicas faltantes";
+      if (this.has_downloadable_audio_tracks || this.has_downloadable_video_tracks) return "Escolher mídia para baixar";
+      return "Áudio e vídeo já foram baixados";
     },
   },
 
@@ -256,13 +320,29 @@ export default {
       this.is_crop_modal_open = false;
     },
 
-    handle_download_action() {
-      if (this.is_fully_downloaded) return;
+    handle_download_action(media, video_quality = null) {
+      const hasTracksToDownload = media === "video"
+        ? this.has_downloadable_video_tracks
+        : this.has_downloadable_audio_tracks;
+      if (!hasTracksToDownload) return;
+      if (media === "video" && !this.allow_offline_video) return;
+      if (media === "audio" && !this.allow_offline) return;
       if (!this.connection.connected) {
         alert("Sem conexão com a internet para realizar o download.");
         return;
       }
-      this.downloadPlaylist(this.playlist);
+      this.show_download_menu = false;
+      this.show_video_quality_menu = false;
+      this.downloadPlaylist(this.playlist, { media, video_quality });
+    },
+
+    toggle_video_quality_menu() {
+      this.show_video_quality_menu = !this.show_video_quality_menu;
+    },
+
+    toggle_download_menu() {
+      this.show_download_menu = !this.show_download_menu;
+      if (!this.show_download_menu) this.show_video_quality_menu = false;
     },
 
     start_rename() {
@@ -295,6 +375,11 @@ export default {
 
     closeMenu() {
       this.showMenu = false;
+    },
+
+    close_download_menu() {
+      this.show_download_menu = false;
+      this.show_video_quality_menu = false;
     },
   },
 
@@ -445,6 +530,51 @@ h1 {
 
 .btn-options:hover {
   background: rgba(0, 0, 0, 0.5);
+}
+
+.download-options-wrapper {
+  position: relative;
+}
+
+.download-options-dropdown {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  width: 220px;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-float);
+  overflow: visible;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+.video-quality-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 130px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-float);
+}
+
+.quality-chevron {
+  margin-left: auto;
+  font-size: 0.7rem;
+}
+
+.dropdown-item.submenu-open {
+  background: var(--surface-3);
+}
+
+.download-options-dropdown .dropdown-item.btn-disabled {
+  cursor: not-allowed;
+  color: var(--text-muted);
 }
 
 .options-dropdown {

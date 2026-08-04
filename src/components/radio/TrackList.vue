@@ -82,7 +82,7 @@
 
               <div
                 class="status-icons"
-                v-if="radioStore.isTrackOffline(track) || active_downloads[track.local_id] !== undefined"
+                v-if="radioStore.isTrackOffline(track) || radioStore.hasTrackVideo(track) || active_downloads[track.local_id] !== undefined"
               >
                 <div
                   v-if="active_downloads[track.local_id] !== undefined"
@@ -90,7 +90,7 @@
                   :title="
                     active_downloads[track.local_id] === 0
                       ? 'Iniciando download...'
-                      : `Baixando: ${active_downloads[track.local_id]}%`
+                      : `Baixando (${active_download_types[track.local_id] === 'video' ? 'vídeo' : 'áudio'}): ${active_downloads[track.local_id]}%`
                   "
                 >
                   <svg
@@ -124,11 +124,18 @@
                   </svg>
                 </div>
                 <span
-                  v-else-if="radioStore.isTrackOffline(track)"
+                  v-if="radioStore.isTrackOffline(track)"
                   class="status-icon offline-ready"
-                  title="Disponível Offline"
+                  title="Áudio baixado (Disponível Offline)"
                 >
                   <font-awesome-icon icon="circle-check" />
+                </span>
+                <span
+                  v-if="radioStore.hasTrackVideo(track)"
+                  class="status-icon video-ready"
+                  title="Vídeo baixado (Disponível Offline)"
+                >
+                  <font-awesome-icon icon="film" />
                 </span>
               </div>
             </div>
@@ -176,16 +183,21 @@
           v-model="show_options_menu"
           :position="options_position"
           :is-in-queue="is_in_queue(selected_track_for_menu)"
-          :is-offline="radioStore.isTrackOffline(selected_track_for_menu)"
+          :has-audio="radioStore.hasTrackAudio(selected_track_for_menu)"
+          :has-video="radioStore.hasTrackVideo(selected_track_for_menu)"
           :is-downloading-audio="is_audio_downloading(selected_track_for_menu)"
+          :is-downloading-video="is_video_downloading(selected_track_for_menu)"
           :has-lyrics="track_has_lyrics(selected_track_for_menu)"
           :is-downloading-lyrics="is_lyric_loading(selected_track_for_menu?.youtube_id)"
           :lyrics-unavailable="track_lyrics_unavailable(selected_track_for_menu)"
-          :can-download="can_download_individually"
+          :can-download-audio="can_download_audio_individually"
+          :can-download-video="can_download_video_individually"
+          :video-qualities="video_quality_options"
           @close="show_options_menu = false"
           @copy-link="handle_copy_link"
           @delete="handle_delete"
           @download-audio="handle_download_audio"
+          @download-video="handle_download_video"
           @download-lyrics="handle_download_lyrics"
           @add-queue="handle_add_queue"
         />
@@ -203,7 +215,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useAuthStore } from "@/stores/auth";
 import TrackOptionsMenu from "./TrackOptionsMenu.vue";
 import { decode_html_entities } from "@/utils/string_helpers";
-import { getPlanLimits } from "@/services/subscription_plans.js";
+import { getOfflineVideoQualities, getPlanLimits } from "@/services/subscription_plans.js";
 
 export default {
   name: "TrackList",
@@ -259,12 +271,24 @@ export default {
   },
 
   computed: {
-    ...mapState(useRadioStore, ["active_downloads", "isLyricDownloading"]),
+    ...mapState(useRadioStore, ["active_downloads", "active_download_types", "isLyricDownloading"]),
     ...mapState(usePlayerStore, ["current_music", "is_playing", "queue"]),
     ...mapState(useUtilsStore, ["connection"]),
 
     is_offline_mode() {
       return !this.connection.connected;
+    },
+    plan_limits() {
+      return getPlanLimits(this.authStore.user?.plan_tier);
+    },
+    can_download_audio_individually() {
+      return this.connection.connected && this.plan_limits.can_use_offline_radio;
+    },
+    can_download_video_individually() {
+      return this.connection.connected && this.plan_limits.can_download_offline_video;
+    },
+    video_quality_options() {
+      return getOfflineVideoQualities(this.authStore.user?.plan_tier);
     },
     can_download_individually() {
       return this.connection.connected && getPlanLimits(this.authStore.user?.plan_tier).can_use_offline_radio;
@@ -334,7 +358,10 @@ export default {
       return this.trackLyricsUnavailable(track);
     },
     is_audio_downloading(track) {
-      return !!track && this.active_downloads[track.local_id] !== undefined;
+      return !!track && this.active_download_types[track.local_id] === "audio";
+    },
+    is_video_downloading(track) {
+      return !!track && this.active_download_types[track.local_id] === "video";
     },
     is_in_queue(track) {
       if (!this.queue || !track) return false;
@@ -413,6 +440,18 @@ export default {
       if (this.selected_track_for_menu) {
         this.$emit("delete-track", this.selected_track_for_menu);
       }
+      this.show_options_menu = false;
+    },
+
+    handle_download_video(video_quality) {
+      const track = this.selected_track_for_menu;
+      if (!track || !this.can_download_video_individually) return;
+
+      this.downloadTrack(track, {
+        media: "video",
+        force: this.radioStore.hasTrackVideo(track),
+        video_quality,
+      });
       this.show_options_menu = false;
     },
 
@@ -831,6 +870,7 @@ export default {
   justify-content: center;
   width: fit-content;
   height: 24px;
+  gap: 7px;
 
   & span {
     flex-grow: initial !important;
@@ -840,6 +880,10 @@ export default {
 .status-icon {
   font-size: 0.9rem;
   display: flex;
+}
+
+.status-icon.video-ready {
+  color: var(--color-info);
 }
 
 .downloading {
