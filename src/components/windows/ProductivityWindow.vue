@@ -1,6 +1,12 @@
 <template>
   <div class="productivity-container">
-    <transition name="app-switch" mode="out-in" appear>
+    <transition
+      name="app-switch"
+      mode="out-in"
+      appear
+      @before-leave="detach_grid_from_flow"
+      @after-leave="reveal_active_app"
+    >
       <div v-if="!active_app" class="app-grid" key="grid">
         <div class="app-card" @click="open_app('radio_flow')">
           <div class="icon-wrapper gradient-orange">
@@ -29,7 +35,11 @@
 
     </transition>
 
-    <div v-show="active_app" class="active-app-view">
+    <div
+      v-show="active_app"
+      class="active-app-view"
+      :class="{ 'is-visible': is_app_view_visible }"
+    >
       <button class="back-btn" @click="close_app">
         <font-awesome-icon icon="arrow-left" /> Voltar
       </button>
@@ -56,6 +66,7 @@ export default {
   data() {
     return {
       has_opened_radio: false,
+      is_app_view_visible: false,
     };
   },
   computed: {
@@ -71,7 +82,20 @@ export default {
       this.setActiveApp(app_key);
     },
     close_app() {
+      this.is_app_view_visible = false;
       this.setActiveApp(null);
+    },
+    detach_grid_from_flow(element) {
+      const { width, height } = element.getBoundingClientRect();
+      element.style.width = `${width}px`;
+      element.style.height = `${height}px`;
+      element.classList.add("is-leaving-app-grid");
+    },
+    reveal_active_app() {
+      if (!this.active_app) return;
+      this.$nextTick(() => {
+        this.is_app_view_visible = true;
+      });
     },
   },
   beforeUnmount() {
@@ -85,12 +109,18 @@ export default {
     if (this.active_app === "radio_flow") {
       this.has_opened_radio = true;
     }
+    if (this.active_app) {
+      this.$nextTick(() => {
+        this.is_app_view_visible = true;
+      });
+    }
   },
 };
 </script>
 
 <style scoped>
 .productivity-container {
+  position: relative;
   height: 100%;
   padding: var(--space-4);
   overflow: hidden;
@@ -100,6 +130,14 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--space-5);
+}
+
+/* Durante a transição de saída o grid ainda está montado. Tiramos ele do
+   fluxo para que a visão do app não seja empurrada para baixo. */
+.app-grid.is-leaving-app-grid {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
 }
 
 .app-card {
@@ -170,6 +208,16 @@ export default {
   height: 100%;
   display: flex;
   flex-direction: column;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.active-app-view.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .back-btn {
