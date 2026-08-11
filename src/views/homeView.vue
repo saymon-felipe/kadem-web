@@ -493,13 +493,13 @@ export default {
 }
 
 .warning-text {
-  color: var(--red);
+  color: var(--red) !important;
   font-weight: bold;
   font-size: var(--fontsize-sm);
 }
 
 .error-text {
-  color: var(--red);
+  color: var(--red) !important;
   margin-top: var(--space-3);
   font-size: var(--fontsize-sm);
 }

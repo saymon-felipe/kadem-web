@@ -252,6 +252,15 @@
             <strong>{{ preview_attachment.name }}</strong>
             <div class="preview-actions">
               <button
+                v-if="preview_kind === 'text'"
+                type="button"
+                class="preview-action"
+                @click="copy_attachment_content"
+                :title="attachment_copied ? 'Copiado!' : 'Copiar conteudo'"
+              >
+                <font-awesome-icon :icon="attachment_copied ? 'check' : 'copy'" />
+              </button>
+              <button
                 v-if="preview_attachment"
                 type="button"
                 class="preview-action"
@@ -334,6 +343,7 @@ export default {
       preview_kind: "",
       preview_text: "",
       preview_object_url: "",
+      attachment_copied: false,
 
       new_comment_text: "",
       open_comment_menu: null,
@@ -742,6 +752,19 @@ export default {
       this.preview_kind = "";
       this.preview_text = "";
       this.preview_object_url = "";
+      this.attachment_copied = false;
+    },
+
+    async copy_attachment_content() {
+      if (!this.preview_text) return;
+
+      try {
+        await navigator.clipboard.writeText(this.preview_text);
+        this.attachment_copied = true;
+        window.setTimeout(() => (this.attachment_copied = false), 1500);
+      } catch (error) {
+        console.error("Erro ao copiar conteudo:", error);
+      }
     },
 
     format_file_size(bytes) {

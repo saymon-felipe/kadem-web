@@ -481,6 +481,7 @@ export const useVaultStore = defineStore('vault', () => {
       recovery_key = await _deriveKey(clean_code, user_salt);
       old_master_password = await _decrypt(data.recovery_payload, recovery_key);
     } catch (err) {
+      console.error("[Vault] Falha na migração (etapa de recuperação):", err);
       throw new Error("Código de Recuperação (Senha Mestra) inválido ou erro de rede.");
     };
 
