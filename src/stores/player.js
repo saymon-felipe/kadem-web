@@ -77,7 +77,9 @@ export const usePlayerStore = defineStore("player", {
             Authorization: `Bearer ${token}`,
             "Cache-Control": "no-cache",
           },
-          timeout: 30000,
+          // A detecção de idioma Enterprise pode baixar e analisar uma amostra
+          // de áudio antes de devolver a legenda.
+          timeout: 0,
         });
 
         const subtitle_data = response.data?.subtitles || response.data;

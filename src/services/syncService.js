@@ -720,7 +720,9 @@ async function _handleDownloadLyricsTask(task) {
 
     const response = await api.get(endpoint, {
       headers: { Authorization: `Bearer ${token}` },
-      timeout: 30000,
+      // A detecção de idioma Enterprise pode baixar e analisar uma amostra de
+      // áudio antes de devolver a legenda; não interromper esse processamento.
+      timeout: 0,
     });
 
     const data = response.data;
