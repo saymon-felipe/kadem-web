@@ -110,8 +110,12 @@ router.onError((error) => {
     error.message.match(dynamicImportFailedMessage) ||
     error.message.match(importFailedMessage)
   ) {
-    console.log('[Router] Chunk load error detected, reloading...');
-    window.location.reload(true);
+    if (navigator.onLine) {
+      console.log('[Router] Chunk load error detected, reloading...');
+      window.location.reload(true);
+    } else {
+      console.warn('[Router] Chunk load failed while offline. Keeping the cached route active.');
+    }
   }
 });
 

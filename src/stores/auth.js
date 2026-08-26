@@ -12,6 +12,13 @@ import { useRadioStore } from "./radio";
 import { usePlayerStore } from "./player";
 import { isLocalDbUnavailableError } from "@/db";
 import { authenticateWithBiometrics } from "@/services/biometricAuth";
+import {
+  clearSessionRefresh,
+  getSessionRefreshRemainingMs,
+  hasValidSessionRefresh,
+  markSessionRefreshed,
+  restoreSessionRefreshFromTimestamp,
+} from "@/services/authSession";
 
 import {
   userRepository,
@@ -24,6 +31,8 @@ import {
   radioRepository,
   financeRepository,
 } from "../services/localData";
+
+let sessionExpiryTimeoutId = null;
 
 export const useAuthStore = defineStore("auth", {
   state: () => ({
@@ -127,7 +136,7 @@ export const useAuthStore = defineStore("auth", {
       const windowStore = useWindowStore();
       const appStore = useAppStore();
       const projectStore = useProjectStore();
-      const kanbanStore = useProjectStore();
+      const kanbanStore = useKanbanStore();
       const vaultStore = useVaultStore();
       const radioStore = useRadioStore();
       const playerStore = usePlayerStore();
@@ -168,6 +177,8 @@ export const useAuthStore = defineStore("auth", {
         this.isAuthenticated = false;
         this.token = null;
         this.lastSyncTimestamp = null;
+        this._clearSessionExpiry();
+        clearSessionRefresh();
         projectStore.projects = [];
         projectStore.lastSyncTimestamp = null;
         projectStore.active_project_id = null;
@@ -203,51 +214,99 @@ export const useAuthStore = defineStore("auth", {
     },
     async checkAuthStatus(recursive = false) {
       try {
-        const localUser = await userRepository.getLocalUserProfile();
-        const projectStore = useProjectStore();
-        const vaultStore = useVaultStore();
-        const radioStore = useRadioStore();
-        const playerStore = usePlayerStore();
+        const hasLocalSession = await this._loadLocalUserToState();
 
-        if (navigator.onLine) {
-          try {
-            await this.syncProfile(recursive);
-            await syncService.processSyncQueue();
+        if (hasLocalSession) {
+          const hasValidRefresh = hasValidSessionRefresh()
+            || restoreSessionRefreshFromTimestamp(this.lastSyncTimestamp);
 
-            if (recursive) {
-              const kanbanStore = useKanbanStore();
-
-              await projectStore.pullProjects();
-              await vaultStore.pullAccounts();
-              await kanbanStore.syncAllBoards();
-              await radioStore.pullPlaylists();
-              await playerStore.pullPlayerState();
-            }
-          } catch (syncError) {
-            console.error("Falha na orquestração PUSH-PULL:", syncError);
+          if (!hasValidRefresh) {
+            await this.logout(true, true);
+            return false;
           }
-        } else {
-          if (localUser) {
-            const localOccupations = await occupationRepository.getLocalUserOccupations();
-            const localMedals = await medalRepository.getLocalMedals();
 
-            await projectStore._loadProjectsFromDB();
-            await vaultStore.loadAccountsFromDB();
-            await radioStore._loadFromDB();
+          this._scheduleSessionExpiry();
+          await this._loadLocalAppData();
 
-            this.user = {
-              ...localUser,
-              occupations: localOccupations,
-              medals: localMedals,
-            };
-
-            this.isAuthenticated = true;
+          if (navigator.onLine) {
+            void this._synchronizeWhenAvailable(recursive);
           }
+
+          return true;
         }
+
+        if (!navigator.onLine) {
+          this.isAuthenticated = false;
+          return false;
+        }
+
+        await this.syncProfile(recursive);
+        return this.isLoggedIn;
       } catch (error) {
         this.user = {};
         this.isAuthenticated = false;
+        return false;
       }
+    },
+    async _loadLocalAppData() {
+      try {
+        const projectStore = useProjectStore();
+        const vaultStore = useVaultStore();
+        const radioStore = useRadioStore();
+
+        await Promise.all([
+          projectStore._loadProjectsFromDB(),
+          vaultStore.loadAccountsFromDB(),
+          radioStore._loadFromDB(),
+        ]);
+      } catch (error) {
+        console.warn("Falha ao carregar parte dos dados locais. O perfil permanece disponível offline.", error);
+      }
+    },
+    async _synchronizeWhenAvailable(recursive = false) {
+      try {
+        await this.syncProfile(recursive);
+        await syncService.processSyncQueue();
+
+        if (recursive) {
+          const projectStore = useProjectStore();
+          const vaultStore = useVaultStore();
+          const radioStore = useRadioStore();
+          const playerStore = usePlayerStore();
+          const kanbanStore = useKanbanStore();
+
+          await projectStore.pullProjects();
+          await vaultStore.pullAccounts();
+          await kanbanStore.syncAllBoards();
+          await radioStore.pullPlaylists();
+          await playerStore.pullPlayerState();
+        }
+      } catch (syncError) {
+        console.warn("Falha na sincronização em segundo plano. O modo offline continua disponível.", syncError);
+      }
+    },
+    _clearSessionExpiry() {
+      if (sessionExpiryTimeoutId !== null) {
+        clearTimeout(sessionExpiryTimeoutId);
+        sessionExpiryTimeoutId = null;
+      }
+    },
+    _scheduleSessionExpiry() {
+      this._clearSessionExpiry();
+
+      const remainingMs = getSessionRefreshRemainingMs();
+      if (remainingMs <= 0) {
+        void this.logout(true, true);
+        return;
+      }
+
+      sessionExpiryTimeoutId = setTimeout(() => {
+        sessionExpiryTimeoutId = null;
+
+        if (!hasValidSessionRefresh()) {
+          void this.logout(true);
+        }
+      }, remainingMs);
     },
     async _loadLocalUserToState() {
       try {
@@ -280,10 +339,12 @@ export const useAuthStore = defineStore("auth", {
           params.since = this.lastSyncTimestamp;
         }
 
-        const response = await api.get("/users/profile", { params });
+        const response = await api.get("/users/profile", { params, timeout: 8000 });
         const { user: remoteUser, server_timestamp, token } = response.data;
 
         this.token = token;
+        markSessionRefreshed();
+        this._scheduleSessionExpiry();
 
         if (remoteUser) {
           await this._saveUserData(remoteUser);
@@ -330,6 +391,8 @@ export const useAuthStore = defineStore("auth", {
         medals: mergedMedals,
       };
       this.isAuthenticated = true;
+      markSessionRefreshed();
+      this._scheduleSessionExpiry();
       appStore.loadThemeForUser(this.user);
     },
     async updateUserBio(newBio) {

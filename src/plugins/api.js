@@ -143,7 +143,7 @@ api.interceptors.response.use(
 
 const check_system_health = async () => {
   try {
-    const response = await api.get('/system');
+    const response = await api.get('/system', { timeout: 3000 });
     return response.status >= 200 && response.status < 300;
   } catch {
     return false;

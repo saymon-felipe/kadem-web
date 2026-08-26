@@ -221,8 +221,12 @@ window.addEventListener('error', (event) => {
   const isTagError = event.target && (event.target.tagName === 'SCRIPT' || event.target.tagName === 'LINK');
 
   if (isTagError) {
-    console.warn('[Global] Asset load failed. Reloading...');
-    window.location.reload(true);
+    if (navigator.onLine) {
+      console.warn('[Global] Asset load failed. Reloading...');
+      window.location.reload(true);
+    } else {
+      console.warn('[Global] Asset load failed while offline. Keeping the cached app running.');
+    }
   }
 }, true);
 
