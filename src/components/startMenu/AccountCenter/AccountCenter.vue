@@ -157,6 +157,7 @@ export default {
       is_rescuing: false,
       biometricSupported: false,
       isBiometricLoading: false,
+      vaultBiometricConfigured: false,
     };
   },
   computed: {
@@ -164,7 +165,7 @@ export default {
       return this.appStore.isMobile && this.biometricSupported && !!this.auth.user?.email;
     },
     hasVaultBiometricUnlock() {
-      return this.vault.hasBiometricUnlock(this.auth.user?.email);
+      return this.vaultBiometricConfigured;
     },
     filteredAccounts() {
       if (!this.searchQuery) return this.vault.accounts;
@@ -227,6 +228,7 @@ export default {
         } else {
           await this.vault.enableBiometricUnlock(this.auth.user.email);
         }
+        this.refreshVaultBiometricStatus();
       } catch (error) {
         if (!isBiometricCancellationError(error)) {
           this.error = error.message || "Não foi possível configurar a digital.";
@@ -291,10 +293,17 @@ export default {
       this.show_rescue_modal = false;
       this.rescue_password = "";
       this.rescue_error = "";
-    }
+    },
+
+    refreshVaultBiometricStatus() {
+      this.vaultBiometricConfigured = this.vault.hasBiometricUnlock(
+        this.auth.user?.email,
+      );
+    },
   },
   async mounted() {
     this.biometricSupported = await isBiometricSupported();
+    this.refreshVaultBiometricStatus();
   },
 };
 </script>
