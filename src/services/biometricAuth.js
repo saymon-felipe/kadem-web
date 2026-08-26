@@ -33,7 +33,11 @@ export async function isBiometricSupported() {
 export async function registerBiometricCredential({ requireHmacSecret = false } = {}) {
   try {
     const { startRegistration } = await getWebAuthn();
-    const optionsResponse = await api.post("/auth/biometrics/registration/options");
+    const optionsResponse = await api.post("/auth/biometrics/registration/options", {
+      // O Cofre pede uma credencial com hmac-secret, mesmo quando já existe uma
+      // credencial de login neste dispositivo.
+      allow_additional_credential: requireHmacSecret,
+    });
     const credential = await startRegistration({ optionsJSON: optionsResponse.data });
 
     console.info("[Cofre/biometria] Enviando registro para verificação.");
