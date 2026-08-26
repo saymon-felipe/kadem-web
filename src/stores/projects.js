@@ -85,6 +85,7 @@ export const useProjectStore = defineStore("projects", {
         const now = new Date().toISOString();
 
         project.last_accessed_at = now;
+        project.access_count = (project.access_count || 0) + 1;
 
         try {
           const projectClone = JSON.parse(JSON.stringify(project));

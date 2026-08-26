@@ -63,6 +63,7 @@
         :project-name="project.name"
         :members="project_members"
         @close="is_modal_open = false"
+        @save-task="handle_save_task"
         @delete="ask_delete_task"
         @delete-comment="ask_delete_comment"
         ref="taskDetailForm"
@@ -86,6 +87,7 @@ import { useProjectStore } from "@/stores/projects";
 import { useKanbanStore } from "@/stores/kanban";
 import { useWindowStore } from "@/stores/windows";
 import { useAuthStore } from "@/stores/auth";
+import { useAppStore } from "@/stores/app";
 
 import KanbanColumn from "./KanbanColumn.vue";
 import SideModal from "@/components/SideModal.vue";
@@ -115,6 +117,7 @@ export default {
   data() {
     return {
       selected_task: null,
+      pending_saved_task: null,
       is_modal_open: false,
       drag_ctx: {
         is_dragging: false,
@@ -220,8 +223,34 @@ export default {
       "pullProjectKanban",
       "deleteTaskComment",
       "updateProjectStatus",
+      "updateTask",
     ]),
     ...mapActions(useProjectStore, ["updateProjectStatus"]),
+
+    async handle_save_task(taskData) {
+      const appStore = useAppStore();
+      this.pending_saved_task = JSON.parse(JSON.stringify(taskData));
+      this.is_modal_open = false;
+
+      try {
+        await this.updateTask(taskData);
+        this.pending_saved_task = null;
+        appStore.showToast({
+          message: "Tarefa salva com sucesso!",
+          type: "success",
+        });
+      } catch (error) {
+        console.error("[ProjectKanban] Erro ao salvar tarefa:", error);
+        appStore.showToast({
+          message: "Erro ao salvar tarefa. Alterações recuperadas.",
+          type: "error",
+        });
+        if (this.pending_saved_task) {
+          this.selected_task = JSON.parse(JSON.stringify(this.pending_saved_task));
+          this.is_modal_open = true;
+        }
+      }
+    },
 
     async handle_status_change(new_status) {
       if (!this.project) return;

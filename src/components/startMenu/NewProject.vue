@@ -53,7 +53,8 @@
             :class="getBadgeClass(item)"
             :title="getBadgeTitle(item)"
           >
-            {{ item.displayName }} {{ item.isOwner ? "(Admin)" : "" }}
+            <span class="member-badge-name">{{ item.displayName }}</span>
+            <span v-if="item.isOwner" class="owner-pill">Admin</span>
 
             <button
               @click="handleRemoveItem(item)"
@@ -105,14 +106,6 @@
             </div>
           </div>
         </div>
-
-        <input
-          type="file"
-          ref="imageInput"
-          @change="handleImageUpload"
-          accept="image/png, image/jpeg"
-          style="display: none"
-        />
       </div>
     </div>
 
@@ -151,6 +144,14 @@
       @confirmed="handleDeleteProject"
       @cancelled="showDeleteProjectModal = false"
     />
+
+    <ImageCropperModal
+      v-model="isCropModalOpen"
+      title="Foto do Projeto"
+      :aspect-ratio="1"
+      @close="isCropModalOpen = false"
+      @save="handleCropSave"
+    />
   </div>
 </template>
 
@@ -164,12 +165,14 @@ import { api } from "@/plugins/api";
 
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import LoadingResponse from "@/components/loadingResponse.vue";
+import ImageCropperModal from "@/components/ImageCropperModal.vue";
 
 export default {
   name: "NewProject",
   components: {
     ConfirmationModal,
     LoadingResponse,
+    ImageCropperModal,
   },
   props: {
     projectToEdit: {
@@ -192,6 +195,7 @@ export default {
       memberEmail: "",
       isCreating: false,
       showDeleteProjectModal: false,
+      isCropModalOpen: false,
       newlyAddedEmails: [],
     };
   },
@@ -330,6 +334,7 @@ export default {
       this.memberEmail = "";
       this.isCreating = false;
       this.showDeleteProjectModal = false;
+      this.isCropModalOpen = false;
       this.newlyAddedEmails = [];
       this.response = "";
       this.responseType = "";
@@ -542,21 +547,14 @@ export default {
     },
     triggerImageUpload() {
       if (this.canEditProject) {
-        this.$refs.imageInput.click();
+        this.isCropModalOpen = true;
       }
     },
 
-    handleImageUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      if (!["image/png", "image/jpeg"].includes(file.type)) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        this.project.image = e.target.result;
-        this.projectImageBase64 = e.target.result;
-      };
-      reader.readAsDataURL(file);
+    handleCropSave(base64Image) {
+      this.project.image = base64Image;
+      this.projectImageBase64 = base64Image;
+      this.isCropModalOpen = false;
     },
 
     handleDeleteImage() {
@@ -625,42 +623,82 @@ export default {
   margin-left: 4px;
 }
 
-.remove-member-btn {
-  background: none;
-  border: none;
-  color: #ffffff;
-  font-size: var(--fontsize-sm);
-  cursor: pointer;
-  margin-left: 5px;
-}
-
 .pending-members {
   display: flex;
   gap: var(--space-3);
   font-size: var(--fontsize-xs);
   flex-wrap: wrap;
-  color: var(--text-gray);
   margin-top: var(--space-2);
 }
 
-.pending-members span {
-  color: #ffffff;
-  padding: var(--space-2) var(--space-3);
+.pending-members > span {
+  padding: 4px 10px;
   border-radius: var(--radius-sm);
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  transition: background-color 0.2s;
+  gap: 6px;
+  font-size: var(--fontsize-xs);
+  font-weight: 500;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .badge-active {
-  background-color: var(--deep-blue);
+  background-color: var(--surface-3);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+}
+
+[data-theme="dark"] .badge-active {
+  background-color: rgba(95, 124, 255, 0.16);
+  color: #c5cae9;
+  border: 1px solid rgba(95, 124, 255, 0.35);
 }
 
 .badge-pending {
-  background-color: var(--gray-300);
-  color: var(--black);
-  border: 1px solid var(--gray-100);
+  background-color: var(--surface-2);
+  color: var(--text-secondary);
+  border: 1px dashed var(--gray-400);
+}
+
+[data-theme="dark"] .badge-pending {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  border: 1px dashed var(--gray-500);
+}
+
+.owner-pill {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: var(--color-info);
+  color: #ffffff;
+  letter-spacing: 0.5px;
+}
+
+[data-theme="dark"] .owner-pill {
+  background-color: #3b5bdb;
+  color: #ffffff;
+}
+
+.remove-member-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  margin-left: 2px;
+  padding: 0 2px;
+  display: grid;
+  place-items: center;
+  transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.remove-member-btn:hover {
+  color: var(--color-expense);
+  transform: scale(1.2);
 }
 
 .preview-card-container {

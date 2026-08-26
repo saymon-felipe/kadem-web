@@ -133,29 +133,51 @@ export default {
     };
   },
 
+  watch: {
+    isOpen(val) {
+      if (!val) {
+        this.searchQuery = "";
+      }
+    },
+  },
+
   computed: {
     currentProject() {
       const id = this.modelValue;
       return this.projects.find((p) => p.localId === id) || this.projects[0];
     },
 
+    sortedProjects() {
+      return [...this.projects].sort((a, b) => {
+        const countA = a.access_count || 0;
+        const countB = b.access_count || 0;
+        if (countB !== countA) return countB - countA;
+        const timeA = new Date(a.last_accessed_at || 0).getTime();
+        const timeB = new Date(b.last_accessed_at || 0).getTime();
+        if (timeB !== timeA) return timeB - timeA;
+        return (a.name || "").localeCompare(b.name || "");
+      });
+    },
+
     filteredProjects() {
-      if (!this.searchQuery) return this.projects;
-      return this.projects.filter((p) =>
-        p.name.toLowerCase().includes(this.searchQuery.toLowerCase())
+      if (!this.searchQuery) return this.sortedProjects;
+      const q = this.searchQuery.toLowerCase().trim();
+      return this.sortedProjects.filter((p) =>
+        (p.name || "").toLowerCase().includes(q)
       );
     },
   },
 
   methods: {
     getCurrentStatusClass(status) {
-      return this.available_statuses[status].color_class;
+      return this.available_statuses[status]?.color_class || "bg-gray";
     },
     toggleDropdown() {
       this.isOpen = !this.isOpen;
     },
     closeDropdown() {
       this.isOpen = false;
+      this.searchQuery = "";
     },
     handleSelectProject(project) {
       this.$emit("switch-project", project.localId);
@@ -169,10 +191,10 @@ export default {
 .project-dropdown-wrapper {
   position: relative;
   width: 100%;
-  max-width: 350px;
+  max-width: 480px;
   font-family: "Roboto", sans-serif;
   user-select: none;
-  min-width: 300px;
+  min-width: 380px;
 }
 
 .project-trigger {

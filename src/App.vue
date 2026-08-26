@@ -12,11 +12,13 @@
     </section>
 
     <router-view />
+    <ToastContainer />
   </main>
 </template>
 
 <script>
 import { useAppStore } from "@/stores/app";
+import ToastContainer from "@/components/ui/ToastContainer.vue";
 import {
   consumeLocalDbIssue,
   onLocalDbIssue,
@@ -25,6 +27,9 @@ import {
 } from "@/db";
 
 export default {
+  components: {
+    ToastContainer,
+  },
   data() {
     return {
       localDbIssue: null,

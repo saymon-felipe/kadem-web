@@ -30,12 +30,13 @@
 
       <div class="header-actions">
         <button
-          class="btn-icon"
-          :class="{ active: show_search }"
+          class="btn-icon btn-filter-trigger"
+          :class="{ active: show_search || has_active_filters }"
           @click="toggle_search"
-          title="Filtrar tarefas"
+          :title="has_active_filters ? `${active_filters_count} filtro(s) ativo(s)` : 'Filtrar tarefas'"
         >
           <font-awesome-icon icon="magnifying-glass" />
+          <span v-if="has_active_filters" class="filter-indicator-dot"></span>
         </button>
 
         <div class="options-wrapper">
@@ -67,23 +68,67 @@
       </div>
     </header>
 
-    <div v-if="show_search" class="search-wrapper">
-      <input
-        ref="searchInput"
-        v-model="search_query"
-        class="search-input"
-        placeholder="Filtrar..."
-        @keydown.esc="close_search"
-        @blur="handle_blur_search"
-      />
-      <button
-        v-if="search_query"
-        class="clear-search"
-        @click="search_query = ''"
-        @mousedown.prevent
-      >
-        <font-awesome-icon icon="xmark" />
-      </button>
+    <div v-if="show_search" class="search-wrapper filter-panel">
+      <div class="search-input-box">
+        <input
+          ref="searchInput"
+          v-model="search_query"
+          class="search-input"
+          placeholder="Buscar descrição ou #ID..."
+          @keydown.esc="close_search"
+        />
+        <button
+          v-if="search_query"
+          class="clear-search"
+          @click="search_query = ''"
+          @mousedown.prevent
+          type="button"
+        >
+          <font-awesome-icon icon="xmark" />
+        </button>
+      </div>
+
+      <div class="column-filters-row">
+        <div class="filter-item">
+          <label class="filter-label">Membro</label>
+          <SearchableDropdown
+            v-model="filter_user"
+            :options="member_filter_options"
+            :searchable="true"
+            searchPlaceholder="Buscar membro..."
+            placeholder="Todos"
+          />
+        </div>
+
+        <div class="filter-item">
+          <label class="filter-label">Prioridade</label>
+          <SearchableDropdown
+            v-model="filter_priority"
+            :options="priority_filter_options"
+            :searchable="false"
+            placeholder="Todas"
+          />
+        </div>
+
+        <div class="filter-item">
+          <label class="filter-label">Tamanho</label>
+          <SearchableDropdown
+            v-model="filter_size"
+            :options="size_filter_options"
+            :searchable="false"
+            placeholder="Todos"
+          />
+        </div>
+      </div>
+
+      <div class="filter-footer-actions" v-if="has_active_filters">
+        <span class="filtered-results-text">
+          {{ filtered_tasks.length }} tarefa{{ filtered_tasks.length === 1 ? '' : 's' }}
+        </span>
+        <button class="btn-clear-filters" @click="reset_filters" type="button">
+          Limpar filtros
+        </button>
+      </div>
     </div>
 
     <transition name="task-expand">
@@ -188,11 +233,13 @@
       <template #item="{ element }">
         <KanbanTask :task="element" @click="handle_task_click(element)" />
       </template>
-    </draggable>
 
-    <div v-if="filtered_tasks.length === 0" class="empty-column-message">
-      <span>Nenhuma tarefa</span>
-    </div>
+      <template #footer>
+        <div v-if="filtered_tasks.length === 0" class="empty-column-message">
+          <span>Nenhuma tarefa</span>
+        </div>
+      </template>
+    </draggable>
   </div>
 </template>
 
@@ -201,12 +248,14 @@ import draggable from "vuedraggable";
 import { mapActions, mapState } from "pinia";
 import { useKanbanStore } from "@/stores/kanban";
 import { useWindowStore } from "@/stores/windows";
+import { useAuthStore } from "@/stores/auth";
 import KanbanTask from "./KanbanTask.vue";
+import SearchableDropdown from "@/components/ui/SearchableDropdown.vue";
 import defaultAvatar from "@/assets/images/kadem-default-account.jpg";
 
 export default {
   name: "KanbanColumn",
-  components: { draggable, KanbanTask },
+  components: { draggable, KanbanTask, SearchableDropdown },
   props: {
     column: {
       type: Object,
@@ -241,6 +290,9 @@ export default {
       new_task_content: "",
       show_search: false,
       search_query: "",
+      filter_user: "all",
+      filter_priority: "all",
+      filter_size: "all",
       show_options: false,
       is_renaming: false,
       edit_title: "",
@@ -257,23 +309,77 @@ export default {
   computed: {
     ...mapState(useKanbanStore, { getTasks: "getTasks" }),
     ...mapState(useWindowStore, ["_getOrCreateCurrentUserState"]),
+    ...mapState(useAuthStore, ["user"]),
 
     raw_column_tasks() {
       return this.getTasks(this.column.local_id);
     },
+    has_active_filters() {
+      return (
+        this.search_query.trim().length > 0 ||
+        this.filter_user !== "all" ||
+        this.filter_priority !== "all" ||
+        this.filter_size !== "all"
+      );
+    },
+    active_filters_count() {
+      let count = 0;
+      if (this.search_query.trim().length > 0) count++;
+      if (this.filter_user !== "all") count++;
+      if (this.filter_priority !== "all") count++;
+      if (this.filter_size !== "all") count++;
+      return count;
+    },
     is_searching() {
-      return this.search_query.trim().length > 0;
+      return this.has_active_filters;
     },
     filtered_tasks() {
-      const query = this.search_query.toLowerCase().trim();
-      if (!query) return this.raw_column_tasks;
+      let tasks = this.raw_column_tasks;
 
-      return this.raw_column_tasks.filter((task) => {
-        const id_match = String(task.id || task.local_id).includes(query);
-        const desc_match = (task.description || "").toLowerCase().includes(query);
-        const resp_match = (task.responsible?.name || "").toLowerCase().includes(query);
-        return id_match || desc_match || resp_match;
-      });
+      // 1. Filtro textual
+      const query = this.search_query.toLowerCase().trim();
+      if (query) {
+        tasks = tasks.filter((task) => {
+          const id_match = String(task.id || task.local_id).includes(query);
+          const desc_match = (task.description || "").toLowerCase().includes(query);
+          const resp_match = (task.responsible?.name || "").toLowerCase().includes(query);
+          return id_match || desc_match || resp_match;
+        });
+      }
+
+      // 2. Filtro por Responsável / Usuário
+      if (this.filter_user !== "all") {
+        if (this.filter_user === "any") {
+          tasks = tasks.filter(
+            (t) => t.responsible === "any" || t.responsible?.type === "any"
+          );
+        } else if (this.filter_user === "all_members") {
+          tasks = tasks.filter(
+            (t) => t.responsible === "all" || t.responsible?.type === "all"
+          );
+        } else if (this.filter_user === "unassigned") {
+          tasks = tasks.filter((t) => !t.responsible);
+        } else {
+          tasks = tasks.filter(
+            (t) =>
+              t.responsible &&
+              (String(t.responsible.id) === String(this.filter_user) ||
+                (t.responsible.data && String(t.responsible.data.id) === String(this.filter_user)))
+          );
+        }
+      }
+
+      // 3. Filtro por Prioridade
+      if (this.filter_priority !== "all") {
+        tasks = tasks.filter((t) => (t.priority || "Normal") === this.filter_priority);
+      }
+
+      // 4. Filtro por Tamanho
+      if (this.filter_size !== "all") {
+        tasks = tasks.filter((t) => (t.size || "").startsWith(this.filter_size));
+      }
+
+      return tasks;
     },
     containerDimensions() {
       const userState = this._getOrCreateCurrentUserState();
@@ -312,6 +418,43 @@ export default {
       if (this.selected_assignee === "any") return "Qualquer";
       return this.selected_assignee.name;
     },
+    member_filter_options() {
+      const options = [
+        { value: "all", label: "Todos", icon: "users" },
+        { value: "any", label: "Qualquer", icon: "dice" },
+        { value: "all_members", label: "Todos (Grupo)", icon: "users" },
+        { value: "unassigned", label: "Não atribuído", icon: "user" },
+      ];
+
+      if (this.members && this.members.length > 0) {
+        this.members.forEach((m) => {
+          options.push({
+            value: m.id,
+            label: m.name,
+            avatar: m.avatar || this.default_avatar,
+            subtitle: m.email || "",
+          });
+        });
+      }
+
+      return options;
+    },
+    priority_filter_options() {
+      return [
+        { value: "all", label: "Todas" },
+        { value: "Normal", label: "Normal", color: "#355afd" },
+        { value: "Importante", label: "Importante", color: "#e67e22" },
+        { value: "Urgente", label: "Urgente", color: "#e74c3c" },
+      ];
+    },
+    size_filter_options() {
+      return [
+        { value: "all", label: "Todos" },
+        { value: "P", label: "P (Pequeno)" },
+        { value: "M", label: "M (Médio)" },
+        { value: "G", label: "G (Grande)" },
+      ];
+    },
   },
   methods: {
     ...mapActions(useKanbanStore, ["createTask", "updateTasksForColumn", "updateColumn"]),
@@ -348,6 +491,12 @@ export default {
       this.close_options();
       this.$emit("delete-column", this.column);
     },
+    reset_filters() {
+      this.search_query = "";
+      this.filter_user = "all";
+      this.filter_priority = "all";
+      this.filter_size = "all";
+    },
     toggle_search() {
       this.show_search = !this.show_search;
       if (this.show_search) {
@@ -355,16 +504,11 @@ export default {
           if (this.$refs.searchInput) this.$refs.searchInput.focus();
         });
       } else {
-        this.search_query = "";
-      }
-    },
-    handle_blur_search() {
-      if (!this.search_query.trim()) {
-        this.show_search = false;
+        this.reset_filters();
       }
     },
     close_search() {
-      this.search_query = "";
+      this.reset_filters();
       this.show_search = false;
     },
     on_task_drag_start() {
@@ -392,7 +536,23 @@ export default {
       this.close_search();
       this.is_creating_task = true;
       this.new_task_content = "";
-      this.selected_assignee = "any";
+
+      // Definir usuário logado como responsável padrão
+      const currentUserId = this.user?.id;
+      const memberObj = (this.members || []).find((m) => m.id === currentUserId);
+      if (memberObj) {
+        this.selected_assignee = memberObj;
+      } else if (this.user && this.user.id) {
+        this.selected_assignee = {
+          id: this.user.id,
+          name: this.user.name || "Eu",
+          avatar: this.user.avatar || this.default_avatar,
+          type: "user",
+        };
+      } else {
+        this.selected_assignee = "any";
+      }
+
       this.$nextTick(() => {
         if (this.$refs.new_task_input) this.$refs.new_task_input.focus();
       });
@@ -652,20 +812,52 @@ export default {
   background: var(--red-high);
 }
 
+.btn-filter-trigger {
+  position: relative;
+}
+
+.filter-indicator-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--color-info);
+  border: 1px solid var(--surface-2);
+}
+
 .search-wrapper {
   padding: 0 var(--space-4);
   margin: var(--space-1) 0;
   position: relative;
 }
 
+.filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-2) var(--space-3);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  margin: 0 var(--space-3) var(--space-3) var(--space-3);
+  border: 1px solid var(--glass-border);
+}
+
+.search-input-box {
+  position: relative;
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
 .search-input {
   width: 100%;
-  padding: 6px 24px 6px 10px;
-  border: 1px solid var(--gray-500);
+  padding: 6px 28px 6px 10px;
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   font-size: var(--fontsize-xs);
   outline: none;
-  height: 40px;
+  height: 34px;
   background: var(--surface-1);
   color: var(--text-primary);
   transition: border-color var(--transition-fast), background var(--transition-fast);
@@ -678,10 +870,9 @@ export default {
 
 .clear-search {
   position: absolute;
-  right: 20px;
-  top: 0;
-  bottom: 0;
-  margin: auto;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
   display: grid;
   place-items: center;
   background: none;
@@ -689,10 +880,77 @@ export default {
   color: var(--text-muted);
   cursor: pointer;
   font-size: 10px;
+  padding: 2px;
 }
 
 .clear-search:hover {
   color: var(--color-expense);
+}
+
+.column-filters-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.filter-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filter-select {
+  width: 100%;
+  height: 28px;
+  padding: 2px 4px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid var(--glass-border);
+  background-color: var(--surface-1);
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.filter-select:focus {
+  border-color: var(--color-info);
+}
+
+.filter-footer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: 1px dashed var(--glass-border);
+}
+
+.filtered-results-text {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.btn-clear-filters {
+  background: none;
+  border: none;
+  color: var(--color-info);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.btn-clear-filters:hover {
+  text-decoration: underline;
 }
 
 .task-list {
@@ -709,20 +967,17 @@ export default {
 }
 
 .empty-column-message {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin: auto;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
   color: var(--text-muted);
   font-size: var(--fontsize-xs);
   font-style: italic;
   user-select: none;
   pointer-events: none;
-  transform: translateY(-10px);
+  width: 100%;
 }
 
 .empty-icon {
@@ -936,7 +1191,7 @@ export default {
   }
 
   .kanban-column.searching {
-    height: 280px;
+    height: 320px;
     z-index: 10;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }

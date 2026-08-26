@@ -308,10 +308,15 @@ export default {
 }
 
 .theme-option.active {
-  background: var(--deep-blue);
-  border-color: var(--deep-blue);
+  background-image: linear-gradient(to left, #355afd, #243fb8);
+  border-color: #355afd;
   color: #ffffff;
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 4px 12px rgba(53, 90, 253, 0.25);
+}
+
+.theme-option.active span,
+.theme-option.active svg {
+  color: #ffffff;
 }
 
 .config-section .btn {

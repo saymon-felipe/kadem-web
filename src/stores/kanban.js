@@ -479,6 +479,7 @@ export const useKanbanStore = defineStore('kanban', {
 
       } catch (error) {
         console.error("[KanbanStore] Erro update tarefa:", error);
+        throw error;
       }
     },
 

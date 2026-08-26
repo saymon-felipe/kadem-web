@@ -10,8 +10,9 @@
       </div>
       <div class="header-actions">
         <transition name="scale-btn">
-          <button v-if="is_dirty" class="action-btn check" @click="handle_save" title="Salvar" type="button">
-            <font-awesome-icon icon="check" />
+          <button v-if="is_dirty" class="action-btn check" :disabled="is_saving" @click="handle_save" title="Salvar" type="button">
+            <font-awesome-icon v-if="is_saving" icon="spinner" spin />
+            <font-awesome-icon v-else icon="check" />
           </button>
         </transition>
         <button class="action-btn delete" @click="$emit('delete', editable_task)" title="Excluir" type="button">
@@ -310,7 +311,7 @@ export default {
     projectName: { type: String, default: "Projeto" },
     members: { type: Array, default: () => [] },
   },
-  emits: ["close", "delete", "delete-comment"],
+  emits: ["close", "save-task", "delete", "delete-comment"],
 
   directives: {
     "click-outside": {
@@ -333,6 +334,7 @@ export default {
       active_tab: "details",
       editable_task: {},
       original_snapshot: "",
+      is_saving: false,
       default_account_image: defaultAccountImage,
       priority_options: ["Normal", "Importante", "Urgente"],
       size_options: ["P - Pequeno", "M - M\u00e9dio", "G - Grande"],
@@ -485,9 +487,10 @@ export default {
     },
 
     async handle_save() {
-      if (this.is_dirty) {
-        await this.updateTask(this.editable_task);
-        this.snapshot_task();
+      if (this.is_dirty && !this.is_saving) {
+        this.is_saving = true;
+        const taskToSave = JSON.parse(JSON.stringify(this.editable_task));
+        this.$emit("save-task", taskToSave);
         this.$emit("close");
       }
     },

@@ -70,36 +70,81 @@
     <section class="info-section">
       <div class="section-header">
         <p>Meus projetos</p>
-        <button
-          class="icon-button"
-          title="Adicionar Projeto"
-          id="create-group"
-          @click="$emit('request-new-group')"
-        >
-          <font-awesome-icon icon="plus" />
-        </button>
+        <div class="header-actions-group">
+          <div
+            class="expandable-project-search"
+            :class="{ 'is-open': isProjectSearchOpen || isProjectSearchFocused || projectSearchQuery }"
+            @mouseenter="isProjectSearchHovered = true"
+            @mouseleave="handleProjectSearchMouseLeave"
+          >
+            <button
+              class="icon-button search-icon-btn"
+              @click="handleProjectSearchClick"
+              title="Buscar projetos"
+              type="button"
+            >
+              <font-awesome-icon icon="magnifying-glass" />
+            </button>
+            <input
+              ref="projectSearchInput"
+              type="text"
+              v-model="projectSearchQuery"
+              placeholder="Buscar projetos..."
+              class="expandable-project-input"
+              @focus="handleProjectSearchFocus"
+              @blur="handleProjectSearchBlur"
+              @keydown.esc="clearProjectSearch"
+            />
+            <button
+              v-if="projectSearchQuery"
+              class="clear-search-btn"
+              @click="clearProjectSearch"
+              title="Limpar busca"
+              type="button"
+            >
+              <font-awesome-icon icon="xmark" />
+            </button>
+          </div>
+
+          <button
+            class="icon-button"
+            title="Adicionar Projeto"
+            id="create-group"
+            @click="$emit('request-new-group')"
+          >
+            <font-awesome-icon icon="plus" />
+          </button>
+        </div>
       </div>
 
-      <div class="projects-grid">
+      <div class="projects-grid" v-if="filtered_my_projects.length > 0">
         <ProjectCard
-          v-for="project in projects"
+          v-for="project in filtered_my_projects"
           :key="project.id || project.localId"
           :project="project"
           @click_card="open_project_edit"
         />
       </div>
+
+      <div
+        v-if="projectSearchQuery && filtered_my_projects.length === 0 && filtered_participating_projects.length === 0"
+        class="empty-search-state"
+      >
+        <font-awesome-icon icon="magnifying-glass" />
+        <p>Nenhum projeto encontrado para "{{ projectSearchQuery }}"</p>
+      </div>
     </section>
 
     <section
       class="info-section"
-      v-if="participating_projects && participating_projects.length > 0"
+      v-if="filtered_participating_projects && filtered_participating_projects.length > 0"
     >
       <div class="section-header">
         <p>Projetos que participo</p>
       </div>
       <div class="projects-grid">
         <ProjectCard
-          v-for="project in participating_projects"
+          v-for="project in filtered_participating_projects"
           :key="project.id || project.localId"
           :project="project"
           @click_card="open_project_edit"
@@ -127,13 +172,33 @@ export default {
       newOccupationName: "",
       isEditingBio: false,
       editableBio: "",
+      projectSearchQuery: "",
+      isProjectSearchOpen: false,
+      isProjectSearchFocused: false,
+      isProjectSearchHovered: false,
     };
   },
   computed: {
     ...mapState(useAuthStore, ["user"]),
     ...mapState(useProjectStore, ["projects"]),
-    participating_projects() {
-      return this.projects.filter((p) => p.user_role === "member");
+    filtered_my_projects() {
+      const q = this.projectSearchQuery.toLowerCase().trim();
+      if (!q) return this.projects;
+      return this.projects.filter(
+        (p) =>
+          (p.name || "").toLowerCase().includes(q) ||
+          (p.description || "").toLowerCase().includes(q)
+      );
+    },
+    filtered_participating_projects() {
+      const q = this.projectSearchQuery.toLowerCase().trim();
+      const list = this.projects.filter((p) => p.user_role === "member");
+      if (!q) return list;
+      return list.filter(
+        (p) =>
+          (p.name || "").toLowerCase().includes(q) ||
+          (p.description || "").toLowerCase().includes(q)
+      );
     },
   },
   methods: {
@@ -144,6 +209,38 @@ export default {
     ]),
     open_project_edit(project) {
       this.$emit("request-edit-group", project);
+    },
+
+    handleProjectSearchClick() {
+      this.isProjectSearchOpen = true;
+      this.$nextTick(() => {
+        this.$refs.projectSearchInput?.focus();
+      });
+    },
+
+    handleProjectSearchFocus() {
+      this.isProjectSearchFocused = true;
+      this.isProjectSearchOpen = true;
+    },
+
+    handleProjectSearchBlur() {
+      this.isProjectSearchFocused = false;
+      if (!this.projectSearchQuery && !this.isProjectSearchHovered) {
+        this.isProjectSearchOpen = false;
+      }
+    },
+
+    handleProjectSearchMouseLeave() {
+      this.isProjectSearchHovered = false;
+      if (!this.projectSearchQuery && !this.isProjectSearchFocused) {
+        this.isProjectSearchOpen = false;
+      }
+    },
+
+    clearProjectSearch() {
+      this.projectSearchQuery = "";
+      this.isProjectSearchOpen = false;
+      this.isProjectSearchFocused = false;
     },
 
     toggleBioEdit(isEditing) {
@@ -328,10 +425,128 @@ export default {
   resize: vertical;
 }
 
-.bio-editor-actions {
+.header-actions-group {
   display: flex;
-  justify-content: flex-end;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.expandable-project-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  width: 32px;
+  border-radius: 16px;
+  background-color: transparent;
+  border: 1px solid transparent;
+  overflow: hidden;
+  box-shadow: none !important;
+  outline: none !important;
+  transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1),
+              background-color 0.25s ease,
+              border-color 0.25s ease;
+}
+
+.expandable-project-search:hover,
+.expandable-project-search.is-open,
+.expandable-project-search:focus-within {
+  width: 200px;
+  background-color: var(--surface-2);
+  border-color: var(--glass-border);
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.expandable-project-search .search-icon-btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  outline: none !important;
+  box-shadow: none !important;
+  transition: color var(--transition-fast);
+}
+
+.expandable-project-search:hover .search-icon-btn,
+.expandable-project-search.is-open .search-icon-btn,
+.expandable-project-search:focus-within .search-icon-btn {
+  color: var(--text-primary);
+}
+
+.expandable-project-input {
+  flex: 1;
+  height: 100%;
+  border: none !important;
+  background: transparent !important;
+  color: var(--text-primary);
+  font-size: var(--fontsize-xs);
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 0 4px;
+  min-width: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease 0.1s;
+}
+
+.expandable-project-input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.expandable-project-search.is-open .expandable-project-input,
+.expandable-project-search:hover .expandable-project-input,
+.expandable-project-search:focus-within .expandable-project-input {
+  opacity: 1;
+}
+
+.expandable-project-search .clear-search-btn {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  position: static;
+  margin-right: 4px;
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  font-size: 11px;
+  border-radius: var(--radius-xs);
+  display: grid;
+  place-items: center;
+  outline: none !important;
+  box-shadow: none !important;
+  transition: color var(--transition-fast);
+}
+
+.expandable-project-search .clear-search-btn:hover {
+  color: var(--text-primary);
+}
+
+.empty-search-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) var(--space-4);
+  color: var(--text-muted);
+  gap: var(--space-2);
+  font-size: var(--fontsize-xs);
+  text-align: center;
+}
+
+.empty-search-state svg {
+  font-size: 1.5rem;
+  opacity: 0.5;
 }
 
 .projects-grid {

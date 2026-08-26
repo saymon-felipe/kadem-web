@@ -47,6 +47,7 @@ export const useAppStore = defineStore("app", {
     theme: systemTheme(),
     themeOverride: null,
     themeStorageKey: ANONYMOUS_THEME_STORAGE_KEY,
+    toasts: [],
   }),
   getters: {
     getIsMobile: (state) => state.isMobile,
@@ -144,6 +145,21 @@ export const useAppStore = defineStore("app", {
       if (this.isStartMenuOpen) {
         this.isStartMenuOpen = false;
       }
+    },
+    showToast({ message, title = "", type = "info", duration = 3500 }) {
+      const id = Date.now() + Math.random().toString(36).substring(2, 7);
+      const toast = { id, message, title, type, duration };
+      this.toasts.push(toast);
+
+      if (duration > 0) {
+        setTimeout(() => {
+          this.removeToast(id);
+        }, duration);
+      }
+      return id;
+    },
+    removeToast(id) {
+      this.toasts = this.toasts.filter((t) => t.id !== id);
     },
   },
 });
