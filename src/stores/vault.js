@@ -284,39 +284,55 @@ export const useVaultStore = defineStore('vault', () => {
 
   const enableBiometricUnlock = async (userSalt) => {
     if (!isUnlocked.value || !_mek.value) {
-      throw new Error("Destranque o Cofre com sua senha antes de ativar a biometria.");
+      console.error("[Cofre/biometria] O Cofre precisa estar destrancado antes da ativação.");
+      return false;
     }
 
     const storageKey = _getBiometricStorageKey(userSalt);
-    if (!storageKey) throw new Error("Não foi possível identificar o usuário do Cofre.");
+    if (!storageKey) {
+      console.error("[Cofre/biometria] Não foi possível identificar o usuário do Cofre.");
+      return false;
+    }
 
-    const webCrypto = _getWebCrypto();
-    const vaultSalt = webCrypto.getRandomValues(new Uint8Array(32));
-    const credential = await registerBiometricCredential({ requireHmacSecret: true });
-    const biometricSecret = await authenticateVaultWithBiometrics(
-      userSalt,
-      credential.id,
-      vaultSalt,
-    );
-    const wrappingKey = await _deriveBiometricWrappingKey(biometricSecret);
-    const rawMek = await webCrypto.subtle.exportKey("raw", _mek.value);
-    const iv = webCrypto.getRandomValues(new Uint8Array(12));
-    const encryptedMek = await webCrypto.subtle.encrypt(
-      { name: "AES-GCM", iv },
-      wrappingKey,
-      rawMek,
-    );
+    try {
+      const webCrypto = _getWebCrypto();
+      const vaultSalt = webCrypto.getRandomValues(new Uint8Array(32));
+      const credential = await registerBiometricCredential({ requireHmacSecret: true });
+      if (!credential) return false;
 
-    localStorage.setItem(
-      storageKey,
-      JSON.stringify({
-        version: 1,
-        credential_id: credential.id,
-        salt: bufferToBase64(vaultSalt),
-        iv: bufferToBase64(iv),
-        data: bufferToBase64(new Uint8Array(encryptedMek)),
-      }),
-    );
+      const biometricSecret = await authenticateVaultWithBiometrics(
+        userSalt,
+        credential.id,
+        vaultSalt,
+      );
+      if (!biometricSecret) return false;
+
+      const wrappingKey = await _deriveBiometricWrappingKey(biometricSecret);
+      const rawMek = await webCrypto.subtle.exportKey("raw", _mek.value);
+      const iv = webCrypto.getRandomValues(new Uint8Array(12));
+      const encryptedMek = await webCrypto.subtle.encrypt(
+        { name: "AES-GCM", iv },
+        wrappingKey,
+        rawMek,
+      );
+
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          version: 1,
+          credential_id: credential.id,
+          salt: bufferToBase64(vaultSalt),
+          iv: bufferToBase64(iv),
+          data: bufferToBase64(new Uint8Array(encryptedMek)),
+        }),
+      );
+
+      console.info("[Cofre/biometria] Desbloqueio biométrico configurado neste dispositivo.");
+      return true;
+    } catch (error) {
+      console.error("[Cofre/biometria] Falha ao configurar o desbloqueio biométrico.", error);
+      return false;
+    }
   };
 
   const disableBiometricUnlock = (userSalt) => {
@@ -329,7 +345,8 @@ export const useVaultStore = defineStore('vault', () => {
 
     const config = _getBiometricUnlockConfig(userSalt);
     if (!config) {
-      throw new Error("O desbloqueio biométrico não foi configurado neste dispositivo.");
+      console.error("[Cofre/biometria] O desbloqueio biométrico não foi configurado neste dispositivo.");
+      return false;
     }
 
     try {
@@ -339,6 +356,8 @@ export const useVaultStore = defineStore('vault', () => {
         config.credential_id,
         base64ToBuffer(config.salt),
       );
+      if (!biometricSecret) return false;
+
       const wrappingKey = await _deriveBiometricWrappingKey(biometricSecret);
       const rawMek = await webCrypto.subtle.decrypt(
         { name: "AES-GCM", iv: base64ToBuffer(config.iv) },
@@ -363,10 +382,12 @@ export const useVaultStore = defineStore('vault', () => {
       isUnlocked.value = true;
       _setupActivityListeners();
       await loadAccountsFromDB();
+      return true;
     } catch (error) {
       isUnlocked.value = false;
       _mek.value = null;
-      throw error;
+      console.error("[Cofre/biometria] Falha ao desbloquear o Cofre.", error);
+      return false;
     }
   };
 
