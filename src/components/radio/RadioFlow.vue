@@ -526,8 +526,15 @@ export default {
     },
     handle_play_playlist_btn() {
       if (!this.tracks || this.tracks.length === 0) return;
-      if (this.is_current_playlist_active) this.toggle_play();
-      else this.play_playlist_context(this.selected_playlist, this.tracks);
+      // A sessão restaurada pode manter a playlist/faixa atual, mas não ter
+      // itens pendentes na fila. Nesse caso, o primeiro play da playlist deve
+      // iniciar o seu contexto novamente, em vez de apenas alternar a faixa
+      // restaurada e deixar a reprodução terminar sem próxima música.
+      if (this.is_current_playlist_active && this.queue.length > 0) {
+        this.toggle_play();
+      } else {
+        this.play_playlist_context(this.selected_playlist, this.tracks);
+      }
     },
     play_specific_track(track) {
       this.play_playlist_context(this.selected_playlist, this.tracks, track);
