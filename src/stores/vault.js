@@ -5,7 +5,7 @@ import { syncQueueRepository } from '../services/localData/syncQueueRepository';
 import { syncService } from '../services/syncService';
 import { api } from "../plugins/api";
 import {
-  authenticateVaultWithBiometrics,
+  authenticateVaultWithLocalBiometrics,
   prepareVaultBiometricUnlock,
 } from "../services/biometricAuth";
 
@@ -327,6 +327,8 @@ export const useVaultStore = defineStore('vault', () => {
           version: 2,
           key_derivation: "prf",
           credential_id: result.credentialId,
+          credential_transports: result.credentialTransports,
+          rp_id: result.rpId,
           salt: bufferToBase64(vaultSalt),
           iv: bufferToBase64(iv),
           data: bufferToBase64(new Uint8Array(encryptedMek)),
@@ -360,13 +362,14 @@ export const useVaultStore = defineStore('vault', () => {
 
     try {
       const webCrypto = _getWebCrypto();
-      const result = await authenticateVaultWithBiometrics(
-        userSalt,
+      const result = await authenticateVaultWithLocalBiometrics(
         config.credential_id,
         base64ToBuffer(config.salt),
         {
           // PRF aplica separação de domínio ao salt: não reinterpretar chaves antigas.
           keyDerivation: config.key_derivation || (config.version === 1 ? "hmac-secret" : "prf"),
+          credentialTransports: config.credential_transports,
+          rpId: config.rp_id,
           onError: setBiometricError,
         },
       );

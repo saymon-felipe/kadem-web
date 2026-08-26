@@ -5,33 +5,36 @@
       <h3>Cofre Trancado</h3>
       <p>Digite sua Senha para desbloquear a Central de Contas.</p>
 
-      <div class="form-group password-group">
-        <div class="form-group">
+      <div class="vault-unlock-form">
+        <div class="form-group password-group">
           <input :type="passwordFieldType" v-model="masterPasswordInput" placeholder=" " id="unlock-vault"
             @keyup.enter="handleUnlock" />
           <label for="unlock-vault">Senha</label>
-          <p v-if="error" class="error-message">{{ error }}</p>
+
+          <span class="password-icon" @mousedown="showPassword" @mouseup="hidePassword" @mouseleave="hidePassword"
+            @touchstart.prevent="showPassword" @touchend.prevent="hidePassword">
+            <font-awesome-icon :icon="passwordFieldType === 'password' ? 'eye' : 'eye-slash'" />
+          </span>
         </div>
 
-        <span class="password-icon" @mousedown="showPassword" @mouseup="hidePassword" @mouseleave="hidePassword"
-          @touchstart.prevent="showPassword" @touchend.prevent="hidePassword">
-          <font-awesome-icon :icon="passwordFieldType === 'password' ? 'eye' : 'eye-slash'" />
-        </span>
+        <p v-if="error" class="vault-unlock-error" role="alert">{{ error }}</p>
+
+        <div class="vault-unlock-actions">
+          <button @click="handleUnlock" :disabled="isLoading" class="btn-small btn-save">
+            {{ isLoading ? "Desbloqueando..." : "Desbloquear" }}
+          </button>
+
+          <button
+            v-if="canUseVaultBiometrics && hasVaultBiometricUnlock"
+            @click="handleBiometricUnlock"
+            :disabled="isBiometricLoading"
+            class="btn-small btn-save biometric-unlock-btn"
+          >
+            <font-awesome-icon icon="fingerprint" />
+            {{ isBiometricLoading ? "Validando..." : "Desbloquear com digital" }}
+          </button>
+        </div>
       </div>
-
-      <button @click="handleUnlock" :disabled="isLoading" class="btn-small btn-save">
-        {{ isLoading ? "Desbloqueando..." : "Desbloquear" }}
-      </button>
-
-      <button
-        v-if="canUseVaultBiometrics && hasVaultBiometricUnlock"
-        @click="handleBiometricUnlock"
-        :disabled="isBiometricLoading"
-        class="btn-small btn-save biometric-unlock-btn"
-      >
-        <font-awesome-icon icon="fingerprint" />
-        {{ isBiometricLoading ? "Validando..." : "Desbloquear com digital" }}
-      </button>
     </div>
 
     <div v-else class="vault-unlocked-screen">
@@ -325,22 +328,37 @@ export default {
   align-items: center;
   justify-content: center;
   height: 100%;
-  gap: var(--space-4);
+  padding: var(--space-6) var(--space-4);
+  gap: var(--space-3);
   text-align: center;
+  overflow-y: auto;
+}
+
+.vault-unlock-form {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .password-group {
   position: relative;
-  width: 100%;
-  max-width: 300px;
+  margin: 0;
+}
 
-  & .error-message {
-    position: absolute;
-    top: 105%;
-    right: 0;
-    font-size: var(--fontsize-xs);
-    color: var(--red);
-  }
+.vault-unlock-error {
+  margin: 0;
+  color: var(--red);
+  font-size: var(--fontsize-xs);
+  line-height: 1.45;
+  text-align: left;
+}
+
+.vault-unlock-actions {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-1);
 }
 
 .password-icon {

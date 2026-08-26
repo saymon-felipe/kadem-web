@@ -15,10 +15,15 @@ export function isBiometricCancellationError(error) {
 
 const getWebAuthn = () => import("@simplewebauthn/browser");
 
-const reportBiometricFailure = (stage, error, onError) => {
+const reportBiometricFailure = (stage, error, onError, {
+  fallbackMessage,
+  showCancelledMessage = false,
+} = {}) => {
   const cancelled = isBiometricCancellationError(error);
-  const message = cancelled ? "" : (
-    typeof error === "string" ? error : "Não foi possível concluir a biometria. Tente novamente."
+  const message = cancelled && !showCancelledMessage ? "" : (
+    typeof error === "string"
+      ? error
+      : fallbackMessage || "Não foi possível concluir a biometria. Tente novamente."
   );
   // Não registrar o erro bruto: erros HTTP podem conter cookies e a asserção.
   const details = { stage, name: error?.name, status: error?.response?.status };
@@ -52,6 +57,18 @@ const secretBytes = (value) => {
   }
   return bytes?.byteLength === 32 ? bytes.slice() : null;
 };
+
+const bufferToBase64Url = (buffer) => {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+};
+
+const vaultOfflineFallback = "A biometria do Cofre não funciona offline neste dispositivo. Use sua senha para desbloqueá-lo.";
+const vaultLocalFailureMessage = () => globalThis.navigator?.onLine === false
+  ? vaultOfflineFallback
+  : "Não foi possível concluir a biometria. Tente novamente.";
 
 export async function isBiometricSupported() {
   try {
@@ -155,9 +172,80 @@ export async function authenticateVaultWithBiometrics(
       return reportBiometricFailure("authentication-secret",
         "Esta passkey não retornou o segredo seguro do Cofre. Use a senha; o autenticador precisa oferecer PRF.", onError);
     }
-    return { credentialId: credential.id, secret };
+    const credentialDescriptor = optionsJSON.allowCredentials.find((item) => item.id === credential.id);
+    return {
+      credentialId: credential.id,
+      credentialTransports: credentialDescriptor?.transports,
+      rpId: optionsJSON.rpId,
+      secret,
+    };
   } catch (error) {
     return reportBiometricFailure("authentication", error, onError);
+  }
+}
+
+// Desbloquear o Cofre não precisa provar a asserção ao servidor: a passkey só
+// libera localmente o segredo que cifra a chave do Cofre neste dispositivo.
+export async function authenticateVaultWithLocalBiometrics(
+  credentialId, vaultSalt, {
+    keyDerivation = "prf",
+    credentialTransports,
+    rpId = globalThis.location?.hostname,
+    onError,
+  } = {},
+) {
+  try {
+    if (!credentialId) {
+      return reportBiometricFailure("local-credential", "A credencial do Cofre não está mais cadastrada. Reative a digital usando sua senha.", onError);
+    }
+    if (!['prf', 'hmac-secret'].includes(keyDerivation)) {
+      return reportBiometricFailure("local-key-derivation", "Configuração biométrica incompatível. Reative a digital usando sua senha.", onError);
+    }
+
+    const webCrypto = globalThis.crypto;
+    if (typeof webCrypto?.getRandomValues !== "function") {
+      throw new Error("Web Crypto indisponível");
+    }
+
+    const { startAuthentication } = await getWebAuthn();
+    const allowCredential = {
+      id: credentialId,
+      type: "public-key",
+      // As configurações antigas não guardavam os transportes. A biometria do
+      // Cofre é de plataforma, então este padrão cobre Android/iOS sem rede.
+      transports: Array.isArray(credentialTransports) && credentialTransports.length
+        ? credentialTransports
+        : ["internal", "hybrid"],
+    };
+    const optionsJSON = {
+      challenge: bufferToBase64Url(webCrypto.getRandomValues(new Uint8Array(32))),
+      timeout: 60_000,
+      userVerification: "required",
+      allowCredentials: [allowCredential],
+      extensions: keyDerivation === "prf"
+        ? { prf: { eval: { first: vaultSalt } } }
+        : { hmacGetSecret: { salt1: vaultSalt } },
+    };
+    if (rpId) optionsJSON.rpId = rpId;
+
+    console.info("[Cofre/biometria] Solicitando autenticação local no dispositivo.");
+    const credential = await startAuthentication({ optionsJSON });
+    const output = keyDerivation === "prf"
+      ? credential.clientExtensionResults?.prf?.results?.first
+      : credential.clientExtensionResults?.hmacGetSecret?.output1;
+    const secret = secretBytes(output);
+    if (!secret) {
+      return reportBiometricFailure("local-authentication-secret",
+        "Esta passkey não retornou o segredo seguro do Cofre. Use a senha; o autenticador precisa oferecer PRF.", onError);
+    }
+    return { credentialId: credential.id, secret };
+  } catch (error) {
+    return reportBiometricFailure("local-authentication", error, onError, {
+      fallbackMessage: vaultLocalFailureMessage(),
+      // Alguns Androids rejeitam a cerimônia offline sem mostrar o prompt;
+      // nesses casos, não esconder o único caminho de recuperação (a senha).
+      showCancelledMessage: true,
+    });
   }
 }
 

@@ -18,6 +18,7 @@ async function harness({ registered = true, prfEnabled = true } = {}) {
       (level) => [level, (...args) => logs.push([level, ...args])],
     )),
     window: { addEventListener() {}, removeEventListener() {} },
+    navigator: { onLine: false },
     localStorage: {
       getItem: (key) => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, String(value)),
@@ -33,7 +34,11 @@ async function harness({ registered = true, prfEnabled = true } = {}) {
     async post(path, body) {
       calls.push({ path, body });
       if (path.endsWith('/login/options')) {
-        return { data: { challenge: 'challenge', allowCredentials: [{ id: 'passkey-1' }] } };
+        return { data: {
+          challenge: 'challenge',
+          rpId: 'vault-test.example',
+          allowCredentials: [{ id: 'passkey-1', transports: ['internal', 'hybrid'] }],
+        } };
       }
       if (path.endsWith('/registration/options')) {
         return { data: { challenge: 'challenge', extensions: { hmacCreateSecret: true } } };
@@ -93,7 +98,7 @@ async function harness({ registered = true, prfEnabled = true } = {}) {
   );
   await store.link((specifier) => dependencies[specifier]);
   await store.evaluate();
-  return { service: service.namespace, newVault: store.namespace.useVaultStore, calls, logs, storage, state };
+  return { service: service.namespace, newVault: store.namespace.useVaultStore, calls, logs, storage, state, navigator: context.navigator };
 }
 
 const email = 'vault-test@example.com';
@@ -176,12 +181,68 @@ test('vault enrollment survives reopening and decrypts accounts with the biometr
   const config = JSON.parse(h.storage.get(configKey));
   assert.equal(config.key_derivation, 'prf');
   assert.equal(config.version, 2);
+  assert.deepEqual(config.credential_transports, ['internal', 'hybrid']);
+  assert.equal(config.rp_id, 'vault-test.example');
   assert.equal(h.storage.get(configKey).includes(password), false);
   vault.lockVault();
   const reopened = h.newVault();
   assert.equal(reopened.hasBiometricUnlock(email), true);
   assert.equal(await reopened.unlockVaultWithBiometrics(email), true);
   assert.equal(reopened.accounts.value[0].password, 'test-secret');
+});
+
+test('vault biometric unlock is fully local and does not call the API', async () => {
+  const h = await harness();
+  const vault = h.newVault();
+  await vault.unlockVault('password', email);
+  assert.equal(await vault.enableBiometricUnlock(email), true);
+  vault.lockVault();
+  h.calls.length = 0;
+
+  assert.equal(await vault.unlockVaultWithBiometrics(email), true);
+  assert.equal(h.calls.some((call) => call.path), false);
+  const authentication = h.calls.find((call) => call.ceremony === 'get');
+  assert.equal(authentication.options.allowCredentials[0].id, 'passkey-1');
+  assert.deepEqual([...authentication.options.allowCredentials[0].transports], ['internal', 'hybrid']);
+  assert.equal(authentication.options.rpId, 'vault-test.example');
+  assert.equal(authentication.options.userVerification, 'required');
+});
+
+test('local biometric failure explains the offline password fallback', async () => {
+  const h = await harness();
+  const vault = h.newVault();
+  await vault.unlockVault('password', email);
+  await vault.enableBiometricUnlock(email);
+  vault.lockVault();
+  h.state.failure = new Error('Authenticator unavailable');
+
+  assert.equal(await vault.unlockVaultWithBiometrics(email), false);
+  assert.match(vault.biometricError.value, /não funciona offline.*senha/i);
+});
+
+test('an Android-style local NotAllowedError also shows the password fallback', async () => {
+  const h = await harness();
+  const vault = h.newVault();
+  await vault.unlockVault('password', email);
+  await vault.enableBiometricUnlock(email);
+  vault.lockVault();
+  h.state.failure = new DOMException('The request is not allowed', 'NotAllowedError');
+
+  assert.equal(await vault.unlockVaultWithBiometrics(email), false);
+  assert.match(vault.biometricError.value, /não funciona offline.*senha/i);
+});
+
+test('an online local biometric failure does not claim that the device is offline', async () => {
+  const h = await harness();
+  const vault = h.newVault();
+  await vault.unlockVault('password', email);
+  await vault.enableBiometricUnlock(email);
+  vault.lockVault();
+  h.navigator.onLine = true;
+  h.state.failure = new DOMException('The request is not allowed', 'NotAllowedError');
+
+  assert.equal(await vault.unlockVaultWithBiometrics(email), false);
+  assert.match(vault.biometricError.value, /não foi possível concluir a biometria/i);
 });
 
 test('wrong biometric secret keeps the vault locked and password fallback usable', async () => {
