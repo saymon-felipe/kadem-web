@@ -15,6 +15,44 @@ export function isBiometricCancellationError(error) {
 
 const getWebAuthn = () => import("@simplewebauthn/browser");
 
+const reportBiometricFailure = (stage, error, onError) => {
+  const cancelled = isBiometricCancellationError(error);
+  const message = cancelled ? "" : (
+    typeof error === "string" ? error : "Não foi possível concluir a biometria. Tente novamente."
+  );
+  // Não registrar o erro bruto: erros HTTP podem conter cookies e a asserção.
+  const details = { stage, name: error?.name, status: error?.response?.status };
+  if (cancelled) console.info("[Cofre/biometria] Operação cancelada.", details);
+  else console.error(`[Cofre/biometria] ${message}`, details);
+  onError?.(message);
+  return null;
+};
+
+// A saída PRF é material da chave do Cofre e nunca deve sair do dispositivo.
+const credentialForVerification = (credential) => {
+  const extensions = { ...credential.clientExtensionResults };
+  delete extensions.hmacGetSecret;
+  if (extensions.prf?.enabled !== undefined) {
+    extensions.prf = { enabled: extensions.prf.enabled };
+  } else {
+    delete extensions.prf;
+  }
+  return { ...credential, clientExtensionResults: extensions };
+};
+
+const secretBytes = (value) => {
+  let bytes;
+  if (value instanceof ArrayBuffer) bytes = new Uint8Array(value);
+  else if (ArrayBuffer.isView(value)) {
+    bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  } else if (typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value)) {
+    const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="));
+    bytes = Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+  }
+  return bytes?.byteLength === 32 ? bytes.slice() : null;
+};
+
 export async function isBiometricSupported() {
   try {
     if (
@@ -30,31 +68,34 @@ export async function isBiometricSupported() {
   }
 }
 
-export async function registerBiometricCredential({ requireHmacSecret = false } = {}) {
+export async function registerBiometricCredential({ requirePrf = false, onError } = {}) {
   try {
     const { startRegistration } = await getWebAuthn();
     const optionsResponse = await api.post("/auth/biometrics/registration/options", {
-      // O Cofre pede uma credencial com hmac-secret, mesmo quando já existe uma
-      // credencial de login neste dispositivo.
-      allow_additional_credential: requireHmacSecret,
+      allow_additional_credential: requirePrf,
     });
-    const credential = await startRegistration({ optionsJSON: optionsResponse.data });
+    const optionsJSON = { ...optionsResponse.data };
+    if (requirePrf) {
+      optionsJSON.extensions = { ...optionsJSON.extensions, prf: {} };
+      delete optionsJSON.extensions.hmacCreateSecret;
+    }
+    console.info("[Cofre/biometria] Solicitando cadastro no dispositivo.");
+    const credential = await startRegistration({ optionsJSON });
 
     console.info("[Cofre/biometria] Enviando registro para verificação.");
-    await api.post("/auth/biometrics/registration/verify", { credential });
+    await api.post("/auth/biometrics/registration/verify", {
+      credential: credentialForVerification(credential),
+    });
     console.info("[Cofre/biometria] Registro biométrico verificado.");
 
-    if (requireHmacSecret && !credential.clientExtensionResults?.hmacCreateSecret) {
-      console.error("[Cofre/biometria] hmacCreateSecret não foi disponibilizado pelo autenticador.", {
-        extensionNames: Object.keys(credential.clientExtensionResults || {}),
-      });
-      return null;
+    if (requirePrf && !credential.clientExtensionResults?.prf?.enabled) {
+      return reportBiometricFailure("registration-prf",
+        "Esta passkey não oferece PRF para proteger o Cofre. Use a senha para desbloqueá-lo.", onError);
     }
 
     return credential;
   } catch (error) {
-    console.error("[Cofre/biometria] Falha ao registrar a credencial.", error);
-    return null;
+    return reportBiometricFailure("registration", error, onError);
   }
 }
 
@@ -75,54 +116,63 @@ export async function authenticateWithBiometrics(email) {
   return api.post("/auth/biometrics/login/verify", { email, credential });
 }
 
-export async function authenticateVaultWithBiometrics(email, credentialId, vaultSalt) {
+export async function authenticateVaultWithBiometrics(
+  email, credentialId, vaultSalt, { keyDerivation = "prf", onError } = {},
+) {
   try {
+    if (!["prf", "hmac-secret"].includes(keyDerivation)) {
+      return reportBiometricFailure("key-derivation", "Configuração biométrica incompatível. Reative a digital usando sua senha.", onError);
+    }
     const { startAuthentication } = await getWebAuthn();
     const optionsResponse = await api.post("/auth/biometrics/login/options", { email });
+    const allowed = optionsResponse.data.allowCredentials || [];
     const optionsJSON = {
       ...optionsResponse.data,
-      allowCredentials: optionsResponse.data.allowCredentials?.filter(
-        (credential) => credential.id === credentialId,
-      ),
-      extensions: {
-        ...optionsResponse.data.extensions,
-        hmacGetSecret: { salt1: vaultSalt },
-      },
+      allowCredentials: credentialId ? allowed.filter((item) => item.id === credentialId) : allowed,
+      extensions: keyDerivation === "prf"
+        ? { prf: { eval: { first: vaultSalt } } }
+        : { hmacGetSecret: { salt1: vaultSalt } },
     };
 
     if (!optionsJSON.allowCredentials?.length) {
-      console.error("[Cofre/biometria] A credencial salva não foi encontrada nas opções de autenticação.", {
-        credentialId,
-        availableCredentialIds: optionsResponse.data.allowCredentials?.map(
-          (credential) => credential.id,
-        ),
-      });
-      return null;
+      return reportBiometricFailure("allowed-credentials",
+        "A credencial do Cofre não está mais cadastrada. Reative a digital usando sua senha.", onError);
     }
 
+    console.info("[Cofre/biometria] Solicitando autenticação no dispositivo.");
     const credential = await startAuthentication({ optionsJSON });
-
-    // A verificação no servidor deve ocorrer mesmo se a extensão hmac-secret falhar.
-    // Assim, a credencial é validada e o console revela exatamente onde o fluxo parou.
     console.info("[Cofre/biometria] Enviando autenticação para /login/verify.");
-    await api.post("/auth/biometrics/login/verify", { email, credential });
+    await api.post("/auth/biometrics/login/verify", {
+      email, credential: credentialForVerification(credential),
+    });
     console.info("[Cofre/biometria] Autenticação biométrica verificada pelo servidor.");
 
-    const hmacSecret = credential.clientExtensionResults?.hmacGetSecret?.output1;
-
-    if (!(hmacSecret instanceof ArrayBuffer) && !ArrayBuffer.isView(hmacSecret)) {
-      console.error("[Cofre/biometria] hmacGetSecret não retornou output1.", {
-        extensionNames: Object.keys(credential.clientExtensionResults || {}),
-        hasHmacGetSecretResult: Boolean(credential.clientExtensionResults?.hmacGetSecret),
-      });
-      return null;
+    const output = keyDerivation === "prf"
+      ? credential.clientExtensionResults?.prf?.results?.first
+      : credential.clientExtensionResults?.hmacGetSecret?.output1;
+    const secret = secretBytes(output);
+    if (!secret) {
+      return reportBiometricFailure("authentication-secret",
+        "Esta passkey não retornou o segredo seguro do Cofre. Use a senha; o autenticador precisa oferecer PRF.", onError);
     }
-
-    return new Uint8Array(
-      hmacSecret instanceof ArrayBuffer ? hmacSecret : hmacSecret.buffer,
-    );
+    return { credentialId: credential.id, secret };
   } catch (error) {
-    console.error("[Cofre/biometria] Falha na autenticação do Cofre.", error);
-    return null;
+    return reportBiometricFailure("authentication", error, onError);
+  }
+}
+
+export async function prepareVaultBiometricUnlock(email, vaultSalt, { onError } = {}) {
+  try {
+    let credentialId;
+    if (await getBiometricStatus()) {
+      console.info("[Cofre/biometria] Reutilizando uma passkey cadastrada.");
+    } else {
+      const credential = await registerBiometricCredential({ requirePrf: true, onError });
+      if (!credential) return null;
+      credentialId = credential.id;
+    }
+    return await authenticateVaultWithBiometrics(email, credentialId, vaultSalt, { onError });
+  } catch (error) {
+    return reportBiometricFailure("setup", error, onError);
   }
 }

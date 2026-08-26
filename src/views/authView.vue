@@ -272,7 +272,10 @@ export default {
       this.isActivatingBiometrics = true;
       this.biometricPromptError = "";
       try {
-        await registerBiometricCredential();
+        const credential = await registerBiometricCredential({
+          onError: (message) => { this.biometricPromptError = message; },
+        });
+        if (!credential) return;
         localStorage.setItem(rememberedEmailKey, this.email.trim());
         localStorage.removeItem(biometricDeclinedKey(this.email));
         this.finishLogin();

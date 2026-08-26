@@ -74,6 +74,8 @@
         </div>
       </div>
 
+      <p v-if="error" role="alert" class="error-message">{{ error }}</p>
+
       <AccountList :accounts="filteredAccounts" @request-edit="openEditForm" />
 
       <SideModal v-model="showAddModal" @close="handleCloseModal">
@@ -206,7 +208,8 @@ export default {
       this.isBiometricLoading = true;
 
       try {
-        await this.vault.unlockVaultWithBiometrics(this.auth.user.email);
+        const unlocked = await this.vault.unlockVaultWithBiometrics(this.auth.user.email);
+        if (!unlocked) this.error = this.vault.biometricError;
       } catch (error) {
         if (!isBiometricCancellationError(error)) {
           this.error = error.message || "Não foi possível validar a digital.";
@@ -226,7 +229,8 @@ export default {
         if (this.hasVaultBiometricUnlock) {
           this.vault.disableBiometricUnlock(this.auth.user.email);
         } else {
-          await this.vault.enableBiometricUnlock(this.auth.user.email);
+          const enabled = await this.vault.enableBiometricUnlock(this.auth.user.email);
+          if (!enabled) this.error = this.vault.biometricError;
         }
         this.refreshVaultBiometricStatus();
       } catch (error) {

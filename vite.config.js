@@ -119,7 +119,8 @@ export default defineConfig(({ mode }) => {
       minify: 'terser',
       terserOptions: {
         compress: {
-          drop_console: true,
+          // Manter diagnóstico de falhas no PWA publicado; remover logs comuns.
+          drop_console: ['log', 'debug', 'trace'],
           drop_debugger: true,
         },
       },

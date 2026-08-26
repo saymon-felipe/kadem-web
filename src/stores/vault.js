@@ -6,7 +6,7 @@ import { syncService } from '../services/syncService';
 import { api } from "../plugins/api";
 import {
   authenticateVaultWithBiometrics,
-  registerBiometricCredential,
+  prepareVaultBiometricUnlock,
 } from "../services/biometricAuth";
 
 const encoder = new TextEncoder();
@@ -32,6 +32,8 @@ const base64ToBuffer = (b64) => {
 };
 
 export const useVaultStore = defineStore('vault', () => {
+  const biometricError = ref("");
+  const setBiometricError = (message) => { biometricError.value = message; };
   const isUnlocked = ref(false);
   const _mek = ref(null);
   const accounts = ref([]);
@@ -283,32 +285,35 @@ export const useVaultStore = defineStore('vault', () => {
   const hasBiometricUnlock = (userSalt) => !!_getBiometricUnlockConfig(userSalt);
 
   const enableBiometricUnlock = async (userSalt) => {
+    biometricError.value = "";
     if (!isUnlocked.value || !_mek.value) {
+      setBiometricError("Destranque o Cofre com sua senha antes de ativar a digital.");
       console.error("[Cofre/biometria] O Cofre precisa estar destrancado antes da ativação.");
       return false;
     }
 
     const storageKey = _getBiometricStorageKey(userSalt);
     if (!storageKey) {
+      setBiometricError("Não foi possível identificar o usuário do Cofre.");
       console.error("[Cofre/biometria] Não foi possível identificar o usuário do Cofre.");
       return false;
     }
 
     try {
       const webCrypto = _getWebCrypto();
+      const keyToWrap = _mek.value;
       const vaultSalt = webCrypto.getRandomValues(new Uint8Array(32));
-      const credential = await registerBiometricCredential({ requireHmacSecret: true });
-      if (!credential) return false;
-
-      const biometricSecret = await authenticateVaultWithBiometrics(
-        userSalt,
-        credential.id,
-        vaultSalt,
+      const result = await prepareVaultBiometricUnlock(
+        userSalt, vaultSalt, { onError: setBiometricError },
       );
-      if (!biometricSecret) return false;
+      if (!result) return false;
+      if (!isUnlocked.value || _mek.value !== keyToWrap) {
+        setBiometricError("O Cofre foi trancado durante a ativação. Destranque e tente novamente.");
+        return false;
+      }
 
-      const wrappingKey = await _deriveBiometricWrappingKey(biometricSecret);
-      const rawMek = await webCrypto.subtle.exportKey("raw", _mek.value);
+      const wrappingKey = await _deriveBiometricWrappingKey(result.secret);
+      const rawMek = await webCrypto.subtle.exportKey("raw", keyToWrap);
       const iv = webCrypto.getRandomValues(new Uint8Array(12));
       const encryptedMek = await webCrypto.subtle.encrypt(
         { name: "AES-GCM", iv },
@@ -319,8 +324,9 @@ export const useVaultStore = defineStore('vault', () => {
       localStorage.setItem(
         storageKey,
         JSON.stringify({
-          version: 1,
-          credential_id: credential.id,
+          version: 2,
+          key_derivation: "prf",
+          credential_id: result.credentialId,
           salt: bufferToBase64(vaultSalt),
           iv: bufferToBase64(iv),
           data: bufferToBase64(new Uint8Array(encryptedMek)),
@@ -330,7 +336,8 @@ export const useVaultStore = defineStore('vault', () => {
       console.info("[Cofre/biometria] Desbloqueio biométrico configurado neste dispositivo.");
       return true;
     } catch (error) {
-      console.error("[Cofre/biometria] Falha ao configurar o desbloqueio biométrico.", error);
+      setBiometricError("Não foi possível salvar a configuração da digital neste dispositivo.");
+      console.error("[Cofre/biometria] Falha ao configurar o desbloqueio biométrico.", { name: error?.name });
       return false;
     }
   };
@@ -341,24 +348,31 @@ export const useVaultStore = defineStore('vault', () => {
   };
 
   const unlockVaultWithBiometrics = async (userSalt) => {
-    if (isUnlocked.value) return;
+    biometricError.value = "";
+    if (isUnlocked.value) return true;
 
     const config = _getBiometricUnlockConfig(userSalt);
     if (!config) {
+      setBiometricError("O desbloqueio biométrico não foi configurado neste dispositivo.");
       console.error("[Cofre/biometria] O desbloqueio biométrico não foi configurado neste dispositivo.");
       return false;
     }
 
     try {
       const webCrypto = _getWebCrypto();
-      const biometricSecret = await authenticateVaultWithBiometrics(
+      const result = await authenticateVaultWithBiometrics(
         userSalt,
         config.credential_id,
         base64ToBuffer(config.salt),
+        {
+          // PRF aplica separação de domínio ao salt: não reinterpretar chaves antigas.
+          keyDerivation: config.key_derivation || (config.version === 1 ? "hmac-secret" : "prf"),
+          onError: setBiometricError,
+        },
       );
-      if (!biometricSecret) return false;
+      if (!result) return false;
 
-      const wrappingKey = await _deriveBiometricWrappingKey(biometricSecret);
+      const wrappingKey = await _deriveBiometricWrappingKey(result.secret);
       const rawMek = await webCrypto.subtle.decrypt(
         { name: "AES-GCM", iv: base64ToBuffer(config.iv) },
         wrappingKey,
@@ -386,7 +400,8 @@ export const useVaultStore = defineStore('vault', () => {
     } catch (error) {
       isUnlocked.value = false;
       _mek.value = null;
-      console.error("[Cofre/biometria] Falha ao desbloquear o Cofre.", error);
+      setBiometricError("Não foi possível abrir o Cofre com esta digital. Destranque com sua senha e reative a digital.");
+      console.error("[Cofre/biometria] Falha ao desbloquear o Cofre.", { name: error?.name });
       return false;
     }
   };
@@ -723,6 +738,7 @@ export const useVaultStore = defineStore('vault', () => {
   };
 
   return {
+    biometricError,
     zombie_count,
     rescue_legacy_accounts,
     setup_recovery_key,

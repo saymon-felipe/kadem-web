@@ -192,7 +192,13 @@ export default {
           this.biometricRegistered = false;
           this.biometricMsg = "Login com biometria desativado.";
         } else {
-          await registerBiometricCredential();
+          const credential = await registerBiometricCredential({
+            onError: (message) => { this.biometricMsg = message; },
+          });
+          if (!credential) {
+            this.biometricMsgType = "error";
+            return;
+          }
           localStorage.setItem(rememberedEmailKey, this.user.email);
           localStorage.removeItem(biometricDeclinedKey(this.user.email));
           this.biometricRegistered = true;
