@@ -4,12 +4,17 @@ import { accountsRepository } from '../services/localData/accountsRepository';
 import { syncQueueRepository } from '../services/localData/syncQueueRepository';
 import { syncService } from '../services/syncService';
 import { api } from "../plugins/api";
+import {
+  authenticateVaultWithBiometrics,
+  registerBiometricCredential,
+} from "../services/biometricAuth";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 const PBKDF2_ITERATIONS = 310000;
 const AUTO_LOCK_DELAY = 5 * 60 * 1000; // 5 minutos
+const VAULT_BIOMETRIC_STORAGE_PREFIX = "kadem_vault_biometric";
 
 const bufferToBase64 = (buf) => {
   const binary = String.fromCharCode.apply(null, buf);
@@ -69,6 +74,37 @@ export const useVaultStore = defineStore('vault', () => {
       { name: "AES-GCM", length: 256 },
       true,
       ["encrypt", "decrypt"]
+    );
+  };
+
+  const _getBiometricStorageKey = (userSalt) => {
+    const normalizedUser = String(userSalt || "").trim().toLowerCase();
+    return normalizedUser ? `${VAULT_BIOMETRIC_STORAGE_PREFIX}:${normalizedUser}` : null;
+  };
+
+  const _getBiometricUnlockConfig = (userSalt) => {
+    const storageKey = _getBiometricStorageKey(userSalt);
+    if (!storageKey) return null;
+
+    try {
+      const config = JSON.parse(localStorage.getItem(storageKey) || "null");
+      if (!config?.credential_id || !config?.salt || !config?.iv || !config?.data) return null;
+      return config;
+    } catch {
+      return null;
+    }
+  };
+
+  const _deriveBiometricWrappingKey = async (secret) => {
+    const webCrypto = _getWebCrypto();
+    const rawSecret = secret instanceof Uint8Array ? secret : new Uint8Array(secret);
+
+    return webCrypto.subtle.importKey(
+      "raw",
+      rawSecret,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
     );
   };
 
@@ -241,6 +277,96 @@ export const useVaultStore = defineStore('vault', () => {
     } catch (err) {
       isUnlocked.value = false;
       throw err;
+    }
+  };
+
+  const hasBiometricUnlock = (userSalt) => !!_getBiometricUnlockConfig(userSalt);
+
+  const enableBiometricUnlock = async (userSalt) => {
+    if (!isUnlocked.value || !_mek.value) {
+      throw new Error("Destranque o Cofre com sua senha antes de ativar a biometria.");
+    }
+
+    const storageKey = _getBiometricStorageKey(userSalt);
+    if (!storageKey) throw new Error("Não foi possível identificar o usuário do Cofre.");
+
+    const webCrypto = _getWebCrypto();
+    const vaultSalt = webCrypto.getRandomValues(new Uint8Array(32));
+    const credential = await registerBiometricCredential({ requireHmacSecret: true });
+    const biometricSecret = await authenticateVaultWithBiometrics(
+      userSalt,
+      credential.id,
+      vaultSalt,
+    );
+    const wrappingKey = await _deriveBiometricWrappingKey(biometricSecret);
+    const rawMek = await webCrypto.subtle.exportKey("raw", _mek.value);
+    const iv = webCrypto.getRandomValues(new Uint8Array(12));
+    const encryptedMek = await webCrypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      wrappingKey,
+      rawMek,
+    );
+
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        version: 1,
+        credential_id: credential.id,
+        salt: bufferToBase64(vaultSalt),
+        iv: bufferToBase64(iv),
+        data: bufferToBase64(new Uint8Array(encryptedMek)),
+      }),
+    );
+  };
+
+  const disableBiometricUnlock = (userSalt) => {
+    const storageKey = _getBiometricStorageKey(userSalt);
+    if (storageKey) localStorage.removeItem(storageKey);
+  };
+
+  const unlockVaultWithBiometrics = async (userSalt) => {
+    if (isUnlocked.value) return;
+
+    const config = _getBiometricUnlockConfig(userSalt);
+    if (!config) {
+      throw new Error("O desbloqueio biométrico não foi configurado neste dispositivo.");
+    }
+
+    try {
+      const webCrypto = _getWebCrypto();
+      const biometricSecret = await authenticateVaultWithBiometrics(
+        userSalt,
+        config.credential_id,
+        base64ToBuffer(config.salt),
+      );
+      const wrappingKey = await _deriveBiometricWrappingKey(biometricSecret);
+      const rawMek = await webCrypto.subtle.decrypt(
+        { name: "AES-GCM", iv: base64ToBuffer(config.iv) },
+        wrappingKey,
+        base64ToBuffer(config.data),
+      );
+      const keyCandidate = await webCrypto.subtle.importKey(
+        "raw",
+        rawMek,
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"],
+      );
+      const encryptedValidation = localStorage.getItem("vault_validation");
+      const validationToken = await _decrypt(encryptedValidation, keyCandidate);
+
+      if (validationToken !== "VALID_VAULT_KEY") {
+        throw new Error("Não foi possível validar a chave do Cofre.");
+      }
+
+      _mek.value = keyCandidate;
+      isUnlocked.value = true;
+      _setupActivityListeners();
+      await loadAccountsFromDB();
+    } catch (error) {
+      isUnlocked.value = false;
+      _mek.value = null;
+      throw error;
     }
   };
 
@@ -588,6 +714,10 @@ export const useVaultStore = defineStore('vault', () => {
     accounts,
     revealedPasswords,
     unlockVault,
+    unlockVaultWithBiometrics,
+    enableBiometricUnlock,
+    disableBiometricUnlock,
+    hasBiometricUnlock,
     lockVault,
     purge_state,
     setupVault,

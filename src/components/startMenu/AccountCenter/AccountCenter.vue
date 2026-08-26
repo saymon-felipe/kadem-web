@@ -22,6 +22,16 @@
       <button @click="handleUnlock" :disabled="isLoading" class="btn-small btn-save">
         {{ isLoading ? "Desbloqueando..." : "Desbloquear" }}
       </button>
+
+      <button
+        v-if="canUseVaultBiometrics && hasVaultBiometricUnlock"
+        @click="handleBiometricUnlock"
+        :disabled="isBiometricLoading"
+        class="btn-small btn-save biometric-unlock-btn"
+      >
+        <font-awesome-icon icon="fingerprint" />
+        {{ isBiometricLoading ? "Validando..." : "Desbloquear com digital" }}
+      </button>
     </div>
 
     <div v-else class="vault-unlocked-screen">
@@ -44,6 +54,22 @@
 
           <button class="btn-small btn-save" @click="vault.lockVault()">
             <font-awesome-icon icon="lock" /> Trancar
+          </button>
+
+          <button
+            v-if="canUseVaultBiometrics"
+            class="btn-small biometric-unlock-btn"
+            @click="toggleVaultBiometrics"
+            :disabled="isBiometricLoading"
+          >
+            <font-awesome-icon icon="fingerprint" />
+            {{
+              isBiometricLoading
+                ? "Processando..."
+                : hasVaultBiometricUnlock
+                  ? "Desativar digital"
+                  : "Ativar digital"
+            }}
           </button>
         </div>
       </div>
@@ -97,6 +123,10 @@ import { useVaultStore } from "@/stores/vault";
 import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
 import loadingSpinner from "../../loadingSpinner.vue";
+import {
+  isBiometricCancellationError,
+  isBiometricSupported,
+} from "@/services/biometricAuth";
 
 export default {
   components: {
@@ -124,10 +154,18 @@ export default {
       show_rescue_modal: false,
       rescue_password: "",
       rescue_error: "",
-      is_rescuing: false
+      is_rescuing: false,
+      biometricSupported: false,
+      isBiometricLoading: false,
     };
   },
   computed: {
+    canUseVaultBiometrics() {
+      return this.appStore.isMobile && this.biometricSupported && !!this.auth.user?.email;
+    },
+    hasVaultBiometricUnlock() {
+      return this.vault.hasBiometricUnlock(this.auth.user?.email);
+    },
     filteredAccounts() {
       if (!this.searchQuery) return this.vault.accounts;
 
@@ -158,6 +196,44 @@ export default {
       } finally {
         this.isLoading = false;
       };
+    },
+
+    async handleBiometricUnlock() {
+      if (this.isBiometricLoading) return;
+
+      this.error = "";
+      this.isBiometricLoading = true;
+
+      try {
+        await this.vault.unlockVaultWithBiometrics(this.auth.user.email);
+      } catch (error) {
+        if (!isBiometricCancellationError(error)) {
+          this.error = error.message || "Não foi possível validar a digital.";
+        }
+      } finally {
+        this.isBiometricLoading = false;
+      }
+    },
+
+    async toggleVaultBiometrics() {
+      if (this.isBiometricLoading) return;
+
+      this.error = "";
+      this.isBiometricLoading = true;
+
+      try {
+        if (this.hasVaultBiometricUnlock) {
+          this.vault.disableBiometricUnlock(this.auth.user.email);
+        } else {
+          await this.vault.enableBiometricUnlock(this.auth.user.email);
+        }
+      } catch (error) {
+        if (!isBiometricCancellationError(error)) {
+          this.error = error.message || "Não foi possível configurar a digital.";
+        }
+      } finally {
+        this.isBiometricLoading = false;
+      }
     },
 
     showPassword() {
@@ -217,6 +293,9 @@ export default {
       this.rescue_error = "";
     }
   },
+  async mounted() {
+    this.biometricSupported = await isBiometricSupported();
+  },
 };
 </script>
 
@@ -271,6 +350,13 @@ export default {
 .password-icon:hover {
   opacity: 1;
   color: var(--text-primary);
+}
+
+.biometric-unlock-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
 }
 
 .vault-unlocked-screen {

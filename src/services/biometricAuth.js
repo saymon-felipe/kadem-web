@@ -30,12 +30,19 @@ export async function isBiometricSupported() {
   }
 }
 
-export async function registerBiometricCredential() {
+export async function registerBiometricCredential({ requireHmacSecret = false } = {}) {
   const { startRegistration } = await getWebAuthn();
   const optionsResponse = await api.post("/auth/biometrics/registration/options");
   const credential = await startRegistration({ optionsJSON: optionsResponse.data });
 
+  if (requireHmacSecret && !credential.clientExtensionResults?.hmacCreateSecret) {
+    throw new Error(
+      "A biometria deste dispositivo não oferece o armazenamento seguro exigido pelo Cofre.",
+    );
+  }
+
   await api.post("/auth/biometrics/registration/verify", { credential });
+  return credential;
 }
 
 export async function getBiometricStatus() {
@@ -53,4 +60,38 @@ export async function authenticateWithBiometrics(email) {
   const credential = await startAuthentication({ optionsJSON: optionsResponse.data });
 
   return api.post("/auth/biometrics/login/verify", { email, credential });
+}
+
+export async function authenticateVaultWithBiometrics(email, credentialId, vaultSalt) {
+  const { startAuthentication } = await getWebAuthn();
+  const optionsResponse = await api.post("/auth/biometrics/login/options", { email });
+  const optionsJSON = {
+    ...optionsResponse.data,
+    allowCredentials: optionsResponse.data.allowCredentials?.filter(
+      (credential) => credential.id === credentialId,
+    ),
+    extensions: {
+      ...optionsResponse.data.extensions,
+      hmacGetSecret: { salt1: vaultSalt },
+    },
+  };
+
+  if (!optionsJSON.allowCredentials?.length) {
+    throw new Error("A credencial biométrica do Cofre não está disponível neste dispositivo.");
+  }
+
+  const credential = await startAuthentication({ optionsJSON });
+  const hmacSecret = credential.clientExtensionResults?.hmacGetSecret?.output1;
+
+  if (!(hmacSecret instanceof ArrayBuffer) && !ArrayBuffer.isView(hmacSecret)) {
+    throw new Error(
+      "A biometria deste dispositivo não oferece o armazenamento seguro exigido pelo Cofre.",
+    );
+  }
+
+  await api.post("/auth/biometrics/login/verify", { email, credential });
+
+  return new Uint8Array(
+    hmacSecret instanceof ArrayBuffer ? hmacSecret : hmacSecret.buffer,
+  );
 }
