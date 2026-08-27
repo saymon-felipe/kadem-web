@@ -20,6 +20,16 @@
           </span>
           <span class="playlist-tag" v-else>--------</span>
         </div>
+
+        <button
+          type="button"
+          class="open-radio-link"
+          @click="focus_radio_flow"
+          title="Abrir e focar o Radio Flow"
+        >
+          <font-awesome-icon icon="up-right-from-square" />
+          Abrir Radio Flow
+        </button>
       </div>
     </div>
 
@@ -31,18 +41,18 @@
         v-model="ui_current_time"
         @input="on_seek_input"
         @change="on_seek_change"
-        class="slider"
+        class="slider widget-progress-slider"
         :style="progress_style"
-        :disabled="is_disabled_controls"
+        step="0.1"
+        :disabled="is_seek_disabled"
       />
       <div class="time-display">
         <span class="time-text">{{ formatted_current_time }}</span>
         <span class="time-text">{{ formatted_duration }}</span>
       </div>
     </div>
-    <div class="controls">
-      &nbsp;
 
+    <div class="controls">
       <button
         type="button"
         class="control-btn prev"
@@ -72,18 +82,16 @@
       >
         <font-awesome-icon icon="forward-step" />
       </button>
-
-      &nbsp;
     </div>
   </div>
 </template>
 
 <script>
-import { mapState, mapActions } from "pinia";
+import { mapState } from "pinia";
 import { usePlayerStore } from "@/stores/player";
-import { useWindowStore } from "@/stores/windows";
 import defaultMusicCover from "@/assets/images/kadem-default-music.jpg";
 import { decode_html_entities } from "@/utils/string_helpers";
+import { radioFlowApi } from "@/services/radioFlowApi";
 
 export default {
   data() {
@@ -91,6 +99,7 @@ export default {
       ui_current_time: 0,
       timer_interval: null,
       is_dragging: false,
+      is_starting_playback: false,
       defaultMusicCover: defaultMusicCover,
       duration: 0,
     };
@@ -107,7 +116,10 @@ export default {
       "playback_position",
     ]),
     is_disabled_controls() {
-      return !this.current_music || this.is_loading;
+      return !this.current_music || this.is_loading || this.is_starting_playback;
+    },
+    is_seek_disabled() {
+      return this.is_disabled_controls || this.duration <= 0;
     },
     is_disabled() {
       return !this.current_music;
@@ -150,52 +162,44 @@ export default {
     this.start_ticker();
   },
   methods: {
-    ...mapActions(usePlayerStore, [
-      "toggle_play",
-      "next",
-      "prev",
-      "seek_to",
-      "get_current_time",
-      "get_duration",
-      "setActiveApp",
-      "set_loading_state",
-    ]),
-    ...mapActions(useWindowStore, ["openWindow"]),
     decode_html_entities,
-    handle_play_interaction() {
+    focus_radio_flow() {
+      radioFlowApi.focus();
+    },
+    async handle_play_interaction() {
       if (this.is_loading) return;
 
-      if (!this.is_playing) {
-        this.openWindow({
-          id: "productivity",
-          title: "Produtividade",
-          componentId: "ProductivityWindow",
-          start_minimized: true,
-        });
-
-        this.setActiveApp("radio_flow");
+      this.is_starting_playback = true;
+      try {
+        await radioFlowApi.toggle();
+      } finally {
+        this.is_starting_playback = false;
       }
-
-      this.toggle_play();
     },
 
     handle_seek(event) {
-      this.seek_to(Number(event.target.value));
+      radioFlowApi.seek(Number(event.target.value));
     },
     on_seek_input() {
       this.is_dragging = true;
     },
     on_seek_change() {
-      this.seek_to(this.ui_current_time);
+      radioFlowApi.seek(this.ui_current_time);
       this.is_dragging = false;
+    },
+    next() {
+      return radioFlowApi.next();
+    },
+    prev() {
+      return radioFlowApi.previous();
     },
 
     start_ticker() {
       this.timer_interval = setInterval(() => {
         if (!this.is_dragging && this.is_playing) {
-          this.ui_current_time = this.get_current_time();
+          this.ui_current_time = radioFlowApi.get_current_time();
           if (this.duration === 0 || isNaN(this.duration)) {
-            this.duration = this.get_duration();
+            this.duration = radioFlowApi.get_duration();
           }
         }
       }, 500);
@@ -264,6 +268,28 @@ export default {
   overflow: hidden;
 }
 
+.open-radio-link {
+  align-items: center;
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  color: var(--deep-blue);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.8rem;
+  font-weight: 600;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.open-radio-link:hover,
+.open-radio-link:focus-visible {
+  color: var(--color-info);
+}
+
 .music-title {
   font-size: var(--fontsize-md);
   font-weight: 700;
@@ -299,6 +325,13 @@ export default {
   margin-top: var(--space-2);
 }
 
+.widget-progress-slider {
+  box-sizing: border-box;
+  margin: 0;
+  touch-action: pan-y;
+  width: 100%;
+}
+
 .time-text {
   font-size: 0.75rem;
   color: var(--deep-blue);
@@ -316,11 +349,11 @@ export default {
 }
 
 .controls {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(48px, 1fr) 60px minmax(48px, 1fr);
   align-items: center;
   margin-top: var(--space-2);
-  padding: 0 var(--space-2);
+  padding: 0;
 }
 
 .control-btn {
@@ -330,7 +363,22 @@ export default {
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 1.2rem;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  display: grid;
+  place-items: center;
   opacity: 1;
+}
+
+.control-btn.prev {
+  grid-column: 1;
+  justify-self: start;
+}
+
+.control-btn.next {
+  grid-column: 3;
+  justify-self: end;
 }
 
 .control-btn.secondary {
@@ -349,6 +397,8 @@ export default {
 }
 
 .play-btn {
+  grid-column: 2;
+  justify-self: center;
   width: 60px;
   height: 60px;
   border-radius: var(--radius-full);

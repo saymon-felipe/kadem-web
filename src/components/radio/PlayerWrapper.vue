@@ -215,7 +215,7 @@
 </template>
 
 <script>
-import { mapState, mapActions } from "pinia";
+import { mapState } from "pinia";
 import { usePlayerStore } from "@/stores/player";
 import { useRadioStore } from "@/stores/radio";
 import PipManager from "./PipManager.vue";
@@ -224,6 +224,7 @@ import kadem_default_music from "@/assets/images/kadem-default-music.jpg";
 import { db } from "@/db";
 import LyricsModal from "./LyricsModal.vue";
 import VideoModal from "./VideoModal.vue";
+import { radioFlowApi } from "@/services/radioFlowApi";
 
 export default {
   components: {
@@ -307,22 +308,30 @@ export default {
     },
   },
   methods: {
-    ...mapActions(usePlayerStore, [
-      "toggle_play",
-      "next",
-      "prev",
-      "seek_to",
-      "set_volume",
-      "get_current_time",
-      "get_duration",
-      "update_playback_position",
-    ]),
     decode_html_entities,
-    toggle_lyrics() {
-      this.show_lyrics_modal = !this.show_lyrics_modal;
+    toggle_play() {
+      return radioFlowApi.toggle();
     },
-    toggle_video() {
-      this.show_video_modal = !this.show_video_modal;
+    next() {
+      return radioFlowApi.next();
+    },
+    prev() {
+      return radioFlowApi.previous();
+    },
+    seek_to(seconds) {
+      return radioFlowApi.seek(seconds);
+    },
+    set_volume(value) {
+      return radioFlowApi.set_volume(value);
+    },
+    get_current_time() {
+      return radioFlowApi.get_current_time();
+    },
+    get_duration() {
+      return radioFlowApi.get_duration();
+    },
+    update_playback_position(seconds) {
+      return radioFlowApi.update_playback_position(seconds);
     },
     async load_lyrics_from_cache() {
       if (!this.current_music || !this.current_music.youtube_id) return;

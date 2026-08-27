@@ -40,6 +40,7 @@ export const usePlayerStore = defineStore("player", {
     active_app: null,
     mobile_tab: "playlists",
     is_initialized: false,
+    is_player_ready: false,
     yt_player_instance: null,
     pending_youtube_restore: null,
     native_audio_instance: markRaw(new Audio()),
@@ -52,6 +53,22 @@ export const usePlayerStore = defineStore("player", {
   actions: {
     setViewedPlaylistId(id) {
       this.viewed_playlist_id = id;
+    },
+    set_player_ready(is_ready) {
+      this.is_player_ready = !!is_ready;
+    },
+    wait_for_player_ready(timeout_ms = 10000) {
+      if (this.is_player_ready) return Promise.resolve(true);
+
+      return new Promise((resolve) => {
+        const started_at = Date.now();
+        const check_ready = setInterval(() => {
+          if (this.is_player_ready || Date.now() - started_at >= timeout_ms) {
+            clearInterval(check_ready);
+            resolve(this.is_player_ready);
+          }
+        }, 50);
+      });
     },
     async download_lyrics_background(video_id) {
       if (!video_id) return;
@@ -328,15 +345,33 @@ export const usePlayerStore = defineStore("player", {
       this.syncState();
     },
 
-    async play_track(track, playlist = null) {
-      this.pending_youtube_restore = null;
-      const isSameTrack =
-        this.current_music &&
-        ((track.youtube_id && track.youtube_id === this.current_music.youtube_id) ||
-          (track.id && track.id === this.current_music.id) ||
-          (track.local_id && track.local_id === this.current_music.local_id));
+    _are_same_tracks(first_track, second_track) {
+      if (!first_track || !second_track) return false;
 
-      if (isSameTrack) {
+      return (
+        (first_track.youtube_id && first_track.youtube_id === second_track.youtube_id) ||
+        (first_track.id && first_track.id === second_track.id) ||
+        (first_track.local_id && first_track.local_id === second_track.local_id)
+      );
+    },
+
+    _shuffle_tracks(tracks) {
+      const shuffled_tracks = [...tracks];
+      for (let index = shuffled_tracks.length - 1; index > 0; index--) {
+        const random_index = Math.floor(Math.random() * (index + 1));
+        [shuffled_tracks[index], shuffled_tracks[random_index]] = [
+          shuffled_tracks[random_index],
+          shuffled_tracks[index],
+        ];
+      }
+      return shuffled_tracks;
+    },
+
+    async play_track(track, playlist = null, { force_restart = false } = {}) {
+      this.pending_youtube_restore = null;
+      const isSameTrack = this._are_same_tracks(track, this.current_music);
+
+      if (isSameTrack && !force_restart) {
         this.toggle_play();
         return;
       }
@@ -533,14 +568,60 @@ export const usePlayerStore = defineStore("player", {
       this._update_media_session_position();
     },
 
-    next() {
+    async _rebuild_queue_from_current_playlist() {
+      const playlist_id = this.current_playlist?.local_id;
+      if (!playlist_id) return { force_restart: false };
+
+      const playlist_tracks = await radioRepository.getLocalTracks(playlist_id);
+      if (!playlist_tracks?.length) return { force_restart: false };
+
+      const current_track_index = playlist_tracks.findIndex((track) =>
+        this._are_same_tracks(track, this.current_music)
+      );
+
+      if (current_track_index === -1) {
+        this.queue = this.is_shuffle
+          ? this._shuffle_tracks(playlist_tracks)
+          : playlist_tracks;
+        return { force_restart: false };
+      }
+
+      const current_track = playlist_tracks[current_track_index];
+      let next_queue = playlist_tracks.filter(
+        (_track, index) => index !== current_track_index
+      );
+
+      if (this.is_shuffle) next_queue = this._shuffle_tracks(next_queue);
+
+      if (next_queue.length > 0) {
+        this.queue = [...next_queue, current_track];
+        return { force_restart: false };
+      }
+
+      this.queue = [current_track];
+      return { force_restart: true };
+    },
+
+    async next() {
+      let force_restart = false;
+
+      if (this.queue.length === 0) {
+        try {
+          ({ force_restart } = await this._rebuild_queue_from_current_playlist());
+        } catch (error) {
+          console.warn("[PlayerStore] Falha ao recriar a fila da playlist:", error);
+        }
+      }
+
       if (this.queue.length === 0) {
         this.is_playing = false;
+        this.syncState();
         return;
       }
+
       if (this.current_music) this.played_history.push(this.current_music);
       const next_track = this.queue.shift();
-      this.play_track(next_track, this.current_playlist);
+      await this.play_track(next_track, this.current_playlist, { force_restart });
       this.syncState();
     },
 
@@ -700,6 +781,7 @@ export const usePlayerStore = defineStore("player", {
        ========================================================================== */
 
     async restorePlayerConnection() {
+      this.set_player_ready(false);
       this._ensure_audio_instance();
       this.restore_local_volume();
       const resume_position = Math.max(0, Number(this.playback_position) || 0);
@@ -707,18 +789,19 @@ export const usePlayerStore = defineStore("player", {
 
       if (this.current_music && this.player_mode === "youtube") {
         if (this.yt_player_instance?.cueVideoById) {
-          this.pending_youtube_restore =
-            resume_position > 0
-              ? {
-                  youtube_id: this.current_music.youtube_id,
-                  position: resume_position,
-                }
-              : null;
-          waiting_for_youtube_cue = !!this.pending_youtube_restore;
+          this.pending_youtube_restore = {
+            youtube_id: this.current_music.youtube_id,
+            position: resume_position,
+          };
+          waiting_for_youtube_cue = true;
           await this.yt_player_instance.cueVideoById({
             videoId: this.current_music.youtube_id,
             startSeconds: 0,
           });
+        } else {
+          this.is_loading = true;
+          this.is_playing = false;
+          return;
         }
       } else if (this.current_music && this.player_mode === "native") {
         try {
@@ -741,6 +824,8 @@ export const usePlayerStore = defineStore("player", {
       }
       this.is_loading = waiting_for_youtube_cue && !!this.pending_youtube_restore;
       this.is_playing = false;
+
+      if (!waiting_for_youtube_cue) this.set_player_ready(true);
     },
 
     handle_youtube_state_change(event) {
@@ -750,6 +835,7 @@ export const usePlayerStore = defineStore("player", {
       if (this.current_music?.youtube_id !== pending_restore.youtube_id) {
         this.pending_youtube_restore = null;
         this.is_loading = false;
+        this.set_player_ready(true);
         return;
       }
 
@@ -762,6 +848,7 @@ export const usePlayerStore = defineStore("player", {
       this.pending_youtube_restore = null;
       this.is_playing = false;
       this.is_loading = false;
+      this.set_player_ready(true);
       this._update_media_session_position();
     },
 
@@ -815,7 +902,7 @@ export const usePlayerStore = defineStore("player", {
         console.warn("[PlayerStore] Falha ao carregar preferências:", error.message);
       } finally {
         this.is_initialized = true;
-        if (this.current_music && this.yt_player_instance && !this.is_playing) {
+        if (this.current_music && !this.is_playing) {
           await this.restorePlayerConnection();
         }
       }
@@ -876,6 +963,7 @@ export const usePlayerStore = defineStore("player", {
       if (this.yt_player_instance?.stopVideo) this.yt_player_instance.stopVideo();
       this.played_history = [];
       this.is_initialized = false;
+      this.is_player_ready = false;
       this.is_playing = false;
       localStorage.removeItem("player");
       this.$reset();

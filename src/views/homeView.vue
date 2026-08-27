@@ -17,6 +17,7 @@
     <SyncIndicator :syncing="is_syncing" />
     <homeWidgets />
     <DesktopWindowManager />
+    <GlobalPlayerHost />
 
     <Transition name="slide-over-root">
       <div v-if="user && user.needs_vault_migration && !show_recovery_setup" class="modal-overlay">
@@ -156,6 +157,7 @@ import systemBackground from "../assets/images/system-background.webp";
 import systemBackgroundDark from "../assets/images/system-background-black.webp";
 import DesktopWindowManager from "../components/windowing/DesktopWindowManager.vue";
 import SyncIndicator from "@/components/SyncIndicator.vue";
+import GlobalPlayerHost from "@/components/radio/GlobalPlayerHost.vue";
 
 export default {
   components: {
@@ -164,6 +166,7 @@ export default {
     loadingSpinner,
     DesktopWindowManager,
     SyncIndicator,
+    GlobalPlayerHost,
   },
   computed: {
     ...mapState(useAuthStore, ["user"]),

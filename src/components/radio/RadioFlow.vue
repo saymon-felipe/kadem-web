@@ -255,7 +255,6 @@
       />
     </Teleport>
 
-    <div id="youtube-player-container" class="ghost-player"></div>
     <PlayerWrapper />
   </div>
 </template>
@@ -306,7 +305,8 @@ export default {
       default_cover: defaultCover,
       default_cover_dark: defaultCoverDark,
       default_avatar: defaultAvatar,
-      yt_player: null,
+      container_width: 0,
+      resize_observer: null,
 
       is_sidebar_collapsed: false,
       is_queue_collapsed: false,
@@ -388,7 +388,8 @@ export default {
     },
 
     is_mobile() {
-      return this.containerDimensions.width <= 1100;
+      const width = this.container_width || this.containerDimensions.width;
+      return width <= 1100;
     },
   },
   watch: {
@@ -404,12 +405,10 @@ export default {
   methods: {
     ...mapActions(usePlayerStore, [
       "play_track",
-      "register_yt_instance",
       "toggle_play",
       "play_playlist_context",
       "toggle_shuffle",
       "add_to_queue",
-      "restorePlayerConnection",
       "remove_from_queue",
       "play_from_queue",
       "add_to_queue_at",
@@ -417,7 +416,6 @@ export default {
       "set_mobile_tab",
       "setCurrentPlaylist",
       "setViewedPlaylistId",
-      "handle_youtube_state_change",
     ]),
     ...mapActions(useRadioStore, [
       "pullPlaylists",
@@ -726,53 +724,34 @@ export default {
     toggle_sidebar() {
       this.is_sidebar_collapsed = !this.is_sidebar_collapsed;
     },
-    init_youtube_api() {
-      if (!window.YT) {
-        const tag = document.createElement("script");
-        tag.src = "https://www.youtube.com/iframe_api";
-        const firstScriptTag = document.getElementsByTagName("script")[0];
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-        window.onYouTubeIframeAPIReady = () => {
-          this.create_yt_player();
-        };
-      } else if (window.YT && window.YT.Player) {
-        this.create_yt_player();
-      }
+    update_container_width() {
+      const container = this.$refs.containerRef;
+      if (!container) return;
+
+      this.container_width = container.clientWidth;
     },
-    create_yt_player() {
-      if (this.yt_player) {
-        try {
-          this.yt_player.destroy();
-        } catch (e) {
-          console.warn("Erro ao destruir player antigo:", e);
-        }
-      }
-      this.yt_player = new window.YT.Player("youtube-player-container", {
-        height: "0",
-        width: "0",
-        playerVars: { playsinline: 1, controls: 0, disablekb: 1 },
-        events: {
-          onReady: (event) => {
-            console.log("[RadioFlow] YouTube Player Pronto.");
-            this.register_yt_instance(event.target);
-            if (typeof this.restorePlayerConnection === "function")
-              this.restorePlayerConnection();
-          },
-          onStateChange: (event) => {
-            this.handle_youtube_state_change(event);
-            if (event.data === 0) this.next();
-          },
-        },
+    observe_container_size() {
+      this.$nextTick(() => {
+        const container = this.$refs.containerRef;
+        if (!container) return;
+
+        this.update_container_width();
+
+        if (typeof ResizeObserver === "undefined") return;
+
+        this.resize_observer = new ResizeObserver(([entry]) => {
+          this.container_width = entry.contentRect.width;
+        });
+        this.resize_observer.observe(container);
       });
     },
   },
   mounted() {
     this.load_data();
-    this.init_youtube_api();
-    if (this.player_mode === "native" || !this.current_music) {
-      if (typeof this.restorePlayerConnection === "function")
-        this.restorePlayerConnection();
-    }
+    this.observe_container_size();
+  },
+  beforeUnmount() {
+    this.resize_observer?.disconnect();
   },
 };
 </script>
@@ -959,16 +938,6 @@ export default {
 .search-results-header {
   padding: var(--space-4);
   padding-bottom: 0;
-}
-
-.ghost-player {
-  position: absolute;
-  top: -9999px;
-  left: -9999px;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
 }
 
 /* Mobile Navigation */

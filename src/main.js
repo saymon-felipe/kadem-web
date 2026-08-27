@@ -11,6 +11,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import vAnimateHeight from './directives/v-animate-height.js';
 import { useUtilsStore } from '@/stores/utils';
 import { initializeLocalDb } from "@/db";
+import { radioFlowApi } from "@/services/radioFlowApi";
 import "./services/pwaInstall";
 
 import {
@@ -243,6 +244,8 @@ app.use(api);
 app.use(router);
 
 app.component('font-awesome-icon', FontAwesomeIcon);
+
+window.kademRadioFlow = radioFlowApi;
 
 const utils_store = useUtilsStore();
 utils_store.init_connection_monitor();
