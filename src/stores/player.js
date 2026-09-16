@@ -732,12 +732,8 @@ export const usePlayerStore = defineStore("player", {
         this.yt_player_instance.setVolume(this.volume * 100);
     },
 
-    track_exist_in_queue(id) {
-      return this.queue.find((t) => t.youtube_id === id);
-    },
-
     add_to_queue(track) {
-      if (!this.track_exist_in_queue(track.youtube_id)) this.queue.push(track);
+      this.queue.unshift(track);
       this.syncState();
     },
 
@@ -960,7 +956,11 @@ export const usePlayerStore = defineStore("player", {
 
     clearState() {
       this._reset_native_player();
-      if (this.yt_player_instance?.stopVideo) this.yt_player_instance.stopVideo();
+      try {
+        if (this.yt_player_instance?.stopVideo) this.yt_player_instance.stopVideo();
+      } catch (error) {
+        console.warn("[PlayerStore] Falha ao parar player do YouTube (instância já destruída).", error);
+      }
       this.played_history = [];
       this.is_initialized = false;
       this.is_player_ready = false;

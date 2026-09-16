@@ -511,15 +511,6 @@ export default {
       }
     },
     handle_manual_add_queue(track) {
-      const exists = this.queue.some((t) => t.youtube_id === track.youtube_id);
-      if (exists) {
-        this.openConfirmation({
-          message: `A música <strong>${track.title}</strong> já está na fila de reprodução.`,
-          description: " ",
-          confirmText: "Entendi",
-        });
-        return;
-      }
       this.add_to_queue(track);
     },
     handle_play_playlist_btn() {

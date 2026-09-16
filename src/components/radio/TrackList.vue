@@ -182,7 +182,6 @@
         <TrackOptionsMenu
           v-model="show_options_menu"
           :position="options_position"
-          :is-in-queue="is_in_queue(selected_track_for_menu)"
           :has-audio="radioStore.hasTrackAudio(selected_track_for_menu)"
           :has-video="radioStore.hasTrackVideo(selected_track_for_menu)"
           :is-downloading-audio="is_audio_downloading(selected_track_for_menu)"
@@ -272,7 +271,7 @@ export default {
 
   computed: {
     ...mapState(useRadioStore, ["active_downloads", "active_download_types", "isLyricDownloading"]),
-    ...mapState(usePlayerStore, ["current_music", "is_playing", "queue"]),
+    ...mapState(usePlayerStore, ["current_music", "is_playing"]),
     ...mapState(useUtilsStore, ["connection"]),
 
     is_offline_mode() {
@@ -363,11 +362,6 @@ export default {
     is_video_downloading(track) {
       return !!track && this.active_download_types[track.local_id] === "video";
     },
-    is_in_queue(track) {
-      if (!this.queue || !track) return false;
-      return this.queue.some((t) => (t.local_id && t.local_id === track.local_id) || t.youtube_id === track.youtube_id);
-    },
-
     trigger_add_feedback(track) {
       if (!track || !track.youtube_id) return;
       this.success_feedback_map[track.youtube_id] = true;

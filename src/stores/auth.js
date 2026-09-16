@@ -144,7 +144,7 @@ export const useAuthStore = defineStore("auth", {
 
       try {
         if (!force) {
-          await api.post("/auth/logout");
+          await api.post("/auth/logout", null, { timeout: 8000 });
         }
       } catch (error) {
         console.warn("Erro ao chamar API de logout, deslogando localmente.", error);

@@ -100,14 +100,9 @@
           </div>
         </div>
 
-        <button
-          class="menu-item"
-          @click="!isInQueue && $emit('add-queue')"
-          :class="{ 'disabled-item': isInQueue }"
-          :disabled="isInQueue"
-        >
-          <font-awesome-icon :icon="isInQueue ? 'check' : 'plus'" :class="{ 'success-icon': isInQueue }" />
-          <span>{{ isInQueue ? "Na fila" : "Adicionar à fila" }}</span>
+        <button class="menu-item" @click="$emit('add-queue')">
+          <font-awesome-icon icon="plus" />
+          <span>Adicionar à fila</span>
         </button>
 
         <button class="menu-item" @click="$emit('copy-link')">
@@ -124,7 +119,6 @@ export default {
   props: {
     modelValue: { type: Boolean, required: true },
     position: { type: Object, default: () => ({ x: 0, y: 0 }) },
-    isInQueue: { type: Boolean, default: false },
     hasAudio: { type: Boolean, default: false },
     hasVideo: { type: Boolean, default: false },
     isDownloadingAudio: { type: Boolean, default: false },

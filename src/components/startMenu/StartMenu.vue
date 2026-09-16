@@ -160,7 +160,7 @@ export default {
       const appStore = useAppStore();
       appStore.toggleTheme();
     },
-    logout() {
+    goToLogoutScreen() {
       this.$router.push("/logout");
     },
     setActiveTab(tabId, newIndex) {
@@ -203,7 +203,7 @@ export default {
         if (!hasPending) this.pendingCount = 0;
         this.showSyncWarning = true;
       } else {
-        this.logout();
+        this.goToLogoutScreen();
       }
     },
   },
