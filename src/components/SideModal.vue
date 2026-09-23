@@ -1,21 +1,16 @@
 <template>
   <Teleport to="body" :disabled="!teleport">
     <Transition :name="isMobile ? 'bottom-sheet' : transition_name">
-      <div v-if="modelValue" class="modal-wrapper-fixed" :class="{ 'is-floating': is_floating, 'is-mobile': isMobile }" @mousedown.stop>
+      <div v-if="modelValue" class="modal-wrapper-fixed" :class="{ 'is-floating': is_floating, 'is-mobile': isMobile }"
+        @mousedown.stop>
         <div class="modal-overlay" @click="close"></div>
-        <div
-          ref="modalContentRef"
-          class="modal-content glass"
-          :class="[
-            `variant-${variant}`,
-            {
-              'is-mobile': isMobile,
-              'has-height-transition': isReadyForHeightTransition && (is_floating || isMobile),
-            },
-          ]"
-          :style="dynamicStyle"
-          @click.stop
-        >
+        <div ref="modalContentRef" class="modal-content glass" :class="[
+          `variant-${variant}`,
+          {
+            'is-mobile': isMobile,
+            'has-height-transition': isReadyForHeightTransition && (is_floating || isMobile),
+          },
+        ]" :style="dynamicStyle" @click.stop>
           <div v-if="isMobile" ref="dragIndicatorRef" class="modal-drag-indicator"></div>
           <slot></slot>
         </div>
@@ -63,7 +58,7 @@ export default {
       return this.is_floating ? "floating-modal" : "side-modal";
     },
     dynamicStyle() {
-      if ((this.is_floating || this.isMobile) && this.modalHeight) {
+      if (this.isMobile && this.modalHeight) {
         return {
           height: `${this.modalHeight}px`,
         };
@@ -85,11 +80,13 @@ export default {
       }
       this.isReadyForHeightTransition = false;
       this.$nextTick(() => {
-        this.updateModalHeight(false);
-        this.initObservers();
-        setTimeout(() => {
-          this.isReadyForHeightTransition = true;
-        }, 250);
+        if (this.isMobile) {
+          this.updateModalHeight(false);
+          this.initObservers();
+          setTimeout(() => {
+            this.isReadyForHeightTransition = true;
+          }, 250);
+        }
       });
     }
   },
@@ -100,8 +97,19 @@ export default {
       }
     },
     handleWindowResize() {
+      const wasMobile = this.isMobile;
       this.checkMobile();
-      this.updateModalHeight(false);
+      if (this.isMobile !== wasMobile) {
+        if (this.isMobile) {
+          this.initObservers();
+          this.updateModalHeight(false);
+        } else {
+          this.destroyObservers();
+          this.modalHeight = null;
+        }
+      } else if (this.isMobile) {
+        this.updateModalHeight(false);
+      }
     },
     close() {
       if (this.unregisterHistory) {
@@ -116,7 +124,7 @@ export default {
       }
     },
     updateModalHeight(animate = true) {
-      if (!this.modelValue || (!this.is_floating && !this.isMobile)) return;
+      if (!this.modelValue || !this.isMobile) return;
       const el = this.$refs.modalContentRef;
       if (!el) return;
 
@@ -128,7 +136,7 @@ export default {
       let naturalHeight = 0;
 
       if (bodyEl) {
-        const activePanel = bodyEl.querySelector(".tab-panel:not([style*='display: none'])");
+        const activePanel = bodyEl.querySelector(".tab-panel.is-active, .tab-panel:not([style*='display: none'])");
         let bodyContentHeight = 0;
         if (activePanel) {
           bodyContentHeight = activePanel.scrollHeight;
@@ -174,6 +182,7 @@ export default {
     },
     initObservers() {
       this.destroyObservers();
+      if (!this.isMobile) return;
       const el = this.$refs.modalContentRef;
       if (!el) return;
 
@@ -228,11 +237,13 @@ export default {
         }
         this.isReadyForHeightTransition = false;
         this.$nextTick(() => {
-          this.updateModalHeight(false);
-          this.initObservers();
-          setTimeout(() => {
-            this.isReadyForHeightTransition = true;
-          }, 250);
+          if (this.isMobile) {
+            this.updateModalHeight(false);
+            this.initObservers();
+            setTimeout(() => {
+              this.isReadyForHeightTransition = true;
+            }, 250);
+          }
         });
       } else {
         document.removeEventListener("keydown", this.handleKeydown);
@@ -311,8 +322,9 @@ export default {
 .variant-floating {
   width: 80dvw;
   max-width: 860px;
-  min-height: 40dvh;
-  max-height: calc(100dvh - 76px);
+  height: clamp(620px, 78vh, 800px);
+  max-height: 60dvh;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -340,18 +352,22 @@ export default {
 .side-modal-leave-active {
   transition: opacity var(--transition-base);
 }
+
 .side-modal-enter-active .modal-content,
 .side-modal-leave-active .modal-content {
   transition: transform var(--transition-spring), opacity var(--transition-base);
 }
+
 .side-modal-enter-active .modal-overlay,
 .side-modal-leave-active .modal-overlay {
   transition: opacity var(--transition-base);
 }
+
 .side-modal-enter-from .modal-overlay,
 .side-modal-leave-to .modal-overlay {
   opacity: 0;
 }
+
 .side-modal-enter-from .modal-content,
 .side-modal-leave-to .modal-content {
   opacity: 0;
@@ -363,22 +379,27 @@ export default {
 .floating-modal-leave-active {
   transition: opacity var(--transition-base);
 }
+
 .floating-modal-enter-active .modal-content,
 .floating-modal-leave-active .modal-content {
   transition: transform var(--transition-spring), opacity var(--transition-base);
 }
+
 .floating-modal-enter-active .modal-overlay,
 .floating-modal-leave-active .modal-overlay {
   transition: opacity var(--transition-base);
 }
+
 .floating-modal-enter-from .modal-overlay,
 .floating-modal-leave-to .modal-overlay {
   opacity: 0;
 }
+
 .floating-modal-enter-from .modal-content {
   opacity: 0;
   transform: translateY(20px) scale(0.95);
 }
+
 .floating-modal-leave-to .modal-content {
   opacity: 0;
   transform: translateY(10px) scale(0.97);
@@ -389,18 +410,22 @@ export default {
 .bottom-sheet-leave-active {
   transition: opacity var(--transition-base, 0.25s ease);
 }
+
 .bottom-sheet-enter-active .modal-content,
 .bottom-sheet-leave-active .modal-content {
   transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity var(--transition-base, 0.25s ease);
 }
+
 .bottom-sheet-enter-active .modal-overlay,
 .bottom-sheet-leave-active .modal-overlay {
   transition: opacity var(--transition-base, 0.25s ease);
 }
+
 .bottom-sheet-enter-from .modal-overlay,
 .bottom-sheet-leave-to .modal-overlay {
   opacity: 0;
 }
+
 .bottom-sheet-enter-from .modal-content,
 .bottom-sheet-leave-to .modal-content {
   opacity: 1;
@@ -424,6 +449,7 @@ export default {
   .modal-content.variant-floating {
     width: 100% !important;
     max-width: 100% !important;
+    height: auto !important;
     min-height: 40dvh !important;
     max-height: calc(100dvh - 76px) !important;
     border-radius: 24px 24px 0 0 !important;

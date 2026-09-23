@@ -10,7 +10,8 @@
       </div>
       <div class="header-actions">
         <transition name="scale-btn">
-          <button v-if="is_dirty" class="action-btn check" :disabled="is_saving" @click="handle_save" title="Salvar" type="button">
+          <button v-if="is_dirty" class="action-btn check" :disabled="is_saving" @click="handle_save" title="Salvar"
+            type="button">
             <font-awesome-icon v-if="is_saving" icon="spinner" spin />
             <font-awesome-icon v-else icon="check" />
           </button>
@@ -24,245 +25,222 @@
       </div>
     </header>
 
-    <KademTabs
-      class="task-detail-tabs"
-      :tabs="task_tabs"
-      :active-tab="active_tab"
-      variant="info"
-      aria-label="Seções da tarefa"
-      @update:activeTab="active_tab = $event"
-    />
+    <KademTabs class="task-detail-tabs" :tabs="task_tabs" :active-tab="active_tab" variant="info"
+      aria-label="Seções da tarefa" @update:activeTab="active_tab = $event" />
 
-    <main class="modal-body">
-      <form
-        v-show="active_tab === 'details'" class="tab-panel details-panel" @submit.prevent="handle_save">
-        <section class="description-card">
-          <label for="task-description">Descricao</label>
-          <textarea id="task-description" v-model="editable_task.description" rows="7"
-            class="description-input"></textarea>
-        </section>
+    <main class="modal-body tab-viewport">
+      <div class="tabs-track" :style="track_style">
+        <form :class="['tab-panel details-panel custom-scrollbar', { 'is-active': active_tab === 'details' }]"
+          :aria-hidden="active_tab !== 'details'" @submit.prevent="handle_save">
+          <section class="description-card">
+            <label for="task-description">Descricao</label>
+            <textarea id="task-description" v-model="editable_task.description" rows="7"
+              class="description-input"></textarea>
+          </section>
 
-        <section class="field-grid">
-          <div class="form-group">
-            <label>Responsável</label>
-            <CustomDropdown v-model="selected_responsible_wrapper" :options="responsible_options"
-              placeholder="Selecionar responsável">
-              <template #trigger="{ selected }">
-                <div class="dropdown-row" v-if="selected">
-                  <img v-if="selected.avatar" :src="selected.avatar" class="avatar avatar-xs" />
-                  <div v-else class="avatar-placeholder" :class="selected.iconClass">
-                    <font-awesome-icon :icon="selected.icon" />
+          <section class="field-grid">
+            <div class="form-group">
+              <label>Responsável</label>
+              <CustomDropdown v-model="selected_responsible_wrapper" :options="responsible_options"
+                placeholder="Selecionar responsável">
+                <template #trigger="{ selected }">
+                  <div class="dropdown-row" v-if="selected">
+                    <img v-if="selected.avatar" :src="selected.avatar" class="avatar avatar-xs" />
+                    <div v-else class="avatar-placeholder" :class="selected.iconClass">
+                      <font-awesome-icon :icon="selected.icon" />
+                    </div>
+                    <span>{{ selected.name }}</span>
                   </div>
-                  <span>{{ selected.name }}</span>
-                </div>
-                <span v-else class="placeholder-text">Nao atribuido</span>
-              </template>
-              <template #option="{ option }">
-                <div class="dropdown-row">
-                  <img v-if="option.avatar" :src="option.avatar" class="avatar avatar-xs" />
-                  <div v-else class="avatar-placeholder" :class="option.iconClass">
-                    <font-awesome-icon :icon="option.icon" />
+                  <span v-else class="placeholder-text">Nao atribuido</span>
+                </template>
+                <template #option="{ option }">
+                  <div class="dropdown-row">
+                    <img v-if="option.avatar" :src="option.avatar" class="avatar avatar-xs" />
+                    <div v-else class="avatar-placeholder" :class="option.iconClass">
+                      <font-awesome-icon :icon="option.icon" />
+                    </div>
+                    <span>{{ option.name }}</span>
                   </div>
-                  <span>{{ option.name }}</span>
-                </div>
-              </template>
-            </CustomDropdown>
-          </div>
-
-          <div class="form-group">
-            <label>Prioridade</label>
-            <CustomDropdown v-model="editable_task.priority" :options="priority_options">
-              <template #trigger="{ selected }">
-                <div class="dropdown-row">
-                  <span class="priority-dot" :class="get_priority_color(selected)"></span>
-                  <span :class="get_priority_text_color(selected)">{{ selected }}</span>
-                </div>
-              </template>
-              <template #option="{ option }">
-                <div class="dropdown-row">
-                  <span class="priority-dot" :class="get_priority_color(option)"></span>
-                  <span :class="get_priority_text_color(option)">{{ option }}</span>
-                </div>
-              </template>
-            </CustomDropdown>
-          </div>
-
-          <div class="form-group">
-            <label>Tamanho</label>
-            <CustomDropdown v-model="editable_task.size" :options="size_options" />
-          </div>
-        </section>
-
-        <footer class="meta-info">
-          <span>Tarefa aberta por <strong>{{ task_creator_name }}</strong></span>
-          <span>{{ created_time_ago }}</span>
-        </footer>
-      </form>
-
-      <section v-show="active_tab === 'attachments'" class="tab-panel attachments-panel">
-        <div class="section-toolbar">
-          <div>
-            <h4>Anexos</h4>
-            <p>{{ attachment_count }} arquivo{{ attachment_count === 1 ? "" : "s" }}</p>
-          </div>
-          <button type="button" class="btn-attach" @click="$refs.attachmentInput?.click()" title="Anexar arquivo">
-            <font-awesome-icon icon="cloud-arrow-up" />
-            <span>Anexar</span>
-          </button>
-          <input ref="attachmentInput" type="file" class="hidden-file-input" @change="handle_attachment_selected" />
-        </div>
-
-        <p v-if="attachment_error" class="attachment-error">{{ attachment_error }}</p>
-
-        <div v-if="editable_task.attachments?.length" class="attachment-list custom-scrollbar">
-          <div v-for="attachment in editable_task.attachments" :key="attachment.local_id || attachment.id"
-            class="attachment-item" role="button" tabindex="0" @click="open_attachment(attachment)"
-            @keydown.enter.prevent="open_attachment(attachment)">
-            <div class="attachment-icon">
-              <font-awesome-icon :icon="attachment_icon(attachment)" />
+                </template>
+              </CustomDropdown>
             </div>
-            <div class="attachment-main">
-              <span class="attachment-name">{{ attachment.name }}</span>
-              <span class="attachment-size">{{ format_file_size(attachment.size_bytes) }}</span>
-            </div>
-            <span v-if="attachment.upload_status !== 'synced'" class="attachment-status">
-              <font-awesome-icon icon="spinner" spin />
-              Sincronizando
-            </span>
-            <div class="attachment-actions">
-              <button
-                type="button"
-                class="btn-attachment-action"
-                @click.stop="download_attachment(attachment)"
-                title="Baixar anexo"
-              >
-                <font-awesome-icon icon="download" />
-              </button>
-              <button
-                type="button"
-                class="btn-attachment-action btn-attachment-delete"
-                @click.stop="remove_attachment(attachment)"
-                title="Excluir anexo"
-              >
-                <font-awesome-icon icon="trash-can" />
-              </button>
-            </div>
-          </div>
-        </div>
 
-        <div v-else class="empty-state">
-          <font-awesome-icon icon="cloud-arrow-up" />
-          <p>Nenhum anexo nesta tarefa.</p>
-        </div>
-      </section>
-
-      <section v-show="active_tab === 'comments'" class="tab-panel comments-panel">
-        <div class="comments-header">
-          <h4>Comentários</h4>
-          <span>{{ comment_count }}</span>
-        </div>
-
-        <div class="comment-list custom-scrollbar" v-if="editable_task.comments && editable_task.comments.length"
-          ref="commentList">
-          <div v-for="comment in editable_task.comments" :key="comment.local_id" class="comment-item">
-            <div class="comment-header">
-              <img :src="comment.author.avatar || default_account_image" class="avatar avatar-sm" />
-              <div class="comment-meta">
-                <span class="comment-author">{{ comment.author.name }}</span>
-                <span class="comment-time" :title="format_full_date(comment.timestamp || comment.created_at)">
-                  {{ format_time_ago(comment.timestamp || comment.created_at) }}
-                </span>
-              </div>
-
-              <div class="comment-options" v-if="is_current_user(comment.author.id)">
-                <button class="btn-icon-small" @click.stop="toggle_comment_menu(comment.local_id)" type="button"
-                  title="Opcoes">
-                  <font-awesome-icon icon="ellipsis-vertical" />
-                </button>
-                <transition name="fade-switch">
-                  <div v-if="open_comment_menu === comment.local_id" class="comment-menu glass"
-                    v-click-outside="close_comment_menu">
-                    <button type="button" @click="edit_comment(comment)">
-                      <font-awesome-icon icon="pencil" /> Editar
-                    </button>
-                    <button type="button" class="danger" @click="delete_comment(comment)">
-                      <font-awesome-icon icon="trash-can" /> Excluir
-                    </button>
+            <div class="form-group">
+              <label>Prioridade</label>
+              <CustomDropdown v-model="editable_task.priority" :options="priority_options">
+                <template #trigger="{ selected }">
+                  <div class="dropdown-row">
+                    <span class="priority-dot" :class="get_priority_color(selected)"></span>
+                    <span :class="get_priority_text_color(selected)">{{ selected }}</span>
                   </div>
-                </transition>
-              </div>
+                </template>
+                <template #option="{ option }">
+                  <div class="dropdown-row">
+                    <span class="priority-dot" :class="get_priority_color(option)"></span>
+                    <span :class="get_priority_text_color(option)">{{ option }}</span>
+                  </div>
+                </template>
+              </CustomDropdown>
             </div>
 
-            <div class="comment-content-wrapper">
-              <div v-if="editing_comment_id === comment.local_id" class="comment-edit-box">
-                <textarea v-model="editing_comment_content" rows="2"></textarea>
-                <div class="edit-actions">
-                  <button class="btn-small btn-cancel" @click="cancel_edit_comment" type="button">
-                    Cancelar
-                  </button>
-                  <button class="btn-small btn-save" @click="save_edit_comment(comment)" type="button">
-                    Salvar
-                  </button>
-                </div>
-              </div>
-              <div v-else class="comment-bubble">
-                <p>{{ comment.content }}</p>
-              </div>
-
-              <div class="comment-actions-bar">
-                <button class="btn-like" :class="{ liked: comment.liked_by_me }" @click="toggle_like(comment)"
-                  title="Curtir" type="button">
-                  <font-awesome-icon :icon="['fas', 'thumbs-up']" />
-                  <span>{{ comment.likes_count || 0 }}</span>
-                </button>
-              </div>
+            <div class="form-group">
+              <label>Tamanho</label>
+              <CustomDropdown v-model="editable_task.size" :options="size_options" />
             </div>
-          </div>
-        </div>
+          </section>
 
-        <div class="comment-list-placeholder" v-else>
-          <p>Nenhum comentario ainda.</p>
-        </div>
+          <footer class="meta-info">
+            <span>Tarefa aberta por <strong>{{ task_creator_name }}</strong></span>
+            <span>{{ created_time_ago }}</span>
+          </footer>
+        </form>
 
-        <div class="new-comment-area">
-          <img :src="user?.avatar || default_account_image" class="avatar avatar-sm" />
-          <div class="new-comment-box">
-            <textarea v-model="new_comment_text" placeholder="Escreva um comentario..." rows="1"
-              @keydown.enter.exact.prevent="submit_comment" ref="commentInput"></textarea>
-            <button class="btn-send" :class="{ active: new_comment_text.trim() }" @click="submit_comment" title="Enviar"
-              type="button">
-              <font-awesome-icon icon="paper-plane" />
+        <section
+          :class="['tab-panel attachments-panel custom-scrollbar', { 'is-active': active_tab === 'attachments' }]"
+          :aria-hidden="active_tab !== 'attachments'">
+          <div class="section-toolbar">
+            <div>
+              <h4>Anexos</h4>
+              <p>{{ attachment_count }} arquivo{{ attachment_count === 1 ? "" : "s" }}</p>
+            </div>
+            <button type="button" class="btn-attach" @click="$refs.attachmentInput?.click()" title="Anexar arquivo">
+              <font-awesome-icon icon="cloud-arrow-up" />
+              <span>Anexar</span>
             </button>
+            <input ref="attachmentInput" type="file" class="hidden-file-input" @change="handle_attachment_selected" />
           </div>
-        </div>
-      </section>
+
+          <p v-if="attachment_error" class="attachment-error">{{ attachment_error }}</p>
+
+          <div v-if="editable_task.attachments?.length" class="attachment-list custom-scrollbar">
+            <div v-for="attachment in editable_task.attachments" :key="attachment.local_id || attachment.id"
+              class="attachment-item" role="button" tabindex="0" @click="open_attachment(attachment)"
+              @keydown.enter.prevent="open_attachment(attachment)">
+              <div class="attachment-icon">
+                <font-awesome-icon :icon="attachment_icon(attachment)" />
+              </div>
+              <div class="attachment-main">
+                <span class="attachment-name">{{ attachment.name }}</span>
+                <span class="attachment-size">{{ format_file_size(attachment.size_bytes) }}</span>
+              </div>
+              <span v-if="attachment.upload_status !== 'synced'" class="attachment-status">
+                <font-awesome-icon icon="spinner" spin />
+                Sincronizando
+              </span>
+              <div class="attachment-actions">
+                <button type="button" class="btn-attachment-action" @click.stop="download_attachment(attachment)"
+                  title="Baixar anexo">
+                  <font-awesome-icon icon="download" />
+                </button>
+                <button type="button" class="btn-attachment-action btn-attachment-delete"
+                  @click.stop="remove_attachment(attachment)" title="Excluir anexo">
+                  <font-awesome-icon icon="trash-can" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="empty-state">
+            <font-awesome-icon icon="cloud-arrow-up" />
+            <p>Nenhum anexo nesta tarefa.</p>
+          </div>
+        </section>
+
+        <section :class="['tab-panel comments-panel custom-scrollbar', { 'is-active': active_tab === 'comments' }]"
+          :aria-hidden="active_tab !== 'comments'">
+          <div class="comments-header">
+            <h4>Comentários</h4>
+            <span>{{ comment_count }}</span>
+          </div>
+
+          <div class="comment-list custom-scrollbar" v-if="editable_task.comments && editable_task.comments.length"
+            ref="commentList">
+            <div v-for="comment in editable_task.comments" :key="comment.local_id" class="comment-item">
+              <div class="comment-header">
+                <img :src="comment.author.avatar || default_account_image" class="avatar avatar-sm" />
+                <div class="comment-meta">
+                  <span class="comment-author">{{ comment.author.name }}</span>
+                  <span class="comment-time" :title="format_full_date(comment.timestamp || comment.created_at)">
+                    {{ format_time_ago(comment.timestamp || comment.created_at) }}
+                  </span>
+                </div>
+
+                <div class="comment-options" v-if="is_current_user(comment.author.id)">
+                  <button class="btn-icon-small" @click.stop="toggle_comment_menu(comment.local_id)" type="button"
+                    title="Opcoes">
+                    <font-awesome-icon icon="ellipsis-vertical" />
+                  </button>
+                  <transition name="fade-switch">
+                    <div v-if="open_comment_menu === comment.local_id" class="comment-menu glass"
+                      v-click-outside="close_comment_menu">
+                      <button type="button" @click="edit_comment(comment)">
+                        <font-awesome-icon icon="pencil" /> Editar
+                      </button>
+                      <button type="button" class="danger" @click="delete_comment(comment)">
+                        <font-awesome-icon icon="trash-can" /> Excluir
+                      </button>
+                    </div>
+                  </transition>
+                </div>
+              </div>
+
+              <div class="comment-content-wrapper">
+                <div v-if="editing_comment_id === comment.local_id" class="comment-edit-box">
+                  <textarea v-model="editing_comment_content" rows="2"></textarea>
+                  <div class="edit-actions">
+                    <button class="btn-small btn-cancel" @click="cancel_edit_comment" type="button">
+                      Cancelar
+                    </button>
+                    <button class="btn-small btn-save" @click="save_edit_comment(comment)" type="button">
+                      Salvar
+                    </button>
+                  </div>
+                </div>
+                <div v-else class="comment-bubble">
+                  <p>{{ comment.content }}</p>
+                </div>
+
+                <div class="comment-actions-bar">
+                  <button class="btn-like" :class="{ liked: comment.liked_by_me }" @click="toggle_like(comment)"
+                    title="Curtir" type="button">
+                    <font-awesome-icon :icon="['fas', 'thumbs-up']" />
+                    <span>{{ comment.likes_count || 0 }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="comment-list-placeholder" v-else>
+            <p>Nenhum comentario ainda.</p>
+          </div>
+
+          <div class="new-comment-area">
+            <img :src="user?.avatar || default_account_image" class="avatar avatar-sm" />
+            <div class="new-comment-box">
+              <textarea v-model="new_comment_text" placeholder="Escreva um comentario..." rows="1"
+                @keydown.enter.exact.prevent="submit_comment" ref="commentInput"></textarea>
+              <button class="btn-send" :class="{ active: new_comment_text.trim() }" @click="submit_comment"
+                title="Enviar" type="button">
+                <font-awesome-icon icon="paper-plane" />
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
     </main>
 
-    <BaseModal
-      :model-value="Boolean(preview_attachment)"
-      size="xl"
-      @close="close_attachment_preview"
-    >
+    <BaseModal :model-value="Boolean(preview_attachment)" size="xl" @close="close_attachment_preview">
       <template #header>
         <header class="attachment-preview-header">
           <strong>{{ preview_attachment?.name }}</strong>
           <div class="preview-actions">
-            <button
-              v-if="preview_kind === 'text'"
-              type="button"
-              class="preview-action"
-              @click="copy_attachment_content"
-              :title="attachment_copied ? 'Copiado!' : 'Copiar conteudo'"
-            >
+            <button v-if="preview_kind === 'text'" type="button" class="preview-action" @click="copy_attachment_content"
+              :title="attachment_copied ? 'Copiado!' : 'Copiar conteudo'">
               <font-awesome-icon :icon="attachment_copied ? 'check' : 'copy'" />
             </button>
-            <button
-              v-if="preview_attachment"
-              type="button"
-              class="preview-action"
-              @click="download_attachment(preview_attachment)"
-              title="Baixar"
-            >
+            <button v-if="preview_attachment" type="button" class="preview-action"
+              @click="download_attachment(preview_attachment)" title="Baixar">
               <font-awesome-icon icon="download" />
             </button>
             <button type="button" class="preview-action" @click="close_attachment_preview" title="Fechar">
@@ -378,6 +356,19 @@ export default {
         { id: "attachments", label: "Anexos", badge: this.attachment_count },
         { id: "comments", label: "Comentários", badge: this.comment_count },
       ];
+    },
+
+    active_tab_index() {
+      const idx = this.task_tabs.findIndex((tab) => tab.id === this.active_tab);
+      return idx >= 0 ? idx : 0;
+    },
+
+    track_style() {
+      const step = 100 / this.task_tabs.length;
+      return {
+        width: `${this.task_tabs.length * 100}%`,
+        transform: `translateX(-${this.active_tab_index * step}%)`,
+      };
     },
 
     task_creator_name() {
@@ -910,8 +901,8 @@ export default {
 .header-content {
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: var(--space-4);
 }
 
 .project-name {
@@ -950,10 +941,13 @@ export default {
 }
 
 @keyframes pulse-sutil {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 0.8;
     transform: scale(1);
   }
+
   50% {
     opacity: 1;
     transform: scale(1.03);
@@ -1025,14 +1019,31 @@ export default {
 .modal-body {
   min-height: 0;
   min-width: 0;
-  padding: var(--space-6) var(--space-7) var(--space-7);
-  overflow-y: auto;
+  padding: 0;
+  overflow: hidden;
   flex: 1 1 auto;
+  position: relative;
+  width: 100%;
+}
+
+.tabs-track {
+  display: flex;
+  height: 100%;
+  width: 300%;
+  will-change: transform;
+  transition: transform 320ms cubic-bezier(0.22, 0.9, 0.36, 1);
 }
 
 .tab-panel {
+  width: calc(100% / 3);
+  flex: 0 0 calc(100% / 3);
+  height: 100%;
   min-height: 0;
   min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-6) var(--space-7) var(--space-7);
+  box-sizing: border-box;
 }
 
 .details-panel {
@@ -1059,9 +1070,9 @@ export default {
 }
 
 .description-input {
-  height: clamp(150px, 32vh, 240px);
-  min-height: 150px;
-  max-height: 240px;
+  height: clamp(160px, 30vh, 260px);
+  min-height: 160px;
+  max-height: 280px;
   resize: none;
   overflow: auto;
   background-color: var(--surface-2);
@@ -1194,12 +1205,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  position: relative;
-}
-
-.attachments-panel {
-  display: flex;
-  flex-direction: column;
+  height: 100%;
 }
 
 .section-toolbar,
@@ -1363,7 +1369,7 @@ export default {
 .empty-state,
 .comment-list-placeholder {
   min-height: 0;
-  flex: 1;
+  flex: 1 1 auto;
   display: grid;
   place-items: center;
   align-content: center;
@@ -1374,7 +1380,6 @@ export default {
   border: 1px dashed var(--glass-border);
   border-radius: var(--radius-sm);
   padding: var(--space-5);
-  max-height: calc(100% - 125px);
 }
 
 .empty-state svg {
@@ -1388,7 +1393,7 @@ export default {
   flex-direction: column;
   gap: var(--space-4);
   padding-right: 2px;
-  max-height: calc(100% - 110px);
+  flex: 1 1 auto;
 }
 
 .comment-item {
@@ -1553,11 +1558,12 @@ export default {
   display: flex;
   gap: var(--space-3);
   align-items: center;
-  padding-top: var(--space-6);
+  padding-top: var(--space-4);
   border-top: 1px solid var(--glass-border);
-  position: absolute;
-  bottom: 0;
+  position: static;
   width: 100%;
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .new-comment-box {
@@ -1703,7 +1709,7 @@ export default {
 
   .modal-header,
   .task-detail-tabs,
-  .modal-body {
+  .tab-panel {
     padding-left: var(--space-5);
     padding-right: var(--space-5);
   }
