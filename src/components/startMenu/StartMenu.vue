@@ -17,16 +17,14 @@
         </div>
       </div>
 
-      <nav class="tab-navigation">
-        <button
-          v-for="(tab, index) in visibleTabs"
-          :key="tab.id"
-          :class="['tab-button', { active: activeTabIndex === tab.originalIndex }]"
-          @click="setActiveTab(tab.id, tab.originalIndex)"
-        >
-          {{ tab.name }}
-        </button>
-      </nav>
+      <KademTabs
+        class="start-menu-tabs"
+        :tabs="visibleTabs"
+        :active-tab="activeTab"
+        variant="default"
+        aria-label="Navegação do Menu Iniciar"
+        @update:activeTab="setActiveTabById($event)"
+      />
 
       <div class="tab-viewport">
         <div class="tabs-track" :style="trackStyle" ref="tabsTrack">
@@ -72,6 +70,7 @@ import Configuration from "./Configuration.vue";
 import AccountCenter from "./AccountCenter/AccountCenter.vue";
 import NewProject from "./NewProject.vue";
 import ConfirmationModal from "../ConfirmationModal.vue";
+import KademTabs from "@/components/ui/KademTabs.vue";
 
 export default {
   components: {
@@ -81,6 +80,7 @@ export default {
     AccountCenter,
     NewProject,
     ConfirmationModal,
+    KademTabs,
   },
   data() {
     return {
@@ -279,52 +279,9 @@ export default {
   color: var(--text-secondary);
 }
 
-.tab-navigation {
-  display: flex;
-  gap: var(--space-6);
+.start-menu-tabs {
   margin-top: var(--space-6);
   margin-bottom: var(--space-5);
-  border-bottom: 1px solid var(--glass-border);
-  position: relative;
-}
-
-.tab-button {
-  background: none;
-  border: none;
-  padding: var(--space-3) 0;
-  font-size: var(--fontsize-sx);
-  font-weight: 500;
-  color: var(--text-muted);
-  cursor: pointer;
-  position: relative;
-  transition: color var(--transition-fast);
-  white-space: nowrap;
-}
-
-.tab-button.active {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.tab-button.active::after {
-  content: "";
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: var(--deep-blue);
-  border-radius: 2px 2px 0 0;
-  animation: tab-slide-in 0.2s var(--transition-spring);
-}
-
-@keyframes tab-slide-in {
-  from { transform: scaleX(0); }
-  to   { transform: scaleX(1); }
-}
-
-.tab-button:hover {
-  color: var(--text-primary);
 }
 
 .tab-viewport {

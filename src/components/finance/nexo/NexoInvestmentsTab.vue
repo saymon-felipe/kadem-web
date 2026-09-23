@@ -19,18 +19,13 @@
       </article>
     </div>
 
-    <nav class="investment-subtabs" aria-label="Investimentos">
-      <button
-        v-for="item in investmentTabs"
-        :key="item.id"
-        type="button"
-        :class="{ active: activeInvestmentTab === item.id }"
-        @click="activeInvestmentTab = item.id"
-      >
-        <font-awesome-icon :icon="item.icon" />
-        <span>{{ item.label }}</span>
-      </button>
-    </nav>
+    <KademTabs
+      :tabs="investmentTabs"
+      :active-tab="activeInvestmentTab"
+      variant="pills"
+      aria-label="Investimentos"
+      @update:activeTab="activeInvestmentTab = $event"
+    />
 
     <div v-show="activeInvestmentTab === 'summary'" class="tab-content">
       <section class="panel momentum-panel">
@@ -374,8 +369,13 @@
 </template>
 
 <script>
+import KademTabs from '@/components/ui/KademTabs.vue';
+
 export default {
   name: 'NexoInvestmentsTab',
+  components: {
+    KademTabs,
+  },
   emits: ['save-goal', 'delete-goal', 'save-event', 'delete-event', 'refresh-rates'],
   props: {
     summary: {
@@ -685,40 +685,7 @@ export default {
 }
 
 .investment-subtabs {
-  display: flex;
-  gap: var(--space-2);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.investment-subtabs::-webkit-scrollbar {
-  display: none;
-}
-
-.investment-subtabs button {
-  min-height: 40px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-0);
-  color: var(--text-secondary);
-  padding: 0 var(--space-3);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  cursor: pointer;
-  white-space: nowrap;
-  font-weight: 600;
-  transition:
-    color var(--transition-fast),
-    background var(--transition-fast),
-    border-color var(--transition-fast);
-}
-
-.investment-subtabs button.active,
-.investment-subtabs button:hover {
-  color: var(--text-primary);
-  background: var(--surface-1);
-  border-color: var(--deep-blue);
+  margin-bottom: var(--space-2);
 }
 
 .panel,

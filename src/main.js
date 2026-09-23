@@ -263,6 +263,8 @@ window.addEventListener('error', (event) => {
   }
 }, true);
 
+import KademTabs from '@/components/ui/KademTabs.vue';
+
 const app = createApp(App);
 const pinia = createPinia();
 pinia.use(piniaPluginPersistedState);
@@ -276,6 +278,7 @@ app.use(api);
 app.use(router);
 
 app.component('font-awesome-icon', FontAwesomeIcon);
+app.component('KademTabs', KademTabs);
 
 window.kademRadioFlow = radioFlowApi;
 

@@ -24,22 +24,14 @@
       </div>
     </header>
 
-    <nav class="task-tabs" aria-label="Secoes da tarefa">
-      <button type="button" class="tab-btn" :class="{ active: active_tab === 'details' }"
-        @click="active_tab = 'details'">
-        Detalhes
-      </button>
-      <button type="button" class="tab-btn" :class="{ active: active_tab === 'attachments' }"
-        @click="active_tab = 'attachments'">
-        Anexos
-        <span class="tab-count">{{ attachment_count }}</span>
-      </button>
-      <button type="button" class="tab-btn" :class="{ active: active_tab === 'comments' }"
-        @click="active_tab = 'comments'">
-        Comentários
-        <span class="tab-count">{{ comment_count }}</span>
-      </button>
-    </nav>
+    <KademTabs
+      class="task-detail-tabs"
+      :tabs="task_tabs"
+      :active-tab="active_tab"
+      variant="info"
+      aria-label="Seções da tarefa"
+      @update:activeTab="active_tab = $event"
+    />
 
     <main class="modal-body">
       <form :style="active_tab === 'comments' ? 'height: fit-content !important;' : ''"
@@ -298,6 +290,7 @@ import { useKanbanStore } from "@/stores/kanban";
 import { useAuthStore } from "@/stores/auth";
 import defaultAccountImage from "@/assets/images/kadem-default-account.jpg";
 import CustomDropdown from "../ui/CustomDropdown.vue";
+import KademTabs from "../ui/KademTabs.vue";
 
 import moment from "moment/min/moment-with-locales";
 
@@ -305,7 +298,7 @@ moment.locale("pt-br");
 
 export default {
   name: "TaskDetailForm",
-  components: { CustomDropdown },
+  components: { CustomDropdown, KademTabs },
   props: {
     task: { type: Object, required: true },
     projectName: { type: String, default: "Projeto" },
@@ -374,6 +367,14 @@ export default {
 
     comment_count() {
       return this.editable_task.comments?.length || 0;
+    },
+
+    task_tabs() {
+      return [
+        { id: "details", label: "Detalhes" },
+        { id: "attachments", label: "Anexos", badge: this.attachment_count },
+        { id: "comments", label: "Comentários", badge: this.comment_count },
+      ];
     },
 
     task_creator_name() {
@@ -996,62 +997,8 @@ export default {
   color: var(--color-expense);
 }
 
-.task-tabs {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-4);
+.task-detail-tabs {
   padding: 0 var(--space-7);
-  height: 48px;
-  border-bottom: 1px solid var(--glass-border);
-  overflow-y: hidden;
-  position: relative;
-}
-
-.tab-btn {
-  height: 100%;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.84rem;
-  font-weight: 800;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  transition: color var(--transition-fast);
-  position: relative;
-  padding: 0 var(--space-1);
-}
-
-.tab-btn:hover {
-  background: transparent;
-  color: var(--text-primary);
-}
-
-.tab-btn.active {
-  color: var(--color-info);
-  background: transparent;
-  border: none;
-}
-
-.tab-btn::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--color-info);
-  border-radius: 3px 3px 0 0;
-  opacity: 0;
-  transform: scaleX(0.5);
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-}
-
-.tab-btn.active::after {
-  opacity: 1;
-  transform: scaleX(1);
 }
 
 .tab-count {
@@ -1746,7 +1693,7 @@ export default {
 @media (max-width: 760px) {
 
   .modal-header,
-  .task-tabs,
+  .task-detail-tabs,
   .modal-body {
     padding-left: var(--space-5);
     padding-right: var(--space-5);
@@ -1754,10 +1701,6 @@ export default {
 
   .modal-header {
     align-items: center;
-  }
-
-  .task-tabs {
-    overflow-x: auto;
   }
 
   .field-grid {
