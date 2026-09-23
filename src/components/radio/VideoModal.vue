@@ -1,6 +1,6 @@
 <template>
   <transition name="video-fade">
-    <div v-if="modelValue" class="video-modal-overlay" :style="{ zIndex: z_index }" @click.self="close_modal">
+    <div v-if="modelValue" class="video-modal-overlay" :style="{ zIndex: z_index }" @click.self="close_modal" @mousedown.stop>
       <div class="video-modal-content glass" :class="{ 'is-closing': is_closing, 'is-fullscreen': is_fullscreen }">
         <div class="modal-drag-indicator" v-if="!is_fullscreen"></div>
 
@@ -66,6 +66,7 @@
 import { radioRepository } from "@/services/localData/radioRepository";
 import { decode_html_entities } from "@/utils/string_helpers";
 import { usePlayerStore } from "@/stores/player";
+import { registerModal } from "@/utils/modalHistory";
 
 export default {
   name: "VideoModal",
@@ -92,6 +93,7 @@ export default {
       is_closing: false,
       is_fullscreen: false,
       is_internal_seeking: false,
+      unregisterHistory: null,
     };
   },
   computed: {
@@ -105,8 +107,17 @@ export default {
   watch: {
     modelValue(is_open) {
       if (is_open) {
+        if (!this.unregisterHistory) {
+          this.unregisterHistory = registerModal(() => {
+            this.close_modal();
+          });
+        }
         this.load_video();
       } else {
+        if (this.unregisterHistory) {
+          this.unregisterHistory();
+          this.unregisterHistory = null;
+        }
         this.pause_video();
         this.release_video_url();
         this.exit_fullscreen_if_active();
@@ -294,6 +305,10 @@ export default {
     },
 
     close_modal() {
+      if (this.unregisterHistory) {
+        this.unregisterHistory();
+        this.unregisterHistory = null;
+      }
       this.is_closing = true;
       this.pause_video();
       this.exit_fullscreen_if_active();
@@ -312,6 +327,10 @@ export default {
     document.addEventListener("webkitfullscreenchange", this.handle_fullscreen_change);
   },
   beforeUnmount() {
+    if (this.unregisterHistory) {
+      this.unregisterHistory();
+      this.unregisterHistory = null;
+    }
     this.pause_video();
     this.release_video_url();
     this.exit_fullscreen_if_active();

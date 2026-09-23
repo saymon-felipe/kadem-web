@@ -81,40 +81,27 @@
 
       <AccountList :accounts="filteredAccounts" @request-edit="openEditForm" />
 
-      <SideModal v-model="showAddModal" @close="handleCloseModal">
-        <AccountForm @close="handleCloseModal" @save="handleSaveNewAccount" :accountToEdit="accountToEdit" />
-      </SideModal>
+      <BaseModal
+        v-model="showAddModal"
+        :title="accountToEdit ? 'Editar Conta' : 'Adicionar Nova Conta'"
+        size="md"
+        @close="handleCloseModal"
+      >
+        <AccountForm
+          v-if="showAddModal"
+          :account-to-edit="accountToEdit"
+          @close="handleCloseModal"
+          @save="handleSaveNewAccount"
+        />
+      </BaseModal>
 
-      <Transition name="slide-over-root">
-        <div v-if="show_rescue_modal" class="modal-overlay">
-          <div class="modal-content glass" role="dialog" aria-modal="true">
-            <div class="modal-header">
-              <h3 class="warning-text">Resgatar Contas Antigas 🛟</h3>
-            </div>
-
-            <div class="modal-body text-center">
-              <p>O sistema detectou <strong>{{ vault.zombie_count }}</strong> conta(s) criadas no passado que estão
-                trancadas com uma senha antiga.</p>
-              <p>Insira a sua senha antiga do Kadem para destrancá-las e convertê-las para a criptografia atual.</p>
-
-              <div class="form-group mt-4">
-                <input id="rescue-pw" type="password" v-model="rescue_password" placeholder=" "
-                  @keyup.enter="handle_rescue" />
-                <label for="rescue-pw">Senha Antiga do Kadem</label>
-              </div>
-
-              <p v-if="rescue_error" class="error-message mt-2">{{ rescue_error }}</p>
-            </div>
-
-            <div class="modal-footer">
-              <button class="btn btn-cancel" @click="close_rescue_modal" :disabled="is_rescuing">Cancelar</button>
-              <button class="btn btn-primary" @click="handle_rescue" :disabled="is_rescuing || !rescue_password">
-                {{ is_rescuing ? "Processando..." : "Resgatar Contas" }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
+      <RescueAccountsModal
+        v-model="show_rescue_modal"
+        :zombie-count="vault.zombie_count"
+        :user-email="auth.user?.email || ''"
+        @rescued="handleRescuedAccounts"
+        @close="show_rescue_modal = false"
+      />
 
     </div>
   </div>
@@ -123,7 +110,8 @@
 <script>
 import AccountList from "./AccountList.vue";
 import AccountForm from "./AccountForm.vue";
-import SideModal from "@/components/SideModal.vue";
+import BaseModal from "@/components/BaseModal.vue";
+import RescueAccountsModal from "./RescueAccountsModal.vue";
 import { useVaultStore } from "@/stores/vault";
 import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
@@ -137,7 +125,8 @@ export default {
   components: {
     AccountList,
     AccountForm,
-    SideModal,
+    BaseModal,
+    RescueAccountsModal,
     loadingSpinner
   },
   setup() {
@@ -154,12 +143,9 @@ export default {
       error: "",
       isLoading: false,
       showAddModal: false,
-      editAccountData: null,
+      accountToEdit: null,
       passwordFieldType: "password",
       show_rescue_modal: false,
-      rescue_password: "",
-      rescue_error: "",
-      is_rescuing: false,
       biometricSupported: false,
       isBiometricLoading: false,
       vaultBiometricConfigured: false,
@@ -186,7 +172,8 @@ export default {
     },
   },
   methods: {
-    openAddForm: function () {
+    openAddForm() {
+      this.accountToEdit = null;
       this.showAddModal = true;
     },
     async handleUnlock() {
@@ -269,37 +256,13 @@ export default {
         } else {
           await this.vault.createAccount(accountData);
         };
-        this.showAddModal = false;
+        this.handleCloseModal();
       } catch (err) {
         console.error("Erro ao salvar conta:", err);
-      };
+      }
     },
-    async handle_rescue() {
-      this.is_rescuing = true;
-      this.rescue_error = "";
-
-      try {
-        const recovered_count = await this.vault.rescue_legacy_accounts(
-          this.rescue_password,
-          this.auth.user.email
-        );
-
-        if (recovered_count > 0) {
-          this.close_rescue_modal();
-        } else {
-          this.rescue_error = "Nenhuma conta pôde ser aberta com esta senha. Tente outra.";
-        };
-      } catch (error) {
-        this.rescue_error = error.message || "Ocorreu um erro ao tentar recuperar as contas.";
-      } finally {
-        this.is_rescuing = false;
-      };
-    },
-
-    close_rescue_modal() {
+    handleRescuedAccounts() {
       this.show_rescue_modal = false;
-      this.rescue_password = "";
-      this.rescue_error = "";
     },
 
     refreshVaultBiometricStatus() {
@@ -436,62 +399,5 @@ export default {
 
 .rescue-btn:hover {
   background-color: #e67e22;
-}
-
-.modal-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  display: grid;
-  place-items: center;
-  z-index: 9999;
-}
-
-.modal-content {
-  background: #ffffff;
-  border-radius: var(--radius-lg);
-  width: 90%;
-  max-width: 450px;
-  padding: var(--space-6);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-  display: flex;
-  flex-direction: column;
-  color: var(--deep-blue);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.modal-header h3 {
-  margin-bottom: var(--space-2);
-  text-align: center;
-}
-
-.modal-body p {
-  margin-bottom: var(--space-3);
-  font-size: 0.95rem;
-  line-height: 1.4;
-}
-
-.warning-text {
-  color: var(--orange, #e67e22);
-  font-weight: bold;
-}
-
-.text-center {
-  text-align: center;
-}
-
-.modal-footer {
-  display: flex;
-  gap: var(--space-3);
-  justify-content: center;
-  margin-top: var(--space-4);
-}
-
-.modal-footer .btn {
-  width: 100%;
 }
 </style>

@@ -175,10 +175,6 @@ export default {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: absolute !important;
-}
-
 .account-list {
   display: flex;
   flex-direction: column;

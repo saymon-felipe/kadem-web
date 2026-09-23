@@ -1,14 +1,12 @@
 <template>
-  <Transition name="slide-over-root">
-    <div v-if="visible" class="modal-wrapper-fixed">
-      <div class="modal-overlay" @click.self="$emit('close')"></div>
-      <form class="modal-content health-modal glass" @submit.prevent="handleSubmit">
-        <div class="modal-header">
-          <h3>Novo Lançamento</h3>
-          <button type="button" class="close-icon-btn" aria-label="Fechar" @click="$emit('close')">
-            <font-awesome-icon icon="xmark" />
-          </button>
-        </div>
+  <BaseModal
+    :model-value="visible"
+    title="Novo Lançamento"
+    size="md"
+    @update:model-value="val => { if (!val) $emit('close'); }"
+    @close="$emit('close')"
+  >
+    <form class="health-modal-body" @submit.prevent="handleSubmit">
 
         <!-- Controle Segmentado do Tipo de Registro -->
         <div class="segmented">
@@ -205,16 +203,17 @@
           </button>
         </div>
       </form>
-    </div>
-  </Transition>
+  </BaseModal>
 </template>
 
 <script>
+import BaseModal from "@/components/BaseModal.vue";
 import SearchableDropdown from "@/components/ui/SearchableDropdown.vue";
 
 export default {
   name: "HealthActionModal",
   components: {
+    BaseModal,
     SearchableDropdown,
   },
   props: {
@@ -379,69 +378,10 @@ export default {
 </script>
 
 <style scoped>
-.modal-wrapper-fixed {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-}
-
-.modal-overlay {
-  position: absolute;
-  inset: 0;
-  background: var(--overlay-heavy);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  pointer-events: auto;
-}
-
-.health-modal {
-  position: relative;
-  z-index: 1;
-  width: min(500px, 92vw);
-  max-height: min(680px, 90vh);
-  overflow-y: auto;
-  background: var(--surface-0);
-  padding: var(--space-6);
-  border-radius: var(--radius-lg);
+.health-modal-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  pointer-events: auto;
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-float);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.2rem;
-  font-weight: 800;
-}
-
-.close-icon-btn {
-  border: none;
-  background: var(--surface-2);
-  color: var(--text-secondary);
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
-}
-
-.close-icon-btn:hover {
-  background: var(--surface-3);
-  color: var(--text-primary);
 }
 
 .segmented {

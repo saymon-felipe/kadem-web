@@ -338,155 +338,153 @@
       @confirm="confirmCsvImport"
     />
 
-    <Transition name="slide-over-root">
-      <div v-if="showCategoryForm" class="modal-wrapper-fixed">
-        <div class="modal-overlay" @click.self="closeCategoryForm"></div>
-        <form class="modal-content nexo-modal glass" @submit.prevent="saveCategoryForm">
-          <h3>{{ categoryForm.id ? "Editar categoria" : "Nova categoria" }}</h3>
-          <div class="nexo-field static-label">
-            <label for="category-name">Nome da categoria</label>
-            <input id="category-name" v-model="categoryForm.name" placeholder="" required />
-          </div>
-          <label class="field-caption">
-            <span>Macro categoria</span>
-            <MacroCategoryCombo
-              v-model="categoryForm.macro_category"
-              :categories="categories"
-              :macro-categories="macroCategories"
-              @change="onCategoryMacroChange"
-            />
-          </label>
-          <div class="form-grid">
-            <div class="nexo-field static-label select-field">
-              <label for="category-type">Tipo</label>
-              <select id="category-type" v-model="categoryForm.type" :disabled="isCategoryFormInvestment" required>
-                <option value="EXPENSE">Saída</option>
-                <option value="INCOME">Entrada</option>
-              </select>
-            </div>
-            <div class="nexo-field static-label color-field">
-              <label for="category-macro-color">Cor da macro</label>
-              <input
-                id="category-macro-color"
-                v-model="categoryForm.macro_color"
-                type="color"
-                placeholder=""
-                title="Cor da macro categoria"
-              />
-            </div>
-          </div>
-          <small v-if="isCategoryFormInvestment" class="field-note compact">
-            <font-awesome-icon icon="circle-question" class="note-icon" />
-            <span>Categorias de investimento são sempre do tipo saída.</span>
-          </small>
-          <div class="icon-picker">
-            <span>Ícone da categoria</span>
-            <div>
-              <button
-                v-for="icon in categoryIcons"
-                :key="icon"
-                type="button"
-                class="icon-choice"
-                :class="{ active: categoryForm.icon === icon }"
-                @click="categoryForm.icon = icon"
-              >
-                <font-awesome-icon :icon="icon" />
-              </button>
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="text-btn" @click="closeCategoryForm">Cancelar</button>
-            <button type="submit" class="primary-action">Salvar</button>
-          </div>
-        </form>
-      </div>
-    </Transition>
-
-    <Transition name="slide-over-root">
-      <div v-if="showMacroForm" class="modal-wrapper-fixed">
-        <div class="modal-overlay" @click.self="showMacroForm = false"></div>
-        <form class="modal-content nexo-modal glass" @submit.prevent="saveMacroForm">
-          <h3>{{ macroForm.id ? "Editar macro categoria" : "Nova macro categoria" }}</h3>
-          <div class="nexo-field static-label">
-            <label for="macro-name">Nome da macro categoria</label>
-            <input id="macro-name" v-model="macroForm.name" placeholder="" required />
+    <BaseModal
+      v-model="showCategoryForm"
+      :title="categoryForm.id ? 'Editar categoria' : 'Nova categoria'"
+      size="md"
+      @close="closeCategoryForm"
+    >
+      <form class="nexo-form-body" @submit.prevent="saveCategoryForm">
+        <div class="nexo-field static-label">
+          <label for="category-name">Nome da categoria</label>
+          <input id="category-name" v-model="categoryForm.name" placeholder="" required />
+        </div>
+        <label class="field-caption">
+          <span>Macro categoria</span>
+          <MacroCategoryCombo
+            v-model="categoryForm.macro_category"
+            :categories="categories"
+            :macro-categories="macroCategories"
+            @change="onCategoryMacroChange"
+          />
+        </label>
+        <div class="form-grid">
+          <div class="nexo-field static-label select-field">
+            <label for="category-type">Tipo</label>
+            <select id="category-type" v-model="categoryForm.type" :disabled="isCategoryFormInvestment" required>
+              <option value="EXPENSE">Saída</option>
+              <option value="INCOME">Entrada</option>
+            </select>
           </div>
           <div class="nexo-field static-label color-field">
-            <label for="macro-color">Cor da macro categoria</label>
-            <input id="macro-color" v-model="macroForm.color" type="color" placeholder="" />
-          </div>
-          <div class="nexo-field static-label">
-            <label for="macro-investment-switch">Investimentos</label>
-            <div class="switch-field">
-              <FormSwitch id="macro-investment-switch" v-model="macroForm.is_investment" />
-              <span>Esta macro categoria representa investimentos</span>
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="text-btn" @click="showMacroForm = false">Cancelar</button>
-            <button type="submit" class="primary-action">Salvar</button>
-          </div>
-        </form>
-      </div>
-    </Transition>
-
-    <Transition name="slide-over-root">
-      <div v-if="showBudgetAiForm" class="modal-wrapper-fixed">
-        <div class="modal-overlay" @click.self="showBudgetAiForm = false"></div>
-        <form class="modal-content nexo-modal budget-ai-modal glass" @submit.prevent="submitBudgetPlan">
-          <div class="budget-ai-modal-header">
-            <div>
-              <h3>Planejamento com IA</h3>
-              <p class="modal-help">
-                Descreva o objetivo do mês. Exemplo: reduzir lazer em 10% e reservar mais para impostos.
-              </p>
-            </div>
-            <span>{{ budgetAiContextLabel }}</span>
-          </div>
-
-          <div ref="budgetAiChat" class="budget-ai-chat custom-scrollbar">
-            <article
-              v-for="message in budgetAiConversation"
-              :key="message.id"
-              class="budget-ai-message"
-              :class="message.role"
-            >
-              <strong>{{ message.role === "assistant" ? "IA" : "Você" }}</strong>
-              <p>{{ message.content }}</p>
-            </article>
-            <p v-if="budgetAiConversation.length === 0" class="empty-line">
-              Nenhuma interação registrada para este mês.
-            </p>
-          </div>
-
-          <div class="nexo-field static-label textarea">
-            <label for="budget-ai-prompt">Mensagem para o planejamento</label>
-            <textarea id="budget-ai-prompt" v-model="budgetAiPrompt" placeholder="" required></textarea>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="text-btn" @click="showBudgetAiForm = false">Cancelar</button>
-            <button type="submit" class="primary-action" :disabled="loadingAi">
-              <font-awesome-icon v-if="loadingAi" icon="circle-notch" spin />
-              Gerar plano
-            </button>
-          </div>
-        </form>
-      </div>
-    </Transition>
-
-    <Transition name="slide-over-root">
-      <div v-if="confirmDelete.visible" class="modal-wrapper-fixed">
-        <div class="modal-overlay" @click.self="closeDeleteConfirm"></div>
-        <div class="modal-content nexo-modal confirm-modal glass">
-          <h3>Confirmar exclusão</h3>
-          <p>{{ confirmDelete.message }}</p>
-          <div class="modal-actions">
-            <button type="button" class="text-btn" @click="closeDeleteConfirm">Cancelar</button>
-            <button type="button" class="primary-action danger-action" @click="confirmDeleteAction">Excluir</button>
+            <label for="category-macro-color">Cor da macro</label>
+            <input
+              id="category-macro-color"
+              v-model="categoryForm.macro_color"
+              type="color"
+              placeholder=""
+              title="Cor da macro categoria"
+            />
           </div>
         </div>
-      </div>
-    </Transition>
+        <small v-if="isCategoryFormInvestment" class="field-note compact">
+          <font-awesome-icon icon="circle-question" class="note-icon" />
+          <span>Categorias de investimento são sempre do tipo saída.</span>
+        </small>
+        <div class="icon-picker">
+          <span>Ícone da categoria</span>
+          <div>
+            <button
+              v-for="icon in categoryIcons"
+              :key="icon"
+              type="button"
+              class="icon-choice"
+              :class="{ active: categoryForm.icon === icon }"
+              @click="categoryForm.icon = icon"
+            >
+              <font-awesome-icon :icon="icon" />
+            </button>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="text-btn" @click="closeCategoryForm">Cancelar</button>
+          <button type="submit" class="primary-action">Salvar</button>
+        </div>
+      </form>
+    </BaseModal>
+
+    <BaseModal
+      v-model="showMacroForm"
+      :title="macroForm.id ? 'Editar macro categoria' : 'Nova macro categoria'"
+      size="md"
+      @close="showMacroForm = false"
+    >
+      <form class="nexo-form-body" @submit.prevent="saveMacroForm">
+        <div class="nexo-field static-label">
+          <label for="macro-name">Nome da macro categoria</label>
+          <input id="macro-name" v-model="macroForm.name" placeholder="" required />
+        </div>
+        <div class="nexo-field static-label color-field">
+          <label for="macro-color">Cor da macro categoria</label>
+          <input id="macro-color" v-model="macroForm.color" type="color" placeholder="" />
+        </div>
+        <div class="nexo-field static-label">
+          <label for="macro-investment-switch">Investimentos</label>
+          <div class="switch-field">
+            <FormSwitch id="macro-investment-switch" v-model="macroForm.is_investment" />
+            <span>Esta macro categoria representa investimentos</span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="text-btn" @click="showMacroForm = false">Cancelar</button>
+          <button type="submit" class="primary-action">Salvar</button>
+        </div>
+      </form>
+    </BaseModal>
+
+    <BaseModal
+      v-model="showBudgetAiForm"
+      title="Planejamento com IA"
+      size="lg"
+      @close="showBudgetAiForm = false"
+    >
+      <form class="nexo-form-body budget-ai-wrap" @submit.prevent="submitBudgetPlan">
+        <div class="budget-ai-modal-header">
+          <div>
+            <p class="modal-help">
+              Descreva o objetivo do mês. Exemplo: reduzir lazer em 10% e reservar mais para impostos.
+            </p>
+          </div>
+          <span>{{ budgetAiContextLabel }}</span>
+        </div>
+
+        <div ref="budgetAiChat" class="budget-ai-chat custom-scrollbar">
+          <article
+            v-for="message in budgetAiConversation"
+            :key="message.id"
+            class="budget-ai-message"
+            :class="message.role"
+          >
+            <strong>{{ message.role === "assistant" ? "IA" : "Você" }}</strong>
+            <p>{{ message.content }}</p>
+          </article>
+          <p v-if="budgetAiConversation.length === 0" class="empty-line">
+            Nenhuma interação registrada para este mês.
+          </p>
+        </div>
+
+        <div class="nexo-field static-label textarea">
+          <label for="budget-ai-prompt">Mensagem para o planejamento</label>
+          <textarea id="budget-ai-prompt" v-model="budgetAiPrompt" placeholder="" required></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="text-btn" @click="showBudgetAiForm = false">Cancelar</button>
+          <button type="submit" class="primary-action" :disabled="loadingAi">
+            <font-awesome-icon v-if="loadingAi" icon="circle-notch" spin />
+            Gerar plano
+          </button>
+        </div>
+      </form>
+    </BaseModal>
+
+    <ConfirmationModal
+      v-model="confirmDelete.visible"
+      message="Confirmar exclusão"
+      :description="confirmDelete.message"
+      confirm-text="Excluir"
+      @cancelled="closeDeleteConfirm"
+      @confirmed="confirmDeleteAction"
+    />
 
     <SubscriptionModal v-model="showPlanModal" @close="showPlanModal = false" />
     <ConfirmationModal
@@ -506,6 +504,7 @@ import { useAuthStore } from "@/stores/auth";
 import { financeService } from "@/services/financeService";
 import { getPlanLimits } from "@/services/subscription_plans";
 import { db, runDbOperation } from "@/db";
+import BaseModal from "@/components/BaseModal.vue";
 import SubscriptionModal from "@/components/SubscriptionModal.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import FormSwitch from "@/components/FormSwitch.vue";
@@ -530,6 +529,7 @@ const includePluggySandbox =
 export default {
   name: "KademNexo",
   components: {
+    BaseModal,
     SubscriptionModal,
     ConfirmationModal,
     FormSwitch,
@@ -3552,45 +3552,12 @@ button:disabled {
   line-height: 1.45;
 }
 
-.modal-wrapper-fixed {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-}
-
-.modal-overlay {
-  position: absolute;
-  inset: 0;
-  background: var(--overlay-heavy);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  pointer-events: auto;
-}
-
-.nexo-modal {
-  position: relative;
-  z-index: 1;
-  width: min(500px, 92vw);
-  max-height: min(680px, 90vh);
-  overflow-y: auto;
-  background: var(--surface-0);
-  padding: var(--space-6);
+.nexo-modal-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  pointer-events: auto;
-  transition: background var(--transition-base);
 }
 
-[data-theme="dark"] .nexo-modal {
-  background: var(--surface-2);
-  color: var(--text-primary);
-}
-
-.nexo-modal h3,
 .modal-help {
   margin: 0;
 }

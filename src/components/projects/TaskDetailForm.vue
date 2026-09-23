@@ -34,7 +34,7 @@
     />
 
     <main class="modal-body">
-      <form :style="active_tab === 'comments' ? 'height: fit-content !important;' : ''"
+      <form
         v-show="active_tab === 'details'" class="tab-panel details-panel" @submit.prevent="handle_save">
         <section class="description-card">
           <label for="task-description">Descricao</label>
@@ -238,49 +238,51 @@
       </section>
     </main>
 
-    <teleport to="body">
-      <div v-if="preview_attachment" class="attachment-preview-overlay" @click.self="close_attachment_preview">
-        <div class="attachment-preview-modal">
-          <header class="attachment-preview-header">
-            <strong>{{ preview_attachment.name }}</strong>
-            <div class="preview-actions">
-              <button
-                v-if="preview_kind === 'text'"
-                type="button"
-                class="preview-action"
-                @click="copy_attachment_content"
-                :title="attachment_copied ? 'Copiado!' : 'Copiar conteudo'"
-              >
-                <font-awesome-icon :icon="attachment_copied ? 'check' : 'copy'" />
-              </button>
-              <button
-                v-if="preview_attachment"
-                type="button"
-                class="preview-action"
-                @click="download_attachment(preview_attachment)"
-                title="Baixar"
-              >
-                <font-awesome-icon icon="download" />
-              </button>
-              <button type="button" class="preview-action" @click="close_attachment_preview" title="Fechar">
-                <font-awesome-icon icon="xmark" />
-              </button>
-            </div>
-          </header>
-
-          <div class="attachment-preview-body">
-            <img v-if="preview_kind === 'image'" :src="preview_url" :alt="preview_attachment.name" />
-            <video v-else-if="preview_kind === 'video'" :src="preview_url" controls></video>
-            <iframe v-else-if="preview_kind === 'html'" :src="preview_url" sandbox></iframe>
-            <pre v-else-if="preview_kind === 'text'">{{ preview_text }}</pre>
-            <div v-else class="unsupported-preview">
+    <BaseModal
+      :model-value="Boolean(preview_attachment)"
+      size="xl"
+      @close="close_attachment_preview"
+    >
+      <template #header>
+        <header class="attachment-preview-header">
+          <strong>{{ preview_attachment?.name }}</strong>
+          <div class="preview-actions">
+            <button
+              v-if="preview_kind === 'text'"
+              type="button"
+              class="preview-action"
+              @click="copy_attachment_content"
+              :title="attachment_copied ? 'Copiado!' : 'Copiar conteudo'"
+            >
+              <font-awesome-icon :icon="attachment_copied ? 'check' : 'copy'" />
+            </button>
+            <button
+              v-if="preview_attachment"
+              type="button"
+              class="preview-action"
+              @click="download_attachment(preview_attachment)"
+              title="Baixar"
+            >
               <font-awesome-icon icon="download" />
-              <p>Este tipo de arquivo pode ser baixado.</p>
-            </div>
+            </button>
+            <button type="button" class="preview-action" @click="close_attachment_preview" title="Fechar">
+              <font-awesome-icon icon="xmark" />
+            </button>
           </div>
+        </header>
+      </template>
+
+      <div class="attachment-preview-body">
+        <img v-if="preview_kind === 'image'" :src="preview_url" :alt="preview_attachment?.name" />
+        <video v-else-if="preview_kind === 'video'" :src="preview_url" controls></video>
+        <iframe v-else-if="preview_kind === 'html'" :src="preview_url" sandbox></iframe>
+        <pre v-else-if="preview_kind === 'text'">{{ preview_text }}</pre>
+        <div v-else class="unsupported-preview">
+          <font-awesome-icon icon="download" />
+          <p>Este tipo de arquivo pode ser baixado.</p>
         </div>
       </div>
-    </teleport>
+    </BaseModal>
   </div>
 </template>
 
@@ -289,6 +291,7 @@ import { mapActions, mapState } from "pinia";
 import { useKanbanStore } from "@/stores/kanban";
 import { useAuthStore } from "@/stores/auth";
 import defaultAccountImage from "@/assets/images/kadem-default-account.jpg";
+import BaseModal from "@/components/BaseModal.vue";
 import CustomDropdown from "../ui/CustomDropdown.vue";
 import KademTabs from "../ui/KademTabs.vue";
 
@@ -298,7 +301,7 @@ moment.locale("pt-br");
 
 export default {
   name: "TaskDetailForm",
-  components: { CustomDropdown, KademTabs },
+  components: { BaseModal, CustomDropdown, KademTabs },
   props: {
     task: { type: Object, required: true },
     projectName: { type: String, default: "Projeto" },
@@ -809,6 +812,11 @@ export default {
     },
   },
   watch: {
+    active_tab() {
+      this.$nextTick(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+    },
     "task.local_id": {
       handler() {
         this.active_tab = "details";
@@ -883,8 +891,9 @@ export default {
   flex-direction: column;
 
   & main {
-    height: 100% !important;
     width: 100% !important;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 }
 
@@ -1017,10 +1026,11 @@ export default {
   min-height: 0;
   min-width: 0;
   padding: var(--space-6) var(--space-7) var(--space-7);
+  overflow-y: auto;
+  flex: 1 1 auto;
 }
 
 .tab-panel {
-  height: 100%;
   min-height: 0;
   min-width: 0;
 }
@@ -1030,7 +1040,6 @@ export default {
   grid-template-rows: auto auto auto;
   gap: var(--space-5);
   align-content: start;
-  overflow: hidden;
 }
 
 .description-card {

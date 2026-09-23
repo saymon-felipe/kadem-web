@@ -1,42 +1,75 @@
 <template>
-  <Transition name="slide-over-root">
-    <div v-if="modelValue" class="modal-overlay" @click.self="cancel" role="dialog" aria-modal="true">
-      <div class="modal-content" @click.stop>
-        <div class="modal-icon-wrapper" :class="iconWrapperClass">
-          <font-awesome-icon :icon="iconName" />
-        </div>
+  <BaseModal
+    :model-value="modelValue"
+    size="sm"
+    :show-close="false"
+    :show-header="false"
+    :close-on-backdrop="true"
+    :close-on-escape="true"
+    :handle-mobile-back="true"
+    custom-class="confirmation-modal-custom"
+    @update:model-value="handleUpdateModelValue"
+    @close="cancel"
+  >
+    <div class="confirm-dialog-content">
+      <div class="confirm-icon-circle" :class="iconWrapperClass">
+        <font-awesome-icon :icon="iconName" />
+      </div>
 
-        <div class="modal-header">
-          <h3 v-html="sanitize(message)"></h3>
-        </div>
+      <div class="confirm-text-header">
+        <h3 v-html="sanitize(message)"></h3>
+      </div>
 
-        <div class="modal-body">
-          <p v-html="sanitizedMessage"></p>
-        </div>
+      <div class="confirm-text-body" v-if="sanitizedMessage">
+        <p v-html="sanitizedMessage"></p>
+      </div>
 
-        <div class="modal-footer">
-          <button class="btn" @click="cancel">Cancelar</button>
-          <button
-            class="btn"
-            :class="confirmBtnClass"
-            @click="confirm"
-          >
-            {{ confirmText }}
-          </button>
-        </div>
+      <div class="confirm-action-footer">
+        <button type="button" class="btn btn-cancel" @click="cancel">
+          {{ cancelText }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-confirm"
+          :class="confirmBtnClass"
+          @click="confirm"
+        >
+          {{ confirmText }}
+        </button>
       </div>
     </div>
-  </Transition>
+  </BaseModal>
 </template>
 
 <script>
+import BaseModal from "@/components/BaseModal.vue";
+
 export default {
   name: "ConfirmationModal",
+  components: {
+    BaseModal,
+  },
   props: {
-    modelValue:  { type: Boolean, default: false },
-    description: { type: String,  default: "Esta ação não pode ser desfeita." },
-    message:     { type: String,  required: true },
-    confirmText: { type: String,  default: "Confirmar" },
+    modelValue: {
+      type: Boolean,
+      default: false,
+    },
+    message: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      default: "Esta ação não pode ser desfeita.",
+    },
+    confirmText: {
+      type: String,
+      default: "Confirmar",
+    },
+    cancelText: {
+      type: String,
+      default: "Cancelar",
+    },
   },
   emits: ["update:modelValue", "cancelled", "confirmed"],
   computed: {
@@ -79,63 +112,35 @@ export default {
         .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gm, "")
         .replace(/on\w+="[^"]*"/g, "");
     },
+    handleUpdateModelValue(val) {
+      this.$emit("update:modelValue", val);
+      if (!val) {
+        this.$emit("cancelled");
+      }
+    },
     cancel() {
+      this.$emit("update:modelValue", false);
       this.$emit("cancelled");
     },
     confirm() {
+      this.$emit("update:modelValue", false);
       this.$emit("confirmed");
     },
-    handleKeydown(e) {
-      if (e.key === "Escape" && this.modelValue) {
-        this.cancel();
-      }
-    },
-  },
-  watch: {
-    modelValue(val) {
-      if (val) {
-        document.addEventListener("keydown", this.handleKeydown);
-      } else {
-        document.removeEventListener("keydown", this.handleKeydown);
-      }
-    },
-  },
-  beforeUnmount() {
-    document.removeEventListener("keydown", this.handleKeydown);
   },
 };
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay-heavy);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  display: grid;
-  place-items: center;
-  z-index: 10000;
-}
-
-.modal-content {
-  background: var(--surface-0);
-  border-radius: var(--radius-lg);
-  width: 90%;
-  max-width: 420px;
-  padding: var(--space-7) var(--space-6);
-  box-shadow: var(--shadow-float);
+.confirm-dialog-content {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  border: 1px solid var(--glass-border);
-  color: var(--text-primary);
-  gap: var(--space-2);
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-2);
 }
 
-/* Ícone */
-.modal-icon-wrapper {
+.confirm-icon-circle {
   width: 56px;
   height: 56px;
   border-radius: 50%;
@@ -143,54 +148,105 @@ export default {
   align-items: center;
   justify-content: center;
   font-size: 1.6rem;
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
   transition: background var(--transition-base);
+  flex-shrink: 0;
 }
 
-.modal-icon-wrapper.info {
+.confirm-icon-circle.info {
   background: var(--surface-2);
   color: var(--color-info);
 }
 
-.modal-icon-wrapper.warning {
+.confirm-icon-circle.warning {
   background: var(--amber-high);
   color: var(--amber);
 }
 
-.modal-icon-wrapper.danger {
+.confirm-icon-circle.danger {
   background: var(--red-high);
   color: var(--color-expense);
 }
 
-/* Header */
-.modal-header h3 {
-  margin: 0 0 var(--space-1) 0;
+.confirm-text-header h3 {
+  margin: 0;
   font-size: 1.15rem;
   font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
-/* Body */
-.modal-body p {
+.confirm-text-body p {
   font-size: var(--fontsize-xs);
   color: var(--text-secondary);
   line-height: 1.65;
-  margin: 0 0 var(--space-5) 0;
+  margin: 0;
 }
 
-/* Footer */
-.modal-footer {
+.confirm-action-footer {
   display: flex;
   gap: var(--space-3);
   width: 100%;
+  margin-top: var(--space-4);
 }
 
-.modal-footer .btn {
+.confirm-action-footer .btn {
   flex: 1;
   height: 44px;
   min-height: 44px;
   font-size: var(--fontsize-xs);
   font-weight: 600;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-fast);
+}
+
+.btn-cancel {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+}
+
+.btn-cancel:hover {
+  background: var(--surface-3);
+}
+
+.btn-confirm.btn-primary {
+  background: var(--deep-blue);
+  color: #ffffff;
+}
+
+.btn-confirm.btn-primary:hover {
+  background: var(--deep-blue-2);
+}
+
+.btn-confirm.btn-red {
+  background: var(--color-expense);
+  color: #ffffff;
+}
+
+.btn-confirm.btn-red:hover {
+  background: var(--red-low);
+}
+
+@media (max-width: 768px) {
+  .confirm-dialog-content {
+    padding: var(--space-2) 0 var(--space-4);
+  }
+
+  .confirm-action-footer {
+    flex-direction: column-reverse;
+    gap: var(--space-2);
+  }
+
+  .confirm-action-footer .btn {
+    width: 100%;
+    height: 48px;
+    font-size: var(--fontsize-sm);
+  }
 }
 </style>

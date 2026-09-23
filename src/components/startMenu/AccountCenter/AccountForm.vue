@@ -1,6 +1,5 @@
 <template>
-  <div class="account-form" @click.stop>
-    <h3>{{ isEditMode ? "Editar Conta" : "Adicionar Nova Conta" }}</h3>
+  <div class="account-form">
     <form @submit.prevent="handleSubmit">
       <div class="form-group">
         <input id="type" v-model="form.type" type="text" placeholder=" " required />
@@ -160,7 +159,7 @@ export default {
 
 <style scoped>
 .account-form {
-  padding: var(--space-6);
+  padding: 0;
 }
 
 .avatar {

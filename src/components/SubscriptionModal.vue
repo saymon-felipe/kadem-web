@@ -1,18 +1,23 @@
 <template>
-  <Transition name="slide-over-root">
-    <div v-if="modelValue" class="modal-overlay" @click.self="requestClose">
-      <div class="modal-content glass" :class="{ 'wide-mode': step === 1 }">
-        <header class="modal-header">
-          <div class="header-text">
-            <h2>Planos & Assinatura</h2>
-            <p class="subtitle" v-if="step === 1">
-              Selecione o plano ideal para sua produtividade.
-            </p>
-          </div>
-          <button class="close-btn" @click="requestClose">
-            <font-awesome-icon icon="times" />
-          </button>
-        </header>
+  <BaseModal
+    :model-value="modelValue"
+    :size="step === 1 ? 'full' : 'md'"
+    :show-header="false"
+    body-class="subscription-modal-body-reset"
+    @close="requestClose"
+  >
+    <div class="subscription-inner-wrap" :class="{ 'wide-mode': step === 1 }">
+      <header class="modal-header">
+        <div class="header-text">
+          <h2>Planos & Assinatura</h2>
+          <p class="subtitle" v-if="step === 1">
+            Selecione o plano ideal para sua produtividade.
+          </p>
+        </div>
+        <button class="close-btn" @click="requestClose">
+          <font-awesome-icon icon="times" />
+        </button>
+      </header>
 
         <div v-if="step === 1" class="step-content pricing-view">
           <div class="plans-grid">
@@ -142,8 +147,7 @@
           </div>
         </div>
       </div>
-    </div>
-  </Transition>
+  </BaseModal>
   <ConfirmationModal v-model="show_cancel_modal" :message="cancel_message" :description="cancel_description"
     :confirmText="confirm_text" @cancelled="show_cancel_modal = false" @confirmed="confirm_cancellation" />
 </template>
@@ -153,6 +157,7 @@ import { mapState, mapActions } from "pinia";
 import { useAuthStore } from "@/stores/auth";
 import { api } from "@/plugins/api";
 import { useUtilsStore } from "@/stores/utils";
+import BaseModal from "./BaseModal.vue";
 import ConfirmationModal from "./ConfirmationModal.vue";
 
 export default {
@@ -162,6 +167,7 @@ export default {
     modelValue: { type: Boolean, default: false },
   },
   components: {
+    BaseModal,
     ConfirmationModal,
   },
   data() {
@@ -379,39 +385,18 @@ export default {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  display: grid;
-  place-items: center;
-  z-index: 10000;
-  animation: fadeIn 0.2s ease-out;
+:deep(.subscription-modal-body-reset) {
+  padding: 0 !important;
 }
 
-.modal-content {
-  background: var(--surface-1);
-  width: 95%;
-  max-width: 450px;
-  border-radius: var(--radius-lg);
-  padding: 0;
-  box-shadow: var(--shadow-elevated);
-  border: 1px solid var(--glass-border);
-  color: var(--text-primary);
-  transition: max-width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
-  overflow: hidden;
-  max-height: 90vh;
+.subscription-inner-wrap {
+  width: 100%;
   display: flex;
   flex-direction: column;
 }
 
-.modal-content.wide-mode {
-  max-width: 1050px;
-  background: var(--surface-1);
+.subscription-inner-wrap.wide-mode {
+  width: 100%;
 }
 
 .modal-header {

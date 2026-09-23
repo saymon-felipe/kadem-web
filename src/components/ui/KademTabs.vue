@@ -483,8 +483,9 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1px 7px;
-  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  min-width: 18px;
+  border-radius: var(--radius-pill, 9999px);
   font-size: 0.72rem;
   font-weight: 700;
   background: var(--surface-2);

@@ -1,74 +1,75 @@
 <template>
-  <Transition name="slide-over-root">
-    <div v-if="modelValue" class="modal-overlay" @click.self="close">
-      <div class="modal-content glass" role="dialog" aria-modal="true">
-        <div class="modal-header-row">
-          <h3>{{ title || "Ajustar Imagem" }}</h3>
-          <button class="close-btn-icon" @click="close">
-            <font-awesome-icon icon="xmark" />
-          </button>
+  <BaseModal
+    :model-value="modelValue"
+    :title="title || 'Ajustar Imagem'"
+    size="md"
+    @close="close"
+  >
+    <div class="modal-body-custom">
+      <div
+        v-if="!uploaded_image.src"
+        class="upload-placeholder"
+        @click="trigger_input"
+      >
+        <div class="icon-circle">
+          <font-awesome-icon icon="cloud-arrow-up" />
         </div>
+        <p>Clique para selecionar uma imagem</p>
+        <input
+          type="file"
+          ref="fileInput"
+          accept="image/*"
+          style="display: none"
+          @change="on_file_change"
+        />
+      </div>
 
-        <div class="modal-body-custom">
-          <div
-            v-if="!uploaded_image.src"
-            class="upload-placeholder"
-            @click="trigger_input"
-          >
-            <div class="icon-circle">
-              <font-awesome-icon icon="cloud-arrow-up" />
-            </div>
-            <p>Clique para selecionar uma imagem</p>
-            <input
-              type="file"
-              ref="fileInput"
-              accept="image/*"
-              style="display: none"
-              @change="on_file_change"
-            />
-          </div>
-
-          <div v-else class="cropper-container">
-            <cropper
-              ref="cropper"
-              class="cropper"
-              :src="uploaded_image.src"
-              :stencil-props="{ aspectRatio: aspectRatio || 1 }"
-              image-restriction="stencil"
-            />
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button class="btn" @click="close">Cancelar</button>
-
-          <button
-            class="btn btn-primary"
-            @click="save_crop"
-            :disabled="!uploaded_image.src || processing"
-          >
-            <font-awesome-icon v-if="processing" icon="spinner" spin class="icon-gap" />
-            {{ processing ? "Salvando..." : "Concluir" }}
-          </button>
-        </div>
+      <div v-else class="cropper-container">
+        <cropper
+          ref="cropper"
+          class="cropper"
+          :src="uploaded_image.src"
+          :stencil-props="{ aspectRatio: aspectRatio || 1 }"
+          image-restriction="stencil"
+        />
       </div>
     </div>
-  </Transition>
+
+    <template #footer>
+      <div class="cropper-footer">
+        <button type="button" class="btn btn-cancel" @click="close">Cancelar</button>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          @click="save_crop"
+          :disabled="!uploaded_image.src || processing"
+        >
+          <font-awesome-icon v-if="processing" icon="spinner" spin class="icon-gap" />
+          {{ processing ? "Processando..." : "Confirmar" }}
+        </button>
+      </div>
+    </template>
+  </BaseModal>
 </template>
 
 <script>
 import { Cropper } from "vue-advanced-cropper";
 import "vue-advanced-cropper/dist/style.css";
+import BaseModal from "@/components/BaseModal.vue";
 
 export default {
   name: "ImageCropperModal",
-  components: { Cropper },
+  components: {
+    BaseModal,
+    Cropper,
+  },
   props: {
     modelValue: { type: Boolean, default: false },
     title: { type: String, default: "" },
     aspectRatio: { type: Number, default: 1 },
   },
-  emits: ["close", "save"],
+  emits: ["close", "save", "update:modelValue"],
   data() {
     return {
       uploaded_image: { src: null, type: null },
@@ -104,6 +105,7 @@ export default {
       this.processing = false;
     },
     close() {
+      this.$emit("update:modelValue", false);
       this.$emit("close");
     },
     save_crop() {
@@ -117,6 +119,7 @@ export default {
         this.processing = true;
         const base64 = canvas.toDataURL("image/jpeg", 0.8);
         this.$emit("save", base64);
+        this.$emit("update:modelValue", false);
       }
     },
   },
@@ -124,113 +127,29 @@ export default {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-content {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  width: 90%;
-  max-width: 500px;
-  border-radius: var(--radius-lg, 16px);
-  box-shadow: var(--shadow-float);
-  padding: var(--space-6, 24px);
-  display: flex;
-  flex-direction: column;
-  /* Animação de entrada idêntica ao ConfirmationModal */
-  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  border: 1px solid var(--glass-border);
-  color: var(--text-primary);
-}
-
-/* Transições Vue (Entrada/Saída do Overlay) */
-.slide-over-root-enter-active,
-.slide-over-root-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.slide-over-root-enter-from,
-.slide-over-root-leave-to {
-  opacity: 0;
-}
-
-/* Keyframes (Entrada do Painel) */
-@keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-/* ESTILOS ESPECÍFICOS DO CROPPER
-   (Conteúdo interno diferente do ConfirmationModal)
-*/
-
-.modal-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--space-4, 16px);
-}
-
-.modal-header-row h3 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.close-btn-icon {
-  background: transparent;
-  border: none;
-  font-size: 1.2rem;
-  color: var(--text-muted, #888);
-  cursor: pointer;
-  padding: 4px;
-  transition: color 0.2s;
-}
-.close-btn-icon:hover {
-  color: var(--text-primary);
-}
-
 .modal-body-custom {
   flex: 1;
-  min-height: 300px;
+  min-height: 280px;
   display: flex;
   flex-direction: column;
-  margin-bottom: var(--space-6, 24px);
 }
 
 .upload-placeholder {
   flex: 1;
+  min-height: 240px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 16px;
   border: 2px dashed var(--glass-border);
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-base);
   background: var(--surface-1);
   color: var(--text-secondary);
 }
+
 .upload-placeholder:hover {
   border-color: var(--text-primary);
   background: var(--surface-2);
@@ -252,51 +171,72 @@ export default {
   height: 300px;
   width: 100%;
   background: #000;
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
+
 .cropper {
   height: 100%;
   width: 100%;
 }
 
-.modal-footer {
+.cropper-footer {
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--glass-border);
   display: flex;
-  gap: var(--space-3, 12px);
-  width: 100%;
+  gap: var(--space-3);
   justify-content: flex-end;
+}
+
+.cropper-footer .btn {
+  height: 42px;
+  min-width: 110px;
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.btn-cancel {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+}
+
+.btn-cancel:hover {
+  background: var(--surface-3);
+}
+
+.btn-primary {
+  background: var(--deep-blue);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: var(--deep-blue-2);
 }
 
 .icon-gap {
   margin-right: 8px;
 }
 
-.slide-over-root-enter-active,
-.slide-over-root-leave-active {
-  transition: opacity 0.3s ease;
-}
+@media (max-width: 768px) {
+  .cropper-footer {
+    flex-direction: column-reverse;
+  }
 
-.slide-over-root-enter-active .modal-content,
-.slide-over-root-leave-active .modal-content {
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275),
-    opacity 0.3s ease-out;
-}
+  .cropper-footer .btn {
+    width: 100%;
+    height: 48px;
+  }
 
-.slide-over-root-enter-active .modal-overlay,
-.slide-over-root-leave-active .modal-overlay {
-  transition: opacity 0.3s ease;
-}
-
-.slide-over-root-enter-from,
-.slide-over-root-leave-to {
-  opacity: 0;
-}
-
-.slide-over-root-enter-from .modal-content {
-  transform: translateY(20px);
-}
-
-.slide-over-root-leave-to .modal-content {
-  transform: translateY(20px);
+  .cropper-container {
+    height: 240px;
+  }
 }
 </style>

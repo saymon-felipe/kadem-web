@@ -1,17 +1,21 @@
 <template>
-  <Transition name="slide-over-root">
-    <div v-if="visible" class="modal-wrapper-fixed">
-      <div class="modal-overlay" @click.self="$emit('close')"></div>
-      <div class="modal-content nexo-modal csv-preview-modal glass">
-        <div class="modal-header">
-          <div>
-            <h3>Preview do CSV</h3>
-            <p>{{ summary.total }} linhas válidas | {{ summary.ready }} novas | {{ summary.duplicates }} duplicadas</p>
-          </div>
-          <button class="icon-btn" type="button" title="Fechar" @click="$emit('close')">
-            <font-awesome-icon icon="xmark" />
-          </button>
+  <BaseModal
+    :model-value="visible"
+    title="Preview do CSV"
+    size="xl"
+    @close="$emit('close')"
+  >
+    <template #header>
+      <header class="modal-header-custom">
+        <div>
+          <h3 class="modal-title-bold">Preview do CSV</h3>
+          <p class="summary-sub">{{ summary.total }} linhas válidas | {{ summary.ready }} novas | {{ summary.duplicates }} duplicadas</p>
         </div>
+        <button class="icon-btn-close" type="button" title="Fechar" @click="$emit('close')">
+          <font-awesome-icon icon="xmark" />
+        </button>
+      </header>
+    </template>
 
         <div class="modal-summary">
           <strong>
@@ -66,14 +70,17 @@
             Importar
           </button>
         </div>
-      </div>
-    </div>
-  </Transition>
+  </BaseModal>
 </template>
 
 <script>
+import BaseModal from "@/components/BaseModal.vue";
+
 export default {
   name: "NexoCsvPreviewModal",
+  components: {
+    BaseModal,
+  },
   emits: ["close", "confirm"],
   props: {
     visible: {
@@ -143,36 +150,43 @@ export default {
 </script>
 
 <style scoped>
-.modal-wrapper-fixed {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
+.modal-header-custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--glass-border);
+  width: 100%;
+}
+
+.modal-title-bold {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.summary-sub {
+  font-size: var(--fontsize-xs);
+  color: var(--text-secondary);
+  margin: 2px 0 0 0;
+}
+
+.icon-btn-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  cursor: pointer;
   display: grid;
   place-items: center;
-  pointer-events: none;
+  transition: all var(--transition-fast);
 }
 
-.modal-overlay {
-  position: absolute;
-  inset: 0;
-  background: var(--overlay-heavy);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  pointer-events: auto;
-}
-
-.nexo-modal {
-  position: relative;
-  z-index: 1;
-  width: min(980px, 94vw);
-  max-height: min(760px, 92vh);
-  background: var(--surface-0);
+.icon-btn-close:hover {
+  background: var(--surface-3);
   color: var(--text-primary);
-  padding: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  pointer-events: auto;
 }
 
 .modal-header,

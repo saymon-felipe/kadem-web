@@ -180,6 +180,13 @@ export default {
         return;
       }
 
+      const isModal = event.target.closest(
+        ".kadem-modal-overlay, .kadem-modal-card, .modal-wrapper-fixed, .modal-overlay, .video-modal-overlay, .lyrics-modal-overlay, [role='dialog']"
+      );
+      if (isModal) {
+        return;
+      }
+
       this.closeContextMenu();
       this.closeStartMenu();
     },

@@ -1,6 +1,6 @@
 <template>
   <transition name="lyrics-fade">
-    <div class="lyrics-modal-overlay" v-if="modelValue" :style="{ zIndex: z_index }" @click.self="close_modal">
+    <div class="lyrics-modal-overlay" v-if="modelValue" :style="{ zIndex: z_index }" @click.self="close_modal" @mousedown.stop>
       <div class="lyrics-modal-content glass" :class="{ 'is-closing': is_closing }">
         <div class="modal-drag-indicator"></div>
 
@@ -57,6 +57,7 @@
 
 <script>
 import { decode_html_entities } from "@/utils/string_helpers";
+import { registerModal } from "@/utils/modalHistory";
 
 export default {
   name: "LyricsModal",
@@ -85,6 +86,7 @@ export default {
       is_closing: false,
       is_at_top: true,
       is_at_bottom: false,
+      unregisterHistory: null,
     };
   },
   watch: {
@@ -116,12 +118,21 @@ export default {
     },
     modelValue(val) {
       if (val) {
+        if (!this.unregisterHistory) {
+          this.unregisterHistory = registerModal(() => {
+            this.close_modal();
+          });
+        }
         this.$nextTick(() => {
           this.sync_lyrics_index(this.current_time);
           this.check_scroll_position();
           this.perform_auto_scroll();
         });
       } else {
+        if (this.unregisterHistory) {
+          this.unregisterHistory();
+          this.unregisterHistory = null;
+        }
         this.reset_lyrics_state();
       }
     },
@@ -219,6 +230,10 @@ export default {
       if (container) container.scrollTo({ top: 0, behavior: "auto" });
     },
     close_modal() {
+      if (this.unregisterHistory) {
+        this.unregisterHistory();
+        this.unregisterHistory = null;
+      }
       this.reset_lyrics_state();
       this.is_closing = true;
       setTimeout(() => {
@@ -226,6 +241,12 @@ export default {
         this.is_closing = false;
       }, 400);
     },
+  },
+  beforeUnmount() {
+    if (this.unregisterHistory) {
+      this.unregisterHistory();
+      this.unregisterHistory = null;
+    }
   },
 };
 </script>

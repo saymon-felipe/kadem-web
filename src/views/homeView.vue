@@ -19,128 +19,20 @@
     <DesktopWindowManager />
     <GlobalPlayerHost />
 
-    <Transition name="slide-over-root">
-      <div v-if="user && user.needs_vault_migration && !show_recovery_setup" class="modal-overlay">
-        <div class="modal-content glass" role="dialog" aria-modal="true">
-          <div class="modal-header">
-            <h3 class="warning-text">Atenção ao seu Cofre 🔒</h3>
-          </div>
+    <VaultMigrationModal
+      v-if="user"
+      :model-value="Boolean(user.needs_vault_migration && !show_recovery_setup)"
+      :user-email="user.email"
+      @update:model-value="user.needs_vault_migration = $event"
+      @migrated="user.needs_vault_migration = false"
+    />
 
-          <div class="modal-body">
-            <p>
-              Detectamos que sua senha foi alterada. Por segurança, suas contas ainda estão criptografadas e precisam
-              ser migradas.
-            </p>
-            <p>
-              Para recuperar o acesso, insira seu
-              <strong>Código de Recuperação (Senha Mestra)</strong> que você salvou anteriormente.
-            </p>
-
-            <div class="form-group mt-4">
-              <input id="recovery-code" type="text" v-model="migration_recovery_code" placeholder=" " />
-              <label for="recovery-code">Código de Recuperação (Senha Mestra)</label>
-            </div>
-
-            <div class="form-group password-group mt-2">
-              <input
-                id="new-pw"
-                :type="show_current_password ? 'text' : 'password'"
-                v-model="migration_current_password"
-                placeholder=" "
-                @keyup.enter="run_migration"
-              />
-              <label for="new-pw">Confirme sua Senha Atual do Sistema</label>
-
-              <span
-                class="toggle-password"
-                @mousedown="show_current_password = true"
-                @mouseup="show_current_password = false"
-                @mouseleave="show_current_password = false"
-                @touchstart.prevent="show_current_password = true"
-                @touchend.prevent="show_current_password = false"
-              >
-                <font-awesome-icon :icon="show_current_password ? 'eye-slash' : 'eye'" />
-              </span>
-            </div>
-
-            <p v-if="migration_error" class="error-text">{{ migration_error }}</p>
-          </div>
-
-          <div class="modal-footer">
-            <button
-              class="btn btn-primary"
-              @click="run_migration"
-              :disabled="is_migrating || !migration_recovery_code || !migration_current_password"
-            >
-              {{ is_migrating ? "Descriptografando..." : "Migrar Cofre" }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
-    <Transition name="slide-over-root">
-      <div v-if="show_recovery_setup" class="modal-overlay">
-        <div class="modal-content glass" role="dialog" aria-modal="true">
-          <div class="modal-header">
-            <h3>Atenção à Segurança 🔒</h3>
-          </div>
-
-          <div class="modal-body">
-            <p>
-              Para garantir que você nunca perca suas senhas se esquecer o login, precisamos gerar sua
-              <strong>Senha Mestra (Código E2EE)</strong>.
-            </p>
-
-            <div v-if="!generated_code" class="mt-4">
-              <div class="form-group password-group">
-                <input
-                  id="setup-password"
-                  :type="show_setup_password ? 'text' : 'password'"
-                  v-model="setup_password"
-                  placeholder=" "
-                  @keyup.enter="generate_recovery"
-                />
-                <label for="setup-password">Digite sua senha atual</label>
-
-                <span
-                  class="toggle-password"
-                  @mousedown="show_setup_password = true"
-                  @mouseup="show_setup_password = false"
-                  @mouseleave="show_setup_password = false"
-                  @touchstart.prevent="show_setup_password = true"
-                  @touchend.prevent="show_setup_password = false"
-                >
-                  <font-awesome-icon :icon="show_setup_password ? 'eye-slash' : 'eye'" />
-                </span>
-              </div>
-              <div class="forgot-password-container">
-                <a href="#" @click.prevent="handle_forgot_password" class="forgot-link">Esqueci minha senha</a>
-              </div>
-            </div>
-
-            <div v-else class="generated-code-box mt-4">
-              <p class="warning-text">Copie e guarde este código em um lugar seguro. Ele NÃO será exibido novamente!</p>
-              <h3 class="code-display">{{ generated_code }}</h3>
-            </div>
-
-            <p v-if="recovery_error" class="error-text">{{ recovery_error }}</p>
-          </div>
-
-          <div class="modal-footer">
-            <button
-              v-if="!generated_code"
-              class="btn btn-primary"
-              @click="generate_recovery"
-              :disabled="!setup_password"
-            >
-              Gerar Senha Mestra
-            </button>
-            <button v-else class="btn btn-success" @click="confirm_saved">Eu guardei o código com segurança</button>
-          </div>
-        </div>
-      </div>
-    </Transition>
+    <RecoverySetupModal
+      v-model="show_recovery_setup"
+      :user-email="user ? user.email : ''"
+      @forgot-password="handle_forgot_password"
+      @completed="handleRecoveryCompleted"
+    />
   </div>
 </template>
 
@@ -158,6 +50,8 @@ import systemBackgroundDark from "../assets/images/system-background-black.webp"
 import DesktopWindowManager from "../components/windowing/DesktopWindowManager.vue";
 import SyncIndicator from "@/components/SyncIndicator.vue";
 import GlobalPlayerHost from "@/components/radio/GlobalPlayerHost.vue";
+import VaultMigrationModal from "@/components/auth/VaultMigrationModal.vue";
+import RecoverySetupModal from "@/components/auth/RecoverySetupModal.vue";
 
 export default {
   components: {
@@ -167,6 +61,8 @@ export default {
     DesktopWindowManager,
     SyncIndicator,
     GlobalPlayerHost,
+    VaultMigrationModal,
+    RecoverySetupModal,
   },
   computed: {
     ...mapState(useAuthStore, ["user"]),
@@ -195,16 +91,6 @@ export default {
       isDarkBgReady: false,
 
       show_recovery_setup: false,
-      setup_password: "",
-      generated_code: null,
-      recovery_error: "",
-      show_setup_password: false,
-
-      migration_recovery_code: "",
-      migration_current_password: "",
-      migration_error: "",
-      is_migrating: false,
-      show_current_password: false,
     };
   },
   watch: {
@@ -279,52 +165,11 @@ export default {
       }
     },
 
-    async run_migration() {
-      this.is_migrating = true;
-      this.migration_error = "";
-
-      try {
-        const vault_store = useVaultStore();
-        await vault_store.execute_home_migration(
-          this.migration_recovery_code,
-          this.migration_current_password,
-          this.user.email,
-        );
-
-        this.user.needs_vault_migration = false;
-        this.migration_recovery_code = "";
-        this.migration_current_password = "";
-
-        this.show_current_password = false;
-      } catch (error) {
-        this.migration_error = error.message || "Código E2EE ou Senha incorretos. Tente novamente.";
-      } finally {
-        this.is_migrating = false;
-      }
-    },
-
-    async generate_recovery() {
-      if (!this.setup_password) return;
-      this.recovery_error = "";
-
-      try {
-        const vault_store = useVaultStore();
-        const is_valid = await vault_store.checkMasterPassword(this.setup_password, this.user.email);
-        if (!is_valid) throw new Error("Senha atual incorreta.");
-
-        this.generated_code = await vault_store.setup_recovery_key(this.setup_password, this.user.email);
-
-        this.user.has_recovery_payload = true;
-      } catch (err) {
-        this.recovery_error = err.message;
-      }
-    },
-
-    confirm_saved() {
+    handleRecoveryCompleted() {
       this.show_recovery_setup = false;
-      this.generated_code = null;
-      this.setup_password = "";
-      this.show_setup_password = false;
+      if (this.user) {
+        this.user.has_recovery_payload = true;
+      }
     },
 
     returnSystem: function () {
@@ -415,145 +260,5 @@ export default {
 
 .desktop-bg.active {
   opacity: 1;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--overlay-heavy);
-  backdrop-filter: blur(4px);
-  display: grid;
-  place-items: center;
-  z-index: 10000;
-}
-
-.modal-content {
-  background: var(--surface-0);
-  border-radius: var(--radius-lg);
-  width: 90%;
-  max-width: 450px;
-  padding: var(--space-6);
-  box-shadow: var(--shadow-float);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  border: 1px solid var(--glass-border);
-  color: var(--text-primary);
-}
-
-.modal-header h3 {
-  margin-bottom: var(--space-2);
-  color: var(--text-primary);
-}
-
-.modal-body {
-  width: 100%;
-  margin-bottom: var(--space-4);
-}
-
-.modal-body p {
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.modal-body p strong {
-  color: var(--text-primary);
-}
-
-.modal-footer {
-  display: flex;
-  gap: var(--space-3);
-  justify-content: center;
-  width: 100%;
-}
-
-.modal-footer .btn {
-  width: 100%;
-}
-
-.generated-code-box {
-  background: var(--surface-1);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-  border: 1px dashed var(--glass-border);
-}
-
-.code-display {
-  font-family: monospace;
-  font-size: 1.25rem;
-  letter-spacing: 2px;
-  background: var(--surface-2);
-  padding: var(--space-3);
-  border-radius: 8px;
-  color: var(--green);
-  user-select: all;
-  margin-top: var(--space-3);
-  box-shadow: inset 0 0 0 1px var(--glass-border);
-}
-
-.warning-text {
-  color: var(--red) !important;
-  font-weight: bold;
-  font-size: var(--fontsize-sm);
-}
-
-.error-text {
-  color: var(--red) !important;
-  margin-top: var(--space-3);
-  font-size: var(--fontsize-sm);
-}
-
-.modal-body .password-group {
-  position: relative;
-  width: 100%;
-}
-
-.modal-body .password-group input {
-  padding-right: var(--space-10) !important;
-}
-
-.modal-body .toggle-password {
-  position: absolute;
-  right: var(--space-3);
-  top: 50%;
-  transform: translateY(-50%);
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: color 0.3s ease;
-  z-index: 10;
-  padding: var(--space-2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-body .toggle-password:hover {
-  color: var(--text-primary);
-}
-
-.forgot-password-container {
-  width: 100%;
-  display: flex;
-  justify-content: flex-end;
-  margin-top: var(--space-2);
-}
-
-.forgot-link {
-  color: var(--color-info);
-  font-size: var(--fontsize-xs);
-  font-weight: 600;
-  text-decoration: none;
-  transition:
-    color 0.2s ease,
-    opacity 0.2s ease;
-}
-
-.forgot-link:hover {
-  color: var(--text-primary);
-  text-decoration: underline;
 }
 </style>

@@ -1,13 +1,15 @@
 <template>
-  <Transition name="slide-over-root">
-    <div v-if="visible" class="modal-wrapper-fixed">
-      <div class="modal-overlay" @click.self="$emit('close')"></div>
-      <form
-        class="modal-content nexo-modal transaction-modal glass"
-        :class="form.type.toLowerCase()"
-        @submit.prevent="$emit('save')"
-      >
-        <h3>{{ form.id ? 'Editar lançamento' : 'Novo lançamento' }}</h3>
+  <BaseModal
+    :model-value="visible"
+    :title="form.id ? 'Editar lançamento' : 'Novo lançamento'"
+    size="md"
+    @close="$emit('close')"
+  >
+    <form
+      class="transaction-form-body"
+      :class="form.type.toLowerCase()"
+      @submit.prevent="$emit('save')"
+    >
         <div class="segmented">
           <button
             type="button"
@@ -83,16 +85,17 @@
           </button>
         </div>
       </form>
-    </div>
-  </Transition>
+  </BaseModal>
 </template>
 
 <script>
+import BaseModal from '@/components/BaseModal.vue'
 import CategoryCombo from '../CategoryCombo.vue'
 
 export default {
   name: 'NexoTransactionModal',
   components: {
+    BaseModal,
     CategoryCombo,
   },
   emits: ['close', 'save', 'update-amount', 'update-field'],
@@ -119,37 +122,10 @@ export default {
 </script>
 
 <style scoped>
-.modal-wrapper-fixed {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-}
-
-.modal-overlay {
-  position: absolute;
-  inset: 0;
-  background: var(--overlay-heavy);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  pointer-events: auto;
-}
-
-.nexo-modal {
-  position: relative;
-  z-index: 1;
-  width: min(500px, 92vw);
-  max-height: min(680px, 90vh);
-  overflow-y: auto;
-  background: var(--surface-0);
-  padding: var(--space-6);
+.transaction-form-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  pointer-events: auto;
-  transition: background var(--transition-base);
 }
 
 .transaction-modal.expense {
