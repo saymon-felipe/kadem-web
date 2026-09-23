@@ -53,6 +53,9 @@
             <font-awesome-icon icon="clipboard" />
             <span>Anotações ({{ notesEventsCount }})</span>
           </button>
+          <button class="filter-pill" :class="{ active: currentFilter === 'CHECKIN' }" type="button" @click="setFilter('CHECKIN')">
+            <font-awesome-icon icon="heart-pulse" /><span>Check-ins ({{ checkinEventsCount }})</span>
+          </button>
         </div>
 
         <button class="primary-action compact-btn" type="button" @click="$emit('new-event')">
@@ -99,6 +102,10 @@
           </div>
           <h4 class="timeline-title">{{ event.title }}</h4>
           <p v-if="event.notes" class="timeline-notes">{{ event.notes }}</p>
+          <div v-if="event.event_type === 'DAILY_CHECKIN'" class="checkin-values">
+            <span v-for="[key, value] in Object.entries(event.values || {})" :key="key">{{ trackerName(key) }}: {{ displayValue(value) }}</span>
+          </div>
+          <button v-if="event.event_type === 'DAILY_CHECKIN'" class="correct-event-btn" type="button" @click="$emit('correct-checkin', event)">Corrigir check-in</button>
           <div v-if="event.quantity !== null && event.quantity !== undefined" class="timeline-qty-wrap">
             <span
               class="qty-tag"
@@ -127,6 +134,7 @@ export default {
       type: Array,
       default: () => [],
     },
+    trackers: { type: Array, default: () => [] },
     formatDate: {
       type: Function,
       required: true,
@@ -136,7 +144,7 @@ export default {
       default: (val) => val,
     },
   },
-  emits: ["new-event", "delete-event"],
+  emits: ["new-event", "delete-event", "correct-checkin"],
   data() {
     return {
       currentFilter: "ALL",
@@ -154,9 +162,10 @@ export default {
     },
     notesEventsCount() {
       return this.events.filter(
-        (e) => ["OBSERVATION", "SUPPLY_ADJUSTED"].includes(e.event_type) || Boolean(e.notes),
+        (e) => e.event_type !== "DAILY_CHECKIN" && (["OBSERVATION", "SUPPLY_ADJUSTED"].includes(e.event_type) || Boolean(e.notes)),
       ).length;
     },
+    checkinEventsCount() { return this.events.filter((event) => event.event_type === "DAILY_CHECKIN").length; },
     filteredEvents() {
       if (this.currentFilter === "SCHEDULE") {
         return this.events.filter((e) => e.event_type === "SCHEDULE_COMPLETED");
@@ -169,9 +178,10 @@ export default {
       }
       if (this.currentFilter === "NOTES") {
         return this.events.filter(
-          (e) => ["OBSERVATION", "SUPPLY_ADJUSTED"].includes(e.event_type) || Boolean(e.notes),
+          (e) => e.event_type !== "DAILY_CHECKIN" && (["OBSERVATION", "SUPPLY_ADJUSTED"].includes(e.event_type) || Boolean(e.notes)),
         );
       }
+      if (this.currentFilter === "CHECKIN") return this.events.filter((event) => event.event_type === "DAILY_CHECKIN");
       return this.events;
     },
     filterLabelName() {
@@ -181,6 +191,7 @@ export default {
         ENTRY: "Entradas",
         USAGE: "Consumos",
         NOTES: "Anotações",
+        CHECKIN: "Check-ins",
       };
       return map[this.currentFilter] || "Filtro";
     },
@@ -222,6 +233,7 @@ export default {
           SUPPLY_CONSUMED: "Consumo / Baixa",
           SUPPLY_ADJUSTED: "Ajuste de Estoque",
           OBSERVATION: "Anotação / Sintoma",
+          DAILY_CHECKIN: "Check-in de Saúde",
         }[event.event_type] || "Evento"
       );
     },
@@ -233,6 +245,7 @@ export default {
           SUPPLY_CONSUMED: "arrow-down",
           SUPPLY_ADJUSTED: "sliders",
           OBSERVATION: "clipboard",
+          DAILY_CHECKIN: "heart-pulse",
         }[event.event_type] || "heart-pulse"
       );
     },
@@ -244,6 +257,7 @@ export default {
           SUPPLY_CONSUMED: "is-usage",
           SUPPLY_ADJUSTED: "is-adjusted",
           OBSERVATION: "is-observation",
+          DAILY_CHECKIN: "is-checkin",
         }[event.event_type] || "is-generic"
       );
     },
@@ -257,6 +271,8 @@ export default {
       if (event.event_type === "SUPPLY_CONSUMED") return "-";
       return "";
     },
+    trackerName(key) { return this.trackers.find((tracker) => tracker.local_key === key)?.name || "Campo arquivado"; },
+    displayValue(value) { return Array.isArray(value) ? value.join(", ") : typeof value === "boolean" ? value ? "Sim" : "Não" : value; },
   },
 };
 </script>
@@ -425,6 +441,8 @@ export default {
   border-color: #8d5fd3;
 }
 
+.timeline-badge.is-checkin { background: rgba(141, 95, 211, .15); color: #8d5fd3; border-color: #8d5fd3; }
+
 .timeline-card {
   flex-grow: 1;
   background: var(--surface-0);
@@ -474,6 +492,7 @@ export default {
 .timeline-item.is-observation .timeline-type {
   color: #8d5fd3;
 }
+.timeline-item.is-checkin .timeline-type { color: #8d5fd3; }
 
 .timeline-time {
   font-size: 0.76rem;
@@ -521,6 +540,9 @@ export default {
   color: var(--text-secondary);
   line-height: 1.45;
 }
+.checkin-values { display: flex; flex-wrap: wrap; gap: 5px; margin-top: var(--space-2); }
+.checkin-values span { padding: 4px 7px; background: var(--surface-2); border-radius: var(--radius-xs); color: var(--text-secondary); font-size: .74rem; }
+.correct-event-btn { border: 0; background: transparent; color: #a871de; padding: 6px 0 0; cursor: pointer; font-weight: 700; font-size: .75rem; }
 
 .timeline-qty-wrap {
   margin-top: var(--space-2);

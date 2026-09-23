@@ -5,6 +5,7 @@ import { api } from "@/plugins/api";
 import { healthRepository } from "@/services/localData/healthRepository";
 import { syncQueueRepository } from "@/services/localData/syncQueueRepository";
 import { syncService } from "@/services/syncService";
+import { DIGESTIVE_WELLBEING_TEMPLATE } from "@/services/healthTrackerTemplates";
 
 export const DEFAULT_HEALTH_UNITS = [
   { value: "comprimidos", label: "Comprimidos (comp)", symbol: "comp", category: "sólido" },
@@ -50,9 +51,13 @@ export const useHealthStore = defineStore("health", () => {
   const objects = computed(() => records.value.filter((record) => record.record_type === "HEALTH_OBJECT"));
   const relations = computed(() => records.value.filter((record) => record.record_type === "OBJECT_RELATION"));
   const events = computed(() =>
-    records.value
-      .filter((record) => record.record_type === "HEALTH_EVENT")
-      .sort((left, right) => new Date(right.occurred_at) - new Date(left.occurred_at)),
+    (() => {
+      const all = records.value.filter((record) => record.record_type === "HEALTH_EVENT");
+      const replaced = new Set(all.map((record) => record.metadata?.replaces_event_key).filter(Boolean));
+      return all
+        .filter((record) => !replaced.has(record.local_key))
+        .sort((left, right) => new Date(right.occurred_at) - new Date(left.occurred_at));
+    })(),
   );
   const widgets = computed(() =>
     records.value
@@ -61,6 +66,9 @@ export const useHealthStore = defineStore("health", () => {
   );
   const schedules = computed(() => objects.value.filter((object) => object.object_type === "SCHEDULE"));
   const supplies = computed(() => objects.value.filter((object) => object.object_type === "SUPPLY"));
+  const trackers = computed(() => objects.value.filter((object) => object.object_type === "TRACKER"));
+  const activeTrackers = computed(() => trackers.value.filter((tracker) => !tracker.archived));
+  const checkins = computed(() => events.value.filter((event) => event.event_type === "DAILY_CHECKIN"));
 
   function currentUserId() {
     const authStore = useAuthStore();
@@ -226,11 +234,98 @@ export const useHealthStore = defineStore("health", () => {
   }
 
   async function addWidget(objectKey) {
-    if (!findObject(objectKey) || widgets.value.some((widget) => widget.object_key === objectKey)) return null;
+    const object = findObject(objectKey);
+    if (!object || widgets.value.some((widget) => widget.object_key === objectKey)) return null;
     return createRecord("OVERVIEW_WIDGET", {
       object_key: objectKey,
-      widget_type: "OBJECT_STATUS",
+      widget_type: object.object_type === "TRACKER" ? "TRACKER_TREND" : "OBJECT_STATUS",
       order: widgets.value.length,
+    });
+  }
+
+  async function createTracker(data) {
+    const name = String(data.name || "").trim();
+    if (!name) throw new Error("Informe o nome do rastreador.");
+    return createRecord("HEALTH_OBJECT", {
+      object_type: "TRACKER",
+      name,
+      group: String(data.group || "Bem-estar").trim(),
+      value_type: data.value_type,
+      min_value: Number(data.min_value ?? 0),
+      max_value: Number(data.max_value ?? 10),
+      unit: String(data.unit || "").trim(),
+      options: Array.isArray(data.options) ? data.options : [],
+      notes: String(data.notes || "").trim(),
+      archived: false,
+      template_key: data.template_key || null,
+    });
+  }
+
+  async function addDigestiveWellbeingTemplate() {
+    const created = [];
+    for (const suggestion of DIGESTIVE_WELLBEING_TEMPLATE) {
+      if (trackers.value.some((tracker) => tracker.template_key === suggestion.template_key)) continue;
+      created.push(await createTracker(suggestion));
+    }
+    return created;
+  }
+
+  async function updateTracker(tracker, data) {
+    if (tracker?.object_type !== "TRACKER") throw new Error("Rastreador inválido.");
+    const name = String(data.name || "").trim();
+    if (!name) throw new Error("Informe o nome do rastreador.");
+    return persist({
+      ...tracker,
+      ...data,
+      name,
+      group: String(data.group || "Bem-estar").trim(),
+      unit: String(data.unit || "").trim(),
+      options: Array.isArray(data.options) ? data.options : [],
+      min_value: Number(data.min_value ?? 0),
+      max_value: Number(data.max_value ?? 10),
+    });
+  }
+
+  async function archiveTracker(tracker) {
+    if (tracker?.object_type !== "TRACKER") throw new Error("Rastreador inválido.");
+    return persist({ ...tracker, archived: true });
+  }
+
+  async function createCheckin(data) {
+    const values = {};
+    const correctedKeys = new Set(Object.keys(records.value.find((event) => event.local_key === data.replaces_event_key)?.values || {}));
+    for (const tracker of trackers.value.filter((item) => !item.archived || correctedKeys.has(item.local_key))) {
+      const value = data.values?.[tracker.local_key];
+      if (value === null || value === undefined || value === "" || (Array.isArray(value) && !value.length)) continue;
+      if (["SCALE", "NUMBER"].includes(tracker.value_type)) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) throw new Error(`Valor inválido em ${tracker.name}.`);
+        if (tracker.value_type === "SCALE" && (numeric < tracker.min_value || numeric > tracker.max_value)) {
+          throw new Error(`Valor fora da escala em ${tracker.name}.`);
+        }
+        values[tracker.local_key] = numeric;
+      } else if (["TAGS", "MULTI"].includes(tracker.value_type)) {
+        values[tracker.local_key] = Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : [];
+      } else if (tracker.value_type === "BOOLEAN") {
+        values[tracker.local_key] = Boolean(value);
+      } else {
+        values[tracker.local_key] = String(value).trim();
+      }
+    }
+    if (!Object.keys(values).length && !String(data.notes || "").trim()) {
+      throw new Error("Preencha ao menos um rastreador ou uma observação.");
+    }
+    const occurredAt = data.occurred_at || now();
+    if (Number.isNaN(new Date(occurredAt).getTime())) throw new Error("Data do check-in inválida.");
+    return createRecord("HEALTH_EVENT", {
+      object_key: null,
+      event_type: "DAILY_CHECKIN",
+      title: data.replaces_event_key ? "Check-in corrigido" : "Check-in de saúde",
+      notes: String(data.notes || "").trim(),
+      quantity: null,
+      occurred_at: occurredAt,
+      values,
+      metadata: data.replaces_event_key ? { replaces_event_key: data.replaces_event_key } : {},
     });
   }
 
@@ -327,6 +422,9 @@ export const useHealthStore = defineStore("health", () => {
     widgets,
     schedules,
     supplies,
+    trackers,
+    activeTrackers,
+    checkins,
     isLoading,
     error,
     loadRecords,
@@ -337,6 +435,11 @@ export const useHealthStore = defineStore("health", () => {
     createObject,
     linkConsumption,
     addWidget,
+    createTracker,
+    addDigestiveWellbeingTemplate,
+    updateTracker,
+    archiveTracker,
+    createCheckin,
     removeWidget,
     deleteEvent,
     createEvent,

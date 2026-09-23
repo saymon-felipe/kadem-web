@@ -34,6 +34,9 @@
         <!-- Aba 0: Visão Geral (Dashboard 2-colunas) -->
         <section class="tab-pane custom-scrollbar" :style="paneStyle">
           <HealthOverviewTab
+            :trackers="trackers"
+            :widgets="widgets"
+            :checkins="checkins"
             :schedules="schedules"
             :supplies="supplies"
             :events="events"
@@ -62,6 +65,7 @@
             @new-schedule="openNewObjectModal('SCHEDULE')"
             @new-supply="openNewObjectModal('SUPPLY')"
             @new-event="openNewActionModal('OBSERVATION')"
+            @view-tracking="activeTab = 'tracking'"
           />
         </section>
 
@@ -115,14 +119,36 @@
           />
         </section>
 
-        <!-- Aba 3: Linha do Tempo (Ledger Completo) -->
+        <!-- Aba 3: Acompanhamento pessoal -->
+        <section class="tab-pane custom-scrollbar" :style="paneStyle">
+          <HealthTrackingTab
+            :trackers="trackers"
+            :checkins="checkins"
+            :widgets="widgets"
+            :format-date="formatDate"
+            :loading-template="isAddingTemplate"
+            :error="trackingError"
+            @new-tracker="openTrackerModal()"
+            @edit-tracker="openTrackerModal"
+            @archive-tracker="requestArchiveTracker"
+            @new-checkin="openCheckinModal()"
+            @correct-checkin="openCheckinModal"
+            @pin-tracker="pinTracker"
+            @unpin-tracker="unpinTracker"
+            @add-template="addTemplate"
+          />
+        </section>
+
+        <!-- Aba 4: Linha do Tempo (Ledger Completo) -->
         <section class="tab-pane custom-scrollbar" :style="paneStyle">
           <HealthActivityTab
             :events="events"
+            :trackers="trackers"
             :format-date="formatDate"
             :format-number="formatNumber"
             @new-event="openNewActionModal('OBSERVATION')"
             @delete-event="requestDeleteEvent"
+            @correct-checkin="openCheckinModal"
           />
         </section>
       </div>
@@ -167,6 +193,11 @@
       @submit="submitRelation"
     />
 
+    <HealthTrackerModal :visible="showTrackerModal" :tracker="trackerBeingEdited" :loading="isSubmittingTracker" :error="trackerError" @close="showTrackerModal = false" @submit="submitTracker" />
+    <HealthCheckinModal :visible="showCheckinModal" :trackers="checkinTrackers" :event="checkinBeingCorrected" :loading="isSubmittingCheckin" :error="checkinError" @close="showCheckinModal = false" @submit="submitCheckin" />
+
+    <ConfirmationModal :model-value="showArchiveTrackerConfirmation" message="Arquivar este rastreador?" description="Ele sairá dos próximos check-ins. Seus registros anteriores continuarão no histórico e nas análises." confirm-text="Confirmar" @cancelled="cancelArchiveTracker" @confirmed="confirmArchiveTracker" />
+
     <ConfirmationModal
       :model-value="showDeleteEventConfirmation"
       message="Excluir esta movimentação?"
@@ -190,6 +221,9 @@ import HealthActivityTab from "@/components/health/HealthActivityTab.vue";
 import HealthActionModal from "@/components/health/HealthActionModal.vue";
 import HealthObjectModal from "@/components/health/HealthObjectModal.vue";
 import HealthRelationModal from "@/components/health/HealthRelationModal.vue";
+import HealthTrackerModal from "@/components/health/HealthTrackerModal.vue";
+import HealthCheckinModal from "@/components/health/HealthCheckinModal.vue";
+import HealthTrackingTab from "@/components/health/HealthTrackingTab.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 
 export default {
@@ -203,6 +237,9 @@ export default {
     HealthActionModal,
     HealthObjectModal,
     HealthRelationModal,
+    HealthTrackerModal,
+    HealthCheckinModal,
+    HealthTrackingTab,
     ConfirmationModal,
   },
   data() {
@@ -227,6 +264,18 @@ export default {
 
       showDeleteEventConfirmation: false,
       eventPendingDeletion: null,
+      showTrackerModal: false,
+      trackerBeingEdited: null,
+      isSubmittingTracker: false,
+      trackerError: "",
+      showCheckinModal: false,
+      checkinBeingCorrected: null,
+      isSubmittingCheckin: false,
+      checkinError: "",
+      isAddingTemplate: false,
+      trackingError: "",
+      showArchiveTrackerConfirmation: false,
+      trackerPendingArchive: null,
     };
   },
   computed: {
@@ -237,6 +286,9 @@ export default {
       "widgets",
       "schedules",
       "supplies",
+      "trackers",
+      "activeTrackers",
+      "checkins",
       "isLoading",
       "error",
     ]),
@@ -254,6 +306,12 @@ export default {
           label: "Insumos & Estoque",
           icon: "boxes-stacked",
           badge: this.supplies.length || undefined,
+        },
+        {
+          id: "tracking",
+          label: "Acompanhamento",
+          icon: "heart-pulse",
+          badge: this.checkins.length || undefined,
         },
         {
           id: "timeline",
@@ -277,6 +335,11 @@ export default {
     paneStyle() {
       const size = `${100 / this.computedTabs.length}%`;
       return { width: size, flexBasis: size };
+    },
+    checkinTrackers() {
+      if (!this.checkinBeingCorrected) return this.activeTrackers;
+      const recorded = new Set(Object.keys(this.checkinBeingCorrected.values || {}));
+      return this.trackers.filter((tracker) => !tracker.archived || recorded.has(tracker.local_key));
     },
     nextDueSchedule() {
       if (!this.schedules.length) return null;
@@ -315,6 +378,11 @@ export default {
       "linkConsumption",
       "addWidget",
       "removeWidget",
+      "createTracker",
+      "updateTracker",
+      "archiveTracker",
+      "createCheckin",
+      "addDigestiveWellbeingTemplate",
       "deleteEvent",
       "createEvent",
       "recordSupplyMovement",
@@ -436,6 +504,62 @@ export default {
       this.actionModalKey = "";
       this.actionError = "";
       this.showActionModal = true;
+    },
+    openTrackerModal(tracker = null) {
+      this.trackerBeingEdited = tracker;
+      this.trackerError = "";
+      this.showTrackerModal = true;
+    },
+    openCheckinModal(event = null) {
+      this.checkinBeingCorrected = event;
+      this.checkinError = "";
+      this.showCheckinModal = true;
+    },
+    async submitTracker(data) {
+      this.isSubmittingTracker = true;
+      this.trackerError = "";
+      try {
+        if (this.trackerBeingEdited) await this.updateTracker(this.trackerBeingEdited, data);
+        else await this.createTracker(data);
+        this.showTrackerModal = false;
+      } catch (error) { this.trackerError = error.message || "Não foi possível salvar o rastreador."; }
+      finally { this.isSubmittingTracker = false; }
+    },
+    async submitCheckin(data) {
+      this.isSubmittingCheckin = true;
+      this.checkinError = "";
+      try { await this.createCheckin(data); this.showCheckinModal = false; }
+      catch (error) { this.checkinError = error.message || "Não foi possível salvar o check-in."; }
+      finally { this.isSubmittingCheckin = false; }
+    },
+    async addTemplate() {
+      this.isAddingTemplate = true;
+      this.trackingError = "";
+      try { await this.addDigestiveWellbeingTemplate(); }
+      catch (error) { this.trackingError = error.message || "Não foi possível adicionar o modelo."; }
+      finally { this.isAddingTemplate = false; }
+    },
+    async pinTracker(tracker) {
+      this.trackingError = "";
+      try { await this.addWidget(tracker.local_key); }
+      catch (error) { this.trackingError = error.message || "Não foi possível fixar o rastreador."; }
+    },
+    async unpinTracker(tracker) {
+      const widget = this.widgets.find((item) => item.object_key === tracker.local_key);
+      if (!widget) return;
+      this.trackingError = "";
+      try { await this.removeWidget(widget); }
+      catch (error) { this.trackingError = error.message || "Não foi possível desafixar o rastreador."; }
+    },
+    requestArchiveTracker(tracker) { this.trackerPendingArchive = tracker; this.showArchiveTrackerConfirmation = true; },
+    cancelArchiveTracker() { this.trackerPendingArchive = null; this.showArchiveTrackerConfirmation = false; },
+    async confirmArchiveTracker() {
+      const tracker = this.trackerPendingArchive;
+      this.cancelArchiveTracker();
+      if (!tracker) return;
+      this.trackingError = "";
+      try { await this.archiveTracker(tracker); }
+      catch (error) { this.trackingError = error.message || "Não foi possível arquivar o rastreador."; }
     },
     requestDeleteEvent(event) {
       this.eventPendingDeletion = event;

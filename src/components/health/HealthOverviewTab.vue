@@ -1,5 +1,6 @@
 <template>
   <div class="health-overview-tab">
+    <HealthTrackingOverview :trackers="trackers" :widgets="widgets" :checkins="checkins" @view-tracking="$emit('view-tracking')" />
     <!-- Faixa de Métricas (KPI Ribbon) -->
     <HealthSummaryCards
       :next-due-category="nextDueSchedule"
@@ -71,6 +72,7 @@ import HealthUpcomingSchedules from "./HealthUpcomingSchedules.vue";
 import HealthStockMonitor from "./HealthStockMonitor.vue";
 import HealthStatusDonut from "./HealthStatusDonut.vue";
 import HealthRecentEvents from "./HealthRecentEvents.vue";
+import HealthTrackingOverview from "./HealthTrackingOverview.vue";
 
 export default {
   name: "HealthOverviewTab",
@@ -80,8 +82,12 @@ export default {
     HealthStockMonitor,
     HealthStatusDonut,
     HealthRecentEvents,
+    HealthTrackingOverview,
   },
   props: {
+    trackers: { type: Array, default: () => [] },
+    widgets: { type: Array, default: () => [] },
+    checkins: { type: Array, default: () => [] },
     schedules: {
       type: Array,
       default: () => [],
@@ -169,6 +175,7 @@ export default {
     "new-schedule",
     "new-supply",
     "new-event",
+    "view-tracking",
   ],
 };
 </script>
