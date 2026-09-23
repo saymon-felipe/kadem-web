@@ -7,3 +7,4 @@ export * from './accountsRepository';
 export * from './kanbanRepository';
 export * from './radioRepository';
 export * from './financeRepository';
+export * from './healthRepository';

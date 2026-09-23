@@ -24,6 +24,14 @@
           <p>Gerenciamento de finanças</p>
         </div>
 
+        <div class="app-card" @click="open_app('kadem_health')">
+          <div class="icon-wrapper gradient-health">
+            <font-awesome-icon icon="heart-pulse" />
+          </div>
+          <span>Health</span>
+          <p>Hub de saúde</p>
+        </div>
+
         <div class="app-card disabled">
           <div class="icon-wrapper gradient-gray">
             <font-awesome-icon icon="list-check" />
@@ -49,6 +57,7 @@
         v-show="active_app === 'radio_flow'"
       />
       <KademNexo v-if="active_app === 'kadem_nexo'" />
+      <HealthWindow v-if="active_app === 'kadem_health'" />
     </div>
   </div>
 </template>
@@ -59,9 +68,10 @@ import { usePlayerStore } from "@/stores/player";
 import { useWindowStore } from "@/stores/windows"; // Necessário para verificar estado da janela
 import RadioFlow from "../radio/RadioFlow.vue";
 import KademNexo from "../finance/KademNexo.vue";
+import HealthWindow from "./HealthWindow.vue";
 
 export default {
-  components: { RadioFlow, KademNexo },
+  components: { RadioFlow, KademNexo, HealthWindow },
   props: ["windowId"], // Recebe o ID da janela do BaseWindow
   data() {
     return {
@@ -198,6 +208,9 @@ export default {
 }
 .gradient-blue {
   background: var(--deep-blue-gradient-right);
+}
+.gradient-health {
+  background: linear-gradient(135deg, #e25373, #8d5fd3);
 }
 .gradient-gray {
   background: var(--gray-300);

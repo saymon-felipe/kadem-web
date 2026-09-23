@@ -4,7 +4,7 @@
       type="button"
       ref="triggerBtn"
       class="dropdown-trigger"
-      :class="{ 'is-open': is_open, 'has-active-value': modelValue && modelValue !== 'all' }"
+      :class="{ 'is-open': is_open, 'has-active-value': modelValue && modelValue !== 'all', 'size-md': size === 'md' }"
       @click.stop="toggle"
       :title="selected_label"
     >
@@ -23,7 +23,7 @@
           class="item-color-dot"
           :style="{ backgroundColor: selected_option.color }"
         ></span>
-        <span class="trigger-text">{{ selected_label }}</span>
+        <span class="trigger-text" :class="{ 'is-placeholder': !selected_option }">{{ selected_label }}</span>
       </div>
       <font-awesome-icon
         icon="chevron-down"
@@ -38,6 +38,7 @@
           v-if="is_open"
           ref="dropdownMenu"
           class="searchable-dropdown-menu"
+          :class="{ 'size-md': size === 'md' }"
           :style="menu_style"
           v-click-outside="handle_click_outside"
         >
@@ -127,6 +128,11 @@ export default {
     placeholder: {
       type: String,
       default: "Selecione...",
+    },
+    size: {
+      type: String,
+      default: "sm",
+      validator: (v) => ["sm", "md"].includes(v),
     },
   },
   emits: ["update:modelValue", "change"],
@@ -356,6 +362,27 @@ export default {
   border-radius: 50%;
   flex-shrink: 0;
 }
+
+.dropdown-trigger.size-md {
+  min-height: 42px;
+  height: 42px;
+  padding: 0 14px;
+  font-size: 0.9rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-1);
+}
+
+.dropdown-trigger.size-md .trigger-arrow {
+  font-size: 11px;
+}
+
+.dropdown-trigger.size-md .trigger-content {
+  gap: 8px;
+}
+
+.trigger-text.is-placeholder {
+  color: var(--text-muted);
+}
 </style>
 
 <style>
@@ -500,5 +527,26 @@ export default {
 .dropdown-pop-leave-to {
   opacity: 0;
   transform: scale(0.96) translateY(-4px);
+}
+
+.searchable-dropdown-menu.size-md .dropdown-item-row {
+  padding: 8px 12px;
+  min-height: 38px;
+  font-size: 0.88rem;
+}
+
+.searchable-dropdown-menu.size-md .dropdown-search-header {
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  padding: 6px 12px;
+}
+
+.searchable-dropdown-menu.size-md .dropdown-search-field {
+  font-size: 0.88rem !important;
+}
+
+.searchable-dropdown-menu.size-md .search-input-icon {
+  font-size: 12px;
 }
 </style>

@@ -64,6 +64,18 @@ const SCHEMA_V19 = {
   global_video_cache: "&youtube_id, created_at",
 };
 
+// Health records are local-first and scoped to their signed-in owner.
+const SCHEMA_V20 = {
+  ...SCHEMA_V19,
+  health_records: "++local_id, &local_key, user_id, updated_at",
+};
+
+const SCHEMA_V21 = {
+  ...SCHEMA_V20,
+  health_records: "++local_id, &local_key, user_id, id, updated_at, pending_sync, deleted_at",
+  health_sync_state: "&user_id, cursor, updated_at",
+};
+
 export const db = new Dexie("KademDB");
 
 db.version(5).stores(SCHEMA_V5);
@@ -78,6 +90,8 @@ db.version(16).stores(SCHEMA_V14);
 db.version(17).stores(SCHEMA_V14);
 db.version(18).stores(SCHEMA_V14);
 db.version(19).stores(SCHEMA_V19);
+db.version(20).stores(SCHEMA_V20);
+db.version(21).stores(SCHEMA_V21);
 
 let dbOpenPromise = null;
 

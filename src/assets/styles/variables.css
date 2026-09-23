@@ -42,8 +42,8 @@
 
   /* ---- Semantic Text ---- */
   --text-primary: var(--deep-blue);
-  --text-secondary: var(--gray-100);
-  --text-muted: var(--gray-300);
+  --text-secondary: #475569;
+  --text-muted: #64748b;
 
   /* ---- Surface Layers ---- */
   --surface-0: #ffffff;
@@ -173,8 +173,8 @@
 
   /* ---- Semantic Text ---- */
   --text-primary: #c5cae9;
-  --text-secondary: #8890a8;
-  --text-muted: #5a6078;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
 
   /* ---- Surface Layers (dark) ---- */
   --surface-0: #14172a;

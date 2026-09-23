@@ -24,6 +24,28 @@ export const syncQueueRepository = {
     const tasks = await this.getPendingTasks();
     return tasks.filter((task) => task.type === type);
   },
+  async reviveFailedTasks(type, predicate = () => true) {
+    return runDbOperation(async () => {
+      const failedTasks = await db.syncQueue.where("type").equals(type).toArray();
+      const recoverable = failedTasks.filter(
+        (task) => task.status === "FAILED" && predicate(task),
+      );
+      const retryAt = new Date().toISOString();
+      await Promise.all(
+        recoverable.map((task) =>
+          db.syncQueue.update(task.id, {
+            status: "PENDING",
+            retry_count: 0,
+            next_attempt_at: retryAt,
+            last_error: null,
+          }),
+        ),
+      );
+      return recoverable.length;
+    }, {
+      userMessage: "Não foi possível recuperar tarefas antigas de sincronização.",
+    });
+  },
   async addSyncQueueTask(task) {
     return runDbOperation(async () => {
       const timestamp = task.timestamp || new Date().toISOString();

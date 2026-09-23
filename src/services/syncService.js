@@ -9,6 +9,7 @@ import {
   accountsRepository,
   radioRepository,
   financeRepository,
+  healthRepository,
 } from "./localData";
 
 import { useProjectStore } from "../stores/projects";
@@ -1168,11 +1169,106 @@ async function _handleFinanceTask(task) {
   }
 }
 
+const sanitizeHealthData = (data = {}) => {
+  const internalKeys = new Set(["id", "local_id", "local_key", "user_id", "pending_sync", "deleted_at", "server_updated_at"]);
+  return Object.fromEntries(Object.entries(data).filter(([key]) => !internalKeys.has(key)));
+};
+
+const HEALTH_RECORD_TYPES = new Set(["HEALTH_OBJECT", "OBJECT_RELATION", "HEALTH_EVENT", "OVERVIEW_WIDGET"]);
+
+async function normalizeHealthUpsertTask(task) {
+  const payload = task.payload || {};
+  let localRecord = null;
+  if (payload.local_id) localRecord = await db.health_records.get(payload.local_id);
+  if (!localRecord && payload.local_key) {
+    localRecord = await db.health_records.where("local_key").equals(payload.local_key).first();
+  }
+
+  // Queues created during the Health rollout may have stored the whole record
+  // under `record`/`data`, before record_type became an explicit task field.
+  const legacyRecord = payload.record || payload.data || localRecord || {};
+  const recordType = [payload.record_type, legacyRecord.record_type, localRecord?.record_type].find((value) =>
+    HEALTH_RECORD_TYPES.has(value),
+  );
+  const normalized = {
+    ...payload,
+    local_id: payload.local_id || localRecord?.local_id,
+    local_key: payload.local_key || legacyRecord.local_key || localRecord?.local_key,
+    record_type: recordType,
+    data: sanitizeHealthData(payload.data?.record_type ? payload.data : legacyRecord),
+    updated_at: payload.updated_at || legacyRecord.updated_at || localRecord?.updated_at,
+  };
+
+  if (!normalized.local_key || !normalized.record_type || !normalized.updated_at) {
+    throw new Error("HEALTH_INVALID_QUEUE_ITEM: tarefa sem dados suficientes para sincronizar.");
+  }
+
+  if (
+    normalized.local_id !== payload.local_id
+    || normalized.local_key !== payload.local_key
+    || normalized.record_type !== payload.record_type
+    || normalized.updated_at !== payload.updated_at
+    || !payload.data
+  ) {
+    await syncQueueRepository.updateTask(task.id, { payload: normalized });
+  }
+  return normalized;
+}
+
+async function _handleHealthTask(task) {
+  if (task.type === "UPSERT_HEALTH_RECORD") {
+    const payload = await normalizeHealthUpsertTask(task);
+    const response = await api.post("/health/records", {
+      local_key: payload.local_key,
+      record_type: payload.record_type,
+      data: sanitizeHealthData(payload.data),
+      updated_at: payload.updated_at,
+      idempotency_key: task.idempotency_key,
+    });
+    await healthRepository.markRecordSynced(payload.local_key, response.data.record);
+    return;
+  }
+
+  if (task.type === "DELETE_HEALTH_RECORD") {
+    const { payload } = task;
+    const response = await api.delete("/health/records", {
+      data: {
+        local_key: payload.local_key,
+        updated_at: payload.updated_at,
+        idempotency_key: task.idempotency_key,
+      },
+    });
+    await healthRepository.resolveDeletedRecord(payload.local_key, response.data.record || null);
+    return;
+  }
+
+  throw new Error(`Tarefa Health desconhecida: ${task.type}`);
+}
+
+async function syncHealthDelta() {
+  const authStore = useAuthStore();
+  const userId = authStore.user?.id;
+  if (!userId) return;
+
+  let cursor = await healthRepository.getSyncCursor(String(userId));
+  let hasMore = true;
+  while (hasMore) {
+    const response = await api.get("/health/sync", { params: { cursor, limit: 250 } });
+    const payload = response.data || {};
+    const nextCursor = Number(payload.next_cursor ?? cursor);
+    await healthRepository.applyServerChanges(String(userId), payload.changes || [], nextCursor);
+    cursor = nextCursor;
+    hasMore = Boolean(payload.has_more);
+  }
+}
+
 async function processTaskItem(task) {
   if (task.type === "DOWNLOAD_LYRICS") {
     await _handleDownloadLyricsTask(task);
   } else if (task.type.includes("FINANCE")) {
     await _handleFinanceTask(task);
+  } else if (task.type.includes("HEALTH")) {
+    await _handleHealthTask(task);
   } else if (
     ["CREATE_PROJECT", "DELETE_PROJECT", "REMOVE_PROJECT_MEMBER", "REVOKE_PROJECT_INVITE"].includes(task.type)
   ) {
@@ -1233,9 +1329,19 @@ export const syncService = {
           SAVE_FINANCE_BUDGETS: 11,
           CREATE_FINANCE_INVESTMENT_EVENT: 12,
         };
+        const healthTaskOrder = (task) => {
+          if (task.type === "DELETE_HEALTH_RECORD") return 17;
+          if (task.type !== "UPSERT_HEALTH_RECORD") return null;
+          return {
+            HEALTH_OBJECT: 13,
+            OBJECT_RELATION: 14,
+            OVERVIEW_WIDGET: 15,
+            HEALTH_EVENT: 16,
+          }[task.payload?.record_type] || 16;
+        };
         const sortedTasks = individualTasks.sort((a, b) => {
-          const orderA = creationOrder[a.type] || 10;
-          const orderB = creationOrder[b.type] || 10;
+          const orderA = healthTaskOrder(a) || creationOrder[a.type] || 10;
+          const orderB = healthTaskOrder(b) || creationOrder[b.type] || 10;
           if (orderA !== orderB) return orderA - orderB;
           return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
         });
@@ -1307,6 +1413,7 @@ export const syncService = {
           if (remainingTasks.length === sortedTasks.length) break;
         }
       }
+      await syncHealthDelta();
     } catch (globalError) {
       console.error("[SyncService] Erro Crítico na Fila:", globalError);
     } finally {
