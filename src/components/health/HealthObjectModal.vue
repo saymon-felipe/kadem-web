@@ -2,7 +2,7 @@
   <BaseModal
     :model-value="visible"
     title="Novo Objeto de Saúde"
-    size="md"
+    size="lg"
     @update:model-value="val => { if (!val) $emit('close'); }"
     @close="$emit('close')"
   >

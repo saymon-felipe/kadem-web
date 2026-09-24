@@ -25,6 +25,14 @@ export const DEFAULT_HEALTH_UNITS = [
   { value: "unidades", label: "Unidades (un)", symbol: "un", category: "geral" },
 ];
 
+export const DEFAULT_TRACKER_GROUPS = [
+  { name: "Bem-estar", description: "Disposição geral, energia e vitalidade", icon: "heart", color: "#e25373" },
+  { name: "Sintomas", description: "Dores, desconfortos e ocorrências", icon: "triangle-exclamation", color: "#f59e0b" },
+  { name: "Hábitos", description: "Sono, alimentação, hidratação e rotina", icon: "mug-saucer", color: "#10b981" },
+  { name: "Digestão", description: "Trânsito intestinal e digestivo", icon: "shield-halved", color: "#8d5fd3" },
+  { name: "Aspectos físicos", description: "Pele, peso, pressão, estoma e corpo", icon: "user", color: "#3b82f6" },
+];
+
 const now = () => new Date().toISOString();
 const localKey = (prefix) => prefix + "-" + (crypto.randomUUID?.() || Date.now() + "-" + Math.random());
 const controlFields = new Set(["id", "local_id", "local_key", "user_id", "pending_sync", "deleted_at", "server_updated_at"]);
@@ -68,6 +76,18 @@ export const useHealthStore = defineStore("health", () => {
   const supplies = computed(() => objects.value.filter((object) => object.object_type === "SUPPLY"));
   const trackers = computed(() => objects.value.filter((object) => object.object_type === "TRACKER"));
   const activeTrackers = computed(() => trackers.value.filter((tracker) => !tracker.archived));
+  const trackerGroups = computed(() => {
+    const custom = objects.value.filter((object) => object.object_type === "TRACKER_GROUP");
+    if (custom.length) return custom;
+    return DEFAULT_TRACKER_GROUPS.map((g, index) => ({
+      local_key: `default-group-${index}`,
+      object_type: "TRACKER_GROUP",
+      name: g.name,
+      description: g.description,
+      icon: g.icon,
+      color: g.color,
+    }));
+  });
   const checkins = computed(() => events.value.filter((event) => event.event_type === "DAILY_CHECKIN"));
 
   function currentUserId() {
@@ -110,7 +130,8 @@ export const useHealthStore = defineStore("health", () => {
   }
 
   async function persist(record) {
-    const saved = { ...record, user_id: currentUserId(), pending_sync: true, deleted_at: null, updated_at: now() };
+    const raw = { ...record, user_id: currentUserId(), pending_sync: true, deleted_at: null, updated_at: now() };
+    const saved = JSON.parse(JSON.stringify(raw));
     const localId = await healthRepository.saveRecord(saved);
     const normalized = { ...saved, local_id: localId };
     const index = records.value.findIndex((item) => item.local_key === normalized.local_key);
@@ -155,6 +176,7 @@ export const useHealthStore = defineStore("health", () => {
       );
       await syncService.processSyncQueue();
       records.value = (await healthRepository.getRecords(currentUserId())).filter((record) => record.record_type);
+      await ensureDefaultTrackerGroups();
     } catch (loadError) {
       error.value = loadError.message || "Não foi possível abrir os dados de saúde.";
       throw loadError;
@@ -291,6 +313,113 @@ export const useHealthStore = defineStore("health", () => {
     return persist({ ...tracker, archived: true });
   }
 
+  async function ensureDefaultTrackerGroups() {
+    const existing = objects.value.filter((o) => o.object_type === "TRACKER_GROUP");
+    const existingNames = new Set(existing.map((g) => (g.name || "").toLowerCase().trim()));
+
+    for (const def of DEFAULT_TRACKER_GROUPS) {
+      if (!existingNames.has(def.name.toLowerCase().trim())) {
+        await createRecord("HEALTH_OBJECT", {
+          object_type: "TRACKER_GROUP",
+          name: def.name,
+          description: def.description,
+          icon: def.icon,
+          color: def.color,
+        });
+        existingNames.add(def.name.toLowerCase().trim());
+      }
+    }
+
+    for (const tracker of trackers.value) {
+      const groupName = (tracker.group || "").trim();
+      if (groupName && !existingNames.has(groupName.toLowerCase())) {
+        await createRecord("HEALTH_OBJECT", {
+          object_type: "TRACKER_GROUP",
+          name: groupName,
+          description: `Rastreadores de ${groupName}`,
+          icon: "folder",
+          color: "#8d5fd3",
+        });
+        existingNames.add(groupName.toLowerCase());
+      }
+    }
+  }
+
+  async function createTrackerGroup(data) {
+    const name = String(data.name || "").trim();
+    if (!name) throw new Error("Informe o nome do grupo.");
+    const existing = objects.value.find(
+      (o) => o.object_type === "TRACKER_GROUP" && (o.name || "").toLowerCase().trim() === name.toLowerCase(),
+    );
+    if (existing) throw new Error("Já existe um grupo com este nome.");
+
+    return createRecord("HEALTH_OBJECT", {
+      object_type: "TRACKER_GROUP",
+      name,
+      description: String(data.description || "").trim(),
+      icon: data.icon || "folder",
+      color: data.color || "#8d5fd3",
+    });
+  }
+
+  async function updateTrackerGroup(group, data) {
+    if (group?.object_type !== "TRACKER_GROUP") throw new Error("Grupo inválido.");
+    const newName = String(data.name || "").trim();
+    if (!newName) throw new Error("Informe o nome do grupo.");
+
+    const oldName = (group.name || "").trim();
+    const nameChanged = oldName.toLowerCase() !== newName.toLowerCase();
+
+    if (nameChanged) {
+      const conflict = objects.value.find(
+        (o) =>
+          o.object_type === "TRACKER_GROUP" &&
+          o.local_key !== group.local_key &&
+          (o.name || "").toLowerCase().trim() === newName.toLowerCase(),
+      );
+      if (conflict) throw new Error("Já existe um grupo com este nome.");
+    }
+
+    const updatedGroup = await persist({
+      ...group,
+      name: newName,
+      description: String(data.description !== undefined ? data.description : group.description || "").trim(),
+      icon: data.icon || group.icon || "folder",
+      color: data.color || group.color || "#8d5fd3",
+    });
+
+    if (nameChanged) {
+      const affectedTrackers = trackers.value.filter(
+        (t) => (t.group || "").trim().toLowerCase() === oldName.toLowerCase(),
+      );
+      for (const tracker of affectedTrackers) {
+        await persist({
+          ...tracker,
+          group: newName,
+        });
+      }
+    }
+
+    return updatedGroup;
+  }
+
+  async function deleteTrackerGroup(group, fallbackGroupName = "Bem-estar") {
+    if (group?.object_type !== "TRACKER_GROUP") throw new Error("Grupo inválido.");
+    const groupName = (group.name || "").trim();
+
+    const affectedTrackers = trackers.value.filter(
+      (t) => (t.group || "").trim().toLowerCase() === groupName.toLowerCase(),
+    );
+    for (const tracker of affectedTrackers) {
+      await persist({
+        ...tracker,
+        group: fallbackGroupName,
+      });
+    }
+
+    return deleteRecord(group);
+  }
+
   async function createCheckin(data) {
     const values = {};
     const correctedKeys = new Set(Object.keys(records.value.find((event) => event.local_key === data.replaces_event_key)?.values || {}));
@@ -424,6 +553,7 @@ export const useHealthStore = defineStore("health", () => {
     supplies,
     trackers,
     activeTrackers,
+    trackerGroups,
     checkins,
     isLoading,
     error,
@@ -439,6 +569,10 @@ export const useHealthStore = defineStore("health", () => {
     addDigestiveWellbeingTemplate,
     updateTracker,
     archiveTracker,
+    ensureDefaultTrackerGroups,
+    createTrackerGroup,
+    updateTrackerGroup,
+    deleteTrackerGroup,
     createCheckin,
     removeWidget,
     deleteEvent,

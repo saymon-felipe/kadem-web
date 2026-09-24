@@ -17,4 +17,9 @@ export const healthAiService = {
     const response = await api.post("/health/insights/explain", payload);
     return response.data;
   },
+
+  async getAiUsage() {
+    const response = await api.get("/health/ai/usage");
+    return response.data;
+  },
 };

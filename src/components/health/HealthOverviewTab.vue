@@ -1,6 +1,12 @@
 <template>
   <div class="health-overview-tab">
-    <HealthTrackingOverview :trackers="trackers" :widgets="widgets" :checkins="checkins" @view-tracking="$emit('view-tracking')" />
+    <HealthTrackingOverview
+      :trackers="trackers"
+      :checkins="checkins"
+      :groups="groups"
+      @view-tracking="$emit('view-tracking')"
+      @new-checkin="$emit('new-checkin')"
+    />
     <!-- Faixa de Métricas (KPI Ribbon) -->
     <HealthSummaryCards
       :next-due-category="nextDueSchedule"
@@ -88,6 +94,7 @@ export default {
     trackers: { type: Array, default: () => [] },
     widgets: { type: Array, default: () => [] },
     checkins: { type: Array, default: () => [] },
+    groups: { type: Array, default: () => [] },
     schedules: {
       type: Array,
       default: () => [],
@@ -176,6 +183,7 @@ export default {
     "new-supply",
     "new-event",
     "view-tracking",
+    "new-checkin",
   ],
 };
 </script>

@@ -37,6 +37,7 @@
             :trackers="trackers"
             :widgets="widgets"
             :checkins="checkins"
+            :groups="trackerGroups"
             :schedules="schedules"
             :supplies="supplies"
             :events="events"
@@ -66,6 +67,7 @@
             @new-supply="openNewObjectModal('SUPPLY')"
             @new-event="openNewActionModal('OBSERVATION')"
             @view-tracking="activeTab = 'tracking'"
+            @new-checkin="openCheckinModal()"
           />
         </section>
 
@@ -123,6 +125,7 @@
         <section class="tab-pane custom-scrollbar" :style="paneStyle">
           <HealthTrackingTab
             :trackers="trackers"
+            :groups="trackerGroups"
             :checkins="checkins"
             :widgets="widgets"
             :format-date="formatDate"
@@ -133,8 +136,9 @@
             @archive-tracker="requestArchiveTracker"
             @new-checkin="openCheckinModal()"
             @correct-checkin="openCheckinModal"
-            @pin-tracker="pinTracker"
-            @unpin-tracker="unpinTracker"
+            @new-group="openTrackerGroupModal()"
+            @edit-group="openTrackerGroupModal"
+            @delete-group="requestDeleteTrackerGroup"
             @add-template="addTemplate"
           />
         </section>
@@ -149,6 +153,19 @@
             @new-event="openNewActionModal('OBSERVATION')"
             @delete-event="requestDeleteEvent"
             @correct-checkin="openCheckinModal"
+          />
+        </section>
+
+        <!-- Aba 5: IA de Saúde & Créditos -->
+        <section class="tab-pane custom-scrollbar" :style="paneStyle">
+          <HealthAiTab
+            :can-use-ai="canUseAi"
+            :usage="aiUsage"
+            :month-label="currentMonthLabel"
+            :loading="isLoadingAiUsage"
+            @upgrade="showPlanModal = true"
+            @refresh="loadAiUsage"
+            @navigate="activeTab = $event"
           />
         </section>
       </div>
@@ -193,10 +210,35 @@
       @submit="submitRelation"
     />
 
-    <HealthTrackerModal :visible="showTrackerModal" :tracker="trackerBeingEdited" :loading="isSubmittingTracker" :error="trackerError" @close="showTrackerModal = false" @submit="submitTracker" />
+    <HealthTrackerModal
+      :visible="showTrackerModal"
+      :tracker="trackerBeingEdited"
+      :groups="trackerGroups"
+      :loading="isSubmittingTracker"
+      :error="trackerError"
+      @close="showTrackerModal = false"
+      @submit="submitTracker"
+      @new-group="openTrackerGroupModal()"
+    />
+    <HealthTrackerGroupModal
+      :visible="showTrackerGroupModal"
+      :group="groupBeingEdited"
+      :loading="isSubmittingTrackerGroup"
+      :error="trackerGroupError"
+      @close="showTrackerGroupModal = false"
+      @submit="submitTrackerGroup"
+    />
     <HealthCheckinModal :visible="showCheckinModal" :trackers="checkinTrackers" :event="checkinBeingCorrected" :loading="isSubmittingCheckin" :error="checkinError" @close="showCheckinModal = false" @submit="submitCheckin" />
 
     <ConfirmationModal :model-value="showArchiveTrackerConfirmation" message="Arquivar este rastreador?" description="Ele sairá dos próximos check-ins. Seus registros anteriores continuarão no histórico e nas análises." confirm-text="Confirmar" @cancelled="cancelArchiveTracker" @confirmed="confirmArchiveTracker" />
+    <ConfirmationModal
+      :model-value="showDeleteTrackerGroupConfirmation"
+      message="Excluir este grupo de rastreadores?"
+      :description="deleteGroupDescription"
+      confirm-text="Excluir Grupo"
+      @cancelled="cancelDeleteTrackerGroup"
+      @confirmed="confirmDeleteTrackerGroup"
+    />
 
     <ConfirmationModal
       :model-value="showDeleteEventConfirmation"
@@ -206,12 +248,20 @@
       @cancelled="cancelDeleteEvent"
       @confirmed="confirmDeleteEvent"
     />
+
+    <SubscriptionModal
+      v-model="showPlanModal"
+      @close="showPlanModal = false"
+    />
   </div>
 </template>
 
 <script>
 import { mapState, mapActions } from "pinia";
 import { useHealthStore } from "@/stores/health";
+import { useAuthStore } from "@/stores/auth";
+import { getPlanLimits } from "@/services/subscription_plans";
+import { healthAiService } from "@/services/healthAiService";
 
 import HealthHeader from "@/components/health/HealthHeader.vue";
 import HealthTabs from "@/components/health/HealthTabs.vue";
@@ -222,8 +272,11 @@ import HealthActionModal from "@/components/health/HealthActionModal.vue";
 import HealthObjectModal from "@/components/health/HealthObjectModal.vue";
 import HealthRelationModal from "@/components/health/HealthRelationModal.vue";
 import HealthTrackerModal from "@/components/health/HealthTrackerModal.vue";
+import HealthTrackerGroupModal from "@/components/health/HealthTrackerGroupModal.vue";
 import HealthCheckinModal from "@/components/health/HealthCheckinModal.vue";
 import HealthTrackingTab from "@/components/health/HealthTrackingTab.vue";
+import HealthAiTab from "@/components/health/HealthAiTab.vue";
+import SubscriptionModal from "@/components/SubscriptionModal.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 
 export default {
@@ -238,13 +291,19 @@ export default {
     HealthObjectModal,
     HealthRelationModal,
     HealthTrackerModal,
+    HealthTrackerGroupModal,
     HealthCheckinModal,
     HealthTrackingTab,
+    HealthAiTab,
+    SubscriptionModal,
     ConfirmationModal,
   },
   data() {
     return {
       activeTab: "overview",
+      aiUsage: {},
+      isLoadingAiUsage: false,
+      showPlanModal: false,
       // Modais
       showActionModal: false,
       actionModalType: "SCHEDULE",
@@ -268,6 +327,12 @@ export default {
       trackerBeingEdited: null,
       isSubmittingTracker: false,
       trackerError: "",
+      showTrackerGroupModal: false,
+      groupBeingEdited: null,
+      isSubmittingTrackerGroup: false,
+      trackerGroupError: "",
+      showDeleteTrackerGroupConfirmation: false,
+      groupPendingDeletion: null,
       showCheckinModal: false,
       checkinBeingCorrected: null,
       isSubmittingCheckin: false,
@@ -279,6 +344,7 @@ export default {
     };
   },
   computed: {
+    ...mapState(useAuthStore, ["user"]),
     ...mapState(useHealthStore, [
       "objects",
       "relations",
@@ -288,6 +354,7 @@ export default {
       "supplies",
       "trackers",
       "activeTrackers",
+      "trackerGroups",
       "checkins",
       "isLoading",
       "error",
@@ -318,6 +385,12 @@ export default {
           label: "Linha do Tempo",
           icon: "clock-rotate-left",
           badge: this.events.length || undefined,
+        },
+        {
+          id: "ai",
+          label: "IA",
+          icon: "crown",
+          pro: true,
         },
       ];
     },
@@ -359,6 +432,38 @@ export default {
     lowStockCount() {
       return this.supplies.filter((s) => this.isLowStock(s)).length;
     },
+    deleteGroupDescription() {
+      if (!this.groupPendingDeletion) return "";
+      const count = this.activeTrackers.filter(
+        (t) => (t.group || "").toLowerCase().trim() === (this.groupPendingDeletion.name || "").toLowerCase().trim()
+      ).length;
+      if (count === 0) {
+        return `O grupo "${this.groupPendingDeletion.name}" será excluído permanentemente.`;
+      }
+      return `O grupo "${this.groupPendingDeletion.name}" possui ${count} rastreador(es). Ao excluir, eles serão transferidos automaticamente para o grupo "Bem-estar".`;
+    },
+    limits() {
+      return getPlanLimits(this.user?.plan_tier || "free");
+    },
+    isPaidPlan() {
+      return Boolean(this.user?.plan_tier && this.user.plan_tier !== "free");
+    },
+    canUseAi() {
+      return this.isPaidPlan && Number(this.limits?.ai_monthly_credits || this.limits?.finance_ai_monthly_credits || 0) > 0;
+    },
+    currentMonthLabel() {
+      return new Date().toLocaleDateString("pt-BR", {
+        month: "long",
+        year: "numeric",
+      });
+    },
+  },
+  watch: {
+    activeTab(tab) {
+      if (tab === "ai") {
+        this.loadAiUsage();
+      }
+    },
   },
   async mounted() {
     try {
@@ -366,6 +471,7 @@ export default {
     } catch {
       // tratado no store
     }
+    this.loadAiUsage();
   },
   methods: {
     ...mapActions(useHealthStore, [
@@ -381,6 +487,9 @@ export default {
       "createTracker",
       "updateTracker",
       "archiveTracker",
+      "createTrackerGroup",
+      "updateTrackerGroup",
+      "deleteTrackerGroup",
       "createCheckin",
       "addDigestiveWellbeingTemplate",
       "deleteEvent",
@@ -525,6 +634,46 @@ export default {
       } catch (error) { this.trackerError = error.message || "Não foi possível salvar o rastreador."; }
       finally { this.isSubmittingTracker = false; }
     },
+    openTrackerGroupModal(group = null) {
+      this.groupBeingEdited = group;
+      this.trackerGroupError = "";
+      this.showTrackerGroupModal = true;
+    },
+    async submitTrackerGroup(data) {
+      this.isSubmittingTrackerGroup = true;
+      this.trackerGroupError = "";
+      try {
+        if (this.groupBeingEdited?.local_key && !String(this.groupBeingEdited.local_key).startsWith("default-group-")) {
+          await this.updateTrackerGroup(this.groupBeingEdited, data);
+        } else {
+          await this.createTrackerGroup(data);
+        }
+        this.showTrackerGroupModal = false;
+      } catch (error) {
+        this.trackerGroupError = error.message || "Não foi possível salvar o grupo.";
+      } finally {
+        this.isSubmittingTrackerGroup = false;
+      }
+    },
+    requestDeleteTrackerGroup(group) {
+      this.groupPendingDeletion = group;
+      this.showDeleteTrackerGroupConfirmation = true;
+    },
+    cancelDeleteTrackerGroup() {
+      this.groupPendingDeletion = null;
+      this.showDeleteTrackerGroupConfirmation = false;
+    },
+    async confirmDeleteTrackerGroup() {
+      const group = this.groupPendingDeletion;
+      this.cancelDeleteTrackerGroup();
+      if (!group) return;
+      this.trackingError = "";
+      try {
+        await this.deleteTrackerGroup(group, "Bem-estar");
+      } catch (error) {
+        this.trackingError = error.message || "Não foi possível excluir o grupo.";
+      }
+    },
     async submitCheckin(data) {
       this.isSubmittingCheckin = true;
       this.checkinError = "";
@@ -651,6 +800,21 @@ export default {
         this.relationError = err.message || "Não foi possível vincular o insumo.";
       } finally {
         this.isSubmittingRelation = false;
+      }
+    },
+    async loadAiUsage() {
+      if (!this.canUseAi) {
+        this.aiUsage = {};
+        return;
+      }
+      this.isLoadingAiUsage = true;
+      try {
+        const { data } = await healthAiService.getAiUsage();
+        this.aiUsage = data || {};
+      } catch {
+        // Silencioso se offline
+      } finally {
+        this.isLoadingAiUsage = false;
       }
     },
   },

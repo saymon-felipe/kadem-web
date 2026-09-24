@@ -2,7 +2,7 @@
   <BaseModal
     :model-value="visible"
     title="Novo Lançamento"
-    size="md"
+    size="lg"
     @update:model-value="val => { if (!val) $emit('close'); }"
     @close="$emit('close')"
   >
