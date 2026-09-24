@@ -139,10 +139,13 @@ export default {
       this.direction = spaceBelow < 260 && spaceAbove > spaceBelow ? "up" : "down";
       const availableSpace = this.direction === "down" ? spaceBelow - 12 : spaceAbove - 12;
       const menuHeight = Math.min(310, Math.max(220, this.filteredMacros.length * 40 + 112));
+      const targetWidth = Math.min(Math.max(rect.width, 220), Math.min(360, window.innerWidth - 24));
+      const maxAllowedLeft = window.innerWidth - targetWidth - 12;
+      const left = Math.max(12, Math.min(rect.left, maxAllowedLeft));
       this.menuStyle = {
-        left: `${Math.max(12, rect.left)}px`,
-        width: `${Math.min(rect.width, window.innerWidth - 24)}px`,
-        maxWidth: "360px",
+        left: `${left}px`,
+        width: `${targetWidth}px`,
+        maxWidth: "calc(100vw - 24px)",
         top: this.direction === "down" ? `${rect.bottom + 6}px` : "auto",
         bottom: this.direction === "up" ? `${window.innerHeight - rect.top + 6}px` : "auto",
         maxHeight: `${Math.max(180, Math.min(menuHeight, availableSpace))}px`,

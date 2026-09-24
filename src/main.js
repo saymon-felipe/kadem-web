@@ -4,6 +4,7 @@ import piniaPluginPersistedState from 'pinia-plugin-persistedstate';
 import App from './App.vue';
 import router from './router';
 import './assets/styles/main.css';
+import './assets/styles/health-buttons.css';
 import api from "./plugins/api.js";
 import globalMixin from "./assets/scripts/global";
 import { library } from '@fortawesome/fontawesome-svg-core';

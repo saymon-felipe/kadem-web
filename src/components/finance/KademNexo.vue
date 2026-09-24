@@ -11,7 +11,7 @@
     />
     <NexoTabs :tabs="tabs" :active-tab="activeTab" :is-paid-plan="isPaidPlan" @update:activeTab="setActiveTab" />
 
-    <div class="tab-viewport">
+    <div class="tab-viewport" ref="tabViewport" @scroll.passive="handleViewportScroll">
       <div class="tabs-track" :style="trackStyle">
         <section v-for="tab in tabs" :key="tab.id" class="tab-pane custom-scrollbar" :style="paneStyle">
           <template v-if="tab.id === 'overview'">
@@ -501,6 +501,7 @@
 <script>
 import { mapState } from "pinia";
 import { useAuthStore } from "@/stores/auth";
+import { useAiCreditsStore } from "@/stores/aiCredits";
 import { financeService } from "@/services/financeService";
 import { getPlanLimits } from "@/services/subscription_plans";
 import { db, runDbOperation } from "@/db";
@@ -684,7 +685,12 @@ export default {
     },
     paneStyle() {
       const size = `${100 / this.tabs.length}%`;
-      return { width: size, flexBasis: size };
+      return {
+        width: size,
+        flexBasis: size,
+        flexShrink: 0,
+        maxWidth: size,
+      };
     },
     categoryTargetMacro() {
       return this.findMacroByName(this.categoryForm.macro_category);
@@ -693,21 +699,22 @@ export default {
       return Boolean(this.categoryTargetMacro?.is_investment);
     },
     limits() {
-      return getPlanLimits(this.user.plan_tier || "free");
+      return getPlanLimits(this.user?.plan_tier || "free");
     },
     isPaidPlan() {
-      return this.user.plan_tier && this.user.plan_tier !== "free";
+      return Boolean(this.user?.plan_tier && this.user.plan_tier !== "free");
     },
     canUseAi() {
-      return this.isPaidPlan && Number(this.limits.finance_ai_monthly_credits || 0) > 0;
+      return this.isPaidPlan && Number(this.limits?.finance_ai_monthly_credits || this.limits?.ai_monthly_credits || 0) > 0;
     },
     planLabel() {
       const labels = { free: "Free", pro: "Pro", enterprise: "Enterprise" };
-      return labels[this.user.plan_tier] || "Free";
+      return labels[this.user?.plan_tier] || "Free";
     },
     aiUsageLabel() {
       if (!this.canUseAi) return "IA bloqueada";
-      return `${this.usage.remaining_credits || this.limits.finance_ai_monthly_credits} créditos IA`;
+      const remaining = this.usage.remaining_credits ?? this.limits?.finance_ai_monthly_credits ?? 0;
+      return `${remaining} créditos IA`;
     },
     budgetAiContextLabel() {
       const total = this.budgetAiConversation.length;
@@ -894,12 +901,22 @@ export default {
     },
     setActiveTab(tabId) {
       this.activeTab = tabId;
+      this.$nextTick(() => {
+        if (this.$refs.tabViewport) {
+          this.$refs.tabViewport.scrollLeft = 0;
+        }
+      });
       if (tabId === "transactions") {
         this.loadTransactions();
       }
       if (tabId === "investments") {
         this.loadInvestments();
         this.loadInvestmentRates();
+      }
+    },
+    handleViewportScroll() {
+      if (this.$refs.tabViewport && this.$refs.tabViewport.scrollLeft !== 0) {
+        this.$refs.tabViewport.scrollLeft = 0;
       }
     },
     money(value) {
@@ -1172,8 +1189,8 @@ export default {
         this.usage = {};
         return;
       }
-      const { data } = await financeService.getUsage();
-      this.usage = data || {};
+      const usage = await useAiCreditsStore().fetchUsage(true);
+      this.usage = usage || {};
     },
     async refreshTransactionDrivenViews({ includeTransactions = true } = {}) {
       const loaders = [this.loadDashboard(), this.loadBudgets(), this.loadInvestments()];
@@ -2941,6 +2958,9 @@ export default {
   },
   mounted() {
     this.reloadAll();
+    if (this.$refs.tabViewport) {
+      this.$refs.tabViewport.scrollLeft = 0;
+    }
     document.addEventListener("keydown", this.handleGlobalKeydown);
   },
   beforeUnmount() {
@@ -2958,6 +2978,8 @@ export default {
 
 <style scoped>
 .nexo-shell {
+  container-type: inline-size;
+  container-name: nexo-shell;
   height: 100%;
   min-height: 0;
   color: var(--text-primary);
@@ -3063,6 +3085,8 @@ button:disabled {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+  position: relative;
+  width: 100%;
 }
 
 .tabs-track {
@@ -3079,6 +3103,7 @@ button:disabled {
   overflow-x: hidden;
   padding: var(--space-1) var(--space-2) var(--space-5) 0;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .panel,
@@ -3137,7 +3162,7 @@ button:disabled {
 
 .budget-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: var(--space-4);
   margin-bottom: var(--space-4);
 }
@@ -3205,7 +3230,7 @@ button:disabled {
 
 .budget-command-bar {
   display: grid;
-  grid-template-columns: 240px minmax(260px, 1fr) auto;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-4);
   margin-bottom: var(--space-4);
@@ -3333,7 +3358,7 @@ button:disabled {
 }
 
 .budget-group-header {
-  grid-template-columns: minmax(240px, 1fr) minmax(320px, auto) 38px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, auto) 38px;
   padding: var(--space-3);
   border: 1px solid rgba(31, 39, 76, 0.08);
   border-radius: var(--radius-sm);
@@ -3352,8 +3377,8 @@ button:disabled {
 
 .budget-group-totals {
   display: grid;
-  grid-template-columns: repeat(3, minmax(92px, 1fr));
-  gap: var(--space-4);
+  grid-template-columns: repeat(3, minmax(80px, 1fr));
+  gap: var(--space-3);
   align-items: center;
 }
 
@@ -3369,7 +3394,7 @@ button:disabled {
 
 .budget-macro-plan {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(220px, 1fr);
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
   gap: var(--space-4);
   align-items: end;
   padding: var(--space-2) 0 var(--space-3);
@@ -3377,7 +3402,7 @@ button:disabled {
 
 .budget-child-head {
   display: grid;
-  grid-template-columns: minmax(220px, 1.35fr) 170px minmax(220px, 1fr) 38px;
+  grid-template-columns: minmax(0, 1.35fr) 150px minmax(0, 1fr) 38px;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
@@ -3385,7 +3410,7 @@ button:disabled {
 }
 
 .budget-child-row {
-  grid-template-columns: minmax(220px, 1.35fr) 170px minmax(220px, 1fr) 38px;
+  grid-template-columns: minmax(0, 1.35fr) 150px minmax(0, 1fr) 38px;
   padding: var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
@@ -3758,42 +3783,81 @@ button:disabled {
 /* Animação dos modais do Nexo - usa a mesma do SideModal global (floating-modal) */
 /* Definida em SideModal.vue e main.css, reutilizada aqui sem redeclaração */
 
-@media (max-width: 900px) {
+@container (max-width: 820px) {
   .budget-summary-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
   }
 
-  .budget-command-bar,
-  .budget-macro-plan,
-  .budget-child-head,
-  .budget-row {
-    grid-template-columns: 1fr;
+  .budget-summary-card {
+    padding: var(--space-3);
+    gap: var(--space-3);
   }
 
-  .budget-group-header,
-  .budget-child-row {
+  .budget-command-bar {
     grid-template-columns: 1fr;
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .budget-macro-plan {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .budget-child-head {
+    display: none;
+  }
+
+  .budget-group-header {
+    grid-template-columns: 1fr auto;
+    gap: var(--space-2);
+  }
+
+  .budget-group-title {
+    grid-column: 1;
+  }
+
+  .budget-group-header .icon-btn.danger {
+    grid-column: 2;
   }
 
   .budget-group-totals {
+    grid-column: 1 / -1;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
+    border-top: 1px solid var(--glass-border);
+    padding-top: var(--space-2);
+    margin-top: var(--space-1);
   }
 
   .budget-group-totals div {
     text-align: left;
   }
 
-  .budget-ai-modal-header {
-    display: grid;
+  .budget-child-row {
+    grid-template-columns: 1fr auto;
+    gap: var(--space-2);
   }
 
-  .budget-ai-message {
-    max-width: 100%;
+  .budget-child-row .budget-labeled-control:first-child {
+    grid-column: 1 / -1;
   }
-}
 
-@media (max-width: 760px) {
+  .budget-child-row .budget-labeled-control:nth-child(2) {
+    grid-column: 1;
+  }
+
+  .budget-child-row .icon-btn.danger {
+    grid-column: 2;
+    align-self: end;
+    margin-bottom: 2px;
+  }
+
+  .budget-child-row .budget-progress {
+    grid-column: 1 / -1;
+  }
+
   .form-grid {
     grid-template-columns: 1fr;
   }
@@ -3802,14 +3866,156 @@ button:disabled {
     padding: var(--space-4);
   }
 
-  .budget-command-bar,
-  .budget-group,
-  .budget-summary-card {
-    padding: var(--space-3);
+  .budget-ai-modal-header {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .budget-ai-message {
+    max-width: 100%;
+  }
+
+  .tab-pane {
+    padding: var(--space-1) 0 var(--space-4) 0;
+  }
+}
+
+@container (max-width: 480px) {
+  .budget-summary-grid {
+    grid-template-columns: 1fr;
   }
 
   .budget-group-totals {
     grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    width: 100%;
+    gap: var(--space-2);
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 820px) {
+  .budget-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .budget-summary-card {
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+
+  .budget-command-bar {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .budget-macro-plan {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .budget-child-head {
+    display: none;
+  }
+
+  .budget-group-header {
+    grid-template-columns: 1fr auto;
+    gap: var(--space-2);
+  }
+
+  .budget-group-title {
+    grid-column: 1;
+  }
+
+  .budget-group-header .icon-btn.danger {
+    grid-column: 2;
+  }
+
+  .budget-group-totals {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    border-top: 1px solid var(--glass-border);
+    padding-top: var(--space-2);
+    margin-top: var(--space-1);
+  }
+
+  .budget-group-totals div {
+    text-align: left;
+  }
+
+  .budget-child-row {
+    grid-template-columns: 1fr auto;
+    gap: var(--space-2);
+  }
+
+  .budget-child-row .budget-labeled-control:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .budget-child-row .budget-labeled-control:nth-child(2) {
+    grid-column: 1;
+  }
+
+  .budget-child-row .icon-btn.danger {
+    grid-column: 2;
+    align-self: end;
+    margin-bottom: 2px;
+  }
+
+  .budget-child-row .budget-progress {
+    grid-column: 1 / -1;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    padding: var(--space-4);
+  }
+
+  .budget-ai-modal-header {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .budget-ai-message {
+    max-width: 100%;
+  }
+
+  .tab-pane {
+    padding: var(--space-1) 0 var(--space-4) 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .budget-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-group-totals {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    width: 100%;
+    gap: var(--space-2);
+  }
+
+  .modal-actions button {
+    width: 100%;
   }
 }
 </style>

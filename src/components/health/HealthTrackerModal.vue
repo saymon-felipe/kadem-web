@@ -105,8 +105,8 @@
       </p>
 
       <div class="modal-actions">
-        <button class="text-btn" type="button" @click="$emit('close')">Cancelar</button>
-        <button class="primary-action modal-submit" type="submit" :disabled="loading">
+        <button class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" type="button" @click="$emit('close')">Cancelar</button>
+        <button class="kadem-health-button kadem-health-button--primary" type="submit" :disabled="loading">
           <font-awesome-icon v-if="loading" icon="spinner" spin />
           <span>{{ loading ? 'Salvando…' : tracker ? 'Salvar alterações' : 'Criar rastreador' }}</span>
         </button>

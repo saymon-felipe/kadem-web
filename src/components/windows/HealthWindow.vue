@@ -12,6 +12,7 @@
     <HealthTabs
       :tabs="computedTabs"
       :active-tab="activeTab"
+      :is-paid-plan="isPaidPlan"
       @update:activeTab="activeTab = $event"
     />
 
@@ -19,7 +20,7 @@
     <div v-if="error" class="health-error">
       <font-awesome-icon icon="triangle-exclamation" />
       <span>{{ error }}</span>
-      <button type="button" class="retry-btn" @click="loadRecords">Tentar novamente</button>
+      <button type="button" class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" @click="loadRecords">Tentar novamente</button>
     </div>
 
     <!-- Estado de Carregamento Inicial -->
@@ -74,6 +75,7 @@
         <!-- Aba 1: Rotinas & Agendas -->
         <section class="tab-pane custom-scrollbar" :style="paneStyle">
           <HealthObjectsTab
+            view-mode="schedules"
             :objects="schedules"
             :schedules="schedules"
             :supplies="supplies"
@@ -99,6 +101,7 @@
         <!-- Aba 2: Insumos & Estoque -->
         <section class="tab-pane custom-scrollbar" :style="paneStyle">
           <HealthObjectsTab
+            view-mode="supplies"
             :objects="supplies"
             :schedules="schedules"
             :supplies="supplies"
@@ -160,7 +163,7 @@
         <section class="tab-pane custom-scrollbar" :style="paneStyle">
           <HealthAiTab
             :can-use-ai="canUseAi"
-            :usage="aiUsage"
+            :usage="centralizedAiUsage"
             :month-label="currentMonthLabel"
             :loading="isLoadingAiUsage"
             @upgrade="showPlanModal = true"
@@ -278,6 +281,7 @@ import HealthTrackingTab from "@/components/health/HealthTrackingTab.vue";
 import HealthAiTab from "@/components/health/HealthAiTab.vue";
 import SubscriptionModal from "@/components/SubscriptionModal.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
+import { useAiCreditsStore } from "@/stores/aiCredits";
 
 export default {
   name: "HealthWindow",
@@ -345,6 +349,7 @@ export default {
   },
   computed: {
     ...mapState(useAuthStore, ["user"]),
+    ...mapState(useAiCreditsStore, { centralizedAiUsage: "usage" }),
     ...mapState(useHealthStore, [
       "objects",
       "relations",
@@ -804,13 +809,11 @@ export default {
     },
     async loadAiUsage() {
       if (!this.canUseAi) {
-        this.aiUsage = {};
         return;
       }
       this.isLoadingAiUsage = true;
       try {
-        const { data } = await healthAiService.getAiUsage();
-        this.aiUsage = data || {};
+        await useAiCreditsStore().fetchUsage(true);
       } catch {
         // Silencioso se offline
       } finally {

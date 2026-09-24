@@ -5,7 +5,7 @@
         <h3>Rotinas & Agendas</h3>
         <span class="count-badge">{{ sortedSchedules.length }}</span>
       </div>
-      <button class="text-btn" type="button" @click="$emit('view-objects')">
+      <button class="kadem-health-button kadem-health-button--quiet kadem-health-button--compact" type="button" @click="$emit('view-objects')">
         Ver todas
       </button>
     </div>
@@ -13,7 +13,7 @@
     <div v-if="!sortedSchedules.length" class="empty-panel">
       <font-awesome-icon icon="calendar-check" class="empty-icon" />
       <p>Nenhuma rotina agendada no momento.</p>
-      <button class="subtle-btn" type="button" @click="$emit('new-schedule')">
+      <button class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" type="button" @click="$emit('new-schedule')">
         <font-awesome-icon icon="plus" />
         <span>Criar primeira rotina</span>
       </button>
@@ -52,7 +52,7 @@
 
         <div class="schedule-action-wrap">
           <button
-            class="complete-btn"
+            class="kadem-health-button kadem-health-button--success kadem-health-button--compact"
             type="button"
             :title="'Concluir ' + schedule.name"
             @click="$emit('complete-schedule', schedule.local_key)"

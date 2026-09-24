@@ -51,6 +51,11 @@
           </button>
         </div>
 
+        <div v-if="!schedules.length || !supplies.length" class="action-prerequisites">
+          <p v-if="!schedules.length">Cadastre uma rotina para habilitar o registro de conclusões.</p>
+          <p v-if="!supplies.length">Cadastre um insumo para habilitar entradas e baixas de estoque.</p>
+        </div>
+
         <!-- Campos de AGENDA / ROTINA -->
         <template v-if="currentType === 'SCHEDULE'">
           <div class="health-field static-label">
@@ -196,8 +201,8 @@
         </p>
 
         <div class="modal-actions">
-          <button type="button" class="text-btn" @click="$emit('close')">Cancelar</button>
-          <button type="submit" class="primary-action modal-submit" :disabled="loading">
+          <button type="button" class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" @click="$emit('close')">Cancelar</button>
+          <button type="submit" class="kadem-health-button kadem-health-button--primary" :disabled="loading">
             <font-awesome-icon v-if="loading" icon="spinner" spin />
             <span>{{ loading ? "Salvando…" : "Salvar Registro" }}</span>
           </button>
@@ -417,6 +422,18 @@ export default {
 .segmented button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.action-prerequisites {
+  display: grid;
+  gap: 4px;
+  margin-top: calc(-1 * var(--space-2));
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.action-prerequisites p {
+  margin: 0;
 }
 
 .segmented button:not(:disabled):hover {

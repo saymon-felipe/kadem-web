@@ -219,6 +219,7 @@ export default {
 /* App View */
 .active-app-view {
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   opacity: 0;
@@ -266,5 +267,45 @@ export default {
   opacity: 0;
   transform: scale(1.05);
   filter: blur(4px);
+}
+
+@container (max-width: 768px) {
+  .productivity-container {
+    padding: var(--space-2);
+  }
+
+  .back-btn {
+    margin-bottom: var(--space-2);
+    font-size: 0.85rem;
+  }
+
+  .app-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: var(--space-3);
+  }
+
+  .app-card {
+    padding: var(--space-3);
+  }
+}
+
+@media (max-width: 768px) {
+  .productivity-container {
+    padding: var(--space-2);
+  }
+
+  .back-btn {
+    margin-bottom: var(--space-2);
+    font-size: 0.85rem;
+  }
+
+  .app-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: var(--space-3);
+  }
+
+  .app-card {
+    padding: var(--space-3);
+  }
 }
 </style>

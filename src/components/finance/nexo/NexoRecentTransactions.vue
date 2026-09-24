@@ -324,7 +324,7 @@ export default {
   transform: scale(0.85);
 }
 
-@media (max-width: 760px) {
+@container (max-width: 600px) {
   .panel {
     padding: var(--space-4);
   }
@@ -332,11 +332,47 @@ export default {
   .movement-row {
     align-items: flex-start;
     flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .movement-copy {
+    flex: 1 1 100%;
   }
 
   .movement-actions {
     width: 100%;
     justify-content: space-between;
+    margin-left: 0;
+  }
+
+  .movement-row b {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .panel {
+    padding: var(--space-4);
+  }
+
+  .movement-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .movement-copy {
+    flex: 1 1 100%;
+  }
+
+  .movement-actions {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+  }
+
+  .movement-row b {
+    margin-left: 0;
   }
 }
 </style>

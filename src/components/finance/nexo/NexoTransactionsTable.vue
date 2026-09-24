@@ -1,6 +1,6 @@
 <template>
   <div class="table-stack">
-    <div class="table-wrap">
+    <div class="table-wrap desktop-table-wrap">
       <table>
         <thead>
           <tr>
@@ -70,6 +70,72 @@
           </tr>
         </tbody>
       </table>
+      <p v-if="transactions.length === 0" class="empty-line">Nenhum lançamento encontrado.</p>
+    </div>
+
+    <!-- Mobile Card View -->
+    <div class="mobile-transactions-list">
+      <article
+        v-for="transaction in paginatedTransactions"
+        :key="transaction.local_id || transaction.id"
+        class="transaction-mobile-card"
+        :class="{ ignored: transaction.is_ignored }"
+      >
+        <div class="card-top-row">
+          <div class="date-badge">
+            <strong>{{ formatShortDate(transaction.transaction_date) }}</strong>
+            <small v-if="timeLabel(transaction.transaction_date)">{{
+              timeLabel(transaction.transaction_date)
+            }}</small>
+            <span class="source-tag">{{ sourceLabel(transaction.source) }}</span>
+          </div>
+          <div class="amount-badge">
+            <strong :class="transaction.type">{{ formatSignedMoney(transaction) }}</strong>
+            <small
+              v-if="transaction.original_type && transaction.original_type !== transaction.type"
+              class="original-type-label"
+            >
+              Original: {{ polarityLabel(transaction.original_type) }}
+            </small>
+          </div>
+        </div>
+
+        <div class="card-main-row">
+          <strong>{{ transaction.description }}</strong>
+          <small v-if="transaction.observation" class="transaction-observation">
+            {{ transaction.observation }}
+          </small>
+        </div>
+
+        <div class="card-category-row">
+          <span v-if="categorizingIds.includes(transaction.id)" class="categorizing-loading-text">
+            <font-awesome-icon icon="circle-notch" spin /> Categorizando...
+          </span>
+          <CategoryCombo
+            v-else
+            :model-value="transaction.category_id"
+            :categories="categories"
+            allow-create
+            placeholder="Sem categoria"
+            @update:modelValue="$emit('select-category', transaction, $event)"
+            @create="$emit('create-category-for-transaction', transaction, $event)"
+          />
+        </div>
+
+        <div class="card-bottom-row">
+          <div class="row-actions">
+            <button class="icon-btn small" title="Editar" @click="$emit('edit', transaction)">
+              <font-awesome-icon icon="pencil" />
+            </button>
+            <button class="icon-btn small" title="Ignorar" @click="$emit('toggle-ignored', transaction)">
+              <font-awesome-icon :icon="transaction.is_ignored ? 'eye-slash' : 'eye'" />
+            </button>
+            <button class="icon-btn small danger" title="Excluir" @click="$emit('delete', transaction)">
+              <font-awesome-icon icon="trash" />
+            </button>
+          </div>
+        </div>
+      </article>
       <p v-if="transactions.length === 0" class="empty-line">Nenhum lançamento encontrado.</p>
     </div>
 
@@ -351,11 +417,142 @@ tr.ignored {
   font-weight: 600;
 }
 
-@media (max-width: 760px) {
-  .table-pagination,
-  .pagination-controls {
-    align-items: stretch;
+.mobile-transactions-list {
+  display: none;
+}
+
+.desktop-table-wrap {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.transaction-mobile-card {
+  background: var(--surface-1);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  transition: background var(--transition-fast);
+}
+
+.transaction-mobile-card:hover {
+  background: var(--surface-2);
+}
+
+.transaction-mobile-card.ignored {
+  opacity: 0.45;
+}
+
+.card-top-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.date-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fontsize-xs);
+  flex-wrap: wrap;
+}
+
+.date-badge strong {
+  color: var(--text-primary);
+}
+
+.date-badge small {
+  color: var(--text-secondary);
+}
+
+.source-tag {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.amount-badge {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.amount-badge strong {
+  font-size: var(--fontsize-sm);
+  display: block;
+}
+
+.card-main-row strong {
+  display: block;
+  font-size: var(--fontsize-sm);
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.card-category-row {
+  width: 100%;
+}
+
+.card-bottom-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--glass-border);
+}
+
+@container (max-width: 680px) {
+  .desktop-table-wrap {
+    display: none;
+  }
+
+  .mobile-transactions-list {
+    display: flex;
     flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .table-pagination {
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    text-align: center;
+  }
+
+  .pagination-controls {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+}
+
+@media (max-width: 680px) {
+  .desktop-table-wrap {
+    display: none;
+  }
+
+  .mobile-transactions-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .table-pagination {
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    text-align: center;
+  }
+
+  .pagination-controls {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
 }
 </style>

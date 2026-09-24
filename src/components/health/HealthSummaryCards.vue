@@ -2,25 +2,28 @@
   <div class="summary-grid">
     <div class="metric schedule-metric" :class="dueClass">
       <span class="metric-label">Próxima rotina</span>
-      <strong class="metric-value" :title="nextDueCategory ? nextDueCategory.name : 'Tudo em dia'">
-        {{ nextDueCategory ? nextDueCategory.name : "Tudo em dia" }}
+      <strong class="metric-value" :title="scheduleStatusTitle">
+        {{ scheduleStatusTitle }}
       </strong>
       <span class="metric-sub" :class="dueClass">
         <template v-if="nextDueCategory">
           <font-awesome-icon :icon="dueIcon" />
           {{ dueLabel(nextDueAt(nextDueCategory)) }}
         </template>
-        <template v-else>Nenhuma pendência</template>
+        <template v-else>{{ totalSchedules ? "Nenhuma pendência" : "Cadastre uma rotina para acompanhar prazos" }}</template>
       </span>
     </div>
 
     <div class="metric stock-metric" :class="{ 'has-warning': lowStockCount > 0 }">
       <span class="metric-label">Saúde do estoque</span>
-      <strong class="metric-value">
-        {{ lowStockCount > 0 ? `${lowStockCount} em alerta` : "Estoque saudável" }}
+      <strong class="metric-value" :title="stockStatusTitle">
+        {{ stockStatusTitle }}
       </strong>
       <span class="metric-sub">
-        {{ totalSupplies }} insumo{{ totalSupplies === 1 ? "" : "s" }} cadastrado{{ totalSupplies === 1 ? "" : "s" }}
+        <template v-if="totalSupplies">
+          {{ totalSupplies }} insumo{{ totalSupplies === 1 ? "" : "s" }} cadastrado{{ totalSupplies === 1 ? "" : "s" }}
+        </template>
+        <template v-else>Cadastre insumos para monitorar o saldo</template>
       </span>
     </div>
 
@@ -41,6 +44,16 @@
 <script>
 export default {
   name: "HealthSummaryCards",
+  computed: {
+    scheduleStatusTitle() {
+      if (!this.totalSchedules) return "Sem rotinas cadastradas";
+      return this.nextDueCategory ? this.nextDueCategory.name : "Tudo em dia";
+    },
+    stockStatusTitle() {
+      if (!this.totalSupplies) return "Sem insumos";
+      return this.lowStockCount > 0 ? `${this.lowStockCount} em alerta` : "Estoque saudável";
+    },
+  },
   props: {
     nextDueCategory: {
       type: Object,

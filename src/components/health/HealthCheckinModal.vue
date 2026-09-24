@@ -8,7 +8,7 @@
     @close="$emit('close')"
     @update:model-value="value => { if (!value) $emit('close'); }"
   >
-    <form class="checkin-form" @submit.prevent="submit">
+    <form id="health-checkin-form" class="checkin-form" @submit.prevent="submit">
       <!-- Barra Superior de Contexto & Horário -->
       <div class="checkin-hero-banner">
         <div class="hero-info">
@@ -38,7 +38,7 @@
             </label>
             <button
               type="button"
-              class="quick-now-btn"
+              class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
               title="Ajustar para o horário atual"
               @click="setNow"
             >
@@ -67,6 +67,10 @@
           v-for="group in groups"
           :key="group.name"
           class="field-group-card"
+          :class="{
+            'is-single-field': group.trackers.length === 1,
+            'has-full-fields': group.trackers.some(isSpanFull),
+          }"
         >
           <!-- Cabeçalho do Grupo com Ícone e Contador -->
           <div class="group-card-header">
@@ -116,13 +120,19 @@
 
               <!-- CONTROLE 1: ESCALA (SCALE) INTERATIVA -->
               <div v-if="tracker.value_type === 'SCALE'" class="scale-control-wrap">
-                <div v-if="isCompactScale(tracker)" class="scale-pills-row">
+                <div
+                  v-if="isCompactScale(tracker)"
+                  class="scale-pills-row"
+                  :style="{ '--scale-count': scaleRange(tracker).length }"
+                >
                   <button
                     v-for="num in scaleRange(tracker)"
                     :key="num"
                     type="button"
                     class="scale-pill-btn"
-                    :class="{ 'is-selected': Number(values[tracker.local_key]) === num }"
+                    :class="{ 'is-selected': hasValue(tracker.local_key) && Number(values[tracker.local_key]) === num }"
+                    :aria-label="`${tracker.name}: ${num}`"
+                    :aria-pressed="hasValue(tracker.local_key) && Number(values[tracker.local_key]) === num"
                     @click="setScale(tracker.local_key, num)"
                   >
                     {{ num }}
@@ -320,49 +330,54 @@
         ></textarea>
       </div>
 
-      <!-- Mensagem de Erro -->
-      <div v-if="error" class="form-error-banner">
-        <font-awesome-icon icon="triangle-exclamation" />
-        <span>{{ error }}</span>
-      </div>
-
-      <!-- Barra de Ações Inferior -->
-      <div class="form-actions-bar">
-        <div class="actions-meta">
-          <span class="filled-summary-text">
-            <strong>{{ filledCount }}</strong> campo{{ filledCount === 1 ? '' : 's' }} respondido{{ filledCount === 1 ? '' : 's' }}
-          </span>
-          <button
-            v-if="filledCount > 0"
-            type="button"
-            class="text-subtle-btn"
-            @click="clearAll"
-          >
-            Limpar todos os campos
-          </button>
-        </div>
-
-        <div class="action-buttons-wrap">
-          <button
-            class="ghost-btn"
-            type="button"
-            @click="$emit('close')"
-          >
-            Cancelar
-          </button>
-
-          <button
-            class="primary-submit-btn"
-            type="submit"
-            :disabled="loading"
-          >
-            <font-awesome-icon v-if="loading" icon="spinner" spin />
-            <font-awesome-icon v-else icon="check" />
-            <span>{{ loading ? 'Salvando check-in…' : event ? 'Salvar correções' : 'Salvar check-in' }}</span>
-          </button>
-        </div>
-      </div>
     </form>
+
+    <template #footer>
+      <div class="checkin-modal-footer">
+        <div v-if="error" class="form-error-banner">
+          <font-awesome-icon icon="triangle-exclamation" />
+          <span>{{ error }}</span>
+        </div>
+
+        <!-- Ações persistentes fora da área rolável -->
+        <div class="form-actions-bar">
+          <div class="actions-meta">
+            <span class="filled-summary-text">
+              <strong>{{ filledCount }}</strong> campo{{ filledCount === 1 ? '' : 's' }} respondido{{ filledCount === 1 ? '' : 's' }}
+            </span>
+            <button
+              v-if="filledCount > 0"
+              type="button"
+              class="kadem-health-button kadem-health-button--quiet kadem-health-button--compact"
+              @click="clearAll"
+            >
+              Limpar todos os campos
+            </button>
+          </div>
+
+          <div class="action-buttons-wrap">
+            <button
+              class="kadem-health-button kadem-health-button--secondary"
+              type="button"
+              @click="$emit('close')"
+            >
+              Cancelar
+            </button>
+
+            <button
+              class="kadem-health-button kadem-health-button--primary"
+              type="submit"
+              form="health-checkin-form"
+              :disabled="loading"
+            >
+              <font-awesome-icon v-if="loading" icon="spinner" spin />
+              <font-awesome-icon v-else icon="check" />
+              <span>{{ loading ? 'Salvando check-in…' : event ? 'Salvar correções' : 'Salvar check-in' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
   </BaseModal>
 </template>
 
@@ -691,26 +706,9 @@ export default {
   cursor: pointer;
 }
 
-.quick-now-btn {
-  background: transparent;
-  border: none;
-  color: #e25373;
-  font-size: 0.72rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: background var(--transition-fast);
-}
-
-.quick-now-btn:hover {
-  background: rgba(226, 83, 115, 0.12);
-}
-
 .datetime-input {
+  width: 100%;
+  box-sizing: border-box;
   border: 1px solid var(--glass-border);
   background: var(--surface-1);
   color: var(--text-primary);
@@ -757,16 +755,13 @@ export default {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  background: var(--surface-0);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
-  transition: border-color var(--transition-fast);
+  padding: var(--space-3) 0 var(--space-5);
+  border-bottom: 1px solid var(--glass-border);
 }
 
-.field-group-card:hover {
-  border-color: rgba(141, 95, 211, 0.25);
+.field-group-card:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .group-card-header {
@@ -814,8 +809,16 @@ export default {
 /* Grid Responsiva dos Campos (Duas colunas no Desktop) */
 .group-fields-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: var(--space-4);
+}
+
+.field-group-card.has-full-fields .field-box:not(.span-full) {
+  grid-column: 1 / -1;
+}
+
+.field-group-card.is-single-field .field-box {
+  grid-column: 1 / -1;
 }
 
 .field-box {
@@ -907,14 +910,17 @@ export default {
 }
 
 .scale-pills-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(var(--scale-count), minmax(0, 1fr));
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 1px 4px;
 }
 
 .scale-pill-btn {
-  flex: 1 1 28px;
-  min-width: 28px;
+  min-width: 0;
+  width: 100%;
   height: 36px;
   border-radius: var(--radius-xs);
   border: 1px solid var(--glass-border);
@@ -1346,6 +1352,22 @@ export default {
   flex-wrap: wrap;
 }
 
+.checkin-modal-footer {
+  width: 100%;
+}
+
+:global(.checkin-modal-shell .modal-footer-row) {
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-6);
+  border-top: 1px solid var(--glass-border);
+  background: var(--surface-0);
+}
+
+.checkin-modal-footer .form-actions-bar {
+  padding-top: 0;
+  border-top: 0;
+}
+
 .actions-meta {
   display: flex;
   align-items: center;
@@ -1361,73 +1383,10 @@ export default {
   color: #e25373;
 }
 
-.text-subtle-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 0.76rem;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 2px 4px;
-  transition: color var(--transition-fast);
-}
-
-.text-subtle-btn:hover {
-  color: var(--red);
-}
-
 .action-buttons-wrap {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-}
-
-.ghost-btn {
-  background: var(--surface-1);
-  border: 1px solid var(--glass-border);
-  color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  padding: 9px 18px;
-  font-size: 0.84rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.ghost-btn:hover {
-  background: var(--surface-2);
-  transform: translateY(-1px);
-}
-
-.primary-submit-btn {
-  background: linear-gradient(135deg, #e25373 0%, #8d5fd3 100%);
-  color: #ffffff;
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 9px 22px;
-  font-size: 0.84rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  box-shadow: 0 4px 12px rgba(226, 83, 115, 0.3);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.primary-submit-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  filter: brightness(1.08);
-  box-shadow: 0 6px 16px rgba(226, 83, 115, 0.4);
-}
-
-.primary-submit-btn:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.primary-submit-btn:disabled {
-  opacity: 0.6;
-  cursor: wait;
 }
 
 @media (max-width: 720px) {
@@ -1445,9 +1404,25 @@ export default {
     flex-direction: column;
     align-items: stretch;
   }
+  :global(.checkin-modal-shell .modal-footer-row) {
+    padding: var(--space-3) var(--space-5);
+  }
+  .checkin-modal-footer .form-actions-bar {
+    gap: var(--space-2);
+  }
+  .actions-meta {
+    justify-content: space-between;
+  }
   .action-buttons-wrap {
-    justify-content: flex-end;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr);
+  }
+  .action-buttons-wrap .kadem-health-button {
+    min-width: 0;
+    padding: var(--space-3);
+  }
+  .action-buttons-wrap .kadem-health-button--primary {
+    justify-content: center;
   }
 }
 </style>
-

@@ -227,6 +227,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--space-3);
   margin-bottom: var(--space-4);
 }
@@ -243,7 +244,7 @@ export default {
 
 .transaction-filters {
   display: grid;
-  grid-template-columns: minmax(260px, 1.3fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   gap: var(--space-3);
 }
 
@@ -313,7 +314,17 @@ button:disabled {
   cursor: not-allowed;
 }
 
-@media (max-width: 760px) {
+@container (max-width: 600px) {
+  .panel {
+    padding: var(--space-4);
+  }
+
+  .transaction-filters {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
   .panel {
     padding: var(--space-4);
   }

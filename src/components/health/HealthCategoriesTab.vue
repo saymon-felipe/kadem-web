@@ -37,7 +37,7 @@
           </button>
         </div>
 
-        <button class="primary-action compact-btn" type="button" @click="$emit('new-category')">
+        <button class="kadem-health-button kadem-health-button--primary kadem-health-button--compact" type="button" @click="$emit('new-category')">
           <font-awesome-icon icon="plus" />
           <span>Nova Categoria</span>
         </button>

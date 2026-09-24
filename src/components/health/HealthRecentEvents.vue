@@ -5,7 +5,7 @@
         <h3>Atividade Recente</h3>
         <span v-if="events.length" class="count-badge">{{ events.length }}</span>
       </div>
-      <button class="text-btn" type="button" @click="$emit('view-timeline')">
+      <button class="kadem-health-button kadem-health-button--quiet kadem-health-button--compact" type="button" @click="$emit('view-timeline')">
         Ver linha do tempo
       </button>
     </div>
@@ -13,7 +13,7 @@
     <div v-if="!events.length" class="empty-panel">
       <font-awesome-icon icon="clipboard-list" class="empty-icon" />
       <p>Nenhuma atividade ou registro recente.</p>
-      <button class="subtle-btn" type="button" @click="$emit('new-event')">
+      <button class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" type="button" @click="$emit('new-event')">
         <font-awesome-icon icon="plus" />
         <span>Fazer primeiro registro</span>
       </button>

@@ -58,7 +58,7 @@
           </button>
         </div>
 
-        <button class="primary-action compact-btn" type="button" @click="$emit('new-event')">
+        <button class="kadem-health-button kadem-health-button--primary kadem-health-button--compact" type="button" @click="$emit('new-event')">
           <font-awesome-icon icon="plus" />
           <span>Novo Evento</span>
         </button>
@@ -105,7 +105,7 @@
           <div v-if="event.event_type === 'DAILY_CHECKIN'" class="checkin-values">
             <span v-for="[key, value] in Object.entries(event.values || {})" :key="key">{{ trackerName(key) }}: {{ displayValue(value) }}</span>
           </div>
-          <button v-if="event.event_type === 'DAILY_CHECKIN'" class="correct-event-btn" type="button" @click="$emit('correct-checkin', event)">Corrigir check-in</button>
+          <button v-if="event.event_type === 'DAILY_CHECKIN'" class="kadem-health-button kadem-health-button--quiet kadem-health-button--compact correct-event-btn" type="button" @click="$emit('correct-checkin', event)">Corrigir check-in</button>
           <div v-if="event.quantity !== null && event.quantity !== undefined" class="timeline-qty-wrap">
             <span
               class="qty-tag"
@@ -542,7 +542,10 @@ export default {
 }
 .checkin-values { display: flex; flex-wrap: wrap; gap: 5px; margin-top: var(--space-2); }
 .checkin-values span { padding: 4px 7px; background: var(--surface-2); border-radius: var(--radius-xs); color: var(--text-secondary); font-size: .74rem; }
-.correct-event-btn { border: 0; background: transparent; color: #a871de; padding: 6px 0 0; cursor: pointer; font-weight: 700; font-size: .75rem; }
+.correct-event-btn {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+}
 
 .timeline-qty-wrap {
   margin-top: var(--space-2);

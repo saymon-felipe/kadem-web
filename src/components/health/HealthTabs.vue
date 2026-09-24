@@ -2,6 +2,7 @@
   <KademTabs
     :tabs="tabs"
     :active-tab="activeTab"
+    :is-paid-plan="isPaidPlan"
     variant="health"
     aria-label="Navegação Health"
     @update:activeTab="$emit('update:activeTab', $event)"
@@ -24,6 +25,10 @@ export default {
     activeTab: {
       type: String,
       required: true,
+    },
+    isPaidPlan: {
+      type: Boolean,
+      default: false,
     },
   },
   emits: ["update:activeTab"],

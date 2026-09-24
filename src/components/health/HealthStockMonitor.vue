@@ -12,7 +12,7 @@
         </span>
         <span v-else class="ok-badge">Estoque em dia</span>
       </div>
-      <button class="text-btn" type="button" @click="$emit('view-objects')">
+      <button class="kadem-health-button kadem-health-button--quiet kadem-health-button--compact" type="button" @click="$emit('view-objects')">
         Ver todos
       </button>
     </div>
@@ -20,7 +20,7 @@
     <div v-if="!supplies.length" class="empty-panel">
       <font-awesome-icon icon="boxes-stacked" class="empty-icon" />
       <p>Nenhum insumo ou medicação cadastrada.</p>
-      <button class="subtle-btn" type="button" @click="$emit('new-supply')">
+      <button class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" type="button" @click="$emit('new-supply')">
         <font-awesome-icon icon="plus" />
         <span>Cadastrar primeiro insumo</span>
       </button>
@@ -64,7 +64,7 @@
 
         <div class="supply-actions">
           <button
-            class="action-pill-btn consume"
+            class="kadem-health-button kadem-health-button--danger kadem-health-button--compact"
             type="button"
             title="Registrar consumo deste insumo"
             @click="$emit('quick-consume', supply.local_key)"
@@ -73,7 +73,7 @@
             <span>Baixa</span>
           </button>
           <button
-            class="action-pill-btn receive"
+            class="kadem-health-button kadem-health-button--success kadem-health-button--compact"
             type="button"
             title="Registrar entrada no estoque"
             @click="$emit('quick-receive', supply.local_key)"

@@ -320,4 +320,16 @@ export default {
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 480px) {
+  .modal-actions {
+    flex-direction: column-reverse;
+    width: 100%;
+    gap: var(--space-2);
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
+}
 </style>

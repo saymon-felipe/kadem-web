@@ -144,4 +144,54 @@ button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+@container (max-width: 580px) {
+  .nexo-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .nexo-actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: var(--space-2);
+  }
+
+  .nexo-actions input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .primary-action {
+    white-space: nowrap;
+    padding: 0 var(--space-3);
+    font-size: var(--fontsize-xs);
+  }
+}
+
+@media (max-width: 580px) {
+  .nexo-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .nexo-actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: var(--space-2);
+  }
+
+  .nexo-actions input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .primary-action {
+    white-space: nowrap;
+    padding: 0 var(--space-3);
+    font-size: var(--fontsize-xs);
+  }
+}
 </style>

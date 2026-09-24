@@ -124,8 +124,8 @@
         </p>
 
         <div class="modal-actions">
-          <button type="button" class="text-btn" @click="$emit('close')">Cancelar</button>
-          <button type="submit" class="primary-action modal-submit" :disabled="loading">
+          <button type="button" class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" @click="$emit('close')">Cancelar</button>
+          <button type="submit" class="kadem-health-button kadem-health-button--primary" :disabled="loading">
             <font-awesome-icon v-if="loading" icon="spinner" spin />
             <span>{{ loading ? "Salvando…" : "Criar Categoria" }}</span>
           </button>

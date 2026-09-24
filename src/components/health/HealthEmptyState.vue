@@ -8,7 +8,7 @@
     <button
       v-if="actionLabel"
       type="button"
-      class="primary-action empty-btn"
+      class="kadem-health-button kadem-health-button--primary"
       @click="$emit('action')"
     >
       {{ actionLabel }}

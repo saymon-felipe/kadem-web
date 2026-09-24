@@ -7,7 +7,7 @@
 
     <div class="health-actions">
       <button
-        class="icon-btn"
+        class="kadem-health-button kadem-health-button--icon kadem-health-button--secondary"
         :disabled="loading"
         title="Recarregar registros"
         type="button"
@@ -17,7 +17,7 @@
       </button>
 
       <button
-        class="secondary-btn"
+        class="kadem-health-button kadem-health-button--secondary"
         type="button"
         @click="$emit('new-object')"
       >
@@ -26,7 +26,7 @@
       </button>
 
       <button
-        class="primary-action"
+        class="kadem-health-button kadem-health-button--primary"
         type="button"
         @click="$emit('new-action')"
       >
@@ -81,74 +81,6 @@ export default {
 .health-actions {
   justify-content: flex-end;
   flex-wrap: wrap;
-}
-
-.icon-btn,
-.secondary-btn,
-.primary-action {
-  border: none;
-  cursor: pointer;
-  color: var(--text-primary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  min-height: 40px;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: var(--fontsize-sx);
-  transition:
-    transform var(--transition-fast),
-    background var(--transition-fast),
-    box-shadow var(--transition-fast),
-    filter var(--transition-fast);
-}
-
-.icon-btn {
-  width: 40px;
-  background: var(--surface-2);
-  color: var(--text-primary);
-  border: 1px solid var(--glass-border);
-}
-
-.icon-btn:hover {
-  background: var(--surface-3);
-}
-
-.secondary-btn {
-  background: var(--surface-1);
-  color: var(--text-primary);
-  border: 1px solid var(--glass-border);
-  padding: 0 var(--space-4);
-  box-shadow: var(--shadow-xs);
-}
-
-.secondary-btn:hover {
-  background: var(--surface-2);
-  transform: translateY(-1px);
-}
-
-.primary-action {
-  background: linear-gradient(135deg, #e25373 0%, #8d5fd3 100%);
-  color: #ffffff;
-  padding: 0 var(--space-4);
-  box-shadow: 0 4px 12px rgba(226, 83, 115, 0.25);
-}
-
-.primary-action:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.08);
-}
-
-.primary-action:active,
-.secondary-btn:active,
-.icon-btn:active {
-  transform: scale(0.97);
-}
-
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 @media (max-width: 600px) {

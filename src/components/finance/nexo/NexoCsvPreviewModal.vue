@@ -214,6 +214,7 @@ export default {
 .preview-table-wrap {
   min-height: 0;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
 }

@@ -362,7 +362,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
-@media (max-width: 900px) {
+@container (max-width: 700px) {
   .csv-import-header,
   .csv-preview-summary {
     align-items: stretch;
@@ -370,6 +370,29 @@ button:disabled {
   }
 
   .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .csv-import-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 700px) {
+  .csv-import-header,
+  .csv-preview-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .csv-import-actions {
     width: 100%;
     justify-content: space-between;
   }

@@ -35,7 +35,7 @@
 
         <div class="action-buttons-group">
           <button
-            class="secondary-btn compact-btn"
+            class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
             type="button"
             @click="$emit('new-group')"
           >
@@ -44,7 +44,7 @@
           </button>
 
           <button
-            class="secondary-btn compact-btn"
+            class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
             type="button"
             @click="$emit('new-tracker')"
           >
@@ -53,7 +53,7 @@
           </button>
 
           <button
-            class="primary-action compact-btn"
+            class="kadem-health-button kadem-health-button--primary kadem-health-button--compact"
             type="button"
             @click="$emit('new-checkin')"
           >
@@ -81,7 +81,7 @@
       <template #extra>
         <div class="empty-extra-actions">
           <button
-            class="secondary-btn compact-btn"
+            class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
             type="button"
             :disabled="loadingTemplate"
             @click="$emit('add-template')"
@@ -107,7 +107,7 @@
             <button
               v-if="!activeTrackers.length"
               type="button"
-              class="primary-action compact-btn"
+              class="kadem-health-button kadem-health-button--primary kadem-health-button--compact"
               @click="$emit('new-tracker')"
             >
               <font-awesome-icon icon="plus" />
@@ -213,7 +213,7 @@
 
           <div class="section-actions">
             <button
-              class="secondary-btn compact-btn"
+              class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
               type="button"
               @click="$emit('new-group')"
             >
@@ -280,7 +280,7 @@
             <span class="section-sub">{{ checkins.length }} registro(s) realizados</span>
           </div>
           <button
-            class="primary-action compact-btn"
+            class="kadem-health-button kadem-health-button--primary kadem-health-button--compact"
             type="button"
             @click="$emit('new-checkin')"
           >
@@ -328,7 +328,7 @@
             <div class="checkin-action-box">
               <button
                 type="button"
-                class="secondary-btn compact-btn"
+                class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
                 @click="$emit('correct-checkin', event)"
               >
                 <font-awesome-icon icon="pen" />

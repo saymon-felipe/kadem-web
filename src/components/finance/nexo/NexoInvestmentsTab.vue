@@ -925,14 +925,18 @@ export default {
 .history-table {
   display: grid;
   gap: var(--space-2);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
 }
 
 .history-head,
 .history-row {
   display: grid;
-  grid-template-columns: 120px repeat(4, minmax(0, 1fr));
+  grid-template-columns: 100px repeat(4, minmax(80px, 1fr));
   gap: var(--space-3);
   align-items: center;
+  min-width: 460px;
 }
 
 .history-head {
@@ -1077,7 +1081,7 @@ export default {
   color: var(--red);
 }
 
-@media (max-width: 1000px) {
+@container (max-width: 860px) {
   .visual-grid,
   .donut-layout,
   .momentum-grid,
@@ -1089,22 +1093,87 @@ export default {
   .donut-layout {
     justify-items: center;
   }
+
+  .legend-list {
+    width: 100%;
+  }
 }
 
-@media (max-width: 760px) {
+@container (max-width: 640px) {
   .panel {
     padding: var(--space-4);
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .metric-card {
+    padding: var(--space-3);
+    gap: var(--space-1);
+  }
+
+  .metric-card strong {
+    font-size: var(--fontsize-xs);
+  }
+
+  .inline-grid {
+    grid-template-columns: 1fr;
   }
 
   .panel-title {
     align-items: flex-start;
     flex-direction: column;
+    gap: var(--space-2);
+  }
+}
+
+@media (max-width: 860px) {
+  .visual-grid,
+  .donut-layout,
+  .momentum-grid,
+  .projection-grid,
+  .calculator-results {
+    grid-template-columns: 1fr;
   }
 
-  .history-head,
-  .history-row,
+  .donut-layout {
+    justify-items: center;
+  }
+
+  .legend-list {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .panel {
+    padding: var(--space-4);
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .metric-card {
+    padding: var(--space-3);
+    gap: var(--space-1);
+  }
+
+  .metric-card strong {
+    font-size: var(--fontsize-xs);
+  }
+
   .inline-grid {
     grid-template-columns: 1fr;
+  }
+
+  .panel-title {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-2);
   }
 }
 </style>

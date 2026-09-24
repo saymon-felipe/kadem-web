@@ -278,6 +278,8 @@ export default {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  width: 100%;
+  min-width: 0;
 }
 
 .legend-row {
@@ -308,10 +310,14 @@ export default {
 .category-name {
   color: var(--text-primary) !important;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .legend-row strong {
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 .swatch {
@@ -332,14 +338,27 @@ export default {
   transform: scale(0.95);
 }
 
-@media (max-width: 900px) {
+@container (max-width: 860px) {
   .allocation-body {
     grid-template-columns: 1fr;
     justify-items: center;
   }
 }
 
-@media (max-width: 760px) {
+@container (max-width: 600px) {
+  .panel {
+    padding: var(--space-4);
+  }
+}
+
+@media (max-width: 860px) {
+  .allocation-body {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+}
+
+@media (max-width: 600px) {
   .panel {
     padding: var(--space-4);
   }

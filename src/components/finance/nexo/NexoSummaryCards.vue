@@ -91,7 +91,41 @@ export default {
   color: #b77900;
 }
 
-@media (max-width: 900px) {
+@container (max-width: 640px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+  .metric {
+    padding: var(--space-3);
+    gap: var(--space-1);
+  }
+  .metric strong {
+    font-size: var(--fontsize-sm);
+  }
+}
+
+@container (max-width: 360px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+  .metric {
+    padding: var(--space-3);
+    gap: var(--space-1);
+  }
+  .metric strong {
+    font-size: var(--fontsize-sm);
+  }
+}
+
+@media (max-width: 360px) {
   .summary-grid {
     grid-template-columns: 1fr;
   }

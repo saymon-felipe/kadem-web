@@ -139,7 +139,7 @@ export default {
 
 .ai-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 0.7fr) minmax(260px, 1fr);
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
   gap: var(--space-4);
   margin-bottom: var(--space-4);
 }
@@ -227,13 +227,25 @@ button:disabled {
   cursor: not-allowed;
 }
 
-@media (max-width: 900px) {
+@container (max-width: 700px) {
   .ai-grid {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 760px) {
+@container (max-width: 600px) {
+  .panel {
+    padding: var(--space-4);
+  }
+}
+
+@media (max-width: 700px) {
+  .ai-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
   .panel {
     padding: var(--space-4);
   }

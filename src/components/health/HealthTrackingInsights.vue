@@ -221,7 +221,7 @@
         </div>
 
         <button
-          class="primary-action compare-submit-btn"
+          class="kadem-health-button kadem-health-button--primary compare-submit-btn"
           type="button"
           :disabled="!canCompare"
           @click="runComparison"
@@ -300,7 +300,7 @@
       <!-- Botão IA -->
       <div class="ai-trigger-row">
         <button
-          class="ai-explain-btn"
+          class="kadem-health-button kadem-health-button--primary"
           type="button"
           :disabled="aiLoading || !comparison.enough_data"
           @click="explainWithAi"
@@ -396,6 +396,7 @@
 <script>
 import { comparePattern, findPatterns, trackerSummary } from "@/services/healthInsights";
 import { healthAiService } from "@/services/healthAiService";
+import { useAiCreditsStore } from "@/stores/aiCredits";
 
 export default {
   name: "HealthTrackingInsights",
@@ -541,6 +542,7 @@ export default {
       this.aiError = "";
       try {
         this.aiResponse = await healthAiService.explainInsight(this.comparison);
+        useAiCreditsStore().fetchUsage(true);
       } catch (error) {
         this.aiError =
           error.response?.data?.message ||
@@ -911,29 +913,6 @@ export default {
 
 .compare-submit-btn {
   align-self: flex-start;
-  padding: 8px 16px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: linear-gradient(135deg, #e25373 0%, #8d5fd3 100%);
-  color: #ffffff;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 8px rgba(226, 83, 115, 0.25);
-}
-
-.compare-submit-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(226, 83, 115, 0.35);
-}
-
-.compare-submit-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* ==========================================================
@@ -1073,33 +1052,6 @@ export default {
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-}
-
-.ai-explain-btn {
-  padding: 8px 16px;
-  background: linear-gradient(135deg, #e25373 0%, #8d5fd3 100%);
-  color: #ffffff;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 8px rgba(226, 83, 115, 0.25);
-}
-
-.ai-explain-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  filter: brightness(1.08);
-  box-shadow: 0 4px 12px rgba(226, 83, 115, 0.35);
-}
-
-.ai-explain-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .privacy-note {
@@ -1368,4 +1320,3 @@ export default {
   }
 }
 </style>
-

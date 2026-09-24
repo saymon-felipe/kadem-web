@@ -105,13 +105,21 @@ export default {
 <style scoped>
 .overview-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: var(--space-4);
 }
 
-@media (max-width: 900px) {
+@container (max-width: 860px) {
   .overview-grid {
     grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+}
+
+@media (max-width: 860px) {
+  .overview-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
   }
 }
 </style>

@@ -13,7 +13,7 @@
         <button
           v-if="activeTrackers.length"
           type="button"
-          class="primary-action compact-btn"
+          class="kadem-health-button kadem-health-button--primary kadem-health-button--compact"
           @click="$emit('new-checkin')"
         >
           <font-awesome-icon icon="plus" />
@@ -22,7 +22,7 @@
 
         <button
           type="button"
-          class="secondary-btn compact-btn"
+          class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
           @click="$emit('view-tracking')"
         >
           <font-awesome-icon icon="arrow-up-right-from-square" />
@@ -40,7 +40,7 @@
         <h4>Comece a acompanhar seu bem-estar</h4>
         <p>Cadastre sintomas, sono, disposição, hábitos e alimentação para monitorar sua saúde dia a dia.</p>
       </div>
-      <button type="button" class="primary-action compact-btn" @click="$emit('view-tracking')">
+      <button type="button" class="kadem-health-button kadem-health-button--primary kadem-health-button--compact" @click="$emit('view-tracking')">
         Configurar Rastreadores
       </button>
     </div>

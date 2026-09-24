@@ -203,19 +203,29 @@ export default {
       const nav = this.$refs.navRef;
       const activeEl = this.tabRefs[this.currentTabId];
       if (!nav || !activeEl) return;
+      if (nav.clientWidth <= 0 || activeEl.clientWidth <= 0) return;
 
       const navRect = nav.getBoundingClientRect();
       const tabRect = activeEl.getBoundingClientRect();
 
-      const isLeftHidden = tabRect.left < navRect.left + 24;
-      const isRightHidden = tabRect.right > navRect.right - 24;
+      const relativeLeft = tabRect.left - navRect.left;
+      const relativeRight = tabRect.right - navRect.left;
+
+      const isLeftHidden = relativeLeft < 24;
+      const isRightHidden = relativeRight > navRect.width - 24;
 
       if (isLeftHidden || isRightHidden) {
-        activeEl.scrollIntoView({
-          behavior: smooth ? "smooth" : "auto",
-          block: "nearest",
-          inline: "center",
-        });
+        const tabStart = relativeLeft + nav.scrollLeft;
+        const targetScroll = tabStart - nav.clientWidth / 2 + tabRect.width / 2;
+        const maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
+        const clampTarget = Math.max(0, Math.min(targetScroll, maxScroll));
+
+        if (Math.abs(nav.scrollLeft - clampTarget) > 1) {
+          nav.scrollTo({
+            left: clampTarget,
+            behavior: smooth ? "smooth" : "auto",
+          });
+        }
       }
     },
     handleMouseDown(e) {
@@ -291,6 +301,7 @@ export default {
 
 /* Trilho de navegação */
 .kadem-tabs-nav {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-5);

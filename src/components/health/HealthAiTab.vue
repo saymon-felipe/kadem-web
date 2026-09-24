@@ -18,7 +18,7 @@
         </div>
         <p class="panel-subtitle">Acompanhe seu saldo de créditos, análises de correlação e inteligência preventiva.</p>
       </div>
-      <button class="text-btn" type="button" :disabled="loading" @click="$emit('refresh')">
+      <button class="kadem-health-button kadem-health-button--quiet kadem-health-button--compact" type="button" :disabled="loading" @click="$emit('refresh')">
         <font-awesome-icon :icon="loading ? 'circle-notch' : 'arrows-rotate'" :spin="loading" />
         <span>Atualizar</span>
       </button>
@@ -29,10 +29,6 @@
       <section class="usage-card">
         <div class="card-header-row">
           <span>Créditos disponíveis</span>
-          <span class="shared-chip">
-            <font-awesome-icon icon="link" />
-            Pool Nexo + Health
-          </span>
         </div>
         <strong class="credits-count">{{ remainingCredits }}</strong>
         <small class="credits-detail">
@@ -110,7 +106,7 @@
         <strong>Explorar Correlações & Interpretar com IA</strong>
         <p>Acesse o Acompanhamento para visualizar os padrões detectados nos seus check-ins e acionar a inteligência artificial.</p>
       </div>
-      <button class="primary-action compact-btn" type="button" @click="$emit('navigate', 'tracking')">
+      <button class="kadem-health-button kadem-health-button--primary kadem-health-button--compact" type="button" @click="$emit('navigate', 'tracking')">
         <font-awesome-icon icon="heart-pulse" />
         <span>Ir para Acompanhamento</span>
       </button>
@@ -252,18 +248,6 @@ export default {
   gap: var(--space-2);
 }
 
-.shared-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  border-radius: 999px;
-  padding: 1px 6px;
-}
 
 .usage-card span,
 .ai-summary span,

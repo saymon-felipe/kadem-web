@@ -49,7 +49,7 @@
                 <strong class="hover-val">{{ hoveredSegment.count }}</strong>
               </template>
               <template v-else>
-                <strong class="hole-percent">{{ adherenceRate }}%</strong>
+                <strong class="hole-percent">{{ adherenceRate === null ? "—" : `${adherenceRate}%` }}</strong>
                 <span class="hole-sub">{{ adherenceLabel }}</span>
               </template>
             </div>
@@ -124,12 +124,12 @@ export default {
       return this.schedules.length + this.supplies.length;
     },
     adherenceRate() {
-      if (!this.schedules.length) return 100;
+      if (!this.schedules.length) return null;
       const onTrack = this.onTrackSchedules.length;
       return Math.round((onTrack / this.schedules.length) * 100);
     },
     adherenceLabel() {
-      if (!this.schedules.length) return "Sem rotinas";
+      if (!this.schedules.length) return this.supplies.length ? "Sem rotinas" : "Sem dados";
       if (this.adherenceRate === 100) return "Tudo em dia";
       if (this.adherenceRate >= 70) return "Bom ritmo";
       return "Atenção";

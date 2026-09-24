@@ -293,19 +293,45 @@ button:disabled {
   cursor: not-allowed;
 }
 
-@media (max-width: 900px) {
+@container (max-width: 780px) {
   .connections-soon {
     grid-template-columns: 1fr;
     justify-items: start;
-    min-height: 260px;
+    min-height: 240px;
   }
 
   .connections-soon .primary-action {
     width: 100%;
   }
+
+  .connection-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-@media (max-width: 760px) {
+@container (max-width: 600px) {
+  .panel {
+    padding: var(--space-4);
+  }
+}
+
+@media (max-width: 780px) {
+  .connections-soon {
+    grid-template-columns: 1fr;
+    justify-items: start;
+    min-height: 240px;
+  }
+
+  .connections-soon .primary-action {
+    width: 100%;
+  }
+
+  .connection-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
   .panel {
     padding: var(--space-4);
   }

@@ -2,13 +2,13 @@
   <div class="health-objects-tab">
     <div class="objects-header">
       <div class="heading-copy">
-        <span class="eyebrow">CONFIGURAÇÃO & ESTRUTURA</span>
-        <h3>Objetos de Saúde & Relações</h3>
+        <span class="eyebrow">{{ viewCopy.eyebrow }}</span>
+        <h3>{{ viewCopy.title }}</h3>
       </div>
 
       <div class="header-actions">
         <!-- Filtros -->
-        <div class="filter-pills" v-if="objects.length">
+        <div class="filter-pills" v-if="viewMode === 'all' && objects.length">
           <button
             class="filter-pill"
             :class="{ active: currentFilter === 'ALL' }"
@@ -47,19 +47,19 @@
           </button>
         </div>
 
-        <button class="primary-action compact-btn" type="button" @click="$emit('new-object')">
+        <button class="kadem-health-button kadem-health-button--primary kadem-health-button--compact" type="button" @click="$emit('new-object')">
           <font-awesome-icon icon="plus" />
-          <span>Novo Objeto</span>
+          <span>{{ viewCopy.actionLabel }}</span>
         </button>
       </div>
     </div>
 
     <HealthEmptyState
       v-if="!objects.length"
-      icon="layer-group"
-      title="Comece criando seus objetos"
-      text="Cadastre rotinas periódicas (aplicação, treino, exames) ou insumos/medicamentos para acompanhar o saldo dinâmico."
-      action-label="Criar Primeiro Objeto"
+      :icon="viewCopy.icon"
+      :title="viewCopy.emptyTitle"
+      :text="viewCopy.emptyText"
+      :action-label="viewCopy.emptyAction"
       @action="$emit('new-object')"
     />
 
@@ -163,7 +163,7 @@
           <template v-if="object.object_type === 'SCHEDULE'">
             <button
               v-if="supplies.length"
-              class="footer-btn subtle"
+              class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
               type="button"
               title="Vincular insumo a esta agenda"
               @click="$emit('link-supply', object.local_key)"
@@ -172,7 +172,7 @@
               <span>Vincular Insumo</span>
             </button>
             <button
-              class="footer-btn primary"
+              class="kadem-health-button kadem-health-button--success kadem-health-button--compact"
               type="button"
               @click="$emit('complete-schedule', object.local_key)"
             >
@@ -183,7 +183,7 @@
 
           <template v-else-if="object.object_type === 'SUPPLY'">
             <button
-              class="footer-btn subtle"
+              class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
               type="button"
               @click="$emit('quick-consume', object.local_key)"
             >
@@ -191,7 +191,7 @@
               <span>Baixa</span>
             </button>
             <button
-              class="footer-btn accent"
+              class="kadem-health-button kadem-health-button--primary kadem-health-button--compact"
               type="button"
               @click="$emit('quick-receive', object.local_key)"
             >
@@ -202,7 +202,7 @@
 
           <template v-else>
             <button
-              class="footer-btn subtle"
+              class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
               type="button"
               @click="$emit('record-event', object.local_key)"
             >
@@ -225,6 +225,11 @@ export default {
     HealthEmptyState,
   },
   props: {
+    viewMode: {
+      type: String,
+      default: "all",
+      validator: (value) => ["all", "schedules", "supplies"].includes(value),
+    },
     objects: {
       type: Array,
       default: () => [],
@@ -298,10 +303,46 @@ export default {
     };
   },
   computed: {
+    viewCopy() {
+      if (this.viewMode === "schedules") {
+        return {
+          eyebrow: "ROTINAS & AGENDAS",
+          title: "Rotinas & Agendas",
+          actionLabel: "Nova rotina",
+          icon: "calendar-check",
+          emptyTitle: "Nenhuma rotina configurada",
+          emptyText: "Crie uma rotina recorrente para acompanhar aplicações, exames, treinos e próximas datas.",
+          emptyAction: "Criar primeira rotina",
+        };
+      }
+
+      if (this.viewMode === "supplies") {
+        return {
+          eyebrow: "INSUMOS & ESTOQUE",
+          title: "Insumos & Estoque",
+          actionLabel: "Novo insumo",
+          icon: "box-archive",
+          emptyTitle: "Nenhum insumo cadastrado",
+          emptyText: "Cadastre medicamentos ou materiais para acompanhar saldo, consumo e alertas de reposição.",
+          emptyAction: "Cadastrar primeiro insumo",
+        };
+      }
+
+      return {
+        eyebrow: "CONFIGURAÇÃO & ESTRUTURA",
+        title: "Objetos de Saúde & Relações",
+        actionLabel: "Novo Objeto",
+        icon: "layer-group",
+        emptyTitle: "Comece criando seus objetos",
+        emptyText: "Cadastre rotinas periódicas (aplicação, treino, exames) ou insumos/medicamentos para acompanhar o saldo dinâmico.",
+        emptyAction: "Criar Primeiro Objeto",
+      };
+    },
     otherObjects() {
       return this.objects.filter((o) => !["SCHEDULE", "SUPPLY"].includes(o.object_type));
     },
     filteredObjects() {
+      if (this.viewMode === "schedules" || this.viewMode === "supplies") return this.objects;
       if (this.currentFilter === "SCHEDULE") return this.schedules;
       if (this.currentFilter === "SUPPLY") return this.supplies;
       if (this.currentFilter === "OTHER") return this.otherObjects;
