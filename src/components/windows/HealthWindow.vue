@@ -171,6 +171,11 @@
             @navigate="activeTab = $event"
           />
         </section>
+
+        <!-- Aba 6: Cartão público de saúde -->
+        <section class="tab-pane custom-scrollbar" :style="paneStyle">
+          <HealthPublicCardTab />
+        </section>
       </div>
     </div>
 
@@ -279,6 +284,7 @@ import HealthTrackerGroupModal from "@/components/health/HealthTrackerGroupModal
 import HealthCheckinModal from "@/components/health/HealthCheckinModal.vue";
 import HealthTrackingTab from "@/components/health/HealthTrackingTab.vue";
 import HealthAiTab from "@/components/health/HealthAiTab.vue";
+import HealthPublicCardTab from "@/components/health/HealthPublicCardTab.vue";
 import SubscriptionModal from "@/components/SubscriptionModal.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import { useAiCreditsStore } from "@/stores/aiCredits";
@@ -299,6 +305,7 @@ export default {
     HealthCheckinModal,
     HealthTrackingTab,
     HealthAiTab,
+    HealthPublicCardTab,
     SubscriptionModal,
     ConfirmationModal,
   },
@@ -397,6 +404,7 @@ export default {
           icon: "crown",
           pro: true,
         },
+        { id: "public-card", label: "Cartão de Saúde", icon: "address-card" },
       ];
     },
     activeTabIndex() {

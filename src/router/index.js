@@ -61,6 +61,15 @@ const routes = [
     }
   },
   {
+    path: '/health/card/:token',
+    name: 'HealthPublicCard',
+    component: () => import('../views/HealthPublicCardView.vue'),
+    meta: {
+      public: true,
+      forceLightTheme: true,
+    },
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: { name: 'Auth' }
   }

@@ -131,6 +131,12 @@ import {
   faUserDoctor,
   faCubes,
   faLaptopMedical,
+  faAddressCard,
+  faShieldHalved,
+  faDroplet,
+  faQrcode,
+  faPhone,
+  faPrint,
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -249,6 +255,12 @@ library.add(
   faUserDoctor,
   faCubes,
   faLaptopMedical,
+  faAddressCard,
+  faShieldHalved,
+  faDroplet,
+  faQrcode,
+  faPhone,
+  faPrint,
 );
 
 window.addEventListener('error', (event) => {
