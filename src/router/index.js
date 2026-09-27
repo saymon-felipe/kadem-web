@@ -94,10 +94,15 @@ router.beforeEach(async (to, from, next) => {
   }
 
   const is_authenticated = authStore.isLoggedIn;
+  // Um modal com histórico próprio (BaseModal, handle-mobile-back) fecha chamando history.back(); o
+  // popstate resultante reentra aqui pra MESMA rota (to.fullPath === from.fullPath), não uma navegação de
+  // verdade. Sem essa checagem, terminar o login numa página "requiresGuest" (ex.: /auth, mostrando um
+  // convite pós-login) manda a pessoa pra Home assim que o primeiro desses modais fecha.
+  const is_same_route = to.fullPath === from.fullPath;
 
   if (to.meta.requiresAuth && !is_authenticated) {
     next({ name: 'Auth' });
-  } else if (to.meta.requiresGuest && is_authenticated) {
+  } else if (to.meta.requiresGuest && is_authenticated && !is_same_route) {
     next({ name: 'Home' });
   } else {
     next();

@@ -97,6 +97,13 @@
       description="Neste dispositivo você não precisará digitar o código da verificação em duas etapas nos próximos acessos, até trocar a senha ou removê-lo em Segurança. Não use em computadores compartilhados ou públicos."
       confirm-text="Confiar" cancel-text="Agora não" @confirmed="confirmTrust" @cancelled="declineTrust" />
 
+    <ConfirmationModal v-model="showMfaSetupPrompt" message="Proteja sua conta com a verificação em duas etapas"
+      description="Sua conta ainda não tem a verificação em duas etapas ativada. Com ela, mesmo que alguém descubra sua senha, não consegue entrar sem o código do seu celular."
+      confirm-text="Ativar agora" cancel-text="Agora não" @confirmed="confirmMfaSetup" @cancelled="declineMfaSetup" />
+
+    <TotpSetupModal v-model="showTotpSetup" @enabled="onMfaSetupEnabled" />
+    <RecoveryCodesModal v-model="showMfaRecoveryCodes" :codes="mfaRecoveryCodes" @closed="onMfaRecoveryCodesClosed" />
+
     <ConfirmationModal v-model="showBiometricPrompt" message="Ativar login com biometria?"
       :description="biometricPromptDescription"
       :confirm-text="isActivatingBiometrics ? 'Ativando...' : biometricPromptError ? 'Tentar novamente' : 'Ativar agora'"
@@ -108,6 +115,8 @@
 import LoadingResponse from "@/components/loadingResponse.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import MfaChallenge from "@/components/security/MfaChallenge.vue";
+import TotpSetupModal from "@/components/security/TotpSetupModal.vue";
+import RecoveryCodesModal from "@/components/security/RecoveryCodesModal.vue";
 import switchComponent from "../components/switchComponent.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useVaultStore } from "@/stores/vault";
@@ -134,6 +143,8 @@ export default {
     LoadingResponse,
     ConfirmationModal,
     MfaChallenge,
+    TotpSetupModal,
+    RecoveryCodesModal,
   },
   data() {
     const rememberedEmail = localStorage.getItem(rememberedEmailKey) || "";
@@ -165,6 +176,12 @@ export default {
       // Pergunta feita logo depois de um login que passou pelo 2FA: "confiar neste dispositivo?"
       showTrustPrompt: false,
       trustPromptOpen: false,
+      // Convite pra ativar o 2FA quando a conta ainda não tem (aparece antes da pergunta de biometria).
+      showMfaSetupPrompt: false,
+      showTotpSetup: false,
+      mfaSetupJustEnabled: false,
+      showMfaRecoveryCodes: false,
+      mfaRecoveryCodes: [],
       // Conta com 2FA: resposta do login que ainda aguarda o segundo fator.
       mfaChallenge: null,
       pendingLoginPassword: "",
@@ -248,6 +265,12 @@ export default {
       if (this.localDbIssue) {
         this.setResponse("error", this.localDbIssue.message, false);
       }
+    },
+    showTotpSetup(open) {
+      // Fechou sem ativar (cancelou o QR code): segue o login normalmente. Ativando de verdade,
+      // quem continua o fluxo é onMfaSetupEnabled (direto ou depois dos códigos de backup).
+      if (!open && !this.mfaSetupJustEnabled) this.continueAfterMfaCheck();
+      if (!open) this.mfaSetupJustEnabled = false;
     },
   },
   methods: {
@@ -459,6 +482,54 @@ export default {
       await this.continueAfterLogin();
     },
     async continueAfterLogin() {
+      if (await this.shouldPromptForMfaSetup()) {
+        this.showMfaSetupPrompt = true;
+        return;
+      }
+
+      await this.continueAfterMfaCheck();
+    },
+    async shouldPromptForMfaSetup() {
+      try {
+        const overview = await securityService.getOverview();
+        return !overview.mfa.enabled;
+      } catch (error) {
+        // Login não pode travar por causa disso: se não der pra checar, segue sem o convite.
+        console.warn("Não foi possível checar se o 2FA está ativado.", error);
+        return false;
+      }
+    },
+    confirmMfaSetup() {
+      // O aviso que acabou de fechar desfaz seu próprio histórico com history.back() (assíncrono); abrir o
+      // QR code na hora faz o popstate resultante fechá-lo de novo, já no topo da pilha de modais (mesmo
+      // problema comentado em RecoveryCodesModal). Esperar esse popstate passar evita o fechamento fantasma.
+      setTimeout(() => {
+        this.showTotpSetup = true;
+      }, 350);
+    },
+    declineMfaSetup() {
+      // O aviso que acabou de fechar ainda está desfazendo seu próprio histórico com history.back()
+      // (assíncrono). Se a navegação para fora de /auth (finishLogin) disparar antes disso resolver, o
+      // history.back() tardio volta um passo a mais e desfaz essa navegação, jogando de volta pra /auth.
+      setTimeout(() => {
+        this.continueAfterMfaCheck();
+      }, 350);
+    },
+    onMfaSetupEnabled(recoveryCodes) {
+      this.mfaSetupJustEnabled = true;
+
+      if (recoveryCodes?.length) {
+        this.mfaRecoveryCodes = recoveryCodes;
+        this.showMfaRecoveryCodes = true;
+      } else {
+        this.continueAfterMfaCheck();
+      }
+    },
+    async onMfaRecoveryCodesClosed() {
+      this.mfaRecoveryCodes = [];
+      await this.continueAfterMfaCheck();
+    },
+    async continueAfterMfaCheck() {
       if (this.rememberUser && await this.shouldPromptForBiometrics()) {
         this.showBiometricPrompt = true;
       } else {
