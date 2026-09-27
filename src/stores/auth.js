@@ -12,6 +12,7 @@ import { useRadioStore } from "./radio";
 import { usePlayerStore } from "./player";
 import { isLocalDbUnavailableError } from "@/db";
 import { authenticateWithBiometrics } from "@/services/biometricAuth";
+import { securityService } from "@/services/securityService";
 import {
   clearSessionRefresh,
   getSessionRefreshRemainingMs,
@@ -56,31 +57,58 @@ export const useAuthStore = defineStore("auth", {
         throw error;
       }
     },
+    // Devolve a resposta do servidor. Se `response.data.mfa_required` for verdadeiro, a conta usa 2FA
+    // e nenhuma sessão foi aberta ainda: o chamador deve pedir o código e chamar completeMfaLogin().
     async login(email, password, invite_token, is_alexa = false) {
       try {
         const response = await api.post("/auth/login", { email, password, invite_token, is_alexa });
-        const { token, user } = response.data;
 
-        if (token) {
-          this.token = token;
+        if (response.data?.mfa_required) {
+          return response;
         }
 
-        await this._saveUserData(user);
+        await this._acceptLoginResponse(response);
         return response;
       } catch (error) {
-        if (isLocalDbUnavailableError(error)) {
-          try {
-            await api.post("/auth/logout");
-          } catch (logoutError) {
-            console.warn("Login aceito, mas o logout de compensação falhou.", logoutError);
-          }
-        }
-
-        this.user = {};
-        this.isAuthenticated = false;
-        this.token = null;
+        await this._abortLogin(error, "Login aceito, mas o logout de compensação falhou.");
         throw error;
       }
+    },
+
+    // A resposta traz `trust_offer`: o dispositivo pode ser marcado como confiável agora (ver authView).
+    async completeMfaLogin({ mfaToken, method, code }) {
+      try {
+        const response = await securityService.verifyMfa({ mfaToken, method, code });
+        await this._acceptLoginResponse(response);
+        return response;
+      } catch (error) {
+        await this._abortLogin(error, "Verificação aceita, mas o logout de compensação falhou.");
+        throw error;
+      }
+    },
+
+    async _acceptLoginResponse(response) {
+      const { token, user } = response.data;
+
+      if (token) {
+        this.token = token;
+      }
+
+      await this._saveUserData(user);
+    },
+
+    async _abortLogin(error, compensationWarning) {
+      if (isLocalDbUnavailableError(error)) {
+        try {
+          await api.post("/auth/logout");
+        } catch (logoutError) {
+          console.warn(compensationWarning, logoutError);
+        }
+      }
+
+      this.user = {};
+      this.isAuthenticated = false;
+      this.token = null;
     },
 
     async register(userData) {

@@ -29,6 +29,9 @@ const CSRF_EXEMPT_PATHS = [
   '/auth/request_reset_password',
   '/auth/validate_reset_token',
   '/auth/reset_password',
+  '/auth/reset_password/sessions',
+  '/auth/mfa/verify',
+  '/auth/mfa/email/send',
   '/auth/csrf',
   '/auth/biometrics/login/options',
   '/auth/biometrics/login/verify',
@@ -37,6 +40,8 @@ const CSRF_EXEMPT_PATHS = [
   '/alexa/link',
   '/subscriptions/webhook',
 ];
+
+const REAUTH_REQUIRED_CODE = 'REAUTH_REQUIRED';
 
 let csrfRefreshPromise = null;
 
@@ -108,6 +113,24 @@ api.interceptors.response.use(
     }
 
     const originalRequest = error.config || {};
+
+    // Ação sensível com a autenticação vencida: pede a confirmação de identidade e repete a requisição.
+    if (
+      error.response?.status === 403
+      && error.response.data?.data?.code === REAUTH_REQUIRED_CODE
+      && !originalRequest._reauthRetried
+    ) {
+      originalRequest._reauthRetried = true;
+      const { useReauthStore } = await import('../stores/reauth');
+
+      try {
+        await useReauthStore().request();
+      } catch {
+        return Promise.reject(error);
+      }
+
+      return api(originalRequest);
+    }
 
     if (error.response && error.response.status === 403) {
       let problematic_project_id = null;

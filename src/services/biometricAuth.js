@@ -85,7 +85,7 @@ export async function isBiometricSupported() {
   }
 }
 
-export async function registerBiometricCredential({ requirePrf = false, onError } = {}) {
+export async function registerBiometricCredential({ requirePrf = false, onError, name } = {}) {
   try {
     const { startRegistration } = await getWebAuthn();
     const optionsResponse = await api.post("/auth/biometrics/registration/options", {
@@ -102,6 +102,7 @@ export async function registerBiometricCredential({ requirePrf = false, onError 
     console.info("[Cofre/biometria] Enviando registro para verificação.");
     await api.post("/auth/biometrics/registration/verify", {
       credential: credentialForVerification(credential),
+      name,
     });
     console.info("[Cofre/biometria] Registro biométrico verificado.");
 
@@ -112,6 +113,11 @@ export async function registerBiometricCredential({ requirePrf = false, onError 
 
     return credential;
   } catch (error) {
+    // A confirmação de identidade (403 REAUTH_REQUIRED) foi cancelada pelo usuário.
+    if (error?.response?.data?.data?.code === "REAUTH_REQUIRED") {
+      return reportBiometricFailure("registration", "Confirme sua identidade para cadastrar uma passkey.", onError);
+    }
+
     return reportBiometricFailure("registration", error, onError);
   }
 }

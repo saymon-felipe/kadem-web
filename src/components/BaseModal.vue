@@ -188,8 +188,7 @@ export default {
       if (!card || !body) return;
 
       const screenH = typeof window !== "undefined" ? window.innerHeight : 800;
-      const minH = Math.round(screenH * 0.40);
-      const maxH = Math.max(minH, screenH - 76);
+      const maxH = screenH - 76;
 
       let nonBodyHeight = 0;
       if (this.$refs.dragBarRef) nonBodyHeight += this.$refs.dragBarRef.offsetHeight;
@@ -201,7 +200,15 @@ export default {
       if (activeTabPanel) {
         bodyContentHeight = activeTabPanel.scrollHeight;
       } else {
-        bodyContentHeight = body.scrollHeight;
+        // O corpo estica (flex) para preencher o cartão: body.scrollHeight nunca é menor que a altura atual e já inclui
+        // o padding. Medi-lo somava o padding de novo a cada mutação do DOM e o modal só crescia (ex.: contador de
+        // reenvio). O conteúdo natural é a soma dos filhos.
+        const gap = parseFloat(window.getComputedStyle(body).rowGap) || 0;
+        bodyContentHeight = Array.from(body.children).reduce((total, child, index) => {
+          const style = window.getComputedStyle(child);
+          const margins = (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+          return total + child.offsetHeight + margins + (index > 0 ? gap : 0);
+        }, 0);
       }
 
       const bodyStyle = window.getComputedStyle(body);
@@ -209,11 +216,19 @@ export default {
       const paddingBottom = parseFloat(bodyStyle.paddingBottom) || 0;
       const totalBodyHeight = bodyContentHeight + paddingTop + paddingBottom;
 
+      // O cartão é border-box (a borda entra na altura definida), mas fica FORA da área onde header/body/footer
+      // são medidos: sem somar aqui, o corpo sempre recebe ~1px a menos por borda (topo + base) do que pediu,
+      // e isso já basta para o `overflow-y: auto` do corpo abrir uma barra de rolagem permanente.
       const cardComputed = window.getComputedStyle(card);
       const cardPaddingBottom = parseFloat(cardComputed.paddingBottom) || 0;
+      const cardBorderTop = parseFloat(cardComputed.borderTopWidth) || 0;
+      const cardBorderBottom = parseFloat(cardComputed.borderBottomWidth) || 0;
 
-      const totalNatural = nonBodyHeight + totalBodyHeight + cardPaddingBottom;
-      const targetHeight = Math.round(Math.min(Math.max(totalNatural, minH), maxH));
+      // Sem piso mínimo artificial: o modal fica do tamanho do conteúdo (só limitado por `maxH`, para não
+      // estourar a tela). Um piso de 40% da viewport aqui forçava até uma confirmação de duas linhas a
+      // ficar com espaço vazio embaixo. A folha de bottom-sheet do celular mantém o próprio piso (é outro padrão de UX).
+      const totalNatural = nonBodyHeight + totalBodyHeight + cardPaddingBottom + cardBorderTop + cardBorderBottom;
+      const targetHeight = Math.round(Math.min(totalNatural, maxH));
 
       this.modalHeight = targetHeight;
 
@@ -357,7 +372,6 @@ export default {
   border: 1px solid var(--glass-border);
   display: flex;
   flex-direction: column;
-  min-height: 40dvh;
   max-height: calc(100dvh - 76px);
   box-sizing: border-box;
   overflow: hidden;

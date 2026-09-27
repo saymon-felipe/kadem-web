@@ -5,8 +5,17 @@
         <switchComponent v-model="authType" :options="authOptions" />
         <img src="../assets/images/kadem-logo.png" alt="Kadem" />
       </div>
-      <div class="auth-body">
-        <form @submit.prevent="auth" v-animate-height>
+      <div class="auth-body" v-animate-height>
+        <Transition name="auth-step" mode="out-in">
+          <MfaChallenge
+            v-if="mfaChallenge"
+            key="mfa"
+            :challenge="mfaChallenge"
+            :verify-fn="verifyMfa"
+            @verified="onMfaVerified"
+            @cancel="cancelMfa"
+          />
+          <form v-else key="credentials" @submit.prevent="auth" v-animate-height>
           <h2>{{ isRegister ? "Crie uma conta" : "Entre" }}</h2>
 
           <div v-if="isRegister" class="form-group">
@@ -79,9 +88,14 @@
               {{ repairingStorage ? "Reparando ambiente..." : "Reparar armazenamento local" }}
             </button>
           </div>
-        </form>
+          </form>
+        </Transition>
       </div>
     </div>
+
+    <ConfirmationModal v-model="showTrustPrompt" message="Confiar neste dispositivo?"
+      description="Neste dispositivo você não precisará digitar o código da verificação em duas etapas nos próximos acessos, até trocar a senha ou removê-lo em Segurança. Não use em computadores compartilhados ou públicos."
+      confirm-text="Confiar" cancel-text="Agora não" @confirmed="confirmTrust" @cancelled="declineTrust" />
 
     <ConfirmationModal v-model="showBiometricPrompt" message="Ativar login com biometria?"
       :description="biometricPromptDescription"
@@ -93,9 +107,11 @@
 <script>
 import LoadingResponse from "@/components/loadingResponse.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
+import MfaChallenge from "@/components/security/MfaChallenge.vue";
 import switchComponent from "../components/switchComponent.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useVaultStore } from "@/stores/vault";
+import { securityService } from "@/services/securityService";
 import {
   biometricDeclinedKey,
   getBiometricStatus,
@@ -117,6 +133,7 @@ export default {
     switchComponent,
     LoadingResponse,
     ConfirmationModal,
+    MfaChallenge,
   },
   data() {
     const rememberedEmail = localStorage.getItem(rememberedEmailKey) || "";
@@ -145,6 +162,12 @@ export default {
       isActivatingBiometrics: false,
       showBiometricPrompt: false,
       biometricPromptError: "",
+      // Pergunta feita logo depois de um login que passou pelo 2FA: "confiar neste dispositivo?"
+      showTrustPrompt: false,
+      trustPromptOpen: false,
+      // Conta com 2FA: resposta do login que ainda aguarda o segundo fator.
+      mfaChallenge: null,
+      pendingLoginPassword: "",
     };
   },
   computed: {
@@ -393,6 +416,74 @@ export default {
     updatePasswordStrength() {
       this.passwordStrength = this.checkPasswordStrength(this.password);
     },
+    verifyMfa({ method, code }) {
+      return useAuthStore().completeMfaLogin({
+        mfaToken: this.mfaChallenge.mfa_token,
+        method,
+        code,
+      });
+    },
+    async onMfaVerified(response) {
+      const loginPassword = this.pendingLoginPassword;
+      await this.afterLogin(loginPassword, { offerTrust: response?.data?.trust_offer === true });
+      this.mfaChallenge = null;
+    },
+    cancelMfa() {
+      this.mfaChallenge = null;
+      this.pendingLoginPassword = "";
+      this.password = "";
+      this.setResponse("", "", false);
+    },
+    // Tudo que acontece depois que a sessão foi aberta (com ou sem 2FA).
+    async afterLogin(loginPassword, { offerTrust = false } = {}) {
+      this.saveRememberedEmail();
+
+      const vaultStore = useVaultStore();
+      try {
+        await vaultStore.setupVault(loginPassword, this.email);
+      } catch (vaultError) {
+        console.warn("O Cofre não pôde ser preparado nesta conexão.", vaultError);
+      }
+
+      this.password = "";
+      this.pendingLoginPassword = "";
+      this.setResponse("success", "Login realizado", false);
+
+      // Depois do código do 2FA, pergunta se o dispositivo deve ser lembrado; só então segue o fluxo normal.
+      if (offerTrust) {
+        this.trustPromptOpen = true;
+        this.showTrustPrompt = true;
+        return;
+      }
+
+      await this.continueAfterLogin();
+    },
+    async continueAfterLogin() {
+      if (this.rememberUser && await this.shouldPromptForBiometrics()) {
+        this.showBiometricPrompt = true;
+      } else {
+        this.finishLogin();
+      }
+    },
+    async confirmTrust() {
+      if (!this.trustPromptOpen) return;
+      this.trustPromptOpen = false;
+
+      try {
+        await securityService.trustCurrentDevice();
+      } catch (error) {
+        // Não é crítico: o acesso já foi liberado e o código apenas será pedido de novo no próximo login.
+        console.warn("Não foi possível marcar o dispositivo como confiável.", error);
+      }
+
+      await this.continueAfterLogin();
+    },
+    async declineTrust() {
+      if (!this.trustPromptOpen) return;
+      this.trustPromptOpen = false;
+
+      await this.continueAfterLogin();
+    },
     async auth() {
       this.resetResponse();
 
@@ -437,38 +528,31 @@ export default {
           await authStore.register(data);
         } else {
           const loginPassword = this.password;
-          await authStore.login(this.email, loginPassword, this.inviteToken);
-          this.saveRememberedEmail();
+          const response = await authStore.login(this.email, loginPassword, this.inviteToken);
 
-          const vaultStore = useVaultStore();
-          try {
-            await vaultStore.setupVault(loginPassword, this.email);
-          } catch (vaultError) {
-            console.warn("O Cofre não pôde ser preparado nesta conexão.", vaultError);
+          // Sem sessão ainda: o servidor exige o segundo fator antes de abrir a conta.
+          if (response.data?.mfa_required) {
+            this.mfaChallenge = response.data;
+            this.pendingLoginPassword = loginPassword;
+            this.password = "";
+            this.setResponse("", "", false);
+            return;
           }
-          this.password = "";
+
+          await this.afterLogin(loginPassword);
+          return;
         }
 
-        if (this.isRegister) {
-          this.setResponse("success", "Registro realizado", false);
+        this.setResponse("success", "Registro realizado", false);
 
-          setTimeout(() => {
-            const email = this.email;
+        setTimeout(() => {
+          const email = this.email;
 
-            this.$nextTick(() => {
-              this.authType = "login";
-              this.email = email;
-            });
-          }, 1500);
-        } else {
-          this.setResponse("success", "Login realizado", false);
-
-          if (this.rememberUser && await this.shouldPromptForBiometrics()) {
-            this.showBiometricPrompt = true;
-          } else {
-            this.finishLogin();
-          }
-        }
+          this.$nextTick(() => {
+            this.authType = "login";
+            this.email = email;
+          });
+        }, 1500);
       } catch (error) {
         const errorMsg =
           error.response?.data?.message
@@ -695,5 +779,20 @@ form {
     max-width: 99dvw !important;
     min-height: 99dvh !important;
   }
+}
+</style>
+
+<style>
+/* Sem `scoped`: a transição troca para o MfaChallenge, um componente filho, e o atributo de escopo do
+   Vue não chega na raiz dele — a classe de transição não bateria com uma regra escopada aqui. */
+.auth-step-enter-active,
+.auth-step-leave-active {
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+
+.auth-step-enter-from,
+.auth-step-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 </style>

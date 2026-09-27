@@ -41,6 +41,7 @@
               @request-edit-group="openEditProject"
               @cancel-new-group="closeProjectView"
               :projectToEdit="projectToEdit"
+              v-bind="paneProps(tab)"
             />
           </div>
         </div>
@@ -67,6 +68,7 @@ import { useAppStore } from "@/stores/app";
 
 import MainInformations from "./MainInformations.vue";
 import Configuration from "./Configuration.vue";
+import SecuritySettings from "./SecuritySettings.vue";
 import AccountCenter from "./AccountCenter/AccountCenter.vue";
 import NewProject from "./NewProject.vue";
 import ConfirmationModal from "../ConfirmationModal.vue";
@@ -77,6 +79,7 @@ export default {
     avatarComponent,
     MainInformations,
     Configuration,
+    SecuritySettings,
     AccountCenter,
     NewProject,
     ConfirmationModal,
@@ -98,6 +101,7 @@ export default {
           isNav: true,
         },
         { id: "config", name: "Configurações", component: Configuration, isNav: true },
+        { id: "security", name: "Segurança", component: SecuritySettings, isNav: true },
         {
           id: "accounts",
           name: "Central de contas",
@@ -134,6 +138,7 @@ export default {
     trackStyle() {
       return {
         width: this.trackWidth,
+        "--tab-count": this.tabs.length,
         transform: `translateX(${this.translatePercent}%)`,
         transition: `transform ${this.animationDuration}ms cubic-bezier(.22,.9,.36,1)`,
       };
@@ -159,6 +164,10 @@ export default {
     toggleTheme() {
       const appStore = useAppStore();
       appStore.toggleTheme();
+    },
+    // Todas as abas ficam montadas; a de Segurança só busca dados quando está visível.
+    paneProps(tab) {
+      return tab.id === "security" ? { active: this.activeTab === "security" } : {};
     },
     goToLogoutScreen() {
       this.$router.push("/logout");
@@ -311,8 +320,8 @@ export default {
 }
 
 .tabs-track > .tab-pane {
-  width: calc(100% / 4);
-  flex: 0 0 calc(100% / 4);
+  width: calc(100% / var(--tab-count, 4));
+  flex: 0 0 calc(100% / var(--tab-count, 4));
 }
 
 .tab-pane::-webkit-scrollbar {

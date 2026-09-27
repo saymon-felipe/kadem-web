@@ -16,35 +16,6 @@
     </section>
 
     <section class="config-section">
-      <h3>Segurança</h3>
-      <p>Para redefinir sua senha, enviaremos um link de recuperação para o seu e-mail.</p>
-      <button
-        class="btn btn-primary"
-        :disabled="!connection.connected || isLoading"
-        :title="!connection.connected ? 'Esta ação requer conexão com a internet.' : ''"
-        @click="showResetModal = true"
-      >
-        {{ isLoading ? "Enviando..." : "Solicitar redefinição de senha" }}
-      </button>
-      <LoadingResponse :msg="responseMsg" :type="responseType" styletype="small" :loading="false" />
-
-      <template v-if="biometricSupported">
-        <p>Use a biometria deste dispositivo para entrar no Kadem mais rapidamente.</p>
-        <button
-          class="btn"
-          :class="biometricRegistered ? 'btn-red' : 'btn-primary'"
-          :disabled="!connection.connected || isBiometricLoading"
-          :title="!connection.connected ? 'Esta ação requer conexão com a internet.' : ''"
-          @click="toggleBiometrics"
-        >
-          {{ isBiometricLoading ? "Processando..." : biometricRegistered ? "Desativar login com biometria" : "Ativar login com biometria" }}
-        </button>
-      </template>
-      <p v-else>Este dispositivo não oferece suporte a biometria para acesso.</p>
-      <LoadingResponse :msg="biometricMsg" :type="biometricMsgType" styletype="small" :loading="false" />
-    </section>
-
-    <section class="config-section">
       <h3>Aplicativo</h3>
       <p v-if="!pwaInstalled">Instale o Kadem no celular para abri-lo como aplicativo.</p>
       <p v-else>O Kadem já está instalado neste dispositivo.</p>
@@ -75,15 +46,6 @@
       </button>
     </section>
 
-    <ConfirmationModal
-      v-model="showResetModal"
-      message="Você confirma que deseja solicitar a redefinição da sua senha? "
-      description="Um e-mail será enviado para sua conta."
-      confirm-text="Confirmar"
-      @confirmed="handleRequestPasswordReset"
-      @cancelled="showResetModal = false"
-    />
-
     <BaseModal v-model="showDeleteModal">
       <DeleteAccountForm @close="showDeleteModal = false" />
     </BaseModal>
@@ -93,21 +55,10 @@
 <script>
 import { mapState } from "pinia";
 import { useUtilsStore } from "@/stores/utils";
-import { useAuthStore } from "@/stores/auth";
 import { useAppStore } from "@/stores/app";
-import { api } from "@/plugins/api";
-import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import BaseModal from "@/components/BaseModal.vue";
 import DeleteAccountForm from "./DeleteAccountForm.vue";
 import LoadingResponse from "@/components/loadingResponse.vue";
-import {
-  biometricDeclinedKey,
-  getBiometricStatus,
-  isBiometricSupported,
-  registerBiometricCredential,
-  rememberedEmailKey,
-  removeBiometricCredentials,
-} from "@/services/biometricAuth";
 import {
   getPwaInstallUnavailableMessage,
   isIOSDevice,
@@ -117,23 +68,13 @@ import {
 
 export default {
   components: {
-    ConfirmationModal,
     BaseModal,
     DeleteAccountForm,
     LoadingResponse,
   },
   data() {
     return {
-      isLoading: false,
-      responseMsg: "",
-      responseType: "",
-      showResetModal: false,
       showDeleteModal: false,
-      biometricSupported: false,
-      biometricRegistered: false,
-      isBiometricLoading: false,
-      biometricMsg: "",
-      biometricMsgType: "",
       isIOS: false,
       isInstallingPwa: false,
       pwaInstalled: false,
@@ -143,74 +84,12 @@ export default {
   },
   computed: {
     ...mapState(useUtilsStore, ["connection"]),
-    ...mapState(useAuthStore, ["user"]),
     ...mapState(useAppStore, ["isDark"]),
   },
   methods: {
     setTheme(theme) {
       const appStore = useAppStore();
       appStore.setTheme(theme);
-    },
-    async handleRequestPasswordReset() {
-      this.isLoading = true;
-      this.responseMsg = "";
-      this.responseType = "";
-      this.showResetModal = false;
-
-      try {
-        await api.post("/auth/request_reset_password", { email: this.user.email });
-        this.responseType = "success";
-        this.responseMsg = "E-mail de redefinição enviado com sucesso.";
-      } catch (error) {
-        this.responseType = "error";
-        this.responseMsg = error.response?.data?.message || "Falha ao solicitar a redefinição de senha.";
-      } finally {
-        this.isLoading = false;
-      }
-    },
-    async loadBiometricStatus() {
-      if (!this.biometricSupported || !this.connection.connected) return;
-
-      try {
-        this.biometricRegistered = await getBiometricStatus();
-      } catch (error) {
-        this.biometricMsgType = "error";
-        this.biometricMsg = error.response?.data?.message || "Não foi possível consultar a biometria.";
-      }
-    },
-    async toggleBiometrics() {
-      if (this.isBiometricLoading) return;
-
-      this.isBiometricLoading = true;
-      this.biometricMsg = "";
-      this.biometricMsgType = "";
-
-      try {
-        if (this.biometricRegistered) {
-          await removeBiometricCredentials();
-          localStorage.setItem(biometricDeclinedKey(this.user.email), "true");
-          this.biometricRegistered = false;
-          this.biometricMsg = "Login com biometria desativado.";
-        } else {
-          const credential = await registerBiometricCredential({
-            onError: (message) => { this.biometricMsg = message; },
-          });
-          if (!credential) {
-            this.biometricMsgType = "error";
-            return;
-          }
-          localStorage.setItem(rememberedEmailKey, this.user.email);
-          localStorage.removeItem(biometricDeclinedKey(this.user.email));
-          this.biometricRegistered = true;
-          this.biometricMsg = "Biometria ativada neste dispositivo.";
-        }
-        this.biometricMsgType = "success";
-      } catch (error) {
-        this.biometricMsgType = "error";
-        this.biometricMsg = error.response?.data?.message || "Não foi possível atualizar a biometria.";
-      } finally {
-        this.isBiometricLoading = false;
-      }
     },
     async handlePwaInstall() {
       this.pwaMsg = "";
@@ -242,11 +121,9 @@ export default {
       }
     },
   },
-  async mounted() {
+  mounted() {
     this.isIOS = isIOSDevice();
     this.pwaInstalled = isPwaInstalled();
-    this.biometricSupported = await isBiometricSupported();
-    await this.loadBiometricStatus();
   },
 };
 </script>

@@ -1,0 +1,279 @@
+/* Estilos compartilhados da aba "Segurança" (prefixo sec- para não colidir com o resto do app). */
+
+.sec-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0 var(--space-2);
+}
+
+.sec-section > h3 {
+  font-size: var(--fontsize-sx);
+  font-weight: 600;
+  color: var(--text-primary);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--glass-border);
+  margin: 0 0 var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sec-section p,
+.sec-hint {
+  font-size: var(--fontsize-xs);
+  color: var(--text-secondary);
+  line-height: 1.65;
+  margin: 0;
+}
+
+.sec-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-5);
+}
+
+.sec-card.is-current {
+  border-color: rgba(53, 90, 253, 0.35);
+  background: linear-gradient(135deg, rgba(53, 90, 253, 0.06), transparent 60%), var(--surface-1);
+}
+
+.sec-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.sec-icon {
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.sec-icon.ok {
+  background: var(--green-high);
+  color: #2f8f4a;
+}
+
+.sec-icon.warn {
+  background: var(--amber-high);
+  color: var(--amber);
+}
+
+.sec-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sec-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--fontsize-sx);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.sec-meta {
+  font-size: var(--fontsize-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.sec-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.sec-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--surface-3);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.sec-badge.ok {
+  background: var(--green-high);
+  color: #2f8f4a;
+}
+
+.sec-badge.info {
+  background: rgba(53, 90, 253, 0.13);
+  color: var(--blue);
+}
+
+.sec-badge.warn {
+  background: var(--amber-high);
+  color: #b45309;
+}
+
+.sec-badge.danger {
+  background: var(--red-high);
+  color: var(--red);
+}
+
+.sec-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  height: 36px;
+  padding: 0 var(--space-5);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+.sec-btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  transform: translateY(-1px);
+}
+
+.sec-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sec-btn.primary {
+  background-image: linear-gradient(to left, #355afd, #243fb8);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.sec-btn.primary:hover:not(:disabled) {
+  background: linear-gradient(to left, #4a6cff, #2c4cd0);
+}
+
+.sec-btn.danger {
+  background: var(--red-high);
+  border-color: transparent;
+  color: var(--red);
+}
+
+.sec-btn.danger:hover:not(:disabled) {
+  background: var(--red);
+  color: #ffffff;
+}
+
+.sec-btn.solid-danger {
+  background: var(--red);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.sec-btn.ghost {
+  background: transparent;
+}
+
+.sec-btn.icon-only {
+  width: 36px;
+  padding: 0;
+}
+
+.sec-empty {
+  text-align: center;
+  padding: var(--space-6) var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--fontsize-xs);
+  border: 1px dashed var(--glass-border);
+  border-radius: var(--radius-sm);
+}
+
+.sec-inline-message {
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  line-height: 1.5;
+}
+
+.sec-inline-message.error {
+  background: var(--red-high);
+  color: var(--red);
+}
+
+.sec-inline-message.success {
+  background: var(--green-high);
+  color: #2f8f4a;
+}
+
+.sec-inline-message.info {
+  background: rgba(53, 90, 253, 0.1);
+  color: var(--blue);
+}
+
+/* Formulários dentro dos modais da aba */
+.sec-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sec-form p {
+  font-size: var(--fontsize-xs);
+  color: var(--text-secondary);
+  line-height: 1.65;
+  margin: 0;
+}
+
+.sec-form .form-group {
+  margin: var(--space-2) 0;
+}
+
+.sec-form-actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  margin-top: var(--space-3);
+}
+
+.sec-form-actions .sec-btn {
+  height: 42px;
+  min-width: 110px;
+}
+
+.sec-code-input {
+  letter-spacing: 0.35em;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  font-weight: 600;
+}
+
+@media (max-width: 560px) {
+  .sec-row {
+    align-items: flex-start;
+  }
+}

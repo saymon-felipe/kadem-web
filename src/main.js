@@ -135,8 +135,13 @@ import {
   faShieldHalved,
   faDroplet,
   faQrcode,
+  faEnvelope,
   faPhone,
   faPrint,
+  faKey,
+  faDesktop,
+  faMobileScreenButton,
+  faTabletScreenButton,
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -259,8 +264,13 @@ library.add(
   faShieldHalved,
   faDroplet,
   faQrcode,
+  faEnvelope,
   faPhone,
   faPrint,
+  faKey,
+  faDesktop,
+  faMobileScreenButton,
+  faTabletScreenButton,
 );
 
 window.addEventListener('error', (event) => {

@@ -17,6 +17,162 @@
       "norm_label": "mediasessionmanager"
     },
     {
+      "label": "areaPolygonPoints()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L472",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_areapolygonpoints",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "areapolygonpoints()"
+    },
+    {
+      "label": "canCompare()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L445",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_cancompare",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "cancompare()"
+    },
+    {
+      "label": "chartPoints()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L469",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_chartpoints",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "chartpoints()"
+    },
+    {
+      "label": "data()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L407",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_data",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "data()"
+    },
+    {
+      "label": "displayValue()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L497",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_displayvalue",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "displayvalue()"
+    },
+    {
+      "label": "handler()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L486",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_handler",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "handler()"
+    },
+    {
+      "label": "numericPoints()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L457",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_numericpoints",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "numericpoints()"
+    },
+    {
+      "label": "outcomes()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L440",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_outcomes",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "outcomes()"
+    },
+    {
+      "label": "patterns()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L454",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_patterns",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "patterns()"
+    },
+    {
+      "label": "periodDays()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L480",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_perioddays",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "perioddays()"
+    },
+    {
+      "label": "predictors()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L435",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_predictors",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "predictors()"
+    },
+    {
+      "label": "rate()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L494",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_rate",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "rate()"
+    },
+    {
+      "label": "runComparison()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L504",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_runcomparison",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "runcomparison()"
+    },
+    {
       "label": "selectedSummary()",
       "file_type": "code",
       "source_file": "src/components/health/HealthTrackingInsights.vue",
@@ -25,8 +181,140 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackinginsights_selectedsummary",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "selectedsummary()"
+    },
+    {
+      "label": "selectedTracker()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L423",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_selectedtracker",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "selectedtracker()"
+    },
+    {
+      "label": "selectPattern()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L527",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackinginsights_selectpattern",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "selectpattern()"
+    },
+    {
+      "label": "activeTrackers()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingOverview.vue",
+      "source_location": "L111",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackingoverview_activetrackers",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "activetrackers()"
+    },
+    {
+      "label": "checkinsInLast7Days()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingOverview.vue",
+      "source_location": "L148",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackingoverview_checkinsinlast7days",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "checkinsinlast7days()"
+    },
+    {
+      "label": "groupColor()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingOverview.vue",
+      "source_location": "L172",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackingoverview_groupcolor",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "groupcolor()"
+    },
+    {
+      "label": "hasRecordedValue()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingOverview.vue",
+      "source_location": "L157",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackingoverview_hasrecordedvalue",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "hasrecordedvalue()"
+    },
+    {
+      "label": "isCheckinToday()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingOverview.vue",
+      "source_location": "L121",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackingoverview_ischeckintoday",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "ischeckintoday()"
+    },
+    {
+      "label": "lastCheckinLabel()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingOverview.vue",
+      "source_location": "L127",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackingoverview_lastcheckinlabel",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "lastcheckinlabel()"
+    },
+    {
+      "label": "latestCheckin()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingOverview.vue",
+      "source_location": "L114",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackingoverview_latestcheckin",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "latestcheckin()"
+    },
+    {
+      "label": "latestValue()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingOverview.vue",
+      "source_location": "L161",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackingoverview_latestvalue",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "latestvalue()"
+    },
+    {
+      "label": "trackerSummaryData()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthTrackingOverview.vue",
+      "source_location": "L154",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthtrackingoverview_trackersummarydata",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "trackersummarydata()"
     },
     {
       "label": "activeTrackers()",
@@ -37,7 +325,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_activetrackers",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "activetrackers()"
     },
     {
@@ -49,7 +337,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_archivedcount",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "archivedcount()"
     },
     {
@@ -61,7 +349,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_checkinitems",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "checkinitems()"
     },
     {
@@ -73,7 +361,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_checkinremainingcount",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "checkinremainingcount()"
     },
     {
@@ -85,7 +373,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_counttrackersingroup",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "counttrackersingroup()"
     },
     {
@@ -97,7 +385,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_data",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "data()"
     },
     {
@@ -109,7 +397,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_displaygroups",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "displaygroups()"
     },
     {
@@ -121,7 +409,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_filteredtrackers",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "filteredtrackers()"
     },
     {
@@ -133,7 +421,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_groupcolor",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "groupcolor()"
     },
     {
@@ -145,7 +433,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_groupfilterlist",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "groupfilterlist()"
     },
     {
@@ -157,7 +445,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_latestvaluedisplay",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "latestvaluedisplay()"
     },
     {
@@ -169,7 +457,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_preview",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "preview()"
     },
     {
@@ -181,7 +469,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_recentcount",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "recentcount()"
     },
     {
@@ -193,7 +481,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_typeicon",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "typeicon()"
     },
     {
@@ -205,8 +493,80 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab_typelabel",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "typelabel()"
+    },
+    {
+      "label": "checkinsInPeriod()",
+      "file_type": "code",
+      "source_file": "src/services/healthInsights.js",
+      "source_location": "L3",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_services_healthinsights_checkinsinperiod",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "checkinsinperiod()"
+    },
+    {
+      "label": "comparePattern()",
+      "file_type": "code",
+      "source_file": "src/services/healthInsights.js",
+      "source_location": "L38",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_services_healthinsights_comparepattern",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "comparepattern()"
+    },
+    {
+      "label": "findPatterns()",
+      "file_type": "code",
+      "source_file": "src/services/healthInsights.js",
+      "source_location": "L107",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_services_healthinsights_findpatterns",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "findpatterns()"
+    },
+    {
+      "label": "hasValue()",
+      "file_type": "code",
+      "source_file": "src/services/healthInsights.js",
+      "source_location": "L11",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_services_healthinsights_hasvalue",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "hasvalue()"
+    },
+    {
+      "label": "observedOptions()",
+      "file_type": "code",
+      "source_file": "src/services/healthInsights.js",
+      "source_location": "L98",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_services_healthinsights_observedoptions",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "observedoptions()"
+    },
+    {
+      "label": "trackerSeries()",
+      "file_type": "code",
+      "source_file": "src/services/healthInsights.js",
+      "source_location": "L21",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_services_healthinsights_trackerseries",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "trackerseries()"
     },
     {
       "label": "trackerSummary()",
@@ -217,7 +577,7 @@
       "_origin": "ast",
       "id": "src_services_healthinsights_trackersummary",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "trackersummary()"
     },
     {
@@ -1349,6 +1709,18 @@
       "norm_label": "escaperegexp()"
     },
     {
+      "label": "connection_status()",
+      "file_type": "code",
+      "source_file": "src/components/widgets/connectionWidget.vue",
+      "source_location": "L30",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_widgets_connectionwidget_connection_status",
+      "community": 109,
+      "community_name": "dateWidget.vue",
+      "norm_label": "connection_status()"
+    },
+    {
       "label": "data()",
       "file_type": "code",
       "source_file": "src/components/widgets/dateWidget.vue",
@@ -1419,18 +1791,6 @@
       "community": 109,
       "community_name": "dateWidget.vue",
       "norm_label": "updateclock()"
-    },
-    {
-      "label": "connection_status()",
-      "file_type": "code",
-      "source_file": "src/components/widgets/connectionWidget.vue",
-      "source_location": "L30",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_widgets_connectionwidget_connection_status",
-      "community": 11,
-      "community_name": "api",
-      "norm_label": "connection_status()"
     },
     {
       "label": "attach_files_to_tasks()",
@@ -1565,6 +1925,66 @@
       "norm_label": "trigger_input()"
     },
     {
+      "label": "beforeUnmount()",
+      "file_type": "code",
+      "source_file": "src/views/HealthPublicCardView.vue",
+      "source_location": "L102",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_views_healthpubliccardview_beforeunmount",
+      "community": 112,
+      "community_name": "HealthPublicCardView.vue",
+      "norm_label": "beforeunmount()"
+    },
+    {
+      "label": "data()",
+      "file_type": "code",
+      "source_file": "src/views/HealthPublicCardView.vue",
+      "source_location": "L82",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_views_healthpubliccardview_data",
+      "community": 112,
+      "community_name": "HealthPublicCardView.vue",
+      "norm_label": "data()"
+    },
+    {
+      "label": "lines()",
+      "file_type": "code",
+      "source_file": "src/views/HealthPublicCardView.vue",
+      "source_location": "L107",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_views_healthpubliccardview_lines",
+      "community": 112,
+      "community_name": "HealthPublicCardView.vue",
+      "norm_label": "lines()"
+    },
+    {
+      "label": "mounted()",
+      "file_type": "code",
+      "source_file": "src/views/HealthPublicCardView.vue",
+      "source_location": "L85",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_views_healthpubliccardview_mounted",
+      "community": 112,
+      "community_name": "HealthPublicCardView.vue",
+      "norm_label": "mounted()"
+    },
+    {
+      "label": "phoneHref()",
+      "file_type": "code",
+      "source_file": "src/views/HealthPublicCardView.vue",
+      "source_location": "L110",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_views_healthpubliccardview_phonehref",
+      "community": 112,
+      "community_name": "HealthPublicCardView.vue",
+      "norm_label": "phonehref()"
+    },
+    {
       "label": "data()",
       "file_type": "code",
       "source_file": "src/components/avatarComponent.vue",
@@ -1635,6 +2055,78 @@
       "community": 113,
       "community_name": "avatarComponent.vue",
       "norm_label": "trigger_avatar_upload()"
+    },
+    {
+      "label": "data()",
+      "file_type": "code",
+      "source_file": "src/views/alexaAuthView.vue",
+      "source_location": "L66",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_views_alexaauthview_data",
+      "community": 114,
+      "community_name": "alexaAuthView.vue",
+      "norm_label": "data()"
+    },
+    {
+      "label": "handleAlexaLogin()",
+      "file_type": "code",
+      "source_file": "src/views/alexaAuthView.vue",
+      "source_location": "L131",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_views_alexaauthview_handlealexalogin",
+      "community": 114,
+      "community_name": "alexaAuthView.vue",
+      "norm_label": "handlealexalogin()"
+    },
+    {
+      "label": "isOAuthMode()",
+      "file_type": "code",
+      "source_file": "src/views/alexaAuthView.vue",
+      "source_location": "L83",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_views_alexaauthview_isoauthmode",
+      "community": 114,
+      "community_name": "alexaAuthView.vue",
+      "norm_label": "isoauthmode()"
+    },
+    {
+      "label": "isPairingMode()",
+      "file_type": "code",
+      "source_file": "src/views/alexaAuthView.vue",
+      "source_location": "L86",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_views_alexaauthview_ispairingmode",
+      "community": 114,
+      "community_name": "alexaAuthView.vue",
+      "norm_label": "ispairingmode()"
+    },
+    {
+      "label": "mounted()",
+      "file_type": "code",
+      "source_file": "src/views/alexaAuthView.vue",
+      "source_location": "L90",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_views_alexaauthview_mounted",
+      "community": 114,
+      "community_name": "alexaAuthView.vue",
+      "norm_label": "mounted()"
+    },
+    {
+      "label": "togglePassword()",
+      "file_type": "code",
+      "source_file": "src/views/alexaAuthView.vue",
+      "source_location": "L128",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_views_alexaauthview_togglepassword",
+      "community": 114,
+      "community_name": "alexaAuthView.vue",
+      "norm_label": "togglepassword()"
     },
     {
       "label": "beforeUnmount()",
@@ -2069,18 +2561,6 @@
       "norm_label": "_handleaccounttask()"
     },
     {
-      "label": "_handleDownloadLyricsTask()",
-      "file_type": "code",
-      "source_file": "src/services/syncService.js",
-      "source_location": "L686",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_syncservice_handledownloadlyricstask",
-      "community": 13,
-      "community_name": "syncService.js",
-      "norm_label": "_handledownloadlyricstask()"
-    },
-    {
       "label": "_handleFinanceTask()",
       "file_type": "code",
       "source_file": "src/services/syncService.js",
@@ -2405,6 +2885,42 @@
       "norm_label": "updatefinancelocalrecord()"
     },
     {
+      "label": "beforeUnmount()",
+      "file_type": "code",
+      "source_file": "src/App.vue",
+      "source_location": "L49",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_app_beforeunmount",
+      "community": 14,
+      "community_name": "db.js",
+      "norm_label": "beforeunmount()"
+    },
+    {
+      "label": "created()",
+      "file_type": "code",
+      "source_file": "src/App.vue",
+      "source_location": "L40",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_app_created",
+      "community": 14,
+      "community_name": "db.js",
+      "norm_label": "created()"
+    },
+    {
+      "label": "data()",
+      "file_type": "code",
+      "source_file": "src/App.vue",
+      "source_location": "L33",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_app_data",
+      "community": 14,
+      "community_name": "db.js",
+      "norm_label": "data()"
+    },
+    {
       "label": "repairStorage()",
       "file_type": "code",
       "source_file": "src/App.vue",
@@ -2439,6 +2955,18 @@
       "community": 14,
       "community_name": "db.js",
       "norm_label": "clearlocaldbissue()"
+    },
+    {
+      "label": "consumeLocalDbIssue()",
+      "file_type": "code",
+      "source_file": "src/db.js",
+      "source_location": "L157",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_db_consumelocaldbissue",
+      "community": 14,
+      "community_name": "db.js",
+      "norm_label": "consumelocaldbissue()"
     },
     {
       "label": "createIssuePayload()",
@@ -2501,6 +3029,30 @@
       "norm_label": "geterrornamechain()"
     },
     {
+      "label": "initializeLocalDb()",
+      "file_type": "code",
+      "source_file": "src/db.js",
+      "source_location": "L267",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_db_initializelocaldb",
+      "community": 14,
+      "community_name": "db.js",
+      "norm_label": "initializelocaldb()"
+    },
+    {
+      "label": "isLocalDbUnavailableError()",
+      "file_type": "code",
+      "source_file": "src/db.js",
+      "source_location": "L192",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_db_islocaldbunavailableerror",
+      "community": 14,
+      "community_name": "db.js",
+      "norm_label": "islocaldbunavailableerror()"
+    },
+    {
       "label": "normalizeLocalDbError()",
       "file_type": "code",
       "source_file": "src/db.js",
@@ -2511,6 +3063,18 @@
       "community": 14,
       "community_name": "db.js",
       "norm_label": "normalizelocaldberror()"
+    },
+    {
+      "label": "onLocalDbIssue()",
+      "file_type": "code",
+      "source_file": "src/db.js",
+      "source_location": "L176",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_db_onlocaldbissue",
+      "community": 14,
+      "community_name": "db.js",
+      "norm_label": "onlocaldbissue()"
     },
     {
       "label": "rememberLocalDbIssue()",
@@ -2537,16 +3101,16 @@
       "norm_label": "repairlocalenvironment()"
     },
     {
-      "label": "runDbOperation()",
+      "label": "mounted()",
       "file_type": "code",
-      "source_file": "src/db.js",
-      "source_location": "L271",
+      "source_file": "src/views/authView.vue",
+      "source_location": "L164",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_db_rundboperation",
+      "id": "src_views_authview_mounted",
       "community": 14,
       "community_name": "db.js",
-      "norm_label": "rundboperation()"
+      "norm_label": "mounted()"
     },
     {
       "label": "repairStorage()",
@@ -3235,6 +3799,78 @@
     {
       "label": "data()",
       "file_type": "code",
+      "source_file": "src/components/windows/ProjectsWindow.vue",
+      "source_location": "L39",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_windows_projectswindow_data",
+      "community": 17,
+      "community_name": "resetPasswordView.vue",
+      "norm_label": "data()"
+    },
+    {
+      "label": "handle_back_to_list()",
+      "file_type": "code",
+      "source_file": "src/components/windows/ProjectsWindow.vue",
+      "source_location": "L67",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_windows_projectswindow_handle_back_to_list",
+      "community": 17,
+      "community_name": "resetPasswordView.vue",
+      "norm_label": "handle_back_to_list()"
+    },
+    {
+      "label": "handle_open_project()",
+      "file_type": "code",
+      "source_file": "src/components/windows/ProjectsWindow.vue",
+      "source_location": "L63",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_windows_projectswindow_handle_open_project",
+      "community": 17,
+      "community_name": "resetPasswordView.vue",
+      "norm_label": "handle_open_project()"
+    },
+    {
+      "label": "mounted()",
+      "file_type": "code",
+      "source_file": "src/components/windows/ProjectsWindow.vue",
+      "source_location": "L71",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_windows_projectswindow_mounted",
+      "community": 17,
+      "community_name": "resetPasswordView.vue",
+      "norm_label": "mounted()"
+    },
+    {
+      "label": "project_exists()",
+      "file_type": "code",
+      "source_file": "src/components/windows/ProjectsWindow.vue",
+      "source_location": "L47",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_windows_projectswindow_project_exists",
+      "community": 17,
+      "community_name": "resetPasswordView.vue",
+      "norm_label": "project_exists()"
+    },
+    {
+      "label": "should_show_list()",
+      "file_type": "code",
+      "source_file": "src/components/windows/ProjectsWindow.vue",
+      "source_location": "L56",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_windows_projectswindow_should_show_list",
+      "community": 17,
+      "community_name": "resetPasswordView.vue",
+      "norm_label": "should_show_list()"
+    },
+    {
+      "label": "data()",
+      "file_type": "code",
       "source_file": "src/views/resetPasswordView.vue",
       "source_location": "L66",
       "_callable": true,
@@ -3855,6 +4491,18 @@
       "community": 19,
       "community_name": "headerSystem.vue",
       "norm_label": "handlerightclick()"
+    },
+    {
+      "label": "handleWindowClick()",
+      "file_type": "code",
+      "source_file": "src/components/headerSystem.vue",
+      "source_location": "L316",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_headersystem_handlewindowclick",
+      "community": 19,
+      "community_name": "headerSystem.vue",
+      "norm_label": "handlewindowclick()"
     },
     {
       "label": "is_pro()",
@@ -4865,138 +5513,6 @@
       "norm_label": "handlemigration()"
     },
     {
-      "label": "setup()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/AccountCenter/AccountCenter.vue",
-      "source_location": "L132",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_accountcenter_accountcenter_setup",
-      "community": 21,
-      "community_name": "useVaultStore",
-      "norm_label": "setup()"
-    },
-    {
-      "label": "confirmDelete()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
-      "source_location": "L161",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_accountcenter_accountlist_confirmdelete",
-      "community": 21,
-      "community_name": "useVaultStore",
-      "norm_label": "confirmdelete()"
-    },
-    {
-      "label": "copyPassword()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
-      "source_location": "L149",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_accountcenter_accountlist_copypassword",
-      "community": 21,
-      "community_name": "useVaultStore",
-      "norm_label": "copypassword()"
-    },
-    {
-      "label": "copyUserAndHide()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
-      "source_location": "L131",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_accountcenter_accountlist_copyuserandhide",
-      "community": 21,
-      "community_name": "useVaultStore",
-      "norm_label": "copyuserandhide()"
-    },
-    {
-      "label": "data()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
-      "source_location": "L88",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_accountcenter_accountlist_data",
-      "community": 21,
-      "community_name": "useVaultStore",
-      "norm_label": "data()"
-    },
-    {
-      "label": "formatLastAccess()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
-      "source_location": "L97",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_accountcenter_accountlist_formatlastaccess",
-      "community": 21,
-      "community_name": "useVaultStore",
-      "norm_label": "formatlastaccess()"
-    },
-    {
-      "label": "handleDeleteAccount()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
-      "source_location": "L166",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_accountcenter_accountlist_handledeleteaccount",
-      "community": 21,
-      "community_name": "useVaultStore",
-      "norm_label": "handledeleteaccount()"
-    },
-    {
-      "label": "inputStyle()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
-      "source_location": "L113",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_accountcenter_accountlist_inputstyle",
-      "community": 21,
-      "community_name": "useVaultStore",
-      "norm_label": "inputstyle()"
-    },
-    {
-      "label": "returnAccountTypeImage()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
-      "source_location": "L106",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_accountcenter_accountlist_returnaccounttypeimage",
-      "community": 21,
-      "community_name": "useVaultStore",
-      "norm_label": "returnaccounttypeimage()"
-    },
-    {
-      "label": "setup()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
-      "source_location": "L84",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_accountcenter_accountlist_setup",
-      "community": 21,
-      "community_name": "useVaultStore",
-      "norm_label": "setup()"
-    },
-    {
-      "label": "toggleRevealAll()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
-      "source_location": "L124",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_accountcenter_accountlist_togglerevealall",
-      "community": 21,
-      "community_name": "useVaultStore",
-      "norm_label": "togglerevealall()"
-    },
-    {
       "label": "data()",
       "file_type": "code",
       "source_file": "src/components/startMenu/AccountCenter/RescueAccountsModal.vue",
@@ -5521,7 +6037,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthrecentevents_eventclass",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "eventclass()"
     },
     {
@@ -5533,7 +6049,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthrecentevents_eventicon",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "eventicon()"
     },
     {
@@ -5545,7 +6061,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthrecentevents_eventtypelabel",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "eventtypelabel()"
     },
     {
@@ -5557,7 +6073,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthrecentevents_qtyclass",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "qtyclass()"
     },
     {
@@ -5569,8 +6085,128 @@
       "_origin": "ast",
       "id": "src_components_health_healthrecentevents_qtyprefix",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "qtyprefix()"
+    },
+    {
+      "label": "adherenceLabel()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthStatusDonut.vue",
+      "source_location": "L131",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthstatusdonut_adherencelabel",
+      "community": 26,
+      "community_name": "HealthStatusDonut.vue",
+      "norm_label": "adherencelabel()"
+    },
+    {
+      "label": "adherenceRate()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthStatusDonut.vue",
+      "source_location": "L126",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthstatusdonut_adherencerate",
+      "community": 26,
+      "community_name": "HealthStatusDonut.vue",
+      "norm_label": "adherencerate()"
+    },
+    {
+      "label": "data()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthStatusDonut.vue",
+      "source_location": "L99",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthstatusdonut_data",
+      "community": 26,
+      "community_name": "HealthStatusDonut.vue",
+      "norm_label": "data()"
+    },
+    {
+      "label": "healthySupplies()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthStatusDonut.vue",
+      "source_location": "L120",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthstatusdonut_healthysupplies",
+      "community": 26,
+      "community_name": "HealthStatusDonut.vue",
+      "norm_label": "healthysupplies()"
+    },
+    {
+      "label": "hoveredSegment()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthStatusDonut.vue",
+      "source_location": "L137",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthstatusdonut_hoveredsegment",
+      "community": 26,
+      "community_name": "HealthStatusDonut.vue",
+      "norm_label": "hoveredsegment()"
+    },
+    {
+      "label": "lowStockSupplies()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthStatusDonut.vue",
+      "source_location": "L117",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthstatusdonut_lowstocksupplies",
+      "community": 26,
+      "community_name": "HealthStatusDonut.vue",
+      "norm_label": "lowstocksupplies()"
+    },
+    {
+      "label": "onTrackSchedules()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthStatusDonut.vue",
+      "source_location": "L111",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthstatusdonut_ontrackschedules",
+      "community": 26,
+      "community_name": "HealthStatusDonut.vue",
+      "norm_label": "ontrackschedules()"
+    },
+    {
+      "label": "overdueSchedules()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthStatusDonut.vue",
+      "source_location": "L105",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthstatusdonut_overdueschedules",
+      "community": 26,
+      "community_name": "HealthStatusDonut.vue",
+      "norm_label": "overdueschedules()"
+    },
+    {
+      "label": "segments()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthStatusDonut.vue",
+      "source_location": "L140",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthstatusdonut_segments",
+      "community": 26,
+      "community_name": "HealthStatusDonut.vue",
+      "norm_label": "segments()"
+    },
+    {
+      "label": "totalItems()",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthStatusDonut.vue",
+      "source_location": "L123",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_health_healthstatusdonut_totalitems",
+      "community": 26,
+      "community_name": "HealthStatusDonut.vue",
+      "norm_label": "totalitems()"
     },
     {
       "label": "sortedSupplies()",
@@ -5581,7 +6217,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthstockmonitor_sortedsupplies",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "sortedsupplies()"
     },
     {
@@ -5593,7 +6229,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthsummarycards_schedulestatustitle",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "schedulestatustitle()"
     },
     {
@@ -5605,7 +6241,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthsummarycards_stockstatustitle",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "stockstatustitle()"
     },
     {
@@ -5617,20 +6253,8 @@
       "_origin": "ast",
       "id": "src_components_health_healthupcomingschedules_sortedschedules",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "sortedschedules()"
-    },
-    {
-      "label": "handleWindowClick()",
-      "file_type": "code",
-      "source_file": "src/components/headerSystem.vue",
-      "source_location": "L316",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_headersystem_handlewindowclick",
-      "community": 27,
-      "community_name": "BaseWindow.vue",
-      "norm_label": "handlewindowclick()"
     },
     {
       "label": "close()",
@@ -5751,66 +6375,6 @@
       "community": 27,
       "community_name": "BaseWindow.vue",
       "norm_label": "importwithretry()"
-    },
-    {
-      "label": "beforeUnmount()",
-      "file_type": "code",
-      "source_file": "src/components/windowing/DesktopWindowManager.vue",
-      "source_location": "L55",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_windowing_desktopwindowmanager_beforeunmount",
-      "community": 27,
-      "community_name": "BaseWindow.vue",
-      "norm_label": "beforeunmount()"
-    },
-    {
-      "label": "data()",
-      "file_type": "code",
-      "source_file": "src/components/windowing/DesktopWindowManager.vue",
-      "source_location": "L27",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_windowing_desktopwindowmanager_data",
-      "community": 27,
-      "community_name": "BaseWindow.vue",
-      "norm_label": "data()"
-    },
-    {
-      "label": "mounted()",
-      "file_type": "code",
-      "source_file": "src/components/windowing/DesktopWindowManager.vue",
-      "source_location": "L49",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_windowing_desktopwindowmanager_mounted",
-      "community": 27,
-      "community_name": "BaseWindow.vue",
-      "norm_label": "mounted()"
-    },
-    {
-      "label": "on_window_resize()",
-      "file_type": "code",
-      "source_file": "src/components/windowing/DesktopWindowManager.vue",
-      "source_location": "L41",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_windowing_desktopwindowmanager_on_window_resize",
-      "community": 27,
-      "community_name": "BaseWindow.vue",
-      "norm_label": "on_window_resize()"
-    },
-    {
-      "label": "indicatorStyle()",
-      "file_type": "code",
-      "source_file": "src/components/windowing/SnapIndicator.vue",
-      "source_location": "L16",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_windowing_snapindicator_indicatorstyle",
-      "community": 27,
-      "community_name": "BaseWindow.vue",
-      "norm_label": "indicatorstyle()"
     },
     {
       "label": "beforeUnmount()",
@@ -6173,52 +6737,16 @@
       "norm_label": "track_mouse()"
     },
     {
-      "label": "consumeLocalDbIssue()",
+      "label": "biometricDeclinedKey()",
       "file_type": "code",
-      "source_file": "src/db.js",
-      "source_location": "L157",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L4",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_db_consumelocaldbissue",
+      "id": "src_services_biometricauth_biometricdeclinedkey",
       "community": 29,
       "community_name": "authView.vue",
-      "norm_label": "consumelocaldbissue()"
-    },
-    {
-      "label": "initializeLocalDb()",
-      "file_type": "code",
-      "source_file": "src/db.js",
-      "source_location": "L267",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_db_initializelocaldb",
-      "community": 29,
-      "community_name": "authView.vue",
-      "norm_label": "initializelocaldb()"
-    },
-    {
-      "label": "isLocalDbUnavailableError()",
-      "file_type": "code",
-      "source_file": "src/db.js",
-      "source_location": "L192",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_db_islocaldbunavailableerror",
-      "community": 29,
-      "community_name": "authView.vue",
-      "norm_label": "islocaldbunavailableerror()"
-    },
-    {
-      "label": "onLocalDbIssue()",
-      "file_type": "code",
-      "source_file": "src/db.js",
-      "source_location": "L176",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_db_onlocaldbissue",
-      "community": 29,
-      "community_name": "authView.vue",
-      "norm_label": "onlocaldbissue()"
+      "norm_label": "biometricdeclinedkey()"
     },
     {
       "label": "auth()",
@@ -6423,18 +6951,6 @@
       "community": 29,
       "community_name": "authView.vue",
       "norm_label": "loginwithbiometrics()"
-    },
-    {
-      "label": "mounted()",
-      "file_type": "code",
-      "source_file": "src/views/authView.vue",
-      "source_location": "L164",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_views_authview_mounted",
-      "community": 29,
-      "community_name": "authView.vue",
-      "norm_label": "mounted()"
     },
     {
       "label": "saveRememberedEmail()",
@@ -7577,172 +8093,256 @@
       "norm_label": "typelabel()"
     },
     {
-      "label": "areaPolygonPoints()",
+      "label": "beforeUnmount()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L472",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L329",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_areapolygonpoints",
+      "id": "src_components_radio_videomodal_beforeunmount",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "areapolygonpoints()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "beforeunmount()"
     },
     {
-      "label": "canCompare()",
+      "label": "close_modal()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L445",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L307",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_cancompare",
+      "id": "src_components_radio_videomodal_close_modal",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "cancompare()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "close_modal()"
     },
     {
-      "label": "chartPoints()",
+      "label": "current_time()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L469",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L132",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_chartpoints",
+      "id": "src_components_radio_videomodal_current_time",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "chartpoints()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "current_time()"
     },
     {
       "label": "data()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L407",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L88",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_data",
+      "id": "src_components_radio_videomodal_data",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
+      "community_name": "VideoModal.vue",
       "norm_label": "data()"
     },
     {
-      "label": "displayValue()",
+      "label": "exit_fullscreen_if_active()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L497",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L170",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_displayvalue",
+      "id": "src_components_radio_videomodal_exit_fullscreen_if_active",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "displayvalue()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "exit_fullscreen_if_active()"
     },
     {
-      "label": "handler()",
+      "label": "handle_fullscreen_change()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L486",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L180",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_handler",
+      "id": "src_components_radio_videomodal_handle_fullscreen_change",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "handler()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "handle_fullscreen_change()"
     },
     {
-      "label": "numericPoints()",
+      "label": "handle_video_pause()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L457",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L196",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_numericpoints",
+      "id": "src_components_radio_videomodal_handle_video_pause",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "numericpoints()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "handle_video_pause()"
     },
     {
-      "label": "outcomes()",
+      "label": "handle_video_play()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L440",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L190",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_outcomes",
+      "id": "src_components_radio_videomodal_handle_video_play",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "outcomes()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "handle_video_play()"
     },
     {
-      "label": "periodDays()",
+      "label": "handle_video_seek()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L480",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L204",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_perioddays",
+      "id": "src_components_radio_videomodal_handle_video_seek",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "perioddays()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "handle_video_seek()"
     },
     {
-      "label": "predictors()",
+      "label": "handle_video_timeupdate()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L435",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L218",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_predictors",
+      "id": "src_components_radio_videomodal_handle_video_timeupdate",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "predictors()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "handle_video_timeupdate()"
     },
     {
-      "label": "rate()",
+      "label": "handle_video_volume()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L494",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L228",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_rate",
+      "id": "src_components_radio_videomodal_handle_video_volume",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "rate()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "handle_video_volume()"
     },
     {
-      "label": "runComparison()",
+      "label": "is_playing()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L504",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L135",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_runcomparison",
+      "id": "src_components_radio_videomodal_is_playing",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "runcomparison()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "is_playing()"
     },
     {
-      "label": "selectedTracker()",
+      "label": "load_video()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L423",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L238",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_selectedtracker",
+      "id": "src_components_radio_videomodal_load_video",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "selectedtracker()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "load_video()"
     },
     {
-      "label": "selectPattern()",
+      "label": "modelValue()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L527",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L108",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_selectpattern",
+      "id": "src_components_radio_videomodal_modelvalue",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "selectpattern()"
+      "community_name": "VideoModal.vue",
+      "norm_label": "modelvalue()"
+    },
+    {
+      "label": "mounted()",
+      "file_type": "code",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L324",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_radio_videomodal_mounted",
+      "community": 32,
+      "community_name": "VideoModal.vue",
+      "norm_label": "mounted()"
+    },
+    {
+      "label": "pause_video()",
+      "file_type": "code",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L297",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_radio_videomodal_pause_video",
+      "community": 32,
+      "community_name": "VideoModal.vue",
+      "norm_label": "pause_video()"
+    },
+    {
+      "label": "release_video_url()",
+      "file_type": "code",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L302",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_radio_videomodal_release_video_url",
+      "community": 32,
+      "community_name": "VideoModal.vue",
+      "norm_label": "release_video_url()"
+    },
+    {
+      "label": "store_volume()",
+      "file_type": "code",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L103",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_radio_videomodal_store_volume",
+      "community": 32,
+      "community_name": "VideoModal.vue",
+      "norm_label": "store_volume()"
+    },
+    {
+      "label": "sync_playback()",
+      "file_type": "code",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L268",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_radio_videomodal_sync_playback",
+      "community": 32,
+      "community_name": "VideoModal.vue",
+      "norm_label": "sync_playback()"
+    },
+    {
+      "label": "toggle_native_fullscreen()",
+      "file_type": "code",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L148",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_radio_videomodal_toggle_native_fullscreen",
+      "community": 32,
+      "community_name": "VideoModal.vue",
+      "norm_label": "toggle_native_fullscreen()"
+    },
+    {
+      "label": "video_id()",
+      "file_type": "code",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L100",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_radio_videomodal_video_id",
+      "community": 32,
+      "community_name": "VideoModal.vue",
+      "norm_label": "video_id()"
     },
     {
       "label": "canUseVaultBiometrics()",
@@ -7947,6 +8547,18 @@
       "community": 33,
       "community_name": "AccountCenter.vue",
       "norm_label": "isbiometriccancellationerror()"
+    },
+    {
+      "label": "isBiometricSupported()",
+      "file_type": "code",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L73",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_services_biometricauth_isbiometricsupported",
+      "community": 33,
+      "community_name": "AccountCenter.vue",
+      "norm_label": "isbiometricsupported()"
     },
     {
       "label": "beforeUnmount()",
@@ -8739,18 +9351,6 @@
       "community": 37,
       "community_name": "StartMenu.vue",
       "norm_label": "syncwarningmessage()"
-    },
-    {
-      "label": "toggleTheme()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/StartMenu.vue",
-      "source_location": "L159",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_startmenu_toggletheme",
-      "community": 37,
-      "community_name": "StartMenu.vue",
-      "norm_label": "toggletheme()"
     },
     {
       "label": "trackStyle()",
@@ -9737,42 +10337,6 @@
       "norm_label": "verify_and_add_track()"
     },
     {
-      "label": "beforeUnmount()",
-      "file_type": "code",
-      "source_file": "src/App.vue",
-      "source_location": "L49",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_app_beforeunmount",
-      "community": 40,
-      "community_name": "app.js",
-      "norm_label": "beforeunmount()"
-    },
-    {
-      "label": "created()",
-      "file_type": "code",
-      "source_file": "src/App.vue",
-      "source_location": "L40",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_app_created",
-      "community": 40,
-      "community_name": "app.js",
-      "norm_label": "created()"
-    },
-    {
-      "label": "data()",
-      "file_type": "code",
-      "source_file": "src/App.vue",
-      "source_location": "L33",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_app_data",
-      "community": 40,
-      "community_name": "app.js",
-      "norm_label": "data()"
-    },
-    {
       "label": "handle_save_task()",
       "file_type": "code",
       "source_file": "src/components/projects/ProjectKanban.vue",
@@ -9795,6 +10359,42 @@
       "community": 40,
       "community_name": "app.js",
       "norm_label": "is_playing_this()"
+    },
+    {
+      "label": "setup()",
+      "file_type": "code",
+      "source_file": "src/components/startMenu/AccountCenter/AccountCenter.vue",
+      "source_location": "L132",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_startmenu_accountcenter_accountcenter_setup",
+      "community": 40,
+      "community_name": "app.js",
+      "norm_label": "setup()"
+    },
+    {
+      "label": "setTheme()",
+      "file_type": "code",
+      "source_file": "src/components/startMenu/Configuration.vue",
+      "source_location": "L150",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_startmenu_configuration_settheme",
+      "community": 40,
+      "community_name": "app.js",
+      "norm_label": "settheme()"
+    },
+    {
+      "label": "toggleTheme()",
+      "file_type": "code",
+      "source_file": "src/components/startMenu/StartMenu.vue",
+      "source_location": "L159",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_startmenu_startmenu_toggletheme",
+      "community": 40,
+      "community_name": "app.js",
+      "norm_label": "toggletheme()"
     },
     {
       "label": "buildThemeStorageKey()",
@@ -10493,6 +11093,18 @@
       "norm_label": "updatedirection()"
     },
     {
+      "label": "setup()",
+      "file_type": "code",
+      "source_file": "src/components/radio/VideoModal.vue",
+      "source_location": "L73",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_radio_videomodal_setup",
+      "community": 44,
+      "community_name": "radioFlowApi.js",
+      "norm_label": "setup()"
+    },
+    {
       "label": "player_store()",
       "file_type": "code",
       "source_file": "src/services/radioFlowApi.js",
@@ -10539,30 +11151,6 @@
       "community": 44,
       "community_name": "radioFlowApi.js",
       "norm_label": "window_store()"
-    },
-    {
-      "label": "active()",
-      "file_type": "code",
-      "source_file": "src/services/localData/healthRepository.js",
-      "source_location": "L4",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_localdata_healthrepository_active",
-      "community": 45,
-      "community_name": "health.js",
-      "norm_label": "active()"
-    },
-    {
-      "label": "now()",
-      "file_type": "code",
-      "source_file": "src/services/localData/healthRepository.js",
-      "source_location": "L3",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_localdata_healthrepository_now",
-      "community": 45,
-      "community_name": "health.js",
-      "norm_label": "now()"
     },
     {
       "label": "addInterval()",
@@ -10841,18 +11429,6 @@
       "norm_label": "mounted()"
     },
     {
-      "label": "setTheme()",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/Configuration.vue",
-      "source_location": "L150",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_startmenu_configuration_settheme",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "settheme()"
-    },
-    {
       "label": "toggleBiometrics()",
       "file_type": "code",
       "source_file": "src/components/startMenu/Configuration.vue",
@@ -10863,78 +11439,6 @@
       "community": 47,
       "community_name": "Configuration.vue",
       "norm_label": "togglebiometrics()"
-    },
-    {
-      "label": "authenticateVaultWithBiometrics()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L136",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_authenticatevaultwithbiometrics",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "authenticatevaultwithbiometrics()"
-    },
-    {
-      "label": "authenticateVaultWithLocalBiometrics()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L189",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_authenticatevaultwithlocalbiometrics",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "authenticatevaultwithlocalbiometrics()"
-    },
-    {
-      "label": "authenticateWithBiometrics()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L128",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_authenticatewithbiometrics",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "authenticatewithbiometrics()"
-    },
-    {
-      "label": "biometricDeclinedKey()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L4",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_biometricdeclinedkey",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "biometricdeclinedkey()"
-    },
-    {
-      "label": "bufferToBase64Url()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L61",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_buffertobase64url",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "buffertobase64url()"
-    },
-    {
-      "label": "credentialForVerification()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L37",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_credentialforverification",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "credentialforverification()"
     },
     {
       "label": "getBiometricStatus()",
@@ -10949,54 +11453,6 @@
       "norm_label": "getbiometricstatus()"
     },
     {
-      "label": "getWebAuthn()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L16",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_getwebauthn",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "getwebauthn()"
-    },
-    {
-      "label": "isBiometricSupported()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L73",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_isbiometricsupported",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "isbiometricsupported()"
-    },
-    {
-      "label": "prepareVaultBiometricUnlock()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L252",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_preparevaultbiometricunlock",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "preparevaultbiometricunlock()"
-    },
-    {
-      "label": "registerBiometricCredential()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L88",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_registerbiometriccredential",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "registerbiometriccredential()"
-    },
-    {
       "label": "removeBiometricCredentials()",
       "file_type": "code",
       "source_file": "src/services/biometricAuth.js",
@@ -11007,42 +11463,6 @@
       "community": 47,
       "community_name": "Configuration.vue",
       "norm_label": "removebiometriccredentials()"
-    },
-    {
-      "label": "reportBiometricFailure()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L18",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_reportbiometricfailure",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "reportbiometricfailure()"
-    },
-    {
-      "label": "secretBytes()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L48",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_secretbytes",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "secretbytes()"
-    },
-    {
-      "label": "vaultLocalFailureMessage()",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L69",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_services_biometricauth_vaultlocalfailuremessage",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "vaultlocalfailuremessage()"
     },
     {
       "label": "getPwaInstallUnavailableMessage()",
@@ -12329,18 +12749,6 @@
       "norm_label": "getplanlimits()"
     },
     {
-      "label": "setup()",
-      "file_type": "code",
-      "source_file": "src/components/radio/TrackList.vue",
-      "source_location": "L256",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_tracklist_setup",
-      "community": 53,
-      "community_name": "useAuthStore",
-      "norm_label": "setup()"
-    },
-    {
       "label": "data()",
       "file_type": "code",
       "source_file": "src/components/startMenu/DeleteAccountForm.vue",
@@ -12677,90 +13085,6 @@
       "norm_label": "unmounted()"
     },
     {
-      "label": "close_dropdown()",
-      "file_type": "code",
-      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
-      "source_location": "L76",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_projects_projectstatusdropdown_close_dropdown",
-      "community": 55,
-      "community_name": "ProjectDropdown.vue",
-      "norm_label": "close_dropdown()"
-    },
-    {
-      "label": "current_status_obj()",
-      "file_type": "code",
-      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
-      "source_location": "L63",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_projects_projectstatusdropdown_current_status_obj",
-      "community": 55,
-      "community_name": "ProjectDropdown.vue",
-      "norm_label": "current_status_obj()"
-    },
-    {
-      "label": "data()",
-      "file_type": "code",
-      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
-      "source_location": "L51",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_projects_projectstatusdropdown_data",
-      "community": 55,
-      "community_name": "ProjectDropdown.vue",
-      "norm_label": "data()"
-    },
-    {
-      "label": "mounted()",
-      "file_type": "code",
-      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
-      "source_location": "L89",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_projects_projectstatusdropdown_mounted",
-      "community": 55,
-      "community_name": "ProjectDropdown.vue",
-      "norm_label": "mounted()"
-    },
-    {
-      "label": "select_status()",
-      "file_type": "code",
-      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
-      "source_location": "L79",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_projects_projectstatusdropdown_select_status",
-      "community": 55,
-      "community_name": "ProjectDropdown.vue",
-      "norm_label": "select_status()"
-    },
-    {
-      "label": "toggle_dropdown()",
-      "file_type": "code",
-      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
-      "source_location": "L71",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_projects_projectstatusdropdown_toggle_dropdown",
-      "community": 55,
-      "community_name": "ProjectDropdown.vue",
-      "norm_label": "toggle_dropdown()"
-    },
-    {
-      "label": "unmounted()",
-      "file_type": "code",
-      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
-      "source_location": "L97",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_projects_projectstatusdropdown_unmounted",
-      "community": 55,
-      "community_name": "ProjectDropdown.vue",
-      "norm_label": "unmounted()"
-    },
-    {
       "label": "check_move()",
       "file_type": "code",
       "source_file": "src/components/radio/QueueSidebar.vue",
@@ -12881,124 +13205,136 @@
       "norm_label": "decode_html_entities()"
     },
     {
-      "label": "adherenceLabel()",
+      "label": "authenticateVaultWithBiometrics()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthStatusDonut.vue",
-      "source_location": "L131",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L136",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthstatusdonut_adherencelabel",
+      "id": "src_services_biometricauth_authenticatevaultwithbiometrics",
       "community": 57,
-      "community_name": "HealthStatusDonut.vue",
-      "norm_label": "adherencelabel()"
+      "community_name": "biometricAuth.js",
+      "norm_label": "authenticatevaultwithbiometrics()"
     },
     {
-      "label": "adherenceRate()",
+      "label": "authenticateVaultWithLocalBiometrics()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthStatusDonut.vue",
-      "source_location": "L126",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L189",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthstatusdonut_adherencerate",
+      "id": "src_services_biometricauth_authenticatevaultwithlocalbiometrics",
       "community": 57,
-      "community_name": "HealthStatusDonut.vue",
-      "norm_label": "adherencerate()"
+      "community_name": "biometricAuth.js",
+      "norm_label": "authenticatevaultwithlocalbiometrics()"
     },
     {
-      "label": "data()",
+      "label": "authenticateWithBiometrics()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthStatusDonut.vue",
-      "source_location": "L99",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L128",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthstatusdonut_data",
+      "id": "src_services_biometricauth_authenticatewithbiometrics",
       "community": 57,
-      "community_name": "HealthStatusDonut.vue",
-      "norm_label": "data()"
+      "community_name": "biometricAuth.js",
+      "norm_label": "authenticatewithbiometrics()"
     },
     {
-      "label": "healthySupplies()",
+      "label": "bufferToBase64Url()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthStatusDonut.vue",
-      "source_location": "L120",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L61",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthstatusdonut_healthysupplies",
+      "id": "src_services_biometricauth_buffertobase64url",
       "community": 57,
-      "community_name": "HealthStatusDonut.vue",
-      "norm_label": "healthysupplies()"
+      "community_name": "biometricAuth.js",
+      "norm_label": "buffertobase64url()"
     },
     {
-      "label": "hoveredSegment()",
+      "label": "credentialForVerification()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthStatusDonut.vue",
-      "source_location": "L137",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L37",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthstatusdonut_hoveredsegment",
+      "id": "src_services_biometricauth_credentialforverification",
       "community": 57,
-      "community_name": "HealthStatusDonut.vue",
-      "norm_label": "hoveredsegment()"
+      "community_name": "biometricAuth.js",
+      "norm_label": "credentialforverification()"
     },
     {
-      "label": "lowStockSupplies()",
+      "label": "getWebAuthn()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthStatusDonut.vue",
-      "source_location": "L117",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L16",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthstatusdonut_lowstocksupplies",
+      "id": "src_services_biometricauth_getwebauthn",
       "community": 57,
-      "community_name": "HealthStatusDonut.vue",
-      "norm_label": "lowstocksupplies()"
+      "community_name": "biometricAuth.js",
+      "norm_label": "getwebauthn()"
     },
     {
-      "label": "onTrackSchedules()",
+      "label": "prepareVaultBiometricUnlock()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthStatusDonut.vue",
-      "source_location": "L111",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L252",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthstatusdonut_ontrackschedules",
+      "id": "src_services_biometricauth_preparevaultbiometricunlock",
       "community": 57,
-      "community_name": "HealthStatusDonut.vue",
-      "norm_label": "ontrackschedules()"
+      "community_name": "biometricAuth.js",
+      "norm_label": "preparevaultbiometricunlock()"
     },
     {
-      "label": "overdueSchedules()",
+      "label": "registerBiometricCredential()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthStatusDonut.vue",
-      "source_location": "L105",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L88",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthstatusdonut_overdueschedules",
+      "id": "src_services_biometricauth_registerbiometriccredential",
       "community": 57,
-      "community_name": "HealthStatusDonut.vue",
-      "norm_label": "overdueschedules()"
+      "community_name": "biometricAuth.js",
+      "norm_label": "registerbiometriccredential()"
     },
     {
-      "label": "segments()",
+      "label": "reportBiometricFailure()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthStatusDonut.vue",
-      "source_location": "L140",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L18",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthstatusdonut_segments",
+      "id": "src_services_biometricauth_reportbiometricfailure",
       "community": 57,
-      "community_name": "HealthStatusDonut.vue",
-      "norm_label": "segments()"
+      "community_name": "biometricAuth.js",
+      "norm_label": "reportbiometricfailure()"
     },
     {
-      "label": "totalItems()",
+      "label": "secretBytes()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthStatusDonut.vue",
-      "source_location": "L123",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L48",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthstatusdonut_totalitems",
+      "id": "src_services_biometricauth_secretbytes",
       "community": 57,
-      "community_name": "HealthStatusDonut.vue",
-      "norm_label": "totalitems()"
+      "community_name": "biometricAuth.js",
+      "norm_label": "secretbytes()"
+    },
+    {
+      "label": "vaultLocalFailureMessage()",
+      "file_type": "code",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L69",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_services_biometricauth_vaultlocalfailuremessage",
+      "community": 57,
+      "community_name": "biometricAuth.js",
+      "norm_label": "vaultlocalfailuremessage()"
     },
     {
       "label": "addEventListener()",
@@ -13839,6 +14175,42 @@
       "community": 61,
       "community_name": "HealthAiTab.vue",
       "norm_label": "usedcredits()"
+    },
+    {
+      "label": "runDbOperation()",
+      "file_type": "code",
+      "source_file": "src/db.js",
+      "source_location": "L271",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_db_rundboperation",
+      "community": 62,
+      "community_name": "vault.js",
+      "norm_label": "rundboperation()"
+    },
+    {
+      "label": "active()",
+      "file_type": "code",
+      "source_file": "src/services/localData/healthRepository.js",
+      "source_location": "L4",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_services_localdata_healthrepository_active",
+      "community": 62,
+      "community_name": "vault.js",
+      "norm_label": "active()"
+    },
+    {
+      "label": "now()",
+      "file_type": "code",
+      "source_file": "src/services/localData/healthRepository.js",
+      "source_location": "L3",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_services_localdata_healthrepository_now",
+      "community": 62,
+      "community_name": "vault.js",
+      "norm_label": "now()"
     },
     {
       "label": "canUseLocalStorage()",
@@ -14897,88 +15269,88 @@
       "norm_label": "visible()"
     },
     {
-      "label": "patterns()",
+      "label": "close_dropdown()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
-      "source_location": "L454",
+      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
+      "source_location": "L76",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights_patterns",
+      "id": "src_components_projects_projectstatusdropdown_close_dropdown",
       "community": 73,
-      "community_name": "healthInsights.js",
-      "norm_label": "patterns()"
+      "community_name": "ProjectStatusDropdown.vue",
+      "norm_label": "close_dropdown()"
     },
     {
-      "label": "checkinsInPeriod()",
+      "label": "current_status_obj()",
       "file_type": "code",
-      "source_file": "src/services/healthInsights.js",
-      "source_location": "L3",
+      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
+      "source_location": "L63",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_services_healthinsights_checkinsinperiod",
+      "id": "src_components_projects_projectstatusdropdown_current_status_obj",
       "community": 73,
-      "community_name": "healthInsights.js",
-      "norm_label": "checkinsinperiod()"
+      "community_name": "ProjectStatusDropdown.vue",
+      "norm_label": "current_status_obj()"
     },
     {
-      "label": "comparePattern()",
+      "label": "data()",
       "file_type": "code",
-      "source_file": "src/services/healthInsights.js",
-      "source_location": "L38",
+      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
+      "source_location": "L51",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_services_healthinsights_comparepattern",
+      "id": "src_components_projects_projectstatusdropdown_data",
       "community": 73,
-      "community_name": "healthInsights.js",
-      "norm_label": "comparepattern()"
+      "community_name": "ProjectStatusDropdown.vue",
+      "norm_label": "data()"
     },
     {
-      "label": "findPatterns()",
+      "label": "mounted()",
       "file_type": "code",
-      "source_file": "src/services/healthInsights.js",
-      "source_location": "L107",
+      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
+      "source_location": "L89",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_services_healthinsights_findpatterns",
+      "id": "src_components_projects_projectstatusdropdown_mounted",
       "community": 73,
-      "community_name": "healthInsights.js",
-      "norm_label": "findpatterns()"
+      "community_name": "ProjectStatusDropdown.vue",
+      "norm_label": "mounted()"
     },
     {
-      "label": "hasValue()",
+      "label": "select_status()",
       "file_type": "code",
-      "source_file": "src/services/healthInsights.js",
-      "source_location": "L11",
+      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
+      "source_location": "L79",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_services_healthinsights_hasvalue",
+      "id": "src_components_projects_projectstatusdropdown_select_status",
       "community": 73,
-      "community_name": "healthInsights.js",
-      "norm_label": "hasvalue()"
+      "community_name": "ProjectStatusDropdown.vue",
+      "norm_label": "select_status()"
     },
     {
-      "label": "observedOptions()",
+      "label": "toggle_dropdown()",
       "file_type": "code",
-      "source_file": "src/services/healthInsights.js",
-      "source_location": "L98",
+      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
+      "source_location": "L71",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_services_healthinsights_observedoptions",
+      "id": "src_components_projects_projectstatusdropdown_toggle_dropdown",
       "community": 73,
-      "community_name": "healthInsights.js",
-      "norm_label": "observedoptions()"
+      "community_name": "ProjectStatusDropdown.vue",
+      "norm_label": "toggle_dropdown()"
     },
     {
-      "label": "trackerSeries()",
+      "label": "unmounted()",
       "file_type": "code",
-      "source_file": "src/services/healthInsights.js",
-      "source_location": "L21",
+      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
+      "source_location": "L97",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_services_healthinsights_trackerseries",
+      "id": "src_components_projects_projectstatusdropdown_unmounted",
       "community": 73,
-      "community_name": "healthInsights.js",
-      "norm_label": "trackerseries()"
+      "community_name": "ProjectStatusDropdown.vue",
+      "norm_label": "unmounted()"
     },
     {
       "label": "accountTypeImage()",
@@ -15065,112 +15437,64 @@
       "norm_label": "iseditmode()"
     },
     {
-      "label": "activeTrackers()",
+      "label": "beforeUnmount()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingOverview.vue",
-      "source_location": "L111",
+      "source_file": "src/components/windowing/DesktopWindowManager.vue",
+      "source_location": "L55",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackingoverview_activetrackers",
+      "id": "src_components_windowing_desktopwindowmanager_beforeunmount",
       "community": 76,
-      "community_name": "HealthTrackingOverview.vue",
-      "norm_label": "activetrackers()"
+      "community_name": "DesktopWindowManager.vue",
+      "norm_label": "beforeunmount()"
     },
     {
-      "label": "checkinsInLast7Days()",
+      "label": "data()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingOverview.vue",
-      "source_location": "L148",
+      "source_file": "src/components/windowing/DesktopWindowManager.vue",
+      "source_location": "L27",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackingoverview_checkinsinlast7days",
+      "id": "src_components_windowing_desktopwindowmanager_data",
       "community": 76,
-      "community_name": "HealthTrackingOverview.vue",
-      "norm_label": "checkinsinlast7days()"
+      "community_name": "DesktopWindowManager.vue",
+      "norm_label": "data()"
     },
     {
-      "label": "groupColor()",
+      "label": "mounted()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingOverview.vue",
-      "source_location": "L172",
+      "source_file": "src/components/windowing/DesktopWindowManager.vue",
+      "source_location": "L49",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackingoverview_groupcolor",
+      "id": "src_components_windowing_desktopwindowmanager_mounted",
       "community": 76,
-      "community_name": "HealthTrackingOverview.vue",
-      "norm_label": "groupcolor()"
+      "community_name": "DesktopWindowManager.vue",
+      "norm_label": "mounted()"
     },
     {
-      "label": "hasRecordedValue()",
+      "label": "on_window_resize()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingOverview.vue",
-      "source_location": "L157",
+      "source_file": "src/components/windowing/DesktopWindowManager.vue",
+      "source_location": "L41",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackingoverview_hasrecordedvalue",
+      "id": "src_components_windowing_desktopwindowmanager_on_window_resize",
       "community": 76,
-      "community_name": "HealthTrackingOverview.vue",
-      "norm_label": "hasrecordedvalue()"
+      "community_name": "DesktopWindowManager.vue",
+      "norm_label": "on_window_resize()"
     },
     {
-      "label": "isCheckinToday()",
+      "label": "indicatorStyle()",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingOverview.vue",
-      "source_location": "L121",
+      "source_file": "src/components/windowing/SnapIndicator.vue",
+      "source_location": "L16",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_health_healthtrackingoverview_ischeckintoday",
+      "id": "src_components_windowing_snapindicator_indicatorstyle",
       "community": 76,
-      "community_name": "HealthTrackingOverview.vue",
-      "norm_label": "ischeckintoday()"
-    },
-    {
-      "label": "lastCheckinLabel()",
-      "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingOverview.vue",
-      "source_location": "L127",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_health_healthtrackingoverview_lastcheckinlabel",
-      "community": 76,
-      "community_name": "HealthTrackingOverview.vue",
-      "norm_label": "lastcheckinlabel()"
-    },
-    {
-      "label": "latestCheckin()",
-      "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingOverview.vue",
-      "source_location": "L114",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_health_healthtrackingoverview_latestcheckin",
-      "community": 76,
-      "community_name": "HealthTrackingOverview.vue",
-      "norm_label": "latestcheckin()"
-    },
-    {
-      "label": "latestValue()",
-      "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingOverview.vue",
-      "source_location": "L161",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_health_healthtrackingoverview_latestvalue",
-      "community": 76,
-      "community_name": "HealthTrackingOverview.vue",
-      "norm_label": "latestvalue()"
-    },
-    {
-      "label": "trackerSummaryData()",
-      "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingOverview.vue",
-      "source_location": "L154",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_health_healthtrackingoverview_trackersummarydata",
-      "community": 76,
-      "community_name": "HealthTrackingOverview.vue",
-      "norm_label": "trackersummarydata()"
+      "community_name": "DesktopWindowManager.vue",
+      "norm_label": "indicatorstyle()"
     },
     {
       "label": "cancel()",
@@ -16049,6 +16373,18 @@
       "norm_label": "handle_global_click()"
     },
     {
+      "label": "setup()",
+      "file_type": "code",
+      "source_file": "src/components/radio/TrackList.vue",
+      "source_location": "L256",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_radio_tracklist_setup",
+      "community": 87,
+      "community_name": "player.js",
+      "norm_label": "setup()"
+    },
+    {
       "label": "resolveRequiredUrl()",
       "file_type": "code",
       "source_file": "src/plugins/apiServices.js",
@@ -16059,6 +16395,18 @@
       "community": 87,
       "community_name": "player.js",
       "norm_label": "resolverequiredurl()"
+    },
+    {
+      "label": "_handleDownloadLyricsTask()",
+      "file_type": "code",
+      "source_file": "src/services/syncService.js",
+      "source_location": "L686",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_services_syncservice_handledownloadlyricstask",
+      "community": 87,
+      "community_name": "player.js",
+      "norm_label": "_handledownloadlyricstask()"
     },
     {
       "label": "debounce()",
@@ -16153,7 +16501,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_active_index",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "active_index()"
     },
     {
@@ -16165,7 +16513,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_beforeunmount",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "beforeunmount()"
     },
     {
@@ -16177,7 +16525,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_check_scroll_position",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "check_scroll_position()"
     },
     {
@@ -16189,7 +16537,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_close_modal",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "close_modal()"
     },
     {
@@ -16201,7 +16549,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_current_time",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "current_time()"
     },
     {
@@ -16213,7 +16561,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_data",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "data()"
     },
     {
@@ -16225,7 +16573,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_get_track_key",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "get_track_key()"
     },
     {
@@ -16237,7 +16585,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_handle_scroll",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "handle_scroll()"
     },
     {
@@ -16249,7 +16597,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_handler",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "handler()"
     },
     {
@@ -16261,7 +16609,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_modelvalue",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "modelvalue()"
     },
     {
@@ -16273,7 +16621,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_perform_auto_scroll",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "perform_auto_scroll()"
     },
     {
@@ -16285,7 +16633,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_reset_lyrics_state",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "reset_lyrics_state()"
     },
     {
@@ -16297,7 +16645,7 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_sync_lyrics_index",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "sync_lyrics_index()"
     },
     {
@@ -16309,272 +16657,8 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal_track",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "track()"
-    },
-    {
-      "label": "beforeUnmount()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L329",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_beforeunmount",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "beforeunmount()"
-    },
-    {
-      "label": "close_modal()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L307",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_close_modal",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "close_modal()"
-    },
-    {
-      "label": "current_time()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L132",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_current_time",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "current_time()"
-    },
-    {
-      "label": "data()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L88",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_data",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "data()"
-    },
-    {
-      "label": "exit_fullscreen_if_active()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L170",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_exit_fullscreen_if_active",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "exit_fullscreen_if_active()"
-    },
-    {
-      "label": "handle_fullscreen_change()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L180",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_handle_fullscreen_change",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "handle_fullscreen_change()"
-    },
-    {
-      "label": "handle_video_pause()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L196",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_handle_video_pause",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "handle_video_pause()"
-    },
-    {
-      "label": "handle_video_play()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L190",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_handle_video_play",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "handle_video_play()"
-    },
-    {
-      "label": "handle_video_seek()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L204",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_handle_video_seek",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "handle_video_seek()"
-    },
-    {
-      "label": "handle_video_timeupdate()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L218",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_handle_video_timeupdate",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "handle_video_timeupdate()"
-    },
-    {
-      "label": "handle_video_volume()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L228",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_handle_video_volume",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "handle_video_volume()"
-    },
-    {
-      "label": "is_playing()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L135",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_is_playing",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "is_playing()"
-    },
-    {
-      "label": "load_video()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L238",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_load_video",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "load_video()"
-    },
-    {
-      "label": "modelValue()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L108",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_modelvalue",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "modelvalue()"
-    },
-    {
-      "label": "mounted()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L324",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_mounted",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "mounted()"
-    },
-    {
-      "label": "pause_video()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L297",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_pause_video",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "pause_video()"
-    },
-    {
-      "label": "release_video_url()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L302",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_release_video_url",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "release_video_url()"
-    },
-    {
-      "label": "setup()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L73",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_setup",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "setup()"
-    },
-    {
-      "label": "store_volume()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L103",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_store_volume",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "store_volume()"
-    },
-    {
-      "label": "sync_playback()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L268",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_sync_playback",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "sync_playback()"
-    },
-    {
-      "label": "toggle_native_fullscreen()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L148",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_toggle_native_fullscreen",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "toggle_native_fullscreen()"
-    },
-    {
-      "label": "video_id()",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L100",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal_video_id",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "video_id()"
     },
     {
       "label": "beforeUnmount()",
@@ -16585,7 +16669,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_beforeunmount",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "beforeunmount()"
     },
     {
@@ -16597,7 +16681,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_checkmobile",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "checkmobile()"
     },
     {
@@ -16609,7 +16693,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_close",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "close()"
     },
     {
@@ -16621,7 +16705,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_data",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "data()"
     },
     {
@@ -16633,7 +16717,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_destroyobservers",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "destroyobservers()"
     },
     {
@@ -16645,7 +16729,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_dynamicstyle",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "dynamicstyle()"
     },
     {
@@ -16657,7 +16741,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_handlekeydown",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "handlekeydown()"
     },
     {
@@ -16669,7 +16753,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_handlewindowresize",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "handlewindowresize()"
     },
     {
@@ -16681,7 +16765,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_initobservers",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "initobservers()"
     },
     {
@@ -16693,7 +16777,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_is_floating",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "is_floating()"
     },
     {
@@ -16705,7 +16789,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_modelvalue",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "modelvalue()"
     },
     {
@@ -16717,7 +16801,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_mounted",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "mounted()"
     },
     {
@@ -16729,7 +16813,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_transition_name",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "transition_name()"
     },
     {
@@ -16741,7 +16825,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal_updatemodalheight",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "updatemodalheight()"
     },
     {
@@ -16753,7 +16837,7 @@
       "_origin": "ast",
       "id": "src_utils_modalhistory_ensurelistener",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "ensurelistener()"
     },
     {
@@ -16765,7 +16849,7 @@
       "_origin": "ast",
       "id": "src_utils_modalhistory_handlepopstate",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "handlepopstate()"
     },
     {
@@ -16777,7 +16861,7 @@
       "_origin": "ast",
       "id": "src_utils_modalhistory_hasopenmodals",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "hasopenmodals()"
     },
     {
@@ -16789,7 +16873,7 @@
       "_origin": "ast",
       "id": "src_utils_modalhistory_registermodal",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "registermodal()"
     },
     {
@@ -16801,7 +16885,7 @@
       "_origin": "ast",
       "id": "src_utils_modalhistory_updatebodyscrolllock",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "updatebodyscrolllock()"
     },
     {
@@ -16853,76 +16937,124 @@
       "norm_label": "harness()"
     },
     {
-      "label": "data()",
+      "label": "confirmDelete()",
       "file_type": "code",
-      "source_file": "src/components/windows/ProjectsWindow.vue",
-      "source_location": "L39",
+      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
+      "source_location": "L161",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_windows_projectswindow_data",
-      "community": 95,
-      "community_name": "ProjectsWindow.vue",
+      "id": "src_components_startmenu_accountcenter_accountlist_confirmdelete",
+      "community": 97,
+      "community_name": "AccountList.vue",
+      "norm_label": "confirmdelete()"
+    },
+    {
+      "label": "copyPassword()",
+      "file_type": "code",
+      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
+      "source_location": "L149",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_startmenu_accountcenter_accountlist_copypassword",
+      "community": 97,
+      "community_name": "AccountList.vue",
+      "norm_label": "copypassword()"
+    },
+    {
+      "label": "copyUserAndHide()",
+      "file_type": "code",
+      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
+      "source_location": "L131",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_startmenu_accountcenter_accountlist_copyuserandhide",
+      "community": 97,
+      "community_name": "AccountList.vue",
+      "norm_label": "copyuserandhide()"
+    },
+    {
+      "label": "data()",
+      "file_type": "code",
+      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
+      "source_location": "L88",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_startmenu_accountcenter_accountlist_data",
+      "community": 97,
+      "community_name": "AccountList.vue",
       "norm_label": "data()"
     },
     {
-      "label": "handle_back_to_list()",
+      "label": "formatLastAccess()",
       "file_type": "code",
-      "source_file": "src/components/windows/ProjectsWindow.vue",
-      "source_location": "L67",
+      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
+      "source_location": "L97",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_windows_projectswindow_handle_back_to_list",
-      "community": 95,
-      "community_name": "ProjectsWindow.vue",
-      "norm_label": "handle_back_to_list()"
+      "id": "src_components_startmenu_accountcenter_accountlist_formatlastaccess",
+      "community": 97,
+      "community_name": "AccountList.vue",
+      "norm_label": "formatlastaccess()"
     },
     {
-      "label": "handle_open_project()",
+      "label": "handleDeleteAccount()",
       "file_type": "code",
-      "source_file": "src/components/windows/ProjectsWindow.vue",
-      "source_location": "L63",
+      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
+      "source_location": "L166",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_windows_projectswindow_handle_open_project",
-      "community": 95,
-      "community_name": "ProjectsWindow.vue",
-      "norm_label": "handle_open_project()"
+      "id": "src_components_startmenu_accountcenter_accountlist_handledeleteaccount",
+      "community": 97,
+      "community_name": "AccountList.vue",
+      "norm_label": "handledeleteaccount()"
     },
     {
-      "label": "mounted()",
+      "label": "inputStyle()",
       "file_type": "code",
-      "source_file": "src/components/windows/ProjectsWindow.vue",
-      "source_location": "L71",
+      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
+      "source_location": "L113",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_windows_projectswindow_mounted",
-      "community": 95,
-      "community_name": "ProjectsWindow.vue",
-      "norm_label": "mounted()"
+      "id": "src_components_startmenu_accountcenter_accountlist_inputstyle",
+      "community": 97,
+      "community_name": "AccountList.vue",
+      "norm_label": "inputstyle()"
     },
     {
-      "label": "project_exists()",
+      "label": "returnAccountTypeImage()",
       "file_type": "code",
-      "source_file": "src/components/windows/ProjectsWindow.vue",
-      "source_location": "L47",
+      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
+      "source_location": "L106",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_windows_projectswindow_project_exists",
-      "community": 95,
-      "community_name": "ProjectsWindow.vue",
-      "norm_label": "project_exists()"
+      "id": "src_components_startmenu_accountcenter_accountlist_returnaccounttypeimage",
+      "community": 97,
+      "community_name": "AccountList.vue",
+      "norm_label": "returnaccounttypeimage()"
     },
     {
-      "label": "should_show_list()",
+      "label": "setup()",
       "file_type": "code",
-      "source_file": "src/components/windows/ProjectsWindow.vue",
-      "source_location": "L56",
+      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
+      "source_location": "L84",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_components_windows_projectswindow_should_show_list",
-      "community": 95,
-      "community_name": "ProjectsWindow.vue",
-      "norm_label": "should_show_list()"
+      "id": "src_components_startmenu_accountcenter_accountlist_setup",
+      "community": 97,
+      "community_name": "AccountList.vue",
+      "norm_label": "setup()"
+    },
+    {
+      "label": "toggleRevealAll()",
+      "file_type": "code",
+      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
+      "source_location": "L124",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_components_startmenu_accountcenter_accountlist_togglerevealall",
+      "community": 97,
+      "community_name": "AccountList.vue",
+      "norm_label": "togglerevealall()"
     },
     {
       "label": "check_system_health()",
@@ -17007,78 +17139,6 @@
       "community": 98,
       "community_name": "api.js",
       "norm_label": "resolveapiurl()"
-    },
-    {
-      "label": "data()",
-      "file_type": "code",
-      "source_file": "src/views/alexaAuthView.vue",
-      "source_location": "L66",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_views_alexaauthview_data",
-      "community": 98,
-      "community_name": "api.js",
-      "norm_label": "data()"
-    },
-    {
-      "label": "handleAlexaLogin()",
-      "file_type": "code",
-      "source_file": "src/views/alexaAuthView.vue",
-      "source_location": "L131",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_views_alexaauthview_handlealexalogin",
-      "community": 98,
-      "community_name": "api.js",
-      "norm_label": "handlealexalogin()"
-    },
-    {
-      "label": "isOAuthMode()",
-      "file_type": "code",
-      "source_file": "src/views/alexaAuthView.vue",
-      "source_location": "L83",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_views_alexaauthview_isoauthmode",
-      "community": 98,
-      "community_name": "api.js",
-      "norm_label": "isoauthmode()"
-    },
-    {
-      "label": "isPairingMode()",
-      "file_type": "code",
-      "source_file": "src/views/alexaAuthView.vue",
-      "source_location": "L86",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_views_alexaauthview_ispairingmode",
-      "community": 98,
-      "community_name": "api.js",
-      "norm_label": "ispairingmode()"
-    },
-    {
-      "label": "mounted()",
-      "file_type": "code",
-      "source_file": "src/views/alexaAuthView.vue",
-      "source_location": "L90",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_views_alexaauthview_mounted",
-      "community": 98,
-      "community_name": "api.js",
-      "norm_label": "mounted()"
-    },
-    {
-      "label": "togglePassword()",
-      "file_type": "code",
-      "source_file": "src/views/alexaAuthView.vue",
-      "source_location": "L128",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_views_alexaauthview_togglepassword",
-      "community": 98,
-      "community_name": "api.js",
-      "norm_label": "togglepassword()"
     },
     {
       "label": "copyLink()",
@@ -17189,88 +17249,26 @@
       "norm_label": "save()"
     },
     {
-      "label": "beforeUnmount()",
+      "label": "HealthTrackingInsights.vue",
       "file_type": "code",
-      "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L100",
-      "_callable": true,
+      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_location": "L1",
       "_origin": "ast",
-      "id": "src_views_healthpubliccardview_beforeunmount",
-      "community": 99,
-      "community_name": "HealthPublicCardTab.vue",
-      "norm_label": "beforeunmount()"
+      "id": "src_components_health_healthtrackinginsights",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "healthtrackinginsights.vue"
     },
     {
-      "label": "data()",
+      "label": "HealthTrackingOverview.vue",
       "file_type": "code",
-      "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L82",
-      "_callable": true,
+      "source_file": "src/components/health/HealthTrackingOverview.vue",
+      "source_location": "L1",
       "_origin": "ast",
-      "id": "src_views_healthpubliccardview_data",
-      "community": 99,
-      "community_name": "HealthPublicCardTab.vue",
-      "norm_label": "data()"
-    },
-    {
-      "label": "lines()",
-      "file_type": "code",
-      "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L118",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_views_healthpubliccardview_lines",
-      "community": 99,
-      "community_name": "HealthPublicCardTab.vue",
-      "norm_label": "lines()"
-    },
-    {
-      "label": "loadCard()",
-      "file_type": "code",
-      "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L105",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_views_healthpubliccardview_loadcard",
-      "community": 99,
-      "community_name": "HealthPublicCardTab.vue",
-      "norm_label": "loadcard()"
-    },
-    {
-      "label": "mounted()",
-      "file_type": "code",
-      "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L85",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_views_healthpubliccardview_mounted",
-      "community": 99,
-      "community_name": "HealthPublicCardTab.vue",
-      "norm_label": "mounted()"
-    },
-    {
-      "label": "phoneHref()",
-      "file_type": "code",
-      "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L121",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_views_healthpubliccardview_phonehref",
-      "community": 99,
-      "community_name": "HealthPublicCardTab.vue",
-      "norm_label": "phonehref()"
-    },
-    {
-      "label": "'$route.params.token'()",
-      "file_type": "code",
-      "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L96",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_views_healthpubliccardview_route_params_token",
-      "community": 99,
-      "community_name": "HealthPublicCardTab.vue",
-      "norm_label": "'$route.params.token'()"
+      "id": "src_components_health_healthtrackingoverview",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "healthtrackingoverview.vue"
     },
     {
       "label": "HealthTrackingTab.vue",
@@ -17280,8 +17278,74 @@
       "_origin": "ast",
       "id": "src_components_health_healthtrackingtab",
       "community": 0,
-      "community_name": "HealthTrackingTab.vue",
+      "community_name": "HealthTrackingInsights.vue",
       "norm_label": "healthtrackingtab.vue"
+    },
+    {
+      "label": "healthAiService.js",
+      "file_type": "code",
+      "source_file": "src/services/healthAiService.js",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_services_healthaiservice",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "healthaiservice.js"
+    },
+    {
+      "label": "healthAiService",
+      "file_type": "code",
+      "source_file": "src/services/healthAiService.js",
+      "source_location": "L3",
+      "_origin": "ast",
+      "id": "src_services_healthaiservice_healthaiservice",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "healthaiservice"
+    },
+    {
+      "label": "healthInsights.js",
+      "file_type": "code",
+      "source_file": "src/services/healthInsights.js",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_services_healthinsights",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "healthinsights.js"
+    },
+    {
+      "label": "healthInsights.test.js",
+      "file_type": "code",
+      "source_file": "tests/healthInsights.test.js",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tests_healthinsights_test",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "healthinsights.test.js"
+    },
+    {
+      "label": "checkins",
+      "file_type": "code",
+      "source_file": "tests/healthInsights.test.js",
+      "source_location": "L6",
+      "_origin": "ast",
+      "id": "tests_healthinsights_test_checkins",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "checkins"
+    },
+    {
+      "label": "reference",
+      "file_type": "code",
+      "source_file": "tests/healthInsights.test.js",
+      "source_location": "L5",
+      "_origin": "ast",
+      "id": "tests_healthinsights_test_reference",
+      "community": 0,
+      "community_name": "HealthTrackingInsights.vue",
+      "norm_label": "reference"
     },
     {
       "label": "NexoInvestmentsTab.vue",
@@ -17372,25 +17436,14 @@
       "norm_label": "healthoffline.test.js"
     },
     {
-      "label": "dateWidget.vue",
-      "file_type": "code",
-      "source_file": "src/components/widgets/dateWidget.vue",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_components_widgets_datewidget",
-      "community": 109,
-      "community_name": "dateWidget.vue",
-      "norm_label": "datewidget.vue"
-    },
-    {
       "label": "homeWidgets.vue",
       "file_type": "code",
       "source_file": "src/components/homeWidgets.vue",
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_homewidgets",
-      "community": 11,
-      "community_name": "api",
+      "community": 109,
+      "community_name": "dateWidget.vue",
       "norm_label": "homewidgets.vue"
     },
     {
@@ -17400,9 +17453,20 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_components_widgets_connectionwidget",
-      "community": 11,
-      "community_name": "api",
+      "community": 109,
+      "community_name": "dateWidget.vue",
       "norm_label": "connectionwidget.vue"
+    },
+    {
+      "label": "dateWidget.vue",
+      "file_type": "code",
+      "source_file": "src/components/widgets/dateWidget.vue",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_components_widgets_datewidget",
+      "community": 109,
+      "community_name": "dateWidget.vue",
+      "norm_label": "datewidget.vue"
     },
     {
       "label": "api",
@@ -17436,6 +17500,17 @@
       "community": 11,
       "community_name": "api",
       "norm_label": "kanbanrepository"
+    },
+    {
+      "label": "projectRepository.js",
+      "file_type": "code",
+      "source_file": "src/services/localData/projectRepository.js",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_services_localdata_projectrepository",
+      "community": 11,
+      "community_name": "api",
+      "norm_label": "projectrepository.js"
     },
     {
       "label": "projectRepository",
@@ -17513,6 +17588,17 @@
       "community": 11,
       "community_name": "api",
       "norm_label": "kanban.js"
+    },
+    {
+      "label": "useKanbanStore",
+      "file_type": "code",
+      "source_file": "src/stores/kanban.js",
+      "source_location": "L19",
+      "_origin": "ast",
+      "id": "src_stores_kanban_usekanbanstore",
+      "community": 11,
+      "community_name": "api",
+      "norm_label": "usekanbanstore"
     },
     {
       "label": "projects.js",
@@ -17647,17 +17733,6 @@
       "norm_label": "routes"
     },
     {
-      "label": "radioFlowApi",
-      "file_type": "code",
-      "source_file": "src/services/radioFlowApi.js",
-      "source_location": "L40",
-      "_origin": "ast",
-      "id": "src_services_radioflowapi_radioflowapi",
-      "community": 110,
-      "community_name": "main.js",
-      "norm_label": "radioflowapi"
-    },
-    {
       "label": "ImageCropperModal.vue",
       "file_type": "code",
       "source_file": "src/components/ImageCropperModal.vue",
@@ -17669,26 +17744,37 @@
       "norm_label": "imagecroppermodal.vue"
     },
     {
-      "label": "@fortawesome/fontawesome-svg-core",
+      "label": "healthPublicCardService.js",
       "file_type": "code",
-      "source_file": "package.json",
-      "source_location": "L20",
+      "source_file": "src/services/healthPublicCardService.js",
+      "source_location": "L1",
       "_origin": "ast",
-      "id": "package_dependencies_fortawesome_fontawesome_svg_core",
+      "id": "src_services_healthpubliccardservice",
       "community": 112,
-      "community_name": "@fortawesome/fontawesome-svg-core",
-      "norm_label": "@fortawesome/fontawesome-svg-core"
+      "community_name": "HealthPublicCardView.vue",
+      "norm_label": "healthpubliccardservice.js"
     },
     {
-      "label": "@fortawesome/fontawesome-svg-core",
-      "file_type": "concept",
-      "source_file": "package.json",
-      "source_location": "L20",
+      "label": "healthPublicCardService",
+      "file_type": "code",
+      "source_file": "src/services/healthPublicCardService.js",
+      "source_location": "L3",
       "_origin": "ast",
-      "id": "fortawesome_fontawesome_svg_core",
+      "id": "src_services_healthpubliccardservice_healthpubliccardservice",
       "community": 112,
-      "community_name": "@fortawesome/fontawesome-svg-core",
-      "norm_label": "@fortawesome/fontawesome-svg-core"
+      "community_name": "HealthPublicCardView.vue",
+      "norm_label": "healthpubliccardservice"
+    },
+    {
+      "label": "HealthPublicCardView.vue",
+      "file_type": "code",
+      "source_file": "src/views/HealthPublicCardView.vue",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_views_healthpubliccardview",
+      "community": 112,
+      "community_name": "HealthPublicCardView.vue",
+      "norm_label": "healthpubliccardview.vue"
     },
     {
       "label": "avatarComponent.vue",
@@ -17702,26 +17788,15 @@
       "norm_label": "avatarcomponent.vue"
     },
     {
-      "label": "@simplewebauthn/browser",
+      "label": "alexaAuthView.vue",
       "file_type": "code",
-      "source_file": "package.json",
-      "source_location": "L23",
+      "source_file": "src/views/alexaAuthView.vue",
+      "source_location": "L1",
       "_origin": "ast",
-      "id": "package_dependencies_simplewebauthn_browser",
+      "id": "src_views_alexaauthview",
       "community": 114,
-      "community_name": "@simplewebauthn/browser",
-      "norm_label": "@simplewebauthn/browser"
-    },
-    {
-      "label": "@simplewebauthn/browser",
-      "file_type": "concept",
-      "source_file": "package.json",
-      "source_location": "L23",
-      "_origin": "ast",
-      "id": "simplewebauthn_browser",
-      "community": 114,
-      "community_name": "@simplewebauthn/browser",
-      "norm_label": "@simplewebauthn/browser"
+      "community_name": "alexaAuthView.vue",
+      "norm_label": "alexaauthview.vue"
     },
     {
       "label": "logoutView.vue",
@@ -17757,26 +17832,26 @@
       "norm_label": "contextmenu.vue"
     },
     {
-      "label": "prettier",
+      "label": "@fortawesome/free-solid-svg-icons",
       "file_type": "code",
       "source_file": "package.json",
-      "source_location": "L48",
+      "source_location": "L21",
       "_origin": "ast",
-      "id": "package_devdependencies_prettier",
+      "id": "package_dependencies_fortawesome_free_solid_svg_icons",
       "community": 119,
-      "community_name": "prettier",
-      "norm_label": "prettier"
+      "community_name": "@fortawesome/free-solid-svg-icons",
+      "norm_label": "@fortawesome/free-solid-svg-icons"
     },
     {
-      "label": "prettier",
+      "label": "@fortawesome/free-solid-svg-icons",
       "file_type": "concept",
       "source_file": "package.json",
-      "source_location": "L48",
+      "source_location": "L21",
       "_origin": "ast",
-      "id": "prettier",
+      "id": "fortawesome_free_solid_svg_icons",
       "community": 119,
-      "community_name": "prettier",
-      "norm_label": "prettier"
+      "community_name": "@fortawesome/free-solid-svg-icons",
+      "norm_label": "@fortawesome/free-solid-svg-icons"
     },
     {
       "label": "SyncIndicator.vue",
@@ -17823,6 +17898,50 @@
       "norm_label": "oxlint"
     },
     {
+      "label": "vue",
+      "file_type": "code",
+      "source_file": "package.json",
+      "source_location": "L31",
+      "_origin": "ast",
+      "id": "package_dependencies_vue",
+      "community": 121,
+      "community_name": "vue",
+      "norm_label": "vue"
+    },
+    {
+      "label": "vue",
+      "file_type": "concept",
+      "source_file": "package.json",
+      "source_location": "L31",
+      "_origin": "ast",
+      "id": "vue",
+      "community": 121,
+      "community_name": "vue",
+      "norm_label": "vue"
+    },
+    {
+      "label": "vite-plugin-vue-devtools",
+      "file_type": "code",
+      "source_file": "package.json",
+      "source_location": "L51",
+      "_origin": "ast",
+      "id": "package_devdependencies_vite_plugin_vue_devtools",
+      "community": 122,
+      "community_name": "vite-plugin-vue-devtools",
+      "norm_label": "vite-plugin-vue-devtools"
+    },
+    {
+      "label": "vite-plugin-vue-devtools",
+      "file_type": "concept",
+      "source_file": "package.json",
+      "source_location": "L51",
+      "_origin": "ast",
+      "id": "vite_plugin_vue_devtools",
+      "community": 122,
+      "community_name": "vite-plugin-vue-devtools",
+      "norm_label": "vite-plugin-vue-devtools"
+    },
+    {
       "label": "syncService.js",
       "file_type": "code",
       "source_file": "src/services/syncService.js",
@@ -17854,6 +17973,28 @@
       "community": 13,
       "community_name": "syncService.js",
       "norm_label": "useprojectstore"
+    },
+    {
+      "label": "App.vue",
+      "file_type": "code",
+      "source_file": "src/App.vue",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_app",
+      "community": 14,
+      "community_name": "db.js",
+      "norm_label": "app.vue"
+    },
+    {
+      "label": "ToastContainer.vue",
+      "file_type": "code",
+      "source_file": "src/components/ui/ToastContainer.vue",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_components_ui_toastcontainer",
+      "community": 14,
+      "community_name": "db.js",
+      "norm_label": "toastcontainer.vue"
     },
     {
       "label": "db.js",
@@ -18010,6 +18151,28 @@
       "norm_label": "playlistheader.vue"
     },
     {
+      "label": "loadingSpinner.vue",
+      "file_type": "code",
+      "source_file": "src/components/loadingSpinner.vue",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_components_loadingspinner",
+      "community": 17,
+      "community_name": "resetPasswordView.vue",
+      "norm_label": "loadingspinner.vue"
+    },
+    {
+      "label": "ProjectsWindow.vue",
+      "file_type": "code",
+      "source_file": "src/components/windows/ProjectsWindow.vue",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_components_windows_projectswindow",
+      "community": 17,
+      "community_name": "resetPasswordView.vue",
+      "norm_label": "projectswindow.vue"
+    },
+    {
       "label": "resetPasswordView.vue",
       "file_type": "code",
       "source_file": "src/views/resetPasswordView.vue",
@@ -18120,17 +18283,6 @@
       "norm_label": "vaultmigrationmodal.vue"
     },
     {
-      "label": "AccountList.vue",
-      "file_type": "code",
-      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_components_startmenu_accountcenter_accountlist",
-      "community": 21,
-      "community_name": "useVaultStore",
-      "norm_label": "accountlist.vue"
-    },
-    {
       "label": "RescueAccountsModal.vue",
       "file_type": "code",
       "source_file": "src/components/startMenu/AccountCenter/RescueAccountsModal.vue",
@@ -18197,15 +18349,15 @@
       "norm_label": "dexie"
     },
     {
-      "label": "@fortawesome/free-solid-svg-icons",
+      "label": "@fortawesome/fontawesome-svg-core",
       "file_type": "code",
       "source_file": "package.json",
-      "source_location": "L21",
+      "source_location": "L20",
       "_origin": "ast",
-      "id": "package_dependencies_fortawesome_free_solid_svg_icons",
+      "id": "package_dependencies_fortawesome_fontawesome_svg_core",
       "community": 23,
       "community_name": "dependencies",
-      "norm_label": "@fortawesome/free-solid-svg-icons"
+      "norm_label": "@fortawesome/fontawesome-svg-core"
     },
     {
       "label": "@fortawesome/vue-fontawesome",
@@ -18263,15 +18415,15 @@
       "norm_label": "qrcode"
     },
     {
-      "label": "vue",
+      "label": "@simplewebauthn/browser",
       "file_type": "code",
       "source_file": "package.json",
-      "source_location": "L31",
+      "source_location": "L23",
       "_origin": "ast",
-      "id": "package_dependencies_vue",
+      "id": "package_dependencies_simplewebauthn_browser",
       "community": 23,
       "community_name": "dependencies",
-      "norm_label": "vue"
+      "norm_label": "@simplewebauthn/browser"
     },
     {
       "label": "vue-advanced-cropper",
@@ -18329,15 +18481,15 @@
       "norm_label": "dexie"
     },
     {
-      "label": "@fortawesome/free-solid-svg-icons",
+      "label": "@fortawesome/fontawesome-svg-core",
       "file_type": "concept",
       "source_file": "package.json",
-      "source_location": "L21",
+      "source_location": "L20",
       "_origin": "ast",
-      "id": "fortawesome_free_solid_svg_icons",
+      "id": "fortawesome_fontawesome_svg_core",
       "community": 23,
       "community_name": "dependencies",
-      "norm_label": "@fortawesome/free-solid-svg-icons"
+      "norm_label": "@fortawesome/fontawesome-svg-core"
     },
     {
       "label": "@fortawesome/vue-fontawesome",
@@ -18395,15 +18547,15 @@
       "norm_label": "qrcode"
     },
     {
-      "label": "vue",
+      "label": "@simplewebauthn/browser",
       "file_type": "concept",
       "source_file": "package.json",
-      "source_location": "L31",
+      "source_location": "L23",
       "_origin": "ast",
-      "id": "vue",
+      "id": "simplewebauthn_browser",
       "community": 23,
       "community_name": "dependencies",
-      "norm_label": "vue"
+      "norm_label": "@simplewebauthn/browser"
     },
     {
       "label": "vue-advanced-cropper",
@@ -18494,15 +18646,15 @@
       "norm_label": "eslint-plugin-vue"
     },
     {
-      "label": "globals",
+      "label": "fake-indexeddb",
       "file_type": "code",
       "source_file": "package.json",
-      "source_location": "L45",
+      "source_location": "L44",
       "_origin": "ast",
-      "id": "package_devdependencies_globals",
+      "id": "package_devdependencies_fake_indexeddb",
       "community": 24,
       "community_name": "devDependencies",
-      "norm_label": "globals"
+      "norm_label": "fake-indexeddb"
     },
     {
       "label": "npm-run-all2",
@@ -18514,6 +18666,17 @@
       "community": 24,
       "community_name": "devDependencies",
       "norm_label": "npm-run-all2"
+    },
+    {
+      "label": "prettier",
+      "file_type": "code",
+      "source_file": "package.json",
+      "source_location": "L48",
+      "_origin": "ast",
+      "id": "package_devdependencies_prettier",
+      "community": 24,
+      "community_name": "devDependencies",
+      "norm_label": "prettier"
     },
     {
       "label": "@prettier/plugin-oxc",
@@ -18547,17 +18710,6 @@
       "community": 24,
       "community_name": "devDependencies",
       "norm_label": "vite-plugin-pwa"
-    },
-    {
-      "label": "vite-plugin-vue-devtools",
-      "file_type": "code",
-      "source_file": "package.json",
-      "source_location": "L51",
-      "_origin": "ast",
-      "id": "package_devdependencies_vite_plugin_vue_devtools",
-      "community": 24,
-      "community_name": "devDependencies",
-      "norm_label": "vite-plugin-vue-devtools"
     },
     {
       "label": "@vitejs/plugin-vue",
@@ -18626,15 +18778,15 @@
       "norm_label": "eslint-plugin-vue"
     },
     {
-      "label": "globals",
+      "label": "fake-indexeddb",
       "file_type": "concept",
       "source_file": "package.json",
-      "source_location": "L45",
+      "source_location": "L44",
       "_origin": "ast",
-      "id": "globals",
+      "id": "fake_indexeddb",
       "community": 24,
       "community_name": "devDependencies",
-      "norm_label": "globals"
+      "norm_label": "fake-indexeddb"
     },
     {
       "label": "npm-run-all2",
@@ -18646,6 +18798,17 @@
       "community": 24,
       "community_name": "devDependencies",
       "norm_label": "npm-run-all2"
+    },
+    {
+      "label": "prettier",
+      "file_type": "concept",
+      "source_file": "package.json",
+      "source_location": "L48",
+      "_origin": "ast",
+      "id": "prettier",
+      "community": 24,
+      "community_name": "devDependencies",
+      "norm_label": "prettier"
     },
     {
       "label": "@prettier/plugin-oxc",
@@ -18679,17 +18842,6 @@
       "community": 24,
       "community_name": "devDependencies",
       "norm_label": "vite-plugin-pwa"
-    },
-    {
-      "label": "vite-plugin-vue-devtools",
-      "file_type": "concept",
-      "source_file": "package.json",
-      "source_location": "L51",
-      "_origin": "ast",
-      "id": "vite_plugin_vue_devtools",
-      "community": 24,
-      "community_name": "devDependencies",
-      "norm_label": "vite-plugin-vue-devtools"
     },
     {
       "label": "@vitejs/plugin-vue",
@@ -18732,7 +18884,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthoverviewtab",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "healthoverviewtab.vue"
     },
     {
@@ -18743,8 +18895,19 @@
       "_origin": "ast",
       "id": "src_components_health_healthrecentevents",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "healthrecentevents.vue"
+    },
+    {
+      "label": "HealthStatusDonut.vue",
+      "file_type": "code",
+      "source_file": "src/components/health/HealthStatusDonut.vue",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_components_health_healthstatusdonut",
+      "community": 26,
+      "community_name": "HealthStatusDonut.vue",
+      "norm_label": "healthstatusdonut.vue"
     },
     {
       "label": "HealthStockMonitor.vue",
@@ -18754,7 +18917,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthstockmonitor",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "healthstockmonitor.vue"
     },
     {
@@ -18765,7 +18928,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthsummarycards",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "healthsummarycards.vue"
     },
     {
@@ -18776,7 +18939,7 @@
       "_origin": "ast",
       "id": "src_components_health_healthupcomingschedules",
       "community": 26,
-      "community_name": "HealthOverviewTab.vue",
+      "community_name": "HealthStatusDonut.vue",
       "norm_label": "healthupcomingschedules.vue"
     },
     {
@@ -18811,28 +18974,6 @@
       "community": 27,
       "community_name": "BaseWindow.vue",
       "norm_label": "windowcomponentmap"
-    },
-    {
-      "label": "DesktopWindowManager.vue",
-      "file_type": "code",
-      "source_file": "src/components/windowing/DesktopWindowManager.vue",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_components_windowing_desktopwindowmanager",
-      "community": 27,
-      "community_name": "BaseWindow.vue",
-      "norm_label": "desktopwindowmanager.vue"
-    },
-    {
-      "label": "SnapIndicator.vue",
-      "file_type": "code",
-      "source_file": "src/components/windowing/SnapIndicator.vue",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_components_windowing_snapindicator",
-      "community": 27,
-      "community_name": "BaseWindow.vue",
-      "norm_label": "snapindicator.vue"
     },
     {
       "label": "ProductivityWindow.vue",
@@ -18879,6 +19020,17 @@
       "norm_label": "projectkanban.vue"
     },
     {
+      "label": "rememberedEmailKey",
+      "file_type": "code",
+      "source_file": "src/services/biometricAuth.js",
+      "source_location": "L3",
+      "_origin": "ast",
+      "id": "src_services_biometricauth_rememberedemailkey",
+      "community": 29,
+      "community_name": "authView.vue",
+      "norm_label": "rememberedemailkey"
+    },
+    {
       "label": "authView.vue",
       "file_type": "code",
       "source_file": "src/views/authView.vue",
@@ -18923,37 +19075,15 @@
       "norm_label": "trackoptionsmenu.vue"
     },
     {
-      "label": "HealthTrackingInsights.vue",
+      "label": "VideoModal.vue",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingInsights.vue",
+      "source_file": "src/components/radio/VideoModal.vue",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "src_components_health_healthtrackinginsights",
+      "id": "src_components_radio_videomodal",
       "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "healthtrackinginsights.vue"
-    },
-    {
-      "label": "healthAiService.js",
-      "file_type": "code",
-      "source_file": "src/services/healthAiService.js",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_services_healthaiservice",
-      "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "healthaiservice.js"
-    },
-    {
-      "label": "healthAiService",
-      "file_type": "code",
-      "source_file": "src/services/healthAiService.js",
-      "source_location": "L3",
-      "_origin": "ast",
-      "id": "src_services_healthaiservice_healthaiservice",
-      "community": 32,
-      "community_name": "HealthTrackingInsights.vue",
-      "norm_label": "healthaiservice"
+      "community_name": "VideoModal.vue",
+      "norm_label": "videomodal.vue"
     },
     {
       "label": "AccountCenter.vue",
@@ -19077,17 +19207,6 @@
       "norm_label": "radioflow.vue"
     },
     {
-      "label": "App.vue",
-      "file_type": "code",
-      "source_file": "src/App.vue",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_app",
-      "community": 40,
-      "community_name": "app.js",
-      "norm_label": "app.vue"
-    },
-    {
       "label": "PlaylistSidebar.vue",
       "file_type": "code",
       "source_file": "src/components/radio/PlaylistSidebar.vue",
@@ -19097,17 +19216,6 @@
       "community": 40,
       "community_name": "app.js",
       "norm_label": "playlistsidebar.vue"
-    },
-    {
-      "label": "ToastContainer.vue",
-      "file_type": "code",
-      "source_file": "src/components/ui/ToastContainer.vue",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_components_ui_toastcontainer",
-      "community": 40,
-      "community_name": "app.js",
-      "norm_label": "toastcontainer.vue"
     },
     {
       "label": "app.js",
@@ -19187,6 +19295,17 @@
       "norm_label": "radio_flow_window"
     },
     {
+      "label": "radioFlowApi",
+      "file_type": "code",
+      "source_file": "src/services/radioFlowApi.js",
+      "source_location": "L40",
+      "_origin": "ast",
+      "id": "src_services_radioflowapi_radioflowapi",
+      "community": 44,
+      "community_name": "radioFlowApi.js",
+      "norm_label": "radioflowapi"
+    },
+    {
       "label": "usePlayerStore",
       "file_type": "code",
       "source_file": "src/stores/player.js",
@@ -19218,28 +19337,6 @@
       "community": 45,
       "community_name": "health.js",
       "norm_label": "digestive_wellbeing_template"
-    },
-    {
-      "label": "healthRepository.js",
-      "file_type": "code",
-      "source_file": "src/services/localData/healthRepository.js",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_services_localdata_healthrepository",
-      "community": 45,
-      "community_name": "health.js",
-      "norm_label": "healthrepository.js"
-    },
-    {
-      "label": "healthRepository",
-      "file_type": "code",
-      "source_file": "src/services/localData/healthRepository.js",
-      "source_location": "L6",
-      "_origin": "ast",
-      "id": "src_services_localdata_healthrepository_healthrepository",
-      "community": 45,
-      "community_name": "health.js",
-      "norm_label": "healthrepository"
     },
     {
       "label": "health.js",
@@ -19319,17 +19416,6 @@
       "norm_label": "projectlist.vue"
     },
     {
-      "label": "@simplewebauthn/browser",
-      "file_type": "code",
-      "source_file": "@simplewebauthn/browser",
-      "confidence": "EXTRACTED",
-      "_origin": "ast",
-      "id": "browser",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "@simplewebauthn/browser"
-    },
-    {
       "label": "Configuration.vue",
       "file_type": "code",
       "source_file": "src/components/startMenu/Configuration.vue",
@@ -19339,28 +19425,6 @@
       "community": 47,
       "community_name": "Configuration.vue",
       "norm_label": "configuration.vue"
-    },
-    {
-      "label": "biometricAuth.js",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_services_biometricauth",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "biometricauth.js"
-    },
-    {
-      "label": "rememberedEmailKey",
-      "file_type": "code",
-      "source_file": "src/services/biometricAuth.js",
-      "source_location": "L3",
-      "_origin": "ast",
-      "id": "src_services_biometricauth_rememberedemailkey",
-      "community": 47,
-      "community_name": "Configuration.vue",
-      "norm_label": "rememberedemailkey"
     },
     {
       "label": "pwaInstall.js",
@@ -19517,17 +19581,6 @@
       "norm_label": "loadingresponse.vue"
     },
     {
-      "label": "loadingSpinner.vue",
-      "file_type": "code",
-      "source_file": "src/components/loadingSpinner.vue",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_components_loadingspinner",
-      "community": 53,
-      "community_name": "useAuthStore",
-      "norm_label": "loadingspinner.vue"
-    },
-    {
       "label": "DeleteAccountForm.vue",
       "file_type": "code",
       "source_file": "src/components/startMenu/DeleteAccountForm.vue",
@@ -19583,17 +19636,6 @@
       "norm_label": "projectdropdown.vue"
     },
     {
-      "label": "ProjectStatusDropdown.vue",
-      "file_type": "code",
-      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_components_projects_projectstatusdropdown",
-      "community": 55,
-      "community_name": "ProjectDropdown.vue",
-      "norm_label": "projectstatusdropdown.vue"
-    },
-    {
       "label": "QueueSidebar.vue",
       "file_type": "code",
       "source_file": "src/components/radio/QueueSidebar.vue",
@@ -19616,15 +19658,26 @@
       "norm_label": "string_helpers.js"
     },
     {
-      "label": "HealthStatusDonut.vue",
+      "label": "@simplewebauthn/browser",
       "file_type": "code",
-      "source_file": "src/components/health/HealthStatusDonut.vue",
+      "source_file": "@simplewebauthn/browser",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "browser",
+      "community": 57,
+      "community_name": "biometricAuth.js",
+      "norm_label": "@simplewebauthn/browser"
+    },
+    {
+      "label": "biometricAuth.js",
+      "file_type": "code",
+      "source_file": "src/services/biometricAuth.js",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "src_components_health_healthstatusdonut",
+      "id": "src_services_biometricauth",
       "community": 57,
-      "community_name": "HealthStatusDonut.vue",
-      "norm_label": "healthstatusdonut.vue"
+      "community_name": "biometricAuth.js",
+      "norm_label": "biometricauth.js"
     },
     {
       "label": "healthGroups.test.js",
@@ -19781,6 +19834,28 @@
       "norm_label": "accountsrepository"
     },
     {
+      "label": "healthRepository.js",
+      "file_type": "code",
+      "source_file": "src/services/localData/healthRepository.js",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_services_localdata_healthrepository",
+      "community": 62,
+      "community_name": "vault.js",
+      "norm_label": "healthrepository.js"
+    },
+    {
+      "label": "healthRepository",
+      "file_type": "code",
+      "source_file": "src/services/localData/healthRepository.js",
+      "source_location": "L6",
+      "_origin": "ast",
+      "id": "src_services_localdata_healthrepository_healthrepository",
+      "community": 62,
+      "community_name": "vault.js",
+      "norm_label": "healthrepository"
+    },
+    {
       "label": "localData/index.js",
       "file_type": "code",
       "source_file": "src/services/localData/index.js",
@@ -19834,17 +19909,6 @@
       "community": 62,
       "community_name": "vault.js",
       "norm_label": "occupationrepository"
-    },
-    {
-      "label": "projectRepository.js",
-      "file_type": "code",
-      "source_file": "src/services/localData/projectRepository.js",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_services_localdata_projectrepository",
-      "community": 62,
-      "community_name": "vault.js",
-      "norm_label": "projectrepository.js"
     },
     {
       "label": "radioRepository.js",
@@ -19988,17 +20052,6 @@
       "community": 63,
       "community_name": "auth.js",
       "norm_label": "auth.js"
-    },
-    {
-      "label": "useKanbanStore",
-      "file_type": "code",
-      "source_file": "src/stores/kanban.js",
-      "source_location": "L19",
-      "_origin": "ast",
-      "id": "src_stores_kanban_usekanbanstore",
-      "community": 63,
-      "community_name": "auth.js",
-      "norm_label": "usekanbanstore"
     },
     {
       "label": "scripts",
@@ -20221,48 +20274,15 @@
       "norm_label": "value_types"
     },
     {
-      "label": "healthInsights.js",
+      "label": "ProjectStatusDropdown.vue",
       "file_type": "code",
-      "source_file": "src/services/healthInsights.js",
+      "source_file": "src/components/projects/ProjectStatusDropdown.vue",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "src_services_healthinsights",
+      "id": "src_components_projects_projectstatusdropdown",
       "community": 73,
-      "community_name": "healthInsights.js",
-      "norm_label": "healthinsights.js"
-    },
-    {
-      "label": "healthInsights.test.js",
-      "file_type": "code",
-      "source_file": "tests/healthInsights.test.js",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "tests_healthinsights_test",
-      "community": 73,
-      "community_name": "healthInsights.js",
-      "norm_label": "healthinsights.test.js"
-    },
-    {
-      "label": "checkins",
-      "file_type": "code",
-      "source_file": "tests/healthInsights.test.js",
-      "source_location": "L6",
-      "_origin": "ast",
-      "id": "tests_healthinsights_test_checkins",
-      "community": 73,
-      "community_name": "healthInsights.js",
-      "norm_label": "checkins"
-    },
-    {
-      "label": "reference",
-      "file_type": "code",
-      "source_file": "tests/healthInsights.test.js",
-      "source_location": "L5",
-      "_origin": "ast",
-      "id": "tests_healthinsights_test_reference",
-      "community": 73,
-      "community_name": "healthInsights.js",
-      "norm_label": "reference"
+      "community_name": "ProjectStatusDropdown.vue",
+      "norm_label": "projectstatusdropdown.vue"
     },
     {
       "label": "AccountForm.vue",
@@ -20353,15 +20373,26 @@
       "norm_label": "version"
     },
     {
-      "label": "HealthTrackingOverview.vue",
+      "label": "DesktopWindowManager.vue",
       "file_type": "code",
-      "source_file": "src/components/health/HealthTrackingOverview.vue",
+      "source_file": "src/components/windowing/DesktopWindowManager.vue",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "src_components_health_healthtrackingoverview",
+      "id": "src_components_windowing_desktopwindowmanager",
       "community": 76,
-      "community_name": "HealthTrackingOverview.vue",
-      "norm_label": "healthtrackingoverview.vue"
+      "community_name": "DesktopWindowManager.vue",
+      "norm_label": "desktopwindowmanager.vue"
+    },
+    {
+      "label": "SnapIndicator.vue",
+      "file_type": "code",
+      "source_file": "src/components/windowing/SnapIndicator.vue",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_components_windowing_snapindicator",
+      "community": 76,
+      "community_name": "DesktopWindowManager.vue",
+      "norm_label": "snapindicator.vue"
     },
     {
       "label": "ConfirmationModal.vue",
@@ -20723,19 +20754,8 @@
       "_origin": "ast",
       "id": "src_components_radio_lyricsmodal",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "lyricsmodal.vue"
-    },
-    {
-      "label": "VideoModal.vue",
-      "file_type": "code",
-      "source_file": "src/components/radio/VideoModal.vue",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_components_radio_videomodal",
-      "community": 9,
-      "community_name": "VideoModal.vue",
-      "norm_label": "videomodal.vue"
     },
     {
       "label": "SideModal.vue",
@@ -20745,7 +20765,7 @@
       "_origin": "ast",
       "id": "src_components_sidemodal",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "sidemodal.vue"
     },
     {
@@ -20756,7 +20776,7 @@
       "_origin": "ast",
       "id": "src_utils_modalhistory",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "modalhistory.js"
     },
     {
@@ -20767,7 +20787,7 @@
       "_origin": "ast",
       "id": "src_utils_modalhistory_modalstack",
       "community": 9,
-      "community_name": "VideoModal.vue",
+      "community_name": "LyricsModal.vue",
       "norm_label": "modalstack"
     },
     {
@@ -20859,15 +20879,26 @@
       "norm_label": "send-cdp()"
     },
     {
-      "label": "ProjectsWindow.vue",
+      "label": "globals",
       "file_type": "code",
-      "source_file": "src/components/windows/ProjectsWindow.vue",
-      "source_location": "L1",
+      "source_file": "package.json",
+      "source_location": "L45",
       "_origin": "ast",
-      "id": "src_components_windows_projectswindow",
+      "id": "package_devdependencies_globals",
       "community": 95,
-      "community_name": "ProjectsWindow.vue",
-      "norm_label": "projectswindow.vue"
+      "community_name": "globals",
+      "norm_label": "globals"
+    },
+    {
+      "label": "globals",
+      "file_type": "concept",
+      "source_file": "package.json",
+      "source_location": "L45",
+      "_origin": "ast",
+      "id": "globals",
+      "community": 95,
+      "community_name": "globals",
+      "norm_label": "globals"
     },
     {
       "label": "moment",
@@ -20892,26 +20923,15 @@
       "norm_label": "moment"
     },
     {
-      "label": "fake-indexeddb",
+      "label": "AccountList.vue",
       "file_type": "code",
-      "source_file": "package.json",
-      "source_location": "L44",
+      "source_file": "src/components/startMenu/AccountCenter/AccountList.vue",
+      "source_location": "L1",
       "_origin": "ast",
-      "id": "package_devdependencies_fake_indexeddb",
+      "id": "src_components_startmenu_accountcenter_accountlist",
       "community": 97,
-      "community_name": "fake-indexeddb",
-      "norm_label": "fake-indexeddb"
-    },
-    {
-      "label": "fake-indexeddb",
-      "file_type": "concept",
-      "source_file": "package.json",
-      "source_location": "L44",
-      "_origin": "ast",
-      "id": "fake_indexeddb",
-      "community": 97,
-      "community_name": "fake-indexeddb",
-      "norm_label": "fake-indexeddb"
+      "community_name": "AccountList.vue",
+      "norm_label": "accountlist.vue"
     },
     {
       "label": "api.js",
@@ -20958,17 +20978,6 @@
       "norm_label": "url_api"
     },
     {
-      "label": "alexaAuthView.vue",
-      "file_type": "code",
-      "source_file": "src/views/alexaAuthView.vue",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_views_alexaauthview",
-      "community": 98,
-      "community_name": "api.js",
-      "norm_label": "alexaauthview.vue"
-    },
-    {
       "label": "HealthPublicCardTab.vue",
       "file_type": "code",
       "source_file": "src/components/health/HealthPublicCardTab.vue",
@@ -20978,39 +20987,6 @@
       "community": 99,
       "community_name": "HealthPublicCardTab.vue",
       "norm_label": "healthpubliccardtab.vue"
-    },
-    {
-      "label": "healthPublicCardService.js",
-      "file_type": "code",
-      "source_file": "src/services/healthPublicCardService.js",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_services_healthpubliccardservice",
-      "community": 99,
-      "community_name": "HealthPublicCardTab.vue",
-      "norm_label": "healthpubliccardservice.js"
-    },
-    {
-      "label": "healthPublicCardService",
-      "file_type": "code",
-      "source_file": "src/services/healthPublicCardService.js",
-      "source_location": "L3",
-      "_origin": "ast",
-      "id": "src_services_healthpubliccardservice_healthpubliccardservice",
-      "community": 99,
-      "community_name": "HealthPublicCardTab.vue",
-      "norm_label": "healthpubliccardservice"
-    },
-    {
-      "label": "HealthPublicCardView.vue",
-      "file_type": "code",
-      "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_views_healthpubliccardview",
-      "community": 99,
-      "community_name": "HealthPublicCardTab.vue",
-      "norm_label": "healthpubliccardview.vue"
     }
   ],
   "links": [
@@ -29508,30 +29484,6 @@
       "_origin": "ast",
       "source": "src_views_authview_updatepasswordstrength",
       "target": "src_views_authview_checkpasswordstrength",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L93",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "src_views_healthpubliccardview_mounted",
-      "target": "src_views_healthpubliccardview_loadcard",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L97",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "src_views_healthpubliccardview_route_params_token",
-      "target": "src_views_healthpubliccardview_loadcard",
       "confidence_score": 1.0
     },
     {
@@ -54928,7 +54880,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L100",
+      "source_location": "L102",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_healthpubliccardview",
@@ -54939,18 +54891,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L105",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "src_views_healthpubliccardview",
-      "target": "src_views_healthpubliccardview_loadcard",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L118",
+      "source_location": "L107",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_healthpubliccardview",
@@ -54961,7 +54902,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L121",
+      "source_location": "L110",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_views_healthpubliccardview",
@@ -54988,17 +54929,6 @@
       "_origin": "ast",
       "source": "src_views_healthpubliccardview",
       "target": "src_views_healthpubliccardview_mounted",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "src/views/HealthPublicCardView.vue",
-      "source_location": "L96",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "src_views_healthpubliccardview",
-      "target": "src_views_healthpubliccardview_route_params_token",
       "confidence_score": 1.0
     },
     {

@@ -13,11 +13,13 @@
 
     <router-view />
     <ToastContainer />
+    <ReauthModal />
   </main>
 </template>
 
 <script>
 import { useAppStore } from "@/stores/app";
+import { defineAsyncComponent } from "vue";
 import ToastContainer from "@/components/ui/ToastContainer.vue";
 import {
   consumeLocalDbIssue,
@@ -29,6 +31,9 @@ import {
 export default {
   components: {
     ToastContainer,
+    // Carregado sob demanda: o modal depende de stores que importam o roteador, e importá-lo estaticamente
+    // aqui (antes do router) criaria um ciclo de inicialização com as views.
+    ReauthModal: defineAsyncComponent(() => import("@/components/security/ReauthModal.vue")),
   },
   data() {
     return {

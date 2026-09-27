@@ -7,7 +7,15 @@
             </div>
 
             <div class="auth-body">
-                <form v-if="!success" @submit.prevent="handleAlexaLogin">
+                <MfaChallenge
+                    v-if="mfaChallenge && !success"
+                    :challenge="mfaChallenge"
+                    :verify-fn="verifyMfa"
+                    @verified="onMfaVerified"
+                    @cancel="cancelMfa"
+                />
+
+                <form v-else-if="!success" @submit.prevent="handleAlexaLogin">
                     <h2>Entre com sua conta Kadem</h2>
 
                     <LoadingResponse :msg="error" type="error" styletype="small" :loading="loading" />
@@ -56,12 +64,14 @@
 
 <script>
 import LoadingResponse from "@/components/loadingResponse.vue";
+import MfaChallenge from "@/components/security/MfaChallenge.vue";
 import { api } from "../plugins/api";
 
 export default {
     name: "AlexaAuthView",
     components: {
         LoadingResponse,
+        MfaChallenge,
     },
     data() {
         return {
@@ -77,6 +87,7 @@ export default {
             scope: "",
             pairingCode: "",
             success: "",
+            mfaChallenge: null,
         };
     },
     computed: {
@@ -150,33 +161,62 @@ export default {
                     is_alexa: this.isOAuthMode,
                 });
 
-                const { token } = response.data;
-
-                if (!token) {
-                    this.error = "Login OK, mas nenhum token foi retornado.";
+                // A conta usa verificação em duas etapas: o vínculo só continua depois do segundo fator.
+                if (response.data?.mfa_required) {
+                    this.mfaChallenge = response.data;
+                    this.password = "";
                     return;
                 }
 
-                if (this.isPairingMode) {
-                    await api.post("/alexa/link", {
-                        code: this.pairingCode,
-                        token,
-                    });
-
-                    this.success = "Agora volte para a Alexa e peça a música novamente.";
-                    return;
-                }
-
-                const amazonUrl = new URL(this.redirectUri);
-                amazonUrl.searchParams.set("state", this.stateParam);
-                amazonUrl.searchParams.set("code", token);
-
-                window.location.href = amazonUrl.toString();
+                await this.completeLink(response.data.token);
             } catch (err) {
                 this.error = err.response?.data?.message || "Erro ao vincular.";
             } finally {
                 this.loading = false;
             }
+        },
+        async completeLink(token) {
+            if (!token) {
+                this.error = "Login OK, mas nenhum token foi retornado.";
+                return;
+            }
+
+            if (this.isPairingMode) {
+                await api.post("/alexa/link", {
+                    code: this.pairingCode,
+                    token,
+                });
+
+                this.success = "Agora volte para a Alexa e peça a música novamente.";
+                return;
+            }
+
+            const amazonUrl = new URL(this.redirectUri);
+            amazonUrl.searchParams.set("state", this.stateParam);
+            amazonUrl.searchParams.set("code", token);
+
+            window.location.href = amazonUrl.toString();
+        },
+        // Sem sessão do app aqui: o código validado só serve para concluir o vínculo com a Alexa.
+        verifyMfa({ method, code }) {
+            return api.post("/auth/mfa/verify", {
+                mfa_token: this.mfaChallenge.mfa_token,
+                method,
+                code,
+                trust_device: false,
+            });
+        },
+        async onMfaVerified(response) {
+            try {
+                await this.completeLink(response.data.token);
+            } catch (err) {
+                this.mfaChallenge = null;
+                this.error = err.response?.data?.message || "Erro ao vincular.";
+            }
+        },
+        cancelMfa() {
+            this.mfaChallenge = null;
+            this.error = "";
         },
     },
 };
