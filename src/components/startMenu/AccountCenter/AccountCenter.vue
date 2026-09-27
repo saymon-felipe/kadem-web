@@ -171,6 +171,13 @@ export default {
       );
     },
   },
+  watch: {
+    // A aba já é montada com o Menu Iniciar (StartMenu renderiza todas de uma vez),
+    // o que pode acontecer antes da sessão local terminar de carregar o e-mail.
+    "auth.user.email"() {
+      this.refreshVaultBiometricStatus();
+    },
+  },
   methods: {
     openAddForm() {
       this.accountToEdit = null;
