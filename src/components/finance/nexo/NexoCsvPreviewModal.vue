@@ -339,17 +339,81 @@ button:disabled {
   cursor: not-allowed;
 }
 
-@media (max-width: 720px) {
-  .nexo-modal {
-    width: min(94vw, 94vw);
-    padding: var(--space-4);
-  }
-
-  .modal-header,
+@container (max-width: 720px) {
+  .modal-header-custom,
   .modal-summary,
   .modal-actions {
     align-items: stretch;
     flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions button {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+@container (max-width: 480px) {
+  .modal-header-custom {
+    padding: var(--space-3);
+  }
+
+  .modal-summary {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--fontsize-xs);
+  }
+
+  table {
+    min-width: 600px;
+  }
+
+  th,
+  td {
+    padding: var(--space-2) var(--space-3);
+  }
+}
+
+@media (max-width: 720px) {
+  .modal-header-custom,
+  .modal-summary,
+  .modal-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions button {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-header-custom {
+    padding: var(--space-3);
+  }
+
+  .modal-summary {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--fontsize-xs);
+  }
+
+  table {
+    min-width: 600px;
+  }
+
+  th,
+  td {
+    padding: var(--space-2) var(--space-3);
   }
 }
 </style>

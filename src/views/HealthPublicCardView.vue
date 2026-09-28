@@ -5,10 +5,6 @@
       <header class="public-header-bar">
         <div class="brand-group">
           <img src="@/assets/images/kadem-logo-branco.png" alt="Kadem" class="brand-logo" />
-          <div class="brand-text">
-            <span class="brand-tag">KADEM HEALTH</span>
-            <span class="brand-title">Ficha Médica de Emergência</span>
-          </div>
         </div>
 
         <div class="header-badge">
@@ -411,11 +407,6 @@ export default {
   width: auto;
   object-fit: contain;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.35));
-}
-
-.brand-text {
-  display: flex;
-  flex-direction: column;
 }
 
 .brand-tag {

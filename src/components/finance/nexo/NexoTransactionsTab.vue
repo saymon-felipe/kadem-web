@@ -314,7 +314,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
-@container (max-width: 600px) {
+@container (max-width: 680px) {
   .panel {
     padding: var(--space-4);
   }
@@ -324,13 +324,33 @@ button:disabled {
   }
 }
 
-@media (max-width: 600px) {
+@container (max-width: 480px) {
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .panel-title {
+    margin-bottom: var(--space-3);
+  }
+}
+
+@media (max-width: 680px) {
   .panel {
     padding: var(--space-4);
   }
 
   .transaction-filters {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .panel-title {
+    margin-bottom: var(--space-3);
   }
 }
 </style>

@@ -221,6 +221,7 @@ export default {
 
 .combo-trigger {
   width: 100%;
+  min-width: 0;
   min-height: 40px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);

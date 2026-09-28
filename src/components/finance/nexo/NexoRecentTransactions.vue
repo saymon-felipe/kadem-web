@@ -131,7 +131,9 @@ export default {
 .title-group {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .title-group h3 {
@@ -154,6 +156,10 @@ export default {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   backdrop-filter: blur(4px);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  max-width: min(180px, 50vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .clear-pill-btn {
@@ -350,6 +356,20 @@ export default {
   }
 }
 
+@container (max-width: 480px) {
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .panel-title {
+    margin-bottom: var(--space-3);
+  }
+
+  .movement-row {
+    padding: var(--space-2) var(--space-1);
+  }
+}
+
 @media (max-width: 600px) {
   .panel {
     padding: var(--space-4);
@@ -373,6 +393,20 @@ export default {
 
   .movement-row b {
     margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .panel-title {
+    margin-bottom: var(--space-3);
+  }
+
+  .movement-row {
+    padding: var(--space-2) var(--space-1);
   }
 }
 </style>

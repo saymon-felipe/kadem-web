@@ -177,13 +177,9 @@ export default {
 
 .insight-row {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.insight-row {
   align-items: flex-start;
   flex-direction: column;
+  gap: var(--space-2);
 }
 
 .empty-state {
@@ -239,6 +235,31 @@ button:disabled {
   }
 }
 
+@container (max-width: 480px) {
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .panel-title {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .panel-title .text-btn {
+    width: 100%;
+    justify-content: center;
+    background: var(--surface-2);
+    min-height: 42px;
+  }
+
+  .usage-card,
+  .ai-summary,
+  .insight-row {
+    padding: var(--space-3);
+  }
+}
+
 @media (max-width: 700px) {
   .ai-grid {
     grid-template-columns: 1fr;
@@ -248,6 +269,31 @@ button:disabled {
 @media (max-width: 600px) {
   .panel {
     padding: var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .panel-title {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .panel-title .text-btn {
+    width: 100%;
+    justify-content: center;
+    background: var(--surface-2);
+    min-height: 42px;
+  }
+
+  .usage-card,
+  .ai-summary,
+  .insight-row {
+    padding: var(--space-3);
   }
 }
 </style>

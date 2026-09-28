@@ -256,7 +256,6 @@ export default {
 .csv-preview-table table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 540px;
 }
 
 .csv-preview-table td {
@@ -267,6 +266,19 @@ export default {
 
 .date-cell {
   white-space: nowrap;
+  font-size: var(--fontsize-xs);
+}
+
+.description-cell {
+  min-width: 0;
+}
+
+.description-cell strong,
+.description-cell small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
 }
 
 .right {
@@ -380,6 +392,20 @@ button:disabled {
   }
 }
 
+@container (max-width: 480px) {
+  .csv-import-card {
+    padding: var(--space-3);
+  }
+
+  .header-actions .text-btn {
+    font-size: var(--fontsize-xs);
+  }
+
+  .csv-preview-summary {
+    gap: var(--space-1);
+  }
+}
+
 @media (max-width: 700px) {
   .csv-import-header,
   .csv-preview-summary {
@@ -395,6 +421,20 @@ button:disabled {
   .csv-import-actions {
     width: 100%;
     justify-content: space-between;
+  }
+}
+
+@media (max-width: 480px) {
+  .csv-import-card {
+    padding: var(--space-3);
+  }
+
+  .header-actions .text-btn {
+    font-size: var(--fontsize-xs);
+  }
+
+  .csv-preview-summary {
+    gap: var(--space-1);
   }
 }
 </style>

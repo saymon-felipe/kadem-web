@@ -2980,6 +2980,7 @@ export default {
 .nexo-shell {
   container-type: inline-size;
   container-name: nexo-shell;
+  flex: 1 1 0%;
   height: 100%;
   min-height: 0;
   color: var(--text-primary);
@@ -3101,6 +3102,7 @@ button:disabled {
   min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: var(--space-1) var(--space-2) var(--space-5) 0;
   box-sizing: border-box;
   flex-shrink: 0;
@@ -3880,9 +3882,60 @@ button:disabled {
   }
 }
 
+@container (max-width: 600px) {
+  .nexo-shell {
+    gap: var(--space-2);
+  }
+
+  .budget-command-bar {
+    padding: var(--space-3);
+  }
+
+  .budget-inline-ai button {
+    padding: 0 var(--space-3);
+    font-size: 0.8rem;
+  }
+
+  .budget-inline-ai .ghost-inline-button {
+    padding: 0 var(--space-2);
+    font-size: 0.75rem;
+  }
+
+  .budget-add-macro {
+    min-height: 44px;
+    font-size: var(--fontsize-xs);
+  }
+}
+
 @container (max-width: 480px) {
+  .tab-pane {
+    padding: var(--space-1) var(--space-1) var(--space-4) var(--space-1);
+  }
+
   .budget-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .budget-summary-card {
+    min-height: auto;
+    padding: var(--space-3);
+  }
+
+  .budget-group {
+    padding: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .budget-group-header {
+    padding: var(--space-2);
+  }
+
+  .budget-child-row {
+    padding: var(--space-2);
+  }
+
+  .plain-control {
+    height: 38px;
   }
 
   .budget-group-totals {
@@ -3898,6 +3951,12 @@ button:disabled {
 
   .modal-actions button {
     width: 100%;
+    min-height: 44px;
+  }
+
+  .budget-ai-modal {
+    width: min(820px, 96vw);
+    max-height: min(760px, 90vh);
   }
 }
 
@@ -3998,9 +4057,60 @@ button:disabled {
   }
 }
 
+@media (max-width: 600px) {
+  .nexo-shell {
+    gap: var(--space-2);
+  }
+
+  .budget-command-bar {
+    padding: var(--space-3);
+  }
+
+  .budget-inline-ai button {
+    padding: 0 var(--space-3);
+    font-size: 0.8rem;
+  }
+
+  .budget-inline-ai .ghost-inline-button {
+    padding: 0 var(--space-2);
+    font-size: 0.75rem;
+  }
+
+  .budget-add-macro {
+    min-height: 44px;
+    font-size: var(--fontsize-xs);
+  }
+}
+
 @media (max-width: 480px) {
+  .tab-pane {
+    padding: var(--space-1) var(--space-1) var(--space-4) var(--space-1);
+  }
+
   .budget-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .budget-summary-card {
+    min-height: auto;
+    padding: var(--space-3);
+  }
+
+  .budget-group {
+    padding: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .budget-group-header {
+    padding: var(--space-2);
+  }
+
+  .budget-child-row {
+    padding: var(--space-2);
+  }
+
+  .plain-control {
+    height: 38px;
   }
 
   .budget-group-totals {
@@ -4016,6 +4126,12 @@ button:disabled {
 
   .modal-actions button {
     width: 100%;
+    min-height: 44px;
+  }
+
+  .budget-ai-modal {
+    width: min(820px, 96vw);
+    max-height: min(760px, 90vh);
   }
 }
 </style>

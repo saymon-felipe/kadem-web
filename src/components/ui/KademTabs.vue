@@ -286,6 +286,8 @@ export default {
 .kadem-tabs-wrapper {
   position: relative;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   align-items: center;
   flex: 0 0 auto;
@@ -306,6 +308,8 @@ export default {
   align-items: center;
   gap: var(--space-5);
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;

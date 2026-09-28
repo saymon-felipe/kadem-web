@@ -315,6 +315,17 @@ button:disabled {
   }
 }
 
+@container (max-width: 480px) {
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .connections-soon {
+    gap: var(--space-3);
+    min-height: auto;
+  }
+}
+
 @media (max-width: 780px) {
   .connections-soon {
     grid-template-columns: 1fr;
@@ -334,6 +345,17 @@ button:disabled {
 @media (max-width: 600px) {
   .panel {
     padding: var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .connections-soon {
+    gap: var(--space-3);
+    min-height: auto;
   }
 }
 </style>

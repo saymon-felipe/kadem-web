@@ -315,6 +315,25 @@ export default {
   gap: var(--space-3);
 }
 
+@container (max-width: 760px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container (max-width: 480px) {
+  .modal-actions {
+    flex-direction: column-reverse;
+    width: 100%;
+    gap: var(--space-2);
+  }
+
+  .modal-actions button {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
 @media (max-width: 760px) {
   .form-grid {
     grid-template-columns: 1fr;
@@ -330,6 +349,7 @@ export default {
 
   .modal-actions button {
     width: 100%;
+    min-height: 44px;
   }
 }
 </style>

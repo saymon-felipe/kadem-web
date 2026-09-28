@@ -190,16 +190,18 @@ export default {
 .macro-combo {
   position: relative;
   width: 100%;
+  min-width: 0;
 }
 
 .macro-trigger {
   width: 100%;
+  min-width: 0;
   min-height: 40px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
   color: var(--text-primary);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-3);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -207,6 +209,13 @@ export default {
   cursor: pointer;
   transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease,
     background 0.16s ease;
+}
+
+.macro-trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .macro-trigger:hover {
@@ -225,6 +234,7 @@ export default {
 }
 
 .combo-arrow {
+  flex: 0 0 auto;
   font-size: 0.75rem;
   transition: transform 0.18s ease;
 }

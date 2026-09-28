@@ -109,17 +109,29 @@ export default {
   gap: var(--space-4);
 }
 
-@container (max-width: 860px) {
+@container (max-width: 960px) {
   .overview-grid {
     grid-template-columns: 1fr;
     gap: var(--space-3);
   }
 }
 
-@media (max-width: 860px) {
+@container (max-width: 480px) {
+  .overview-grid {
+    gap: var(--space-2);
+  }
+}
+
+@media (max-width: 960px) {
   .overview-grid {
     grid-template-columns: 1fr;
     gap: var(--space-3);
+  }
+}
+
+@media (max-width: 480px) {
+  .overview-grid {
+    gap: var(--space-2);
   }
 }
 </style>

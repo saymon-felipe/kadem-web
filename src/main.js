@@ -142,6 +142,7 @@ import {
   faDesktop,
   faMobileScreenButton,
   faTabletScreenButton,
+  faFilter,
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -271,6 +272,7 @@ library.add(
   faDesktop,
   faMobileScreenButton,
   faTabletScreenButton,
+  faFilter,
 );
 
 window.addEventListener('error', (event) => {

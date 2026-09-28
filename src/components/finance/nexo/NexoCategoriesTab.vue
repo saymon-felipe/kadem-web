@@ -222,6 +222,16 @@ export default {
   min-width: 0;
 }
 
+.macro-heading > div {
+  min-width: 0;
+}
+
+.macro-heading h4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .macro-group header span,
 .category-card small,
 .empty-line {
@@ -450,6 +460,43 @@ button:disabled {
   }
 }
 
+@container (max-width: 480px) {
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .panel-title {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .inline-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+  }
+
+  .inline-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .macro-group {
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+
+  .macro-group header {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .category-card {
+    padding: var(--space-2) var(--space-3) !important;
+  }
+}
+
 @media (max-width: 680px) {
   .panel {
     padding: var(--space-4);
@@ -474,6 +521,43 @@ button:disabled {
 
   .macro-group header .row-actions {
     margin-left: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .panel-title {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .inline-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+  }
+
+  .inline-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .macro-group {
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+
+  .macro-group header {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .category-card {
+    padding: var(--space-2) var(--space-3) !important;
   }
 }
 </style>

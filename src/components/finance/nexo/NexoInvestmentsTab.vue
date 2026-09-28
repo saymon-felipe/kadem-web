@@ -664,16 +664,34 @@ export default {
 </script>
 
 <style scoped>
-.investments-tab,
+.investments-tab {
+  container-type: inline-size;
+  container-name: investments-tab;
+  display: grid;
+  gap: var(--space-4);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 .tab-content {
   display: grid;
   gap: var(--space-4);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .summary-grid,
 .visual-grid {
   display: grid;
   gap: var(--space-4);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .summary-grid {
@@ -699,16 +717,21 @@ export default {
   transition:
     background var(--transition-base),
     border-color var(--transition-base);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .panel {
   padding: var(--space-5);
+  overflow: hidden;
 }
 
 .metric-card {
   padding: var(--space-4);
   display: grid;
   gap: var(--space-2);
+  overflow: hidden;
 }
 
 .metric-card small,
@@ -719,11 +742,20 @@ export default {
 .panel-title span {
   color: var(--text-secondary);
   font-size: var(--fontsize-xs);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .metric-card strong,
-.momentum-stat strong {
+.momentum-stat strong,
+.projection-card strong {
   font-size: var(--fontsize-sm);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .metric-card.yield strong,
@@ -758,6 +790,8 @@ export default {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
   margin-bottom: var(--space-4);
+  width: 100%;
+  min-width: 0;
 }
 
 .momentum-stat {
@@ -766,6 +800,8 @@ export default {
   padding: var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .progress-hero,
@@ -776,14 +812,23 @@ export default {
 .stack-form {
   display: grid;
   gap: var(--space-3);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.progress-hero {
+  min-width: 0;
 }
 
 .progress-copy strong {
   font-size: var(--fontsize-sm);
+  word-break: break-word;
 }
 
 .progress-copy span {
   color: var(--text-secondary);
+  word-break: break-word;
 }
 
 .progress-track {
@@ -811,6 +856,8 @@ export default {
   grid-template-columns: 180px 1fr;
   gap: var(--space-4);
   align-items: center;
+  width: 100%;
+  min-width: 0;
 }
 
 .donut-shell {
@@ -819,6 +866,7 @@ export default {
   display: grid;
   place-items: center;
   position: relative;
+  flex-shrink: 0;
 }
 
 .donut-svg {
@@ -841,6 +889,10 @@ export default {
 
 .donut-hole strong {
   font-size: var(--fontsize-xs);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .legend-row {
@@ -850,10 +902,22 @@ export default {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.legend-row span:nth-of-type(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .legend-row strong {
   margin-left: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .swatch {
@@ -866,6 +930,29 @@ export default {
 .bar-row {
   display: grid;
   gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.bar-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.bar-meta strong {
+  flex-shrink: 0;
+}
+
+.bar-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fontsize-xs);
+  color: var(--text-secondary);
 }
 
 .bar-stack {
@@ -873,6 +960,7 @@ export default {
   gap: var(--space-1);
   width: 100%;
   height: 14px;
+  min-width: 0;
 }
 
 .bar-stack i {
@@ -891,10 +979,13 @@ export default {
 .projection-wrap {
   display: grid;
   gap: var(--space-4);
+  width: 100%;
+  min-width: 0;
 }
 
 .projection-svg {
   width: 100%;
+  max-width: 100%;
   height: 180px;
   border-radius: var(--radius-sm);
   background:
@@ -908,6 +999,8 @@ export default {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
+  width: 100%;
+  min-width: 0;
 }
 
 .projection-card,
@@ -915,6 +1008,9 @@ export default {
   padding: var(--space-3);
   display: grid;
   gap: var(--space-1);
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .calculator-results article {
@@ -922,21 +1018,34 @@ export default {
   background: var(--surface-1);
 }
 
+.calculator-results article strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .history-table {
   display: grid;
   gap: var(--space-2);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-bottom: var(--space-2);
 }
 
 .history-head,
 .history-row {
   display: grid;
-  grid-template-columns: 100px repeat(4, minmax(80px, 1fr));
+  grid-template-columns: 90px repeat(4, minmax(75px, 1fr));
   gap: var(--space-3);
   align-items: center;
-  min-width: 460px;
+  min-width: 440px;
+  box-sizing: border-box;
 }
 
 .history-head {
@@ -944,6 +1053,12 @@ export default {
   font-size: var(--fontsize-xs);
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.history-head span:not(:first-child),
+.history-row strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .history-row {
@@ -956,6 +1071,8 @@ export default {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
+  width: 100%;
+  min-width: 0;
 }
 
 .floating-field {
@@ -1019,18 +1136,34 @@ export default {
 
 .goal-card {
   padding: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .goal-values {
-  display: grid;
-  gap: var(--space-1);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
   margin: var(--space-3) 0;
+  min-width: 0;
+}
+
+.goal-values span,
+.goal-values strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rate-pills {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .rate-pill,
@@ -1049,6 +1182,16 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.rate-pill span,
+.rate-pill strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .primary-action {
@@ -1077,11 +1220,23 @@ export default {
   color: var(--text-primary);
 }
 
+.goal-head > div:first-child {
+  min-width: 0;
+}
+
+.goal-head strong,
+.goal-head span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
 .icon-btn.danger {
   color: var(--red);
 }
 
-@container (max-width: 860px) {
+@container (max-width: 960px) {
   .visual-grid,
   .donut-layout,
   .momentum-grid,
@@ -1129,7 +1284,49 @@ export default {
   }
 }
 
-@media (max-width: 860px) {
+@container (max-width: 480px) {
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .panel-title .text-btn {
+    width: 100%;
+    justify-content: center;
+    background: var(--surface-1);
+  }
+
+  .primary-action {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .donut-shell {
+    width: 150px;
+    height: 150px;
+  }
+
+  .donut-svg {
+    width: 150px;
+    height: 150px;
+  }
+
+  .donut-hole {
+    width: 92px;
+    height: 92px;
+  }
+
+  .projection-svg {
+    height: 130px;
+  }
+}
+
+@container (max-width: 360px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 960px) {
   .visual-grid,
   .donut-layout,
   .momentum-grid,
@@ -1174,6 +1371,48 @@ export default {
     align-items: flex-start;
     flex-direction: column;
     gap: var(--space-2);
+  }
+}
+
+@media (max-width: 480px) {
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .panel-title .text-btn {
+    width: 100%;
+    justify-content: center;
+    background: var(--surface-1);
+  }
+
+  .primary-action {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .donut-shell {
+    width: 150px;
+    height: 150px;
+  }
+
+  .donut-svg {
+    width: 150px;
+    height: 150px;
+  }
+
+  .donut-hole {
+    width: 92px;
+    height: 92px;
+  }
+
+  .projection-svg {
+    height: 130px;
+  }
+}
+
+@media (max-width: 360px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

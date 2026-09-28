@@ -228,6 +228,12 @@ export default {
   transition: opacity 0.24s ease, transform 0.24s ease;
 }
 
+.active-app-view > :not(.back-btn) {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: auto;
+}
+
 .active-app-view.is-visible {
   opacity: 1;
   transform: translateY(0);
@@ -243,9 +249,10 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-4);
   width: fit-content;
   transition: transform 0.2s, color 0.2s;
+  flex-shrink: 0;
 }
 .back-btn:hover {
   transform: translateX(-4px);
@@ -289,6 +296,17 @@ export default {
   }
 }
 
+@container (max-width: 480px) {
+  .productivity-container {
+    padding: var(--space-1) var(--space-1) var(--space-2);
+  }
+
+  .back-btn {
+    margin-bottom: var(--space-1);
+    font-size: 0.8rem;
+  }
+}
+
 @media (max-width: 768px) {
   .productivity-container {
     padding: var(--space-2);
@@ -306,6 +324,17 @@ export default {
 
   .app-card {
     padding: var(--space-3);
+  }
+}
+
+@media (max-width: 480px) {
+  .productivity-container {
+    padding: var(--space-1) var(--space-1) var(--space-2);
+  }
+
+  .back-btn {
+    margin-bottom: var(--space-1);
+    font-size: 0.8rem;
   }
 }
 </style>
