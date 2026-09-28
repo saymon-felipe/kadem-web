@@ -192,6 +192,8 @@
           :can-download-audio="can_download_audio_individually"
           :can-download-video="can_download_video_individually"
           :video-qualities="video_quality_options"
+          :playlists="radioStore.playlists"
+          :existing-in-playlists="existing_track_playlist_ids"
           @close="show_options_menu = false"
           @copy-link="handle_copy_link"
           @delete="handle_delete"
@@ -199,6 +201,7 @@
           @download-video="handle_download_video"
           @download-lyrics="handle_download_lyrics"
           @add-queue="handle_add_queue"
+          @add-to-playlist="handle_add_to_playlist"
         />
       </Teleport>
     </div>
@@ -215,6 +218,7 @@ import { useAuthStore } from "@/stores/auth";
 import TrackOptionsMenu from "./TrackOptionsMenu.vue";
 import { decode_html_entities } from "@/utils/string_helpers";
 import { getOfflineVideoQualities, getPlanLimits } from "@/services/subscription_plans.js";
+import { db } from "@/db";
 
 export default {
   name: "TrackList",
@@ -251,7 +255,7 @@ export default {
     },
   },
 
-  emits: ["play-track", "delete-track", "request-add", "add-to-queue", "load-more"],
+  emits: ["play-track", "delete-track", "request-add", "add-to-queue", "add-to-playlist", "load-more"],
 
   setup() {
     const radioStore = useRadioStore();
@@ -264,6 +268,7 @@ export default {
       show_options_menu: false,
       options_position: { x: 0, y: 0 },
       selected_track_for_menu: null,
+      existing_track_playlist_ids: [],
       success_feedback_map: {},
       observer: null,
     };
@@ -409,10 +414,11 @@ export default {
       this.play_track(track, null);
     },
 
-    open_menu(event, track) {
+    async open_menu(event, track) {
       this.selected_track_for_menu = track;
+      this.existing_track_playlist_ids = [];
       const rect = event.currentTarget.getBoundingClientRect();
-      const menuWidth = 150;
+      const menuWidth = 210;
       let finalX = rect.left;
 
       if (finalX + menuWidth > window.innerWidth) {
@@ -428,6 +434,16 @@ export default {
         y: rect.bottom,
       };
       this.show_options_menu = true;
+
+      try {
+        const existing_entries = await db.tracks
+          .where("youtube_id")
+          .equals(track.youtube_id)
+          .toArray();
+        this.existing_track_playlist_ids = existing_entries.map((t) => t.playlist_local_id);
+      } catch (error) {
+        console.error("Erro ao verificar playlists existentes:", error);
+      }
     },
 
     handle_delete() {
@@ -453,6 +469,13 @@ export default {
       if (this.selected_track_for_menu) {
         this.trigger_add_feedback(this.selected_track_for_menu);
         this.$emit("add-to-queue", this.selected_track_for_menu);
+      }
+      this.show_options_menu = false;
+    },
+
+    handle_add_to_playlist(playlist) {
+      if (this.selected_track_for_menu) {
+        this.$emit("add-to-playlist", this.selected_track_for_menu, playlist);
       }
       this.show_options_menu = false;
     },

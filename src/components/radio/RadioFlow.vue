@@ -97,6 +97,7 @@
                 @play-track="play_specific_track"
                 @delete-track="handle_delete_track"
                 @add-to-queue="handle_manual_add_queue"
+                @add-to-playlist="handle_add_to_another_playlist"
               />
             </template>
 
@@ -511,6 +512,10 @@ export default {
     },
     handle_manual_add_queue(track) {
       this.add_to_queue(track);
+    },
+    async handle_add_to_another_playlist(track, playlist) {
+      this.track_being_added = track;
+      await this.verify_and_add_track(playlist);
     },
     handle_play_playlist_btn() {
       if (!this.tracks || this.tracks.length === 0) return;
