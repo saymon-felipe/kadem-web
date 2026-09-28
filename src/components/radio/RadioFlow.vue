@@ -411,7 +411,6 @@ export default {
       "add_to_queue",
       "remove_from_queue",
       "play_from_queue",
-      "add_to_queue_at",
       "set_queue",
       "set_mobile_tab",
       "setCurrentPlaylist",

@@ -345,6 +345,15 @@ export const usePlayerStore = defineStore("player", {
       this.syncState();
     },
 
+    async play_from_queue(index) {
+      if (index < 0 || index >= this.queue.length) return;
+
+      if (this.current_music) this.played_history.push(this.current_music);
+      const [target_track] = this.queue.splice(index, 1);
+      await this.play_track(target_track, this.current_playlist);
+      this.syncState();
+    },
+
     _are_same_tracks(first_track, second_track) {
       if (!first_track || !second_track) return false;
 
