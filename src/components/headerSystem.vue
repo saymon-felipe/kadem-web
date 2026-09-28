@@ -296,7 +296,18 @@ export default {
     },
     closeAllPopups(event) {
       const isCreditsPopover = event.target.closest(".ai-credits-anchor");
-      if (!isCreditsPopover) this.show_credits_dropdown = false;
+      if (isCreditsPopover) {
+        // O dropdown de créditos de IA flutua por cima de tudo e cuida do próprio
+        // fechamento (botão/clique fora); não deve fechar o Menu Iniciar por baixo.
+        return;
+      }
+      if (this.show_credits_dropdown) {
+        // O dropdown de IA é um contexto independente: um clique fora dele só
+        // fecha ele mesmo, sem também fechar o Menu Iniciar (ou outro popup)
+        // que porventura esteja aberto por baixo.
+        this.show_credits_dropdown = false;
+        return;
+      }
 
       const isStartButton = event.target.closest(".header-button.home");
       if (isStartButton) {
@@ -508,11 +519,11 @@ header {
   display: inline-flex !important;
   align-items: center;
   gap: calc(var(--space-2) + var(--space-1) + var(--space-1));
-  border: 0 !important;
+  border: 1px solid var(--plan-pill-border) !important;
   border-radius: var(--radius-xs) !important;
-  background: transparent !important;
+  background: var(--plan-pill-bg) !important;
   box-shadow: none !important;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: var(--fontsize-sx);
   font-weight: 600;
   white-space: nowrap;
@@ -527,7 +538,7 @@ header {
 }
 
 .ai-credits-badge .ai-pill-icon {
-  color: #a78bfa;
+  color: var(--ai-accent);
   font-size: var(--fontsize-xs);
 }
 
@@ -569,7 +580,7 @@ header {
 }
 
 .credits-eyebrow {
-  color: #a78bfa;
+  color: var(--ai-accent);
   font-size: var(--fontsize-xs);
   font-weight: 800;
   letter-spacing: 0.09em;
@@ -680,7 +691,7 @@ header {
 
 .credits-shared-note svg {
   margin-top: var(--space-2);
-  color: #a78bfa;
+  color: var(--ai-accent);
 }
 
 .ai-credits-anchor .credits-plan-link {
@@ -718,15 +729,19 @@ header {
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 1100px) {
   .ai-credits-anchor {
     right: var(--space-2);
   }
 
+  .ai-credits-anchor .ai-credits-badge span,
+  .ai-credits-anchor .ai-credits-badge .ai-credits-chevron {
+    display: none;
+  }
+
   .ai-credits-anchor .ai-credits-badge {
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-2) !important;
-    font-size: var(--fontsize-xs);
+    gap: 0;
+    padding: var(--space-3) !important;
   }
 }
 </style>

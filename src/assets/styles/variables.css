@@ -21,6 +21,7 @@
   --green-high: rgba(134, 205, 130, 0.21);
   --amber: #f59e0b;
   --amber-high: rgba(245, 158, 11, 0.15);
+  --ai-accent: #7c3aed;
 
   /* ---- Semantic Colors ---- */
   --color-income: var(--green);
@@ -242,4 +243,5 @@
   --red-high: rgba(231, 76, 60, 0.2);
   --green-high: rgba(46, 204, 113, 0.18);
   --amber-high: rgba(245, 158, 11, 0.18);
+  --ai-accent: #a78bfa;
 }
