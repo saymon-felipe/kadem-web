@@ -53,9 +53,9 @@
 
           <button
             class="menu-item"
-            :class="{ 'disabled-item': !canDownloadAudio || isDownloadingLyrics }"
-            :disabled="!canDownloadAudio || isDownloadingLyrics"
-            :title="download_unavailable_title"
+            :class="{ 'disabled-item': !canDownloadLyrics || isDownloadingLyrics }"
+            :disabled="!canDownloadLyrics || isDownloadingLyrics"
+            :title="lyrics_unavailable_title"
             @click="$emit('download-lyrics')"
           >
             <font-awesome-icon
@@ -119,6 +119,8 @@ export default {
     lyricsUnavailable: { type: Boolean, default: false },
     canDownloadAudio: { type: Boolean, default: false },
     canDownloadVideo: { type: Boolean, default: false },
+    canDownloadLyrics: { type: Boolean, default: false },
+    isUploadedTrack: { type: Boolean, default: false },
     videoQualities: { type: Array, default: () => [] },
     playlists: { type: Array, default: () => [] },
     existingInPlaylists: { type: Array, default: () => [] },
@@ -160,7 +162,13 @@ export default {
     },
     video_download_unavailable_title() {
       if (this.canDownloadVideo) return "";
+      if (this.isUploadedTrack) return "Músicas enviadas não têm vídeo";
       return "Seu plano não permite baixar vídeos offline";
+    },
+    lyrics_unavailable_title() {
+      if (this.canDownloadLyrics) return "";
+      if (this.isUploadedTrack) return "Não disponível para músicas enviadas";
+      return this.download_unavailable_title;
     },
   },
   methods: {

@@ -242,13 +242,20 @@ export const usePlayerStore = defineStore("player", {
       });
     },
 
-    async _handle_native_playback(track, blob, should_play, start_seconds = 0) {
+    async _handle_native_playback(track, source, should_play, start_seconds = 0) {
       const audio = this._ensure_audio_instance();
       this.is_loading = true;
 
       try {
-        this.current_audio_url = URL.createObjectURL(blob);
-        audio.src = this.current_audio_url;
+        if (source instanceof Blob) {
+          this.current_audio_url = URL.createObjectURL(source);
+          audio.src = this.current_audio_url;
+        } else {
+          // URL remota (ex.: música enviada ainda não cacheada offline): o
+          // áudio nativo consome direto via range requests, sem blob local.
+          this.current_audio_url = null;
+          audio.src = source;
+        }
         audio.loop = false;
         audio.volume = this.volume;
 
@@ -487,6 +494,13 @@ export const usePlayerStore = defineStore("player", {
         if (this.yt_player_instance?.pauseVideo) this.yt_player_instance.pauseVideo();
 
         await this._handle_native_playback(targetTrack, finalAudioBlob, true);
+      } else if (targetTrack.source === "upload" && targetTrack.storage_key) {
+        console.log("[Player] Modo: Nativo (streaming do arquivo enviado).");
+        this.player_mode = "native";
+
+        if (this.yt_player_instance?.pauseVideo) this.yt_player_instance.pauseVideo();
+
+        await this._handle_native_playback(targetTrack, targetTrack.storage_key, true);
       } else if (targetTrack.youtube_id) {
         const utilsStore = useUtilsStore();
 
@@ -818,6 +832,15 @@ export const usePlayerStore = defineStore("player", {
               false,
               resume_position,
             );
+          } else if (this.current_music.source === "upload" && this.current_music.storage_key) {
+            // Ainda não cacheada neste dispositivo: retoma via streaming
+            // direto do arquivo, igual ao que play_track já faz.
+            await this._handle_native_playback(
+              this.current_music,
+              this.current_music.storage_key,
+              false,
+              resume_position,
+            );
           }
         } catch (e) {
           console.warn("Falha ao restaurar nativo:", e);
@@ -897,8 +920,16 @@ export const usePlayerStore = defineStore("player", {
             if (track) {
               this.current_music = track;
               this.queue = this.queue.filter((t) => t.youtube_id !== track.youtube_id);
-              const hasBlob = await radioRepository.hasGlobalPlayableMedia(track.youtube_id);
-              this.player_mode = hasBlob ? "native" : "youtube";
+
+              if (track.source === "upload") {
+                // Música enviada não tem vídeo do YouTube pra cuear: o modo é
+                // sempre nativo, com ou sem cache offline (com fallback pra
+                // streaming direto do storage_key em restorePlayerConnection).
+                this.player_mode = "native";
+              } else {
+                const hasBlob = await radioRepository.hasGlobalPlayableMedia(track.youtube_id);
+                this.player_mode = hasBlob ? "native" : "youtube";
+              }
               this.is_playing = false;
             }
           }

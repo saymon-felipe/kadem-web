@@ -29,7 +29,7 @@
           :class="{ 'mini-item': collapsed }"
           :title="collapsed ? decode_html_entities(current_music.title) : ''"
         >
-          <img :src="current_music.thumbnail" class="q-cover" />
+          <img :src="current_music.thumbnail || kadem_default_music" class="q-cover" />
 
           <div class="q-info" v-if="!collapsed">
             <strong>{{ decode_html_entities(current_music.title) }}</strong>
@@ -70,7 +70,7 @@
             :class="{ 'mini-item': collapsed }"
             :title="collapsed ? decode_html_entities(track.title) : ''"
           >
-            <img :src="track.thumbnail" class="q-cover" />
+            <img :src="track.thumbnail || kadem_default_music" class="q-cover" />
 
             <div class="q-info" v-if="!collapsed">
               <strong>{{ decode_html_entities(track.title) }}</strong>
@@ -103,6 +103,7 @@ import { mapState } from "pinia";
 import { usePlayerStore } from "@/stores/player";
 import { useAppStore } from "@/stores/app";
 import { decode_html_entities } from "@/utils/string_helpers";
+import kadem_default_music from "@/assets/images/kadem-default-music.jpg";
 
 export default {
   name: "QueueSidebar",
@@ -120,6 +121,7 @@ export default {
     return {
       drag: false,
       is_drag_over: false,
+      kadem_default_music,
     };
   },
   computed: {

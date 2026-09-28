@@ -21,6 +21,9 @@ export const useRadioStore = defineStore("radio", {
     active_lyrics_downloads: {},
     downloaded_lyrics_map: {},
     lyrics_status_by_video_id: {},
+    active_uploads: {},
+    upload_usage_bytes: 0,
+    upload_quota_bytes: 0,
   }),
 
   getters: {
@@ -337,37 +340,49 @@ export const useRadioStore = defineStore("radio", {
         let media_blob = null;
 
         if (!is_cached || force) {
-          console.log(
-            `[RadioStore] Baixando ${media === "video" ? `vídeo ${video_quality_number}p` : "áudio"}: ${track.title}`,
-          );
-          const authStore = useAuthStore();
-          const token = authStore.getToken;
+          if (track.source === "upload") {
+            if (media === "video") throw new Error("Músicas enviadas não têm vídeo para baixar.");
+            if (!track.storage_key) throw new Error("Arquivo da música enviada não encontrado.");
 
-          const query = new URLSearchParams({ nocache: String(Date.now()) });
-          if (media === "video") query.set("quality", String(video_quality_number));
-          const endpoint = `${apiServices.MEDIA_ENGINE}/${media === "video" ? "video" : "stream"}/${track.youtube_id}?${query.toString()}`;
+            console.log(`[RadioStore] Baixando música enviada: ${track.title}`);
+            this.active_downloads[track.local_id] = 50;
 
-          const response = await api.get(endpoint, {
-            responseType: "blob",
-            timeout: 0,
-            headers: {
-              "Cache-Control": "no-cache",
-              Authorization: `Bearer ${token}`,
-            },
-            onDownloadProgress: (progressEvent) => {
-              const total = progressEvent.total || estimatedTotal;
-              const current = progressEvent.loaded;
+            const fetch_response = await fetch(track.storage_key);
+            if (!fetch_response.ok) throw new Error("Falha ao baixar o arquivo enviado.");
+            media_blob = await fetch_response.blob();
+          } else {
+            console.log(
+              `[RadioStore] Baixando ${media === "video" ? `vídeo ${video_quality_number}p` : "áudio"}: ${track.title}`,
+            );
+            const authStore = useAuthStore();
+            const token = authStore.getToken;
 
-              if (total > 0) {
-                let percent = Math.floor((current / total) * 100);
+            const query = new URLSearchParams({ nocache: String(Date.now()) });
+            if (media === "video") query.set("quality", String(video_quality_number));
+            const endpoint = `${apiServices.MEDIA_ENGINE}/${media === "video" ? "video" : "stream"}/${track.youtube_id}?${query.toString()}`;
 
-                if (percent >= 100) percent = 99;
+            const response = await api.get(endpoint, {
+              responseType: "blob",
+              timeout: 0,
+              headers: {
+                "Cache-Control": "no-cache",
+                Authorization: `Bearer ${token}`,
+              },
+              onDownloadProgress: (progressEvent) => {
+                const total = progressEvent.total || estimatedTotal;
+                const current = progressEvent.loaded;
 
-                this.active_downloads[track.local_id] = percent;
-              }
-            },
-          });
-          media_blob = response.data;
+                if (total > 0) {
+                  let percent = Math.floor((current / total) * 100);
+
+                  if (percent >= 100) percent = 99;
+
+                  this.active_downloads[track.local_id] = percent;
+                }
+              },
+            });
+            media_blob = response.data;
+          }
         }
 
         if (media_blob) {
@@ -380,7 +395,7 @@ export const useRadioStore = defineStore("radio", {
 
         this.active_downloads[track.local_id] = 100;
 
-        this.queue_lyrics_download(track);
+        if (track.source !== "upload") this.queue_lyrics_download(track);
 
         setTimeout(() => {
           delete this.active_downloads[track.local_id];
@@ -527,6 +542,144 @@ export const useRadioStore = defineStore("radio", {
       } catch (error) {
         console.error("[RadioStore] Erro ao adicionar música:", error);
       }
+    },
+
+    async fetchStorageUsage() {
+      try {
+        const response = await api.get("/radio/storage-usage");
+        this.upload_usage_bytes = response.data?.used_bytes || 0;
+        this.upload_quota_bytes = response.data?.limit_bytes || 0;
+      } catch (error) {
+        console.warn("[RadioStore] Falha ao buscar uso de armazenamento:", error.message);
+      }
+    },
+
+    async uploadTrackFile(playlist, file, { title, uploadId: providedUploadId } = {}) {
+      const utilsStore = useUtilsStore();
+      if (!utilsStore.connection.connected) {
+        throw new Error("Sem conexão com a internet. Conecte-se para enviar uma música.");
+      }
+      if (!playlist.id) {
+        throw new Error("Esta playlist ainda não sincronizou com o servidor. Tente novamente em instantes.");
+      }
+
+      const uploadId = providedUploadId || `upload-${Date.now()}`;
+      const clean_title = title?.trim();
+      this.active_uploads[uploadId] = { progress: 0, title: clean_title || file.name || "Música" };
+
+      try {
+        const headers = {
+          "Content-Type": file.type || "application/octet-stream",
+          "x-file-name": encodeURIComponent(file.name || "musica"),
+        };
+        if (clean_title) headers["x-track-title"] = encodeURIComponent(clean_title);
+
+        const response = await api.post(`/radio/playlists/${playlist.id}/tracks/upload`, file, {
+          headers,
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total && this.active_uploads[uploadId]) {
+              // Trava em 97%: o envio dos bytes termina antes do servidor
+              // converter o áudio e confirmar o upload, então 100% só é
+              // atingido depois da resposta da API (abaixo).
+              const sent_pct = Math.floor((progressEvent.loaded / progressEvent.total) * 100);
+              this.active_uploads[uploadId].progress = Math.min(97, sent_pct);
+            }
+          },
+        });
+
+        if (this.active_uploads[uploadId]) {
+          this.active_uploads[uploadId].progress = 100;
+        }
+
+        const apiTrack = response.data;
+        const trackData = {
+          id: apiTrack.id,
+          title: apiTrack.title,
+          youtube_id: apiTrack.youtube_id,
+          channel: apiTrack.channel,
+          thumbnail: apiTrack.thumbnail,
+          duration_seconds: apiTrack.duration_seconds || 0,
+          source: apiTrack.source,
+          storage_key: apiTrack.storage_key,
+          original_size_bytes: apiTrack.original_size_bytes,
+          playlist_id: playlist.id,
+          playlist_local_id: playlist.local_id,
+          created_at: apiTrack.created_at || new Date().toISOString(),
+        };
+
+        const trackId = await radioRepository.addLocalTrack(trackData);
+
+        const pl = this.playlists.find((p) => p.local_id === playlist.local_id);
+        if (pl) {
+          pl.track_count = (pl.track_count || 0) + 1;
+          if (pl.tracks && Array.isArray(pl.tracks)) {
+            pl.tracks.push({ ...trackData, local_id: trackId, has_lyrics: false, lyrics_unavailable: false });
+          }
+        }
+
+        this.upload_usage_bytes += apiTrack.original_size_bytes || 0;
+
+        const savedTrack = { ...trackData, local_id: trackId };
+
+        // Já deixa em cache offline neste dispositivo, sem bloquear o retorno.
+        this.downloadTrack(savedTrack, { media: "audio" }).catch((error) => {
+          console.warn("[RadioStore] Falha ao cachear música enviada offline:", error);
+        });
+
+        // Dá um respiro pro 100% aparecer na tela antes do modal fechar.
+        await new Promise((resolve) => setTimeout(resolve, 400));
+
+        return savedTrack;
+      } catch (error) {
+        console.error("[RadioStore] Erro ao enviar música:", error);
+        throw error;
+      } finally {
+        delete this.active_uploads[uploadId];
+      }
+    },
+
+    // Reaproveita uma música já enviada (existente em outra playlist) sem
+    // subir o arquivo de novo: o servidor referencia o mesmo upload_id, então
+    // não duplica espaço no S3 nem na cota.
+    async copyUploadToPlaylist(track, playlist) {
+      if (!track.id) {
+        throw new Error("Aguarde a música sincronizar antes de adicioná-la a outra playlist.");
+      }
+      if (!playlist.id) {
+        throw new Error("Esta playlist ainda não sincronizou com o servidor. Tente novamente em instantes.");
+      }
+
+      const response = await api.post(`/radio/playlists/${playlist.id}/tracks/copy-upload`, {
+        source_track_id: track.id,
+      });
+
+      const apiTrack = response.data;
+      const trackData = {
+        id: apiTrack.id,
+        title: apiTrack.title,
+        youtube_id: apiTrack.youtube_id,
+        channel: apiTrack.channel,
+        thumbnail: apiTrack.thumbnail,
+        duration_seconds: apiTrack.duration_seconds || 0,
+        source: apiTrack.source,
+        storage_key: apiTrack.storage_key,
+        original_size_bytes: apiTrack.original_size_bytes,
+        playlist_id: playlist.id,
+        playlist_local_id: playlist.local_id,
+        created_at: apiTrack.created_at || new Date().toISOString(),
+      };
+
+      const trackId = await radioRepository.addLocalTrack(trackData);
+
+      const pl = this.playlists.find((p) => p.local_id === playlist.local_id);
+      if (pl) {
+        pl.track_count = (pl.track_count || 0) + 1;
+        if (pl.tracks && Array.isArray(pl.tracks)) {
+          pl.tracks.push({ ...trackData, local_id: trackId, has_lyrics: false, lyrics_unavailable: false });
+        }
+      }
+
+      return { ...trackData, local_id: trackId };
     },
 
     async removeTrackFromPlaylist(track) {

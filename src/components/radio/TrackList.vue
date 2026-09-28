@@ -39,7 +39,7 @@
 
             <div class="track-title-col">
               <div class="thumb-wrapper">
-                <img :src="track.thumbnail" class="mini-thumb" :class="{ grayscale: is_track_unavailable(track) }" />
+                <img :src="track.thumbnail || kadem_default_music" class="mini-thumb" :class="{ grayscale: is_track_unavailable(track) }" />
 
                 <div
                   v-if="!is_mobile && !is_track_unavailable(track)"
@@ -54,6 +54,12 @@
               <div class="meta">
                 <div class="title-row" style="display: flex; align-items: center; gap: 6px">
                   <strong :title="decode_html_entities(track.title)">{{ decode_html_entities(track.title) }}</strong>
+                  <font-awesome-icon
+                    v-if="track.source === 'upload'"
+                    icon="cloud-arrow-up"
+                    class="upload-badge"
+                    title="Música enviada por você"
+                  />
                 </div>
                 <small class="mobile-only-artist">{{ decode_html_entities(track.channel) }}</small>
               </div>
@@ -190,7 +196,9 @@
           :is-downloading-lyrics="is_lyric_loading(selected_track_for_menu?.youtube_id)"
           :lyrics-unavailable="track_lyrics_unavailable(selected_track_for_menu)"
           :can-download-audio="can_download_audio_individually"
-          :can-download-video="can_download_video_individually"
+          :can-download-video="can_download_video_individually && selected_track_for_menu?.source !== 'upload'"
+          :can-download-lyrics="can_download_audio_individually && selected_track_for_menu?.source !== 'upload'"
+          :is-uploaded-track="selected_track_for_menu?.source === 'upload'"
           :video-qualities="video_quality_options"
           :playlists="radioStore.playlists"
           :existing-in-playlists="existing_track_playlist_ids"
@@ -219,6 +227,7 @@ import TrackOptionsMenu from "./TrackOptionsMenu.vue";
 import { decode_html_entities } from "@/utils/string_helpers";
 import { getOfflineVideoQualities, getPlanLimits } from "@/services/subscription_plans.js";
 import { db } from "@/db";
+import kadem_default_music from "@/assets/images/kadem-default-music.jpg";
 
 export default {
   name: "TrackList",
@@ -271,6 +280,7 @@ export default {
       existing_track_playlist_ids: [],
       success_feedback_map: {},
       observer: null,
+      kadem_default_music,
     };
   },
 
@@ -987,6 +997,12 @@ export default {
   display: inline-flex;
   margin-left: 6px;
   align-items: center;
+}
+
+.upload-badge {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted, var(--text-secondary));
 }
 
 .lyrics-indicator .status-icon {

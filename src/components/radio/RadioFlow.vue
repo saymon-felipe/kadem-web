@@ -87,7 +87,52 @@
                     <font-awesome-icon icon="shuffle" />
                   </button>
                 </div>
+
+                <div class="upload-actions">
+                  <span class="upload-usage" v-if="upload_usage_label">{{ upload_usage_label }}</span>
+
+                  <div class="upload-progress-indicator" v-if="active_upload_list.length > 0">
+                    <button
+                      type="button"
+                      class="btn-icon"
+                      @click="show_uploads_dropdown = !show_uploads_dropdown"
+                      title="Uploads em andamento"
+                    >
+                      <div class="progress-ring-container">
+                        <svg class="progress-ring" width="22" height="22">
+                          <circle class="progress-ring__circle--bg" stroke="currentColor" stroke-width="2" fill="transparent" r="8" cx="11" cy="11" />
+                          <circle
+                            class="progress-ring__circle"
+                            stroke="currentColor" stroke-width="2" fill="transparent" r="8" cx="11" cy="11"
+                            stroke-dasharray="50.26"
+                            :stroke-dashoffset="get_progress_offset(average_upload_progress)"
+                          />
+                        </svg>
+                      </div>
+                      <span class="upload-count-badge" v-if="active_upload_list.length > 1">{{ active_upload_list.length }}</span>
+                    </button>
+
+                    <div v-if="show_uploads_dropdown" class="uploads-dropdown">
+                      <div class="uploads-dropdown-header">Enviando</div>
+                      <div v-for="upload in active_upload_list" :key="upload.id" class="uploads-dropdown-item">
+                        <span class="uploads-dropdown-title" :title="upload.title">{{ upload.title }}</span>
+                        <span class="uploads-dropdown-percent">{{ upload.progress }}%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button class="btn-icon" @click="show_upload_modal = true" title="Enviar música">
+                    <font-awesome-icon icon="cloud-arrow-up" />
+                  </button>
+                </div>
               </div>
+
+              <UploadTrackModal
+                v-model="show_upload_modal"
+                :is-submitting="is_modal_submitting"
+                :progress="current_upload_progress"
+                @submit="handle_upload_submit"
+              />
 
               <TrackList
                 mode="playlist"
@@ -278,6 +323,7 @@ import TrackList from "./TrackList.vue";
 import PlayerWrapper from "./PlayerWrapper.vue";
 import QueueSidebar from "./QueueSidebar.vue";
 import PlaylistSelector from "./PlaylistSelector.vue";
+import UploadTrackModal from "./UploadTrackModal.vue";
 import LoadingSpinner from "@/components/loadingSpinner.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import BottomSheetModal from "@/components/BottomSheetModal.vue";
@@ -296,6 +342,7 @@ export default {
     QueueSidebar,
     LoadingSpinner,
     PlaylistSelector,
+    UploadTrackModal,
     ConfirmationModal,
     BottomSheetModal,
   },
@@ -333,6 +380,10 @@ export default {
       },
       next_page_token: null,
       is_loading_more: false,
+
+      show_upload_modal: false,
+      show_uploads_dropdown: false,
+      current_upload_id: null,
     };
   },
   computed: {
@@ -347,7 +398,12 @@ export default {
       "mobile_tab",
       "volume",
     ]),
-    ...mapState(useRadioStore, { playlists: "playlists" }),
+    ...mapState(useRadioStore, [
+      "playlists",
+      "upload_usage_bytes",
+      "upload_quota_bytes",
+      "active_uploads",
+    ]),
     ...mapState(useUtilsStore, ["connection"]),
     ...mapState(useWindowStore, ["_getOrCreateCurrentUserState"]),
     ...mapState(useAppStore, ["isDark"]),
@@ -370,6 +426,34 @@ export default {
         (total, track) => total + (track.duration_seconds || 0),
         0
       );
+    },
+
+    is_uploading_track() {
+      return Object.keys(this.active_uploads).length > 0;
+    },
+
+    active_upload_list() {
+      return Object.entries(this.active_uploads).map(([id, info]) => ({ id, ...info }));
+    },
+
+    average_upload_progress() {
+      const list = this.active_upload_list;
+      if (list.length === 0) return 0;
+      return Math.round(list.reduce((total, upload) => total + upload.progress, 0) / list.length);
+    },
+
+    is_modal_submitting() {
+      return !!this.current_upload_id && !!this.active_uploads[this.current_upload_id];
+    },
+
+    current_upload_progress() {
+      if (!this.current_upload_id) return 0;
+      return this.active_uploads[this.current_upload_id]?.progress || 0;
+    },
+
+    upload_usage_label() {
+      if (!this.upload_quota_bytes) return "";
+      return `${this.format_bytes(this.upload_usage_bytes)} de ${this.format_bytes(this.upload_quota_bytes)} usados`;
     },
 
     computed_layout_style() {
@@ -427,6 +511,9 @@ export default {
       "removeTrackFromPlaylist",
       "checkOfflineAvailability",
       "update_playlist_cover",
+      "uploadTrackFile",
+      "fetchStorageUsage",
+      "copyUploadToPlaylist",
     ]),
     async load_data() {
       if (this.connection.connected) {
@@ -513,7 +600,67 @@ export default {
     handle_manual_add_queue(track) {
       this.add_to_queue(track);
     },
+    async handle_upload_submit({ file, title }) {
+      if (!this.selected_playlist) return;
+
+      const uploadId = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      this.current_upload_id = uploadId;
+
+      try {
+        const newTrack = await this.uploadTrackFile(this.selected_playlist, file, { title, uploadId });
+        if (
+          this.selected_playlist &&
+          this.selected_playlist.local_id === newTrack.playlist_local_id
+        ) {
+          this.tracks.push(newTrack);
+        }
+        this.show_upload_modal = false;
+      } catch (error) {
+        this.openConfirmation({
+          message: error.response?.data?.message || error.message || "Não foi possível enviar a música.",
+          description: "",
+          confirmText: "Ok",
+        });
+      } finally {
+        this.current_upload_id = null;
+      }
+    },
+    close_uploads_dropdown_on_outside_click(event) {
+      if (!this.show_uploads_dropdown) return;
+      if (event.target.closest(".upload-progress-indicator")) return;
+      this.show_uploads_dropdown = false;
+    },
+    get_progress_offset(progress) {
+      const circumference = 50.26;
+      if (!progress) return circumference * 0.75;
+      return circumference - (circumference * progress) / 100;
+    },
+    format_bytes(bytes) {
+      if (!bytes) return "0 MB";
+      const mb = bytes / (1024 * 1024);
+      if (mb < 1) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+      return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
+    },
     async handle_add_to_another_playlist(track, playlist) {
+      if (track.source === "upload") {
+        try {
+          const newTrack = await this.copyUploadToPlaylist(track, playlist);
+          if (
+            this.selected_playlist &&
+            this.selected_playlist.local_id === newTrack.playlist_local_id
+          ) {
+            this.tracks.push(newTrack);
+          }
+        } catch (error) {
+          this.openConfirmation({
+            message: error.response?.data?.message || error.message || "Não foi possível adicionar a música a esta playlist.",
+            description: "",
+            confirmText: "Ok",
+          });
+        }
+        return;
+      }
+
       this.track_being_added = track;
       await this.verify_and_add_track(playlist);
     },
@@ -744,9 +891,12 @@ export default {
   mounted() {
     this.load_data();
     this.observe_container_size();
+    this.fetchStorageUsage();
+    document.addEventListener("mousedown", this.close_uploads_dropdown_on_outside_click);
   },
   beforeUnmount() {
     this.resize_observer?.disconnect();
+    document.removeEventListener("mousedown", this.close_uploads_dropdown_on_outside_click);
   },
 };
 </script>
@@ -875,6 +1025,112 @@ export default {
 
 .btn-icon.active {
   color: var(--yellow);
+}
+
+.btn-icon:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.upload-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.upload-usage {
+  font-size: var(--fontsize-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.upload-progress-indicator {
+  position: relative;
+}
+
+.progress-ring-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-info);
+}
+
+.progress-ring {
+  transform-origin: center;
+}
+
+.progress-ring__circle--bg {
+  opacity: 0.2;
+}
+
+.progress-ring__circle {
+  transition: stroke-dashoffset 0.35s ease;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  color: var(--color-info);
+}
+
+.upload-count-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-info);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.uploads-dropdown {
+  position: absolute;
+  top: calc(100% + var(--space-3));
+  right: 0;
+  width: 220px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-float);
+  z-index: 10;
+}
+
+.uploads-dropdown-header {
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface-3);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.uploads-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fontsize-xs);
+}
+
+.uploads-dropdown-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.uploads-dropdown-percent {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .welcome-state {
