@@ -119,6 +119,14 @@ export default {
       return "";
     },
   },
+  watch: {
+    modelValue(is_open) {
+      // Cobre o fechamento vindo de fora (ex.: RadioFlow fecha o modal direto
+      // após o envio dar certo) sem passar pelo `close` do BaseModal — só
+      // esse emite o evento que o `handle_close` daqui escuta.
+      if (!is_open && !this.isSubmitting) this.reset_selection();
+    },
+  },
   beforeUnmount() {
     if (this.probe_audio_url) URL.revokeObjectURL(this.probe_audio_url);
   },
