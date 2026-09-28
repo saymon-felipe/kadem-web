@@ -1,5 +1,8 @@
 <template>
-  <div class="tracks-table-container">
+  <div
+    class="tracks-table-container"
+    :class="{ 'is-mobile-track-list': is_mobile, 'is-search-mode': mode === 'search' }"
+  >
     <div class="tracks-table">
       <div class="track-row header">
         <span>#</span>
@@ -1019,6 +1022,7 @@ export default {
   opacity: 0.35;
 }
 
+.is-mobile-track-list .track-row,
 @container (max-width: 1100px) {
   .track-row {
     grid-template-columns: 30px 1fr 40px;
@@ -1045,5 +1049,10 @@ export default {
   .tracks-scroll-area {
     padding-bottom: 100px;
   }
+}
+
+.is-search-mode .tracks-scroll-area,
+.is-mobile-track-list.is-search-mode .tracks-scroll-area {
+  padding-bottom: var(--space-4) !important;
 }
 </style>

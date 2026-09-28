@@ -233,34 +233,83 @@
       </button>
     </nav>
 
-    <BottomSheetModal v-model="show_mobile_search_modal" @close="close_mobile_search">
-      <div class="mobile-search-container">
-        <h3>Buscar Música</h3>
-        <div class="search-input-wrapper mobile">
-          <div class="form-group">
+    <BaseModal
+      v-model="show_mobile_search_modal"
+      title="Buscar Músicas"
+      size="lg"
+      custom-class="radio-search-modal"
+      body-class="radio-search-modal-body"
+      @close="close_mobile_search"
+    >
+      <div class="mobile-search-modal-content">
+        <!-- Barra de busca no topo (Fixa) -->
+        <div class="mobile-search-header-wrap">
+          <div
+            class="mobile-search-field-pill"
+            :class="{ 'is-disabled': !connection.connected, 'is-focused': is_mobile_search_focused }"
+          >
+            <font-awesome-icon icon="magnifying-glass" class="search-icon-leading" />
             <input
-              type="text"
+              type="search"
               v-model="search_query"
               @keyup.enter="perform_mobile_search"
-              placeholder=" "
+              @focus="is_mobile_search_focused = true"
+              @blur="is_mobile_search_focused = false"
+              :placeholder="!connection.connected ? 'Busca indisponível offline' : 'O que você quer ouvir?'"
               id="mobile-search-input"
-              class="search-input"
+              class="mobile-search-input-field"
               ref="mobileSearchInput"
               :disabled="!connection.connected"
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
             />
-            <label for="mobile-search-input" class="floating-label">
-              Digite o nome da música ou artista...
-            </label>
+            <button
+              v-if="search_query"
+              type="button"
+              class="search-clear-action-btn"
+              @click="clear_mobile_search"
+              title="Limpar busca"
+            >
+              <font-awesome-icon icon="xmark" />
+            </button>
           </div>
-          <button @click="perform_mobile_search" class="search-btn-confirm">
-            <font-awesome-icon icon="arrow-right" />
+
+          <button
+            type="button"
+            @click="perform_mobile_search"
+            class="mobile-search-submit-btn"
+            :disabled="!connection.connected || !search_query.trim() || is_searching"
+            title="Buscar"
+          >
+            <font-awesome-icon v-if="is_searching" icon="spinner" spin />
+            <span v-else>Buscar</span>
           </button>
         </div>
 
-        <div class="mobile-results-area">
-          <loading-spinner v-if="is_searching" style="margin: 20px auto" />
+        <!-- Área de resultados com scroll próprio -->
+        <div class="mobile-search-scroll-area custom-scrollbar">
+          <!-- Modo Offline -->
+          <div v-if="!connection.connected" class="mobile-search-state-box">
+            <div class="state-icon-avatar offline">
+              <font-awesome-icon icon="wifi" />
+            </div>
+            <h4>Modo Offline</h4>
+            <p>Conecte-se à internet para pesquisar e reproduzir músicas do YouTube.</p>
+          </div>
 
-          <div v-else-if="search_results.length > 0">
+          <!-- Carregando busca -->
+          <div v-else-if="is_searching" class="mobile-search-state-box">
+            <loading-spinner style="margin: 0 auto 16px auto" />
+            <p class="state-subtext">Buscando músicas...</p>
+          </div>
+
+          <!-- Resultados encontrados -->
+          <div v-else-if="search_results.length > 0" class="mobile-search-results-wrap">
+            <div class="search-meta-bar" v-if="last_search_term">
+              <span class="search-meta-term">Resultados para "<strong>{{ last_search_term }}</strong>"</span>
+            </div>
+
             <TrackList
               mode="search"
               ref="mobileSearchTrackList"
@@ -275,12 +324,26 @@
             />
           </div>
 
-          <div v-else-if="has_searched" class="empty-search">
-            <p>Nenhum resultado encontrado.</p>
+          <!-- Nenhum resultado -->
+          <div v-else-if="has_searched" class="mobile-search-state-box">
+            <div class="state-icon-avatar empty">
+              <font-awesome-icon icon="music" />
+            </div>
+            <h4>Nenhum resultado encontrado</h4>
+            <p>Não encontramos faixas para "<strong>{{ last_search_term || search_query }}</strong>". Verifique a grafia ou tente outros termos.</p>
+          </div>
+
+          <!-- Estado inicial (antes de buscar) -->
+          <div v-else class="mobile-search-state-box initial">
+            <div class="state-icon-avatar initial-icon">
+              <font-awesome-icon icon="magnifying-glass" />
+            </div>
+            <h4>O que você quer ouvir?</h4>
+            <p>Busque por músicas, artistas, bandas ou canais do YouTube para ouvir ou salvar nas suas playlists.</p>
           </div>
         </div>
       </div>
-    </BottomSheetModal>
+    </BaseModal>
     <Teleport to="body">
       <PlaylistSelector
         v-model="show_playlist_selector"
@@ -326,7 +389,7 @@ import PlaylistSelector from "./PlaylistSelector.vue";
 import UploadTrackModal from "./UploadTrackModal.vue";
 import LoadingSpinner from "@/components/loadingSpinner.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
-import BottomSheetModal from "@/components/BottomSheetModal.vue";
+import BaseModal from "@/components/BaseModal.vue";
 
 import defaultCover from "@/assets/images/fundo-auth.webp";
 import defaultCoverDark from "@/assets/images/system-background-black.webp";
@@ -344,7 +407,7 @@ export default {
     PlaylistSelector,
     UploadTrackModal,
     ConfirmationModal,
-    BottomSheetModal,
+    BaseModal,
   },
   data() {
     return {
@@ -365,6 +428,7 @@ export default {
       is_searching: false,
 
       show_mobile_search_modal: false,
+      is_mobile_search_focused: false,
       has_searched: false,
 
       show_playlist_selector: false,
@@ -735,7 +799,21 @@ export default {
     },
 
     async perform_mobile_search() {
-      await this.fetch_search_results();
+      if (!this.search_query.trim()) return;
+      this.last_search_term = this.search_query.trim();
+      this.next_page_token = null;
+      await this.fetch_search_results(false);
+    },
+
+    clear_mobile_search() {
+      this.search_query = "";
+      this.search_results = [];
+      this.has_searched = false;
+      this.last_search_term = "";
+      this.next_page_token = null;
+      this.$nextTick(() => {
+        if (this.$refs.mobileSearchInput) this.$refs.mobileSearchInput.focus();
+      });
     },
 
     async handle_load_more() {
@@ -756,11 +834,13 @@ export default {
       this.search_query = "";
       this.search_results = [];
       this.has_searched = false;
+      this.last_search_term = "";
+      this.next_page_token = null;
       this.show_mobile_search_modal = true;
 
       setTimeout(() => {
         if (this.$refs.mobileSearchInput) this.$refs.mobileSearchInput.focus();
-      }, 300);
+      }, 350);
     },
 
     close_mobile_search() {
@@ -1077,7 +1157,7 @@ export default {
   min-width: 16px;
   height: 16px;
   padding: 0 3px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-pill);
   background: var(--color-info);
   color: #fff;
   font-size: 0.6rem;
@@ -1253,49 +1333,262 @@ export default {
   filter: brightness(0.9);
 }
 
-.mobile-search-container {
-  height: 100%;
+/* --- Mobile Search Modal Styles --- */
+
+:global(.radio-search-modal.is-bottom-sheet) {
+  height: min(85dvh, calc(100dvh - 76px)) !important;
+  max-height: calc(100dvh - 76px) !important;
+}
+
+:global(.radio-search-modal:not(.is-bottom-sheet)) {
+  height: 640px !important;
+  max-height: 80vh !important;
+}
+
+:global(.radio-search-modal-body) {
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  height: 100% !important;
+}
+
+.mobile-search-modal-content {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
-.mobile-search-container h3 {
-  margin: 0 0 var(--space-3) 0;
-  color: var(--text-primary);
-  font-size: 1.2rem;
-}
-
-.search-input-wrapper.mobile {
+.mobile-search-header-wrap {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
-  margin-bottom: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0;
 }
 
-.search-input-wrapper.mobile .form-group {
-  flex-grow: 1;
+.mobile-search-field-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) 0 var(--space-4);
+  height: 44px;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
 }
 
-.search-btn-confirm {
-  width: 48px;
-  border-radius: var(--radius-md);
+.mobile-search-field-pill.is-focused {
+  border-color: var(--blue);
+  background: var(--surface-0);
+  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.15);
+}
+
+.mobile-search-field-pill.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.search-icon-leading {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.mobile-search-field-pill input.mobile-search-input-field,
+[data-theme='dark'] .mobile-search-field-pill input.mobile-search-input-field {
+  flex: 1;
+  min-width: 0;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: unset !important;
+  max-height: unset !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 var(--space-1) !important;
+  color: var(--text-primary);
+  font-size: 0.95rem !important;
+  line-height: normal !important;
+  outline: none !important;
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.mobile-search-field-pill input.mobile-search-input-field:focus,
+[data-theme='dark'] .mobile-search-field-pill input.mobile-search-input-field:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.mobile-search-field-pill input.mobile-search-input-field::-webkit-search-decoration,
+.mobile-search-field-pill input.mobile-search-input-field::-webkit-search-cancel-button,
+.mobile-search-field-pill input.mobile-search-input-field::-webkit-search-results-button,
+.mobile-search-field-pill input.mobile-search-input-field::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.mobile-search-input-field::placeholder {
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.search-clear-action-btn {
+  background: none;
   border: none;
-  background-color: var(--color-info);
-  color: #ffffff;
+  color: var(--text-muted);
   cursor: pointer;
-  font-size: 1.1rem;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  font-size: 0.85rem;
+  padding: 0;
+  flex-shrink: 0;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
 }
 
-.mobile-results-area {
-  flex-grow: 1;
+.search-clear-action-btn:hover,
+.search-clear-action-btn:active {
+  color: var(--text-primary);
+  background: var(--surface-3);
+}
+
+.mobile-search-submit-btn {
+  height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--blue);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.mobile-search-submit-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.mobile-search-submit-btn:active:not(:disabled) {
+  transform: scale(0.96);
+  filter: brightness(0.92);
+}
+
+.mobile-search-submit-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mobile-search-scroll-area {
+  flex: 1 1 auto;
   overflow-y: auto;
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
-  padding-top: var(--space-3);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  -webkit-overflow-scrolling: touch;
 }
 
-.empty-search {
+.mobile-search-results-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+.search-meta-bar {
+  padding: var(--space-2) var(--space-4);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--surface-1);
+}
+
+.search-meta-term strong {
+  color: var(--text-primary);
+}
+
+.mobile-search-state-box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  padding: var(--space-5);
-  color: var(--gray-400);
+  padding: var(--space-6) var(--space-4);
+  gap: var(--space-2);
+}
+
+.mobile-search-state-box h4 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mobile-search-state-box p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  max-width: 300px;
+  line-height: 1.45;
+}
+
+.state-subtext {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.state-icon-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.35rem;
+  margin-bottom: var(--space-2);
+  background: rgba(53, 90, 253, 0.1);
+  color: var(--blue);
+}
+
+.state-icon-avatar.offline {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--amber);
+}
+
+.state-icon-avatar.empty {
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+
+.state-icon-avatar.initial-icon {
+  background: rgba(53, 90, 253, 0.08);
+  color: var(--blue);
 }
 
 /* --- Container Queries Logic --- */

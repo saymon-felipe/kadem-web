@@ -143,6 +143,17 @@ import {
   faMobileScreenButton,
   faTabletScreenButton,
   faFilter,
+  faHeart,
+  faMugSaucer,
+  faFolderPlus,
+  faCircleDot,
+  faTags,
+  faSquareCheck,
+  faHashtag,
+  faBed,
+  faBolt,
+  faAlignLeft,
+  faToggleOn,
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -273,6 +284,17 @@ library.add(
   faMobileScreenButton,
   faTabletScreenButton,
   faFilter,
+  faHeart,
+  faMugSaucer,
+  faFolderPlus,
+  faCircleDot,
+  faTags,
+  faSquareCheck,
+  faHashtag,
+  faBed,
+  faBolt,
+  faAlignLeft,
+  faToggleOn,
 );
 
 window.addEventListener('error', (event) => {

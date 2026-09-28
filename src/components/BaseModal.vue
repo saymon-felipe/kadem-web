@@ -32,6 +32,10 @@
             ref="dragBarRef"
             class="mobile-drag-bar"
             aria-hidden="true"
+            @touchstart="handleTouchStart"
+            @touchmove="handleTouchMove"
+            @touchend="handleTouchEnd"
+            @touchcancel="handleTouchEnd"
           >
             <div class="drag-pill"></div>
           </div>
@@ -144,6 +148,9 @@ export default {
       isReadyForHeightTransition: false,
       resizeObserver: null,
       mutationObserver: null,
+      touchStartY: 0,
+      sheetTranslateY: 0,
+      isDraggingSheet: false,
     };
   },
   computed: {
@@ -152,15 +159,43 @@ export default {
       return Boolean(this.title || this.$slots.header || this.$slots.title);
     },
     cardDynamicStyle() {
+      const styles = {};
       if (this.modalHeight) {
-        return {
-          height: `${this.modalHeight}px`,
-        };
+        styles.height = `${this.modalHeight}px`;
       }
-      return {};
+      if (this.sheetTranslateY > 0) {
+        styles.transform = `translateY(${this.sheetTranslateY}px)`;
+        styles.transition = "none";
+      }
+      return styles;
     },
   },
   methods: {
+    handleTouchStart(e) {
+      if (e.touches && e.touches.length === 1) {
+        this.touchStartY = e.touches[0].clientY;
+        this.isDraggingSheet = true;
+        this.sheetTranslateY = 0;
+      }
+    },
+    handleTouchMove(e) {
+      if (!this.isDraggingSheet || !e.touches || e.touches.length === 0) return;
+      const deltaY = e.touches[0].clientY - this.touchStartY;
+      if (deltaY > 0) {
+        this.sheetTranslateY = deltaY;
+      } else {
+        this.sheetTranslateY = 0;
+      }
+    },
+    handleTouchEnd() {
+      if (!this.isDraggingSheet) return;
+      const deltaY = this.sheetTranslateY;
+      this.isDraggingSheet = false;
+      this.sheetTranslateY = 0;
+      if (deltaY > 80) {
+        this.close();
+      }
+    },
     close() {
       this.$emit("update:modelValue", false);
       this.$emit("close");
@@ -378,6 +413,7 @@ export default {
   position: relative;
   z-index: 2;
   color: var(--text-primary);
+  container-type: inline-size;
 }
 
 .kadem-modal-card.has-height-transition {
@@ -521,6 +557,8 @@ export default {
     flex-shrink: 0;
     width: 100%;
     cursor: grab;
+    touch-action: none;
+    user-select: none;
   }
 
   .drag-pill {

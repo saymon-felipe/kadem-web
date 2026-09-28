@@ -51,8 +51,11 @@ export default {
 
       const open_upwards = space_below < final_height;
 
+      const screenWidth = typeof window !== "undefined" ? window.innerWidth : 800;
+      const leftPos = Math.max(12, Math.min(this.position.x - MENU_WIDTH, screenWidth - MENU_WIDTH - 12));
+
       const styles = {
-        left: `${this.position.x - MENU_WIDTH}px`,
+        left: `${leftPos}px`,
         width: `${MENU_WIDTH}px`,
       };
 
@@ -85,12 +88,13 @@ export default {
   left: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 9999;
+  z-index: 10020;
   background: transparent;
 }
 
 .selector-menu {
   position: fixed;
+  z-index: 10021;
   background: var(--surface-2);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-elevated);
