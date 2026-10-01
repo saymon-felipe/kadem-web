@@ -104,34 +104,46 @@
             </div>
 
             <section class="budget-command-bar">
-              <label class="budget-month-picker">
+              <label class="budget-month-picker" title="Mês de referência">
                 <font-awesome-icon icon="calendar" />
                 <input type="month" v-model="selectedMonth" @change="reloadAll" />
               </label>
-              <label class="budget-inline-ai">
-                <span>Pedido rápido para IA</span>
-                <input
-                  v-model="budgetAiInlinePrompt"
-                  type="text"
-                  placeholder='IA: "Reduzir 10% em lazer"'
-                  @keyup.enter="runInlineBudgetAi"
-                />
-                <button type="button" :disabled="!canUseAi || loadingAi" @click.prevent="runInlineBudgetAi">
-                  <font-awesome-icon :icon="loadingAi ? 'circle-notch' : 'wand-magic-sparkles'" :spin="loadingAi" />
-                  IA
-                </button>
-                <button
-                  type="button"
-                  class="ghost-inline-button"
-                  :disabled="!canUseAi"
-                  @click.prevent="openBudgetPlanModal"
-                >
-                  Expandir
-                </button>
-              </label>
-              <button class="primary-action compact" @click="saveBudgets">
+              <div class="budget-inline-ai">
+                <div class="ai-input-wrap">
+                  <font-awesome-icon icon="wand-magic-sparkles" class="ai-field-icon" />
+                  <input
+                    v-model="budgetAiInlinePrompt"
+                    type="text"
+                    placeholder='Peça à IA: ex. "Reduzir 10% em lazer"...'
+                    @keyup.enter="runInlineBudgetAi"
+                  />
+                </div>
+                <div class="ai-actions">
+                  <button
+                    type="button"
+                    class="ai-run-btn"
+                    :disabled="!canUseAi || loadingAi"
+                    @click.prevent="runInlineBudgetAi"
+                    title="Aplicar ajuste com IA"
+                  >
+                    <font-awesome-icon :icon="loadingAi ? 'circle-notch' : 'wand-magic-sparkles'" :spin="loadingAi" />
+                    <span class="btn-text">Aplicar</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="ai-expand-btn"
+                    :disabled="!canUseAi"
+                    @click.prevent="openBudgetPlanModal"
+                    title="Expandir assistente de orçamento"
+                  >
+                    <font-awesome-icon icon="up-right-from-square" />
+                    <span class="btn-text">Expandir</span>
+                  </button>
+                </div>
+              </div>
+              <button class="primary-action compact budget-save-btn" @click="saveBudgets">
                 <font-awesome-icon icon="floppy-disk" />
-                Salvar
+                <span>Salvar</span>
               </button>
             </section>
 
@@ -154,20 +166,20 @@
                       />
                     </div>
                     <div class="budget-group-totals">
-                      <div>
+                      <div class="total-pill">
                         <small>Planejado</small>
                         <strong>{{ money(group.planned_amount || 0) }}</strong>
                       </div>
-                      <div>
+                      <div class="total-pill">
                         <small>Executado</small>
                         <strong>{{ money(group.actual_amount || 0) }}</strong>
                       </div>
-                      <div>
-                        <small>Impacto total</small>
+                      <div class="total-pill">
+                        <small>Impacto</small>
                         <strong>{{ budgetProgress(group, "planned_amount") }}%</strong>
                       </div>
                     </div>
-                    <button class="icon-btn small danger" @click="removeBudgetGroup(group)" title="Remover macro">
+                    <button class="icon-btn small danger" @click="removeBudgetGroup(group)" title="Remover macro categoria">
                       <font-awesome-icon icon="trash" />
                     </button>
                   </header>
@@ -184,24 +196,40 @@
                       />
                     </label>
                     <div class="budget-progress macro-progress">
-                      <span>{{ money(group.actual_amount || 0) }} / {{ money(group.planned_amount || 0) }}</span>
-                      <div>
-                        <i :style="{ width: budgetProgress(group, 'planned_amount') + '%' }"></i>
+                      <div class="progress-info">
+                        <span class="progress-label">Executado / Limite planejado</span>
+                        <span class="progress-values">
+                          {{ money(group.actual_amount || 0) }} / {{ money(group.planned_amount || 0) }}
+                          <span class="progress-percentage">({{ budgetProgress(group, 'planned_amount') }}%)</span>
+                        </span>
+                      </div>
+                      <div class="progress-track">
+                        <i
+                          class="progress-fill"
+                          :style="{
+                            width: budgetProgress(group, 'planned_amount') + '%',
+                            backgroundColor: group.macro_color || 'var(--color-info, #355afd)'
+                          }"
+                        ></i>
                       </div>
                     </div>
                   </div>
 
-                  <div class="budget-child-head">
+                  <div v-if="group.items && group.items.length > 0" class="budget-child-head">
                     <span>Subcategoria</span>
                     <span>Meta (R$)</span>
                     <span>Progresso executado</span>
                     <span></span>
                   </div>
 
+                  <div v-else class="budget-empty-items">
+                    <small>Nenhuma subcategoria vinculada a esta macro categoria.</small>
+                  </div>
+
                   <TransitionGroup name="budget-row" tag="div" class="budget-child-list">
                     <article v-for="item in group.items" :key="item._key" class="budget-child-row">
-                      <label class="budget-labeled-control">
-                        <span>Subcategoria</span>
+                      <label class="budget-labeled-control item-category">
+                        <span class="mobile-field-label">Subcategoria</span>
                         <CategoryCombo
                           v-model="item.category_id"
                           :categories="availableCategoriesForMacro(group, item)"
@@ -209,8 +237,8 @@
                           @change="syncBudgetItemType(item)"
                         />
                       </label>
-                      <label class="budget-labeled-control">
-                        <span>Limite da categoria</span>
+                      <label class="budget-labeled-control item-amount">
+                        <span class="mobile-field-label">Meta (R$)</span>
                         <input
                           class="plain-control money-control"
                           type="text"
@@ -219,14 +247,26 @@
                           @input="updateBudgetAmount($event, item)"
                         />
                       </label>
-                      <div class="budget-progress">
-                        <span>{{ money(item.actual_amount || 0) }} / {{ money(item.amount || 0) }}</span>
-                        <div>
-                          <i :style="{ width: budgetProgress(item) + '%' }"></i>
+                      <div class="budget-progress item-progress">
+                        <div class="progress-info">
+                          <span class="mobile-field-label">Progresso</span>
+                          <span class="progress-values">
+                            {{ money(item.actual_amount || 0) }} / {{ money(item.amount || 0) }}
+                            <span class="progress-percentage">({{ budgetProgress(item) }}%)</span>
+                          </span>
+                        </div>
+                        <div class="progress-track">
+                          <i
+                            class="progress-fill"
+                            :style="{
+                              width: budgetProgress(item) + '%',
+                              backgroundColor: group.macro_color || 'var(--color-info, #355afd)'
+                            }"
+                          ></i>
                         </div>
                       </div>
                       <button
-                        class="icon-btn small danger"
+                        class="icon-btn small danger item-delete-btn"
                         @click="removeBudgetItem(group, item)"
                         title="Remover categoria"
                       >
@@ -235,16 +275,16 @@
                     </article>
                   </TransitionGroup>
 
-                  <button class="text-btn add-row" @click="addBudgetItem(group)">
+                  <button class="budget-add-item-btn" @click="addBudgetItem(group)">
                     <font-awesome-icon icon="plus" />
-                    Adicionar à {{ group.macro_category || "macro categoria" }}
+                    <span>Adicionar à {{ group.macro_category || "macro categoria" }}</span>
                   </button>
                 </section>
               </TransitionGroup>
 
               <button class="budget-add-macro" @click="addBudgetGroup">
                 <font-awesome-icon icon="layer-group" />
-                Nova macro categoria
+                <span>Nova macro categoria</span>
               </button>
             </section>
           </template>
@@ -264,7 +304,7 @@
               :format-signed-money="signedMoney"
               :format-short-date="shortDate"
               @save-goal="saveInvestmentGoal"
-              @delete-goal="deleteInvestmentGoal"
+              @delete-goal="requestDeleteInvestmentGoal"
               @save-event="saveInvestmentEvent"
               @delete-event="deleteInvestmentEvent"
               @refresh-rates="loadInvestmentRates"
@@ -291,6 +331,7 @@
               :grouped-categories="groupedCategories"
               :filtered-categories="filteredCategories"
               :type-label="typeLabel"
+              :category-type-label="categoryTypeLabel"
               :budget-group-style="budgetGroupStyle"
               :budget-group-header-style="budgetGroupHeaderStyle"
               @new-macro="openMacroForm"
@@ -321,6 +362,8 @@
       :visible="showTransactionForm"
       :form="form"
       :categories="categories"
+      :goal-options="goalOptions"
+      :saving="savingTransaction"
       @close="closeTransactionForm"
       @save="saveTransaction"
       @update-amount="updateTransactionAmount"
@@ -331,10 +374,13 @@
       :visible="showCsvPreviewModal"
       :rows="csvPreviewRows"
       :summary="csvImportSummary"
+      :categories="categories"
+      :goal-options="goalOptions"
       :importing-csv="importingCsv"
       :format-money="money"
       :format-date-time="shortDateTime"
       @close="showCsvPreviewModal = false"
+      @update-goal="updateCsvRowGoal"
       @confirm="confirmCsvImport"
     />
 
@@ -361,7 +407,10 @@
         <div class="form-grid">
           <div class="nexo-field static-label select-field">
             <label for="category-type">Tipo</label>
-            <select id="category-type" v-model="categoryForm.type" :disabled="isCategoryFormInvestment" required>
+            <select v-if="isCategoryFormInvestment" id="category-type" disabled>
+              <option>{{ categoryFormInvestmentFlagLabel }}</option>
+            </select>
+            <select v-else id="category-type" v-model="categoryForm.type" required>
               <option value="EXPENSE">Saída</option>
               <option value="INCOME">Entrada</option>
             </select>
@@ -379,7 +428,7 @@
         </div>
         <small v-if="isCategoryFormInvestment" class="field-note compact">
           <font-awesome-icon icon="circle-question" class="note-icon" />
-          <span>Categorias de investimento são sempre do tipo saída.</span>
+          <span>{{ categoryFormInvestmentNote }}</span>
         </small>
         <div class="icon-picker">
           <span>Ícone da categoria</span>
@@ -398,7 +447,10 @@
         </div>
         <div class="modal-actions">
           <button type="button" class="text-btn" @click="closeCategoryForm">Cancelar</button>
-          <button type="submit" class="primary-action">Salvar</button>
+          <button type="submit" class="primary-action" :disabled="savingCategory">
+            <font-awesome-icon v-if="savingCategory" icon="circle-notch" spin />
+            {{ savingCategory ? "Salvando..." : "Salvar" }}
+          </button>
         </div>
       </form>
     </BaseModal>
@@ -427,7 +479,10 @@
         </div>
         <div class="modal-actions">
           <button type="button" class="text-btn" @click="showMacroForm = false">Cancelar</button>
-          <button type="submit" class="primary-action">Salvar</button>
+          <button type="submit" class="primary-action" :disabled="savingMacro">
+            <font-awesome-icon v-if="savingMacro" icon="circle-notch" spin />
+            {{ savingMacro ? "Salvando..." : "Salvar" }}
+          </button>
         </div>
       </form>
     </BaseModal>
@@ -502,6 +557,7 @@
 import { mapState } from "pinia";
 import { useAuthStore } from "@/stores/auth";
 import { useAiCreditsStore } from "@/stores/aiCredits";
+import { usePlayerStore } from "@/stores/player";
 import { financeService } from "@/services/financeService";
 import { getPlanLimits } from "@/services/subscription_plans";
 import { db, runDbOperation } from "@/db";
@@ -521,6 +577,13 @@ import NexoCsvPreviewModal from "./nexo/NexoCsvPreviewModal.vue";
 import NexoConnectionsTab from "./nexo/NexoConnectionsTab.vue";
 import NexoCategoriesTab from "./nexo/NexoCategoriesTab.vue";
 import NexoAiTab from "./nexo/NexoAiTab.vue";
+
+const NEXO_TAB_STORAGE_KEY = "kadem_nexo";
+
+const INVESTMENT_FLOW = {
+  IN: "INVESTMENT_IN",
+  OUT: "INVESTMENT_OUT",
+};
 
 const pluggyWidgetUrl = "https://cdn.pluggy.ai/pluggy-connect/latest/pluggy-connect.js";
 const includePluggySandbox =
@@ -549,8 +612,19 @@ export default {
   },
   data() {
     const today = new Date().toISOString().slice(0, 10);
+    const tabs = [
+      { id: "overview", label: "Visão", icon: "chart-simple" },
+      { id: "transactions", label: "Movimentos", icon: "list" },
+      { id: "budget", label: "Orçamento", icon: "clipboard" },
+      { id: "investments", label: "Investimentos", icon: "money-bill" },
+      { id: "connections", label: "Conexões", icon: "link" },
+      { id: "categories", label: "Categorias", icon: "layer-group" },
+      { id: "ai", label: "IA", icon: "crown", pro: true },
+    ];
+    // Reabre na aba em que o usuario estava antes do F5.
+    const savedTab = usePlayerStore().active_app_tabs?.[NEXO_TAB_STORAGE_KEY];
     return {
-      activeTab: "overview",
+      activeTab: tabs.some((tab) => tab.id === savedTab) ? savedTab : "overview",
       selectedMonth: new Date().toISOString().slice(0, 7),
       loading: false,
       syncingBanks: false,
@@ -558,6 +632,9 @@ export default {
       importingCsv: false,
       loadingSchema: false,
       showTransactionForm: false,
+      savingTransaction: false,
+      savingCategory: false,
+      savingMacro: false,
       showCategoryForm: false,
       showMacroForm: false,
       showBudgetAiForm: false,
@@ -588,6 +665,7 @@ export default {
       investmentCategoryDistribution: [],
       investmentGoals: [],
       investmentEvents: [],
+      investmentsRequestId: 0,
       investmentRates: [],
       loadingInvestmentRates: false,
       usage: {},
@@ -601,6 +679,7 @@ export default {
         name: "",
         macro_category: "Geral",
         macro_color: "#999999",
+        investment_flow_type: null,
         type: "EXPENSE",
         icon: "tag",
       },
@@ -646,6 +725,8 @@ export default {
         amount: 0,
         amount_display: "",
         category_id: null,
+        goal_id: null,
+        original_goal_id: null,
         transaction_date: today,
       },
       csvImportError: "",
@@ -657,15 +738,7 @@ export default {
       showCsvPreviewModal: false,
       categorizingAi: false,
       categorizingIds: [],
-      tabs: [
-        { id: "overview", label: "Visão", icon: "chart-simple" },
-        { id: "transactions", label: "Movimentos", icon: "list" },
-        { id: "budget", label: "Orçamento", icon: "clipboard" },
-        { id: "investments", label: "Investimentos", icon: "money-bill" },
-        { id: "connections", label: "Conexões", icon: "link" },
-        { id: "categories", label: "Categorias", icon: "layer-group" },
-        { id: "ai", label: "IA", icon: "crown", pro: true },
-      ],
+      tabs,
     };
   },
   computed: {
@@ -697,6 +770,33 @@ export default {
     },
     isCategoryFormInvestment() {
       return Boolean(this.categoryTargetMacro?.is_investment);
+    },
+    // Metas no formato que o CategoryCombo (combo personalizado do Nexo) entende.
+    goalOptions() {
+      const horizons = { SHORT: "Curto prazo", MEDIUM: "Médio prazo", LONG: "Longo prazo" };
+      return this.investmentGoals.map((goal) => ({
+        id: goal.id,
+        name: goal.name,
+        macro_category: horizons[goal.horizon] || "",
+        color: goal.color || "#355AFD",
+        icon: "clipboard",
+      }));
+    },
+    categoryFormIsInvestmentOut() {
+      return this.categoryForm.investment_flow_type === INVESTMENT_FLOW.OUT;
+    },
+    categoryFormInvestmentFlagLabel() {
+      return this.categoryFormIsInvestmentOut ? "Saída (resgate)" : "Entrada (aporte)";
+    },
+    categoryFormInvestmentNote() {
+      const name = String(this.categoryForm.name || "").trim() || "nome da categoria";
+      if (this.categoryFormIsInvestmentOut) {
+        return "Esta é a categoria de saída (resgate) criada junto com a categoria de entrada correspondente.";
+      }
+      const twin = `${name} (Saída)`;
+      return this.categoryForm.id
+        ? `A categoria "${twin}" acompanha o nome e o ícone desta categoria.`
+        : `Categorias de investimento são de entrada (aporte). Ao salvar, criamos também "${twin}" para os resgates.`;
     },
     limits() {
       return getPlanLimits(this.user?.plan_tier || "free");
@@ -812,12 +912,18 @@ export default {
     filteredTransactions() {
       const normalizedSearch = this.normalize(this.transactionSearch);
 
-      return this.transactions.filter((transaction) => {
-        return (
-          this.matchesTransactionCategoryFilter(transaction) &&
-          this.matchesTransactionSearch(transaction, normalizedSearch)
+      return this.transactions
+        .filter((transaction) => {
+          return (
+            this.matchesTransactionCategoryFilter(transaction) &&
+            this.matchesTransactionSearch(transaction, normalizedSearch)
+          );
+        })
+        .map((transaction) =>
+          transaction.goal_id
+            ? { ...transaction, goal_name: this.goalName(transaction.goal_id) || transaction.goal_name }
+            : transaction,
         );
-      });
     },
     filteredCategories() {
       const term = this.normalize(this.categorySearch);
@@ -1126,7 +1232,9 @@ export default {
       this.macroCategories = data || [];
     },
     async loadInvestments() {
+      const requestId = (this.investmentsRequestId = (this.investmentsRequestId || 0) + 1);
       const { data } = await financeService.getInvestments({ month: this.selectedMonth });
+      if (requestId !== this.investmentsRequestId) return;
       this.investmentSummary = data.summary || {
         month_invested: 0,
         month_withdrawn: 0,
@@ -1216,6 +1324,9 @@ export default {
         amount,
         amount_display: transaction ? this.moneyInput(amount) : "",
         category_id: currentTransaction.category_id || null,
+        goal_id: currentTransaction.goal_id || null,
+        // lembra se ja tinha meta: so assim a edicao sabe que precisa mandar goal_id: null para desvincular
+        original_goal_id: currentTransaction.goal_id || null,
         transaction_date: String(currentTransaction.transaction_date || new Date().toISOString().slice(0, 10)).slice(
           0,
           10,
@@ -1226,8 +1337,22 @@ export default {
     closeTransactionForm() {
       this.showTransactionForm = false;
     },
+    isInvestmentCategory(category) {
+      return [INVESTMENT_FLOW.IN, INVESTMENT_FLOW.OUT].includes(category?.investment_flow_type);
+    },
+    goalName(goalId) {
+      if (!goalId) return "";
+      const goal = this.investmentGoals.find(
+        (item) => this.sameId(item.id, goalId) || this.sameId(item.local_key, goalId),
+      );
+      return goal?.name || "";
+    },
     updateTransactionFormField({ field, value }) {
       this.form[field] = value;
+      // categoria comum nao carrega meta
+      if (field === "category_id" && !this.isInvestmentCategory(this.findCategory(value))) {
+        this.form.goal_id = null;
+      }
     },
     updateTransactionAmount(event) {
       const value = this.parseMoneyInput(event.target.value);
@@ -1236,24 +1361,43 @@ export default {
       event.target.value = this.form.amount_display;
     },
     async saveTransaction() {
+      // O envio ao servidor pode demorar; sem esta trava um segundo clique em "Salvar" criava o lancamento de novo.
+      if (this.savingTransaction) return;
+      this.savingTransaction = true;
+
+      const { goal_id: formGoalId, original_goal_id: originalGoalId, ...formFields } = this.form;
       const payload = {
-        ...this.form,
+        ...formFields,
         observation: this.form.observation || null,
         amount: Number(this.form.amount || 0),
       };
-      let savedTransaction = null;
-      if (this.form.id) {
-        const { data } = await financeService.updateTransaction(this.form.id, payload);
-        savedTransaction = data;
-      } else {
-        const { data } = await financeService.createTransaction(payload);
-        savedTransaction = data;
+      // goal_id so viaja quando ha meta (ou quando uma meta existente foi removida): assim um lancamento
+      // sem meta continua com o mesmo payload de antes.
+      const goalId = this.isInvestmentCategory(this.findCategory(payload.category_id)) ? formGoalId : null;
+      if (goalId) payload.goal_id = goalId;
+      else if (this.form.id && originalGoalId) payload.goal_id = null;
+      let result;
+      try {
+        // O lancamento ja esta salvo localmente quando esta chamada volta; o modal fecha nesse ponto e o
+        // envio ao servidor segue em segundo plano (`result.synced`).
+        result = this.form.id
+          ? await financeService.updateTransaction(this.form.id, payload, { waitForSync: false })
+          : await financeService.createTransaction(payload, { waitForSync: false });
+        if (result.data) this.upsertTransactionInList(result.data);
+        this.closeTransactionForm();
+      } finally {
+        this.savingTransaction = false;
       }
-      if (savedTransaction) {
-        this.upsertTransactionInList(savedTransaction);
-      }
-      this.closeTransactionForm();
+      await result.synced;
       await this.refreshTransactionDrivenViews();
+    },
+    // A linha da previa e a de importacao sao o mesmo objeto (filterCsvDuplicates), mas atualizamos as
+    // duas listas explicitamente para nao depender disso.
+    updateCsvRowGoal({ line, goalId }) {
+      [this.csvPreviewRows, this.csvImportRows].forEach((rows) => {
+        const row = rows.find((item) => item.csv_line_number === line);
+        if (row) row.goal_id = goalId || null;
+      });
     },
     resetCsvImport() {
       this.csvImportError = "";
@@ -2126,6 +2270,7 @@ export default {
           amount: Number(row.amount || 0),
           type: String(row.type || "EXPENSE"),
           category_id: row.category_id || null,
+          ...(row.goal_id ? { goal_id: row.goal_id } : {}),
           transaction_date: String(row.transaction_date),
           status: "PAID",
           source: "IMPORT",
@@ -2213,6 +2358,20 @@ export default {
       this.recentTransactions = this.recentTransactions.filter(
         (transaction) => !this.transactionMatches(transaction, id),
       );
+    },
+    investmentGoalKey(goal) {
+      return goal.id || goal.local_id || null;
+    },
+    investmentGoalMatches(goal, id) {
+      return this.sameId(goal.id, id) || this.sameId(goal.local_id, id);
+    },
+    upsertInvestmentGoalInList(goal) {
+      const key = this.investmentGoalKey(goal);
+      const withoutCurrent = this.investmentGoals.filter((item) => !this.investmentGoalMatches(item, key));
+      this.investmentGoals = [...withoutCurrent, goal];
+    },
+    removeInvestmentGoalFromList(id) {
+      this.investmentGoals = this.investmentGoals.filter((goal) => !this.investmentGoalMatches(goal, id));
     },
     matchesTransactionCategoryFilter(transaction) {
       if (!this.transactionCategoryFilter) return true;
@@ -2489,13 +2648,19 @@ export default {
         name: currentCategory.name || "",
         macro_category: currentCategory.macro_category || "Geral",
         macro_color: currentCategory.macro_color || currentCategory.color || "#999999",
+        investment_flow_type: currentCategory.investment_flow_type || null,
         type: currentCategory.type || "EXPENSE",
         icon: currentCategory.icon || "tag",
       };
-      if (this.findMacroByName(this.categoryForm.macro_category)?.is_investment) {
+      if (this.isCategoryFormInvestment && !this.categoryFormIsInvestmentOut) {
         this.categoryForm.type = "EXPENSE";
       }
       this.showCategoryForm = true;
+    },
+    categoryTypeLabel(category) {
+      if (category?.investment_flow_type === INVESTMENT_FLOW.IN) return "Entrada (aporte)";
+      if (category?.investment_flow_type === INVESTMENT_FLOW.OUT) return "Saída (resgate)";
+      return this.typeLabel(category?.type);
     },
     openCategoryFormForTransaction(transaction, suggestedName = "") {
       this.openCategoryForm(
@@ -2535,17 +2700,30 @@ export default {
       if (macro?.color) {
         this.categoryForm.macro_color = macro?.color;
       }
-      if (macro?.is_investment) {
+      if (this.isCategoryFormInvestment && !this.categoryFormIsInvestmentOut) {
         this.categoryForm.type = "EXPENSE";
       }
     },
     async saveCategoryForm() {
+      if (this.savingCategory) return;
+      this.savingCategory = true;
+      try {
+        await this.persistCategoryForm();
+      } finally {
+        this.savingCategory = false;
+      }
+    },
+    async persistCategoryForm() {
+      const payload = { ...this.categoryForm };
+      // null nao passa na validacao do backend; ausente significa "deixa o servidor decidir".
+      if (!payload.investment_flow_type) delete payload.investment_flow_type;
+
       let savedCategory = null;
-      if (this.categoryForm.id) {
-        const { data } = await financeService.updateCategory(this.categoryForm.id, this.categoryForm);
+      if (payload.id) {
+        const { data } = await financeService.updateCategory(payload.id, payload);
         savedCategory = data;
       } else {
-        const { data } = await financeService.createCategory(this.categoryForm);
+        const { data } = await financeService.createCategory(payload);
         savedCategory = data;
       }
       this.showCategoryForm = false;
@@ -2573,6 +2751,15 @@ export default {
       this.showMacroForm = true;
     },
     async saveMacroForm() {
+      if (this.savingMacro) return;
+      this.savingMacro = true;
+      try {
+        await this.persistMacroForm();
+      } finally {
+        this.savingMacro = false;
+      }
+    },
+    async persistMacroForm() {
       const macroId = this.macroForm.original_id || this.macroForm.id || null;
       const payload = {
         name: this.macroForm.name,
@@ -2595,16 +2782,33 @@ export default {
       ]);
     },
     async saveInvestmentGoal(goal) {
+      let savedGoal = null;
       if (goal.id) {
-        await financeService.updateInvestmentGoal(goal.id, goal);
+        const { data } = await financeService.updateInvestmentGoal(goal.id, goal);
+        savedGoal = data;
       } else {
-        await financeService.createInvestmentGoal(goal);
+        const { data } = await financeService.createInvestmentGoal(goal);
+        savedGoal = data;
       }
+      if (savedGoal) this.upsertInvestmentGoalInList(savedGoal);
       await this.loadInvestments();
     },
-    async deleteInvestmentGoal(goal) {
-      const goalId = goal.id || goal.local_id;
+    requestDeleteInvestmentGoal(goal) {
+      const goalId = this.investmentGoalKey(goal);
       if (!goalId) return;
+      this.openConfirmation({
+        message: `Excluir a meta "${goal.name}"`,
+        description: "Esta ação arquivará a meta e não poderá ser desfeita.",
+        confirmText: "Excluir",
+        action: async () => {
+          await this.deleteInvestmentGoal(goal);
+        },
+      });
+    },
+    async deleteInvestmentGoal(goal) {
+      const goalId = this.investmentGoalKey(goal);
+      if (!goalId) return;
+      this.removeInvestmentGoalFromList(goalId);
       await financeService.deleteInvestmentGoal(goalId);
       await this.loadInvestments();
     },
@@ -2967,6 +3171,9 @@ export default {
     document.removeEventListener("keydown", this.handleGlobalKeydown);
   },
   watch: {
+    activeTab(tabId) {
+      usePlayerStore().setActiveAppTab(NEXO_TAB_STORAGE_KEY, tabId);
+    },
     showBudgetAiForm(val) {
       if (val) {
         this.scrollToBottomOfChat();
@@ -3164,31 +3371,38 @@ button:disabled {
 
 .budget-summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-4);
   margin-bottom: var(--space-4);
 }
 
 .budget-summary-card {
-  min-height: 78px;
+  min-height: 76px;
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
   background: var(--surface-0);
   border: 1px solid var(--glass-border);
   box-shadow: var(--shadow-card);
-  transition: background var(--transition-base);
+  transition: background var(--transition-base), transform var(--transition-fast);
+}
+
+.budget-summary-card:hover {
+  background: var(--surface-1);
 }
 
 .budget-summary-card .summary-icon {
   width: 44px;
   height: 44px;
+  min-width: 44px;
   border-radius: var(--radius-sm);
   display: grid;
   place-items: center;
   background: rgba(31, 39, 76, 0.1);
+  font-size: 1.05rem;
+  flex-shrink: 0;
 }
 
 .budget-summary-card.income .summary-icon {
@@ -3214,10 +3428,10 @@ button:disabled {
 .budget-summary-card div {
   display: grid;
   gap: var(--space-1);
+  min-width: 0;
 }
 
 .budget-summary-card small,
-.budget-group-totals small,
 .budget-child-head span {
   color: var(--text-secondary);
   font-size: var(--fontsize-xs);
@@ -3228,15 +3442,20 @@ button:disabled {
 
 .budget-summary-card strong {
   font-size: var(--fontsize-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .budget-command-bar {
   display: grid;
-  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
   margin-bottom: var(--space-4);
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
   background: var(--surface-0);
   border: 1px solid var(--glass-border);
@@ -3247,39 +3466,77 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: 40px;
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
   border-radius: var(--radius-sm);
   background: var(--surface-1);
   border: 1px solid var(--glass-border);
   padding: 0 var(--space-3);
-  transition: background var(--transition-base);
+  transition: background var(--transition-base), border-color var(--transition-fast), box-shadow var(--transition-fast);
+  cursor: pointer;
+}
+
+.budget-month-picker:focus-within {
+  border-color: var(--deep-blue);
+  background: var(--surface-0);
+  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.14);
+}
+
+.budget-month-picker svg {
+  color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .budget-month-picker input {
   min-width: 0;
   width: 100%;
-  height: 38px;
+  height: 100%;
   border: none;
   outline: none;
   box-shadow: none;
   background: transparent;
   color: var(--text-primary);
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+  font-family: inherit;
   padding: 0;
+  cursor: pointer;
 }
 
 .budget-inline-ai {
-  position: relative;
   display: flex;
   align-items: stretch;
-  gap: 0;
-  min-height: 44px;
-  height: 44px;
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
   border-radius: var(--radius-sm);
   background: var(--surface-1);
   border: 1px solid var(--glass-border);
-  padding: 0 0 0 var(--space-3);
-  transition: background var(--transition-base);
+  padding: 0;
+  transition: background var(--transition-base), border-color var(--transition-fast), box-shadow var(--transition-fast);
   overflow: hidden;
+}
+
+.budget-inline-ai:focus-within {
+  border-color: var(--ai-accent, #7059f6);
+  background: var(--surface-0);
+  box-shadow: 0 0 0 3px rgba(112, 89, 246, 0.14);
+}
+
+.budget-inline-ai .ai-input-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+}
+
+.budget-inline-ai .ai-field-icon {
+  color: var(--ai-accent, #7059f6);
+  font-size: 0.95rem;
+  flex-shrink: 0;
 }
 
 .budget-inline-ai input {
@@ -3291,54 +3548,90 @@ button:disabled {
   box-shadow: none;
   background: transparent;
   color: var(--text-primary);
-  padding: 12px 0 0 0;
+  font-size: var(--fontsize-xs);
+  font-family: inherit;
+  padding: 0;
   box-sizing: border-box;
-}
-
-.budget-inline-ai > span {
-  position: absolute;
-  left: var(--space-3);
-  top: 3px;
-  color: var(--text-muted);
-  font-size: 0.68rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  pointer-events: none;
 }
 
 .budget-inline-ai input::placeholder {
   color: var(--text-muted);
 }
 
-.budget-inline-ai button {
+.budget-inline-ai .ai-actions {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.budget-inline-ai .ai-run-btn {
   height: 100%;
   border: none;
   border-radius: 0;
   background: var(--deep-blue-gradient-right);
   color: var(--white);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-3);
   cursor: pointer;
-  font-weight: 800;
+  font-weight: 700;
+  font-size: var(--fontsize-xs);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  transition: all var(--transition-fast) !important;
+  transition: filter var(--transition-fast);
+  white-space: nowrap;
 }
 
-.budget-inline-ai button:hover {
+.budget-inline-ai .ai-run-btn:hover:not(:disabled) {
   filter: brightness(1.15);
 }
 
-.budget-inline-ai .ghost-inline-button {
-  border-left: 1px solid rgba(255, 255, 255, 0.24);
+.budget-inline-ai .ai-run-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.budget-inline-ai .ai-expand-btn {
+  height: 100%;
+  border: none;
+  border-left: 1px solid var(--glass-border);
   border-radius: 0;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  padding: 0 var(--space-3);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--fontsize-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.budget-inline-ai .ai-expand-btn:hover:not(:disabled) {
   background: var(--surface-3);
   color: var(--text-primary);
 }
 
-.budget-inline-ai .ghost-inline-button:hover {
-  background: var(--surface-2);
+.budget-inline-ai .ai-expand-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.budget-save-btn {
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
+  padding: 0 var(--space-4);
+  font-size: var(--fontsize-xs);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  white-space: nowrap;
 }
 
 .budget-group {
@@ -3348,22 +3641,20 @@ button:disabled {
   border-radius: var(--radius-md);
   background: var(--surface-0);
   border: 1px solid var(--budget-macro-border, var(--glass-border));
+  box-shadow: var(--shadow-card);
   overflow: visible;
-  transition: background var(--transition-base);
-}
-
-.budget-group-header,
-.budget-child-row {
-  display: grid;
-  align-items: center;
-  gap: var(--space-3);
+  transition: background var(--transition-base), border-color var(--transition-fast);
 }
 
 .budget-group-header {
-  grid-template-columns: minmax(0, 1fr) minmax(260px, auto) 38px;
-  padding: var(--space-3);
-  border: 1px solid rgba(31, 39, 76, 0.08);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 42px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
+  background: var(--budget-macro-soft, var(--surface-1));
 }
 
 .budget-group-title {
@@ -3375,28 +3666,62 @@ button:disabled {
 
 .budget-group-title > svg {
   color: var(--budget-macro-color, var(--gray-100));
+  font-size: 1.1rem;
+  flex-shrink: 0;
 }
 
 .budget-group-totals {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(80px, 1fr));
-  gap: var(--space-3);
+  display: flex;
   align-items: center;
+  gap: var(--space-2);
 }
 
-.budget-group-totals div {
-  display: grid;
-  gap: var(--space-1);
+.budget-group-totals .total-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface-0);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-xs, 4px);
+  border: 1px solid var(--glass-border);
   text-align: right;
+  min-width: 80px;
 }
 
-.budget-group-totals strong {
-  font-size: var(--fontsize-sm);
+.budget-group-totals .total-pill small {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.budget-group-totals .total-pill strong {
+  font-size: var(--fontsize-xs);
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.budget-group-header .icon-btn.danger,
+.budget-child-row .icon-btn.danger {
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  min-width: 42px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .budget-macro-plan {
   display: grid;
-  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
   gap: var(--space-4);
   align-items: end;
   padding: var(--space-2) 0 var(--space-3);
@@ -3404,45 +3729,43 @@ button:disabled {
 
 .budget-child-head {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) 150px minmax(0, 1fr) 38px;
+  grid-template-columns: minmax(0, 1.4fr) 160px minmax(180px, 1fr) 42px;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
-  background: rgba(31, 39, 76, 0.04);
+  background: var(--surface-1);
+  border: 1px solid var(--glass-border);
+  align-items: center;
+}
+
+.budget-empty-items {
+  padding: var(--space-3);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--fontsize-xs);
+  background: var(--surface-1);
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--glass-border);
 }
 
 .budget-child-row {
-  grid-template-columns: minmax(0, 1.35fr) 150px minmax(0, 1fr) 38px;
-  padding: var(--space-3);
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 160px minmax(180px, 1fr) 42px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
   border: 1px solid var(--glass-border);
-  transition: background var(--transition-base);
-}
-
-.budget-add-macro {
-  min-height: 52px;
-  width: 100%;
-  border: 1.5px dashed var(--glass-border);
-  border-radius: var(--radius-md);
-  background: var(--surface-1);
-  color: var(--text-muted);
-  cursor: pointer;
-  font-weight: 600;
-  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  transition:
-    background var(--transition-fast),
-    color var(--transition-fast),
-    transform var(--transition-fast);
+  transition: background var(--transition-base), border-color var(--transition-fast);
 }
 
-.budget-add-macro:hover {
-  background: var(--surface-2);
-  color: var(--text-primary);
-  transform: translateY(-1px);
+.budget-child-row:hover {
+  border-color: rgba(53, 90, 253, 0.28);
+}
+
+.mobile-field-label {
+  display: none;
 }
 
 .budget-labeled-control {
@@ -3458,7 +3781,9 @@ button:disabled {
 }
 
 .plain-control {
-  height: 40px;
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   background: var(--surface-0);
@@ -3467,27 +3792,84 @@ button:disabled {
   box-shadow: none;
   outline: none;
   font-size: var(--fontsize-xs);
+  font-family: inherit;
   transition:
     border-color var(--transition-fast),
-    background var(--transition-base);
+    background var(--transition-base),
+    box-shadow var(--transition-fast);
 }
 
 .plain-control:focus {
   border-color: var(--deep-blue);
   background: var(--surface-1);
+  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.14);
 }
 
 .money-control {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 .budget-progress {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  min-width: 0;
 }
 
-.budget-progress div,
+.budget-progress .progress-info {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.budget-progress .progress-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
+}
+
+.budget-progress .progress-values {
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.budget-progress .progress-percentage {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-left: 2px;
+}
+
+.budget-progress .progress-track {
+  width: 100%;
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: var(--radius-pill, 999px);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.budget-progress.macro-progress .progress-track {
+  height: 10px;
+}
+
+.budget-progress .progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill, 999px);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+  max-width: 100%;
+}
+
 .budget-row-enter-active,
 .budget-row-leave-active {
   transition:
@@ -3509,8 +3891,62 @@ button:disabled {
   transition: transform 0.22s ease;
 }
 
-.add-row {
-  margin-top: var(--space-3);
+.budget-add-item-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  margin-top: var(--space-2);
+  border: 1px dashed var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.budget-add-item-btn:hover {
+  background: var(--surface-2);
+  color: var(--deep-blue);
+  border-color: var(--deep-blue);
+  transform: translateY(-1px);
+}
+
+.budget-add-macro {
+  min-height: 48px;
+  width: 100%;
+  border: 1.5px dashed var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--fontsize-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.budget-add-macro:hover {
+  background: var(--surface-2);
+  color: var(--deep-blue);
+  border-color: var(--deep-blue);
+  transform: translateY(-1px);
 }
 
 .budget-ai-modal {
@@ -3579,10 +4015,35 @@ button:disabled {
   line-height: 1.45;
 }
 
-.nexo-modal-form {
+.nexo-form-body {
+  --nexo-form-gap: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--nexo-form-gap);
+}
+
+/* rotulo -> controle */
+.nexo-form-body .nexo-field.static-label,
+.nexo-form-body .field-caption,
+.nexo-form-body .icon-picker {
+  gap: var(--space-3);
+}
+
+.nexo-form-body .form-grid {
+  gap: var(--nexo-form-gap);
+}
+
+.nexo-form-body .icon-picker > div {
+  gap: var(--space-3);
+}
+
+/* a nota explica o campo logo acima: fica perto dele, nao no meio do respiro entre campos */
+.nexo-form-body .field-note.compact {
+  margin-top: calc(var(--space-3) - var(--nexo-form-gap));
+}
+
+.nexo-form-body .modal-actions {
+  margin-top: var(--space-3);
 }
 
 .modal-help {
@@ -3792,14 +4253,36 @@ button:disabled {
   }
 
   .budget-summary-card {
-    padding: var(--space-3);
+    min-height: 64px;
+    padding: var(--space-2) var(--space-3);
     gap: var(--space-3);
   }
 
+  .budget-summary-card .summary-icon {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    font-size: 0.95rem;
+  }
+
   .budget-command-bar {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto;
     gap: var(--space-2);
     padding: var(--space-3);
+  }
+
+  .budget-month-picker {
+    grid-column: 1;
+    width: 100%;
+  }
+
+  .budget-save-btn {
+    grid-column: 2;
+  }
+
+  .budget-inline-ai {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .budget-macro-plan {
@@ -3811,9 +4294,17 @@ button:disabled {
     display: none;
   }
 
+  .mobile-field-label {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
   .budget-group-header {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr 42px;
     gap: var(--space-2);
+    padding: var(--space-3);
   }
 
   .budget-group-title {
@@ -3822,42 +4313,51 @@ button:disabled {
 
   .budget-group-header .icon-btn.danger {
     grid-column: 2;
+    width: 42px;
+    height: 42px;
   }
 
   .budget-group-totals {
     grid-column: 1 / -1;
+    display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
     width: 100%;
     border-top: 1px solid var(--glass-border);
     padding-top: var(--space-2);
     margin-top: var(--space-1);
   }
 
-  .budget-group-totals div {
-    text-align: left;
+  .budget-group-totals .total-pill {
+    text-align: center;
+    padding: var(--space-1) var(--space-2);
+    min-width: 0;
   }
 
   .budget-child-row {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr 42px;
     gap: var(--space-2);
+    padding: var(--space-3);
   }
 
-  .budget-child-row .budget-labeled-control:first-child {
+  .budget-child-row .item-category {
     grid-column: 1 / -1;
   }
 
-  .budget-child-row .budget-labeled-control:nth-child(2) {
+  .budget-child-row .item-amount {
     grid-column: 1;
   }
 
-  .budget-child-row .icon-btn.danger {
+  .budget-child-row .item-delete-btn {
     grid-column: 2;
     align-self: end;
-    margin-bottom: 2px;
+    width: 42px;
+    height: 42px;
   }
 
-  .budget-child-row .budget-progress {
+  .budget-child-row .item-progress {
     grid-column: 1 / -1;
+    margin-top: var(--space-1);
   }
 
   .form-grid {
@@ -3888,17 +4388,7 @@ button:disabled {
   }
 
   .budget-command-bar {
-    padding: var(--space-3);
-  }
-
-  .budget-inline-ai button {
-    padding: 0 var(--space-3);
-    font-size: 0.8rem;
-  }
-
-  .budget-inline-ai .ghost-inline-button {
-    padding: 0 var(--space-2);
-    font-size: 0.75rem;
+    padding: var(--space-2);
   }
 
   .budget-add-macro {
@@ -3913,12 +4403,33 @@ button:disabled {
   }
 
   .budget-summary-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
   }
 
   .budget-summary-card {
-    min-height: auto;
-    padding: var(--space-3);
+    min-height: 58px;
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .budget-summary-card .summary-icon {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    font-size: 0.85rem;
+  }
+
+  .budget-summary-card small {
+    font-size: 0.65rem;
+  }
+
+  .budget-summary-card strong {
+    font-size: var(--fontsize-xs);
+  }
+
+  .budget-inline-ai .btn-text {
+    display: none;
   }
 
   .budget-group {
@@ -3934,13 +4445,21 @@ button:disabled {
     padding: var(--space-2);
   }
 
-  .plain-control {
-    height: 38px;
+  .budget-group-totals {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-1);
   }
 
-  .budget-group-totals {
-    grid-template-columns: 1fr;
-    gap: var(--space-2);
+  .budget-group-totals .total-pill {
+    padding: 3px 4px;
+  }
+
+  .budget-group-totals .total-pill small {
+    font-size: 0.6rem;
+  }
+
+  .budget-group-totals .total-pill strong {
+    font-size: 0.75rem;
   }
 
   .modal-actions {
@@ -3967,14 +4486,36 @@ button:disabled {
   }
 
   .budget-summary-card {
-    padding: var(--space-3);
+    min-height: 64px;
+    padding: var(--space-2) var(--space-3);
     gap: var(--space-3);
   }
 
+  .budget-summary-card .summary-icon {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    font-size: 0.95rem;
+  }
+
   .budget-command-bar {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto;
     gap: var(--space-2);
     padding: var(--space-3);
+  }
+
+  .budget-month-picker {
+    grid-column: 1;
+    width: 100%;
+  }
+
+  .budget-save-btn {
+    grid-column: 2;
+  }
+
+  .budget-inline-ai {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .budget-macro-plan {
@@ -3986,9 +4527,17 @@ button:disabled {
     display: none;
   }
 
+  .mobile-field-label {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
   .budget-group-header {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr 42px;
     gap: var(--space-2);
+    padding: var(--space-3);
   }
 
   .budget-group-title {
@@ -3997,42 +4546,51 @@ button:disabled {
 
   .budget-group-header .icon-btn.danger {
     grid-column: 2;
+    width: 42px;
+    height: 42px;
   }
 
   .budget-group-totals {
     grid-column: 1 / -1;
+    display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
     width: 100%;
     border-top: 1px solid var(--glass-border);
     padding-top: var(--space-2);
     margin-top: var(--space-1);
   }
 
-  .budget-group-totals div {
-    text-align: left;
+  .budget-group-totals .total-pill {
+    text-align: center;
+    padding: var(--space-1) var(--space-2);
+    min-width: 0;
   }
 
   .budget-child-row {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr 42px;
     gap: var(--space-2);
+    padding: var(--space-3);
   }
 
-  .budget-child-row .budget-labeled-control:first-child {
+  .budget-child-row .item-category {
     grid-column: 1 / -1;
   }
 
-  .budget-child-row .budget-labeled-control:nth-child(2) {
+  .budget-child-row .item-amount {
     grid-column: 1;
   }
 
-  .budget-child-row .icon-btn.danger {
+  .budget-child-row .item-delete-btn {
     grid-column: 2;
     align-self: end;
-    margin-bottom: 2px;
+    width: 42px;
+    height: 42px;
   }
 
-  .budget-child-row .budget-progress {
+  .budget-child-row .item-progress {
     grid-column: 1 / -1;
+    margin-top: var(--space-1);
   }
 
   .form-grid {
@@ -4063,17 +4621,7 @@ button:disabled {
   }
 
   .budget-command-bar {
-    padding: var(--space-3);
-  }
-
-  .budget-inline-ai button {
-    padding: 0 var(--space-3);
-    font-size: 0.8rem;
-  }
-
-  .budget-inline-ai .ghost-inline-button {
-    padding: 0 var(--space-2);
-    font-size: 0.75rem;
+    padding: var(--space-2);
   }
 
   .budget-add-macro {
@@ -4088,12 +4636,33 @@ button:disabled {
   }
 
   .budget-summary-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
   }
 
   .budget-summary-card {
-    min-height: auto;
-    padding: var(--space-3);
+    min-height: 58px;
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .budget-summary-card .summary-icon {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    font-size: 0.85rem;
+  }
+
+  .budget-summary-card small {
+    font-size: 0.65rem;
+  }
+
+  .budget-summary-card strong {
+    font-size: var(--fontsize-xs);
+  }
+
+  .budget-inline-ai .btn-text {
+    display: none;
   }
 
   .budget-group {
@@ -4109,13 +4678,21 @@ button:disabled {
     padding: var(--space-2);
   }
 
-  .plain-control {
-    height: 38px;
+  .budget-group-totals {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-1);
   }
 
-  .budget-group-totals {
-    grid-template-columns: 1fr;
-    gap: var(--space-2);
+  .budget-group-totals .total-pill {
+    padding: 3px 4px;
+  }
+
+  .budget-group-totals .total-pill small {
+    font-size: 0.6rem;
+  }
+
+  .budget-group-totals .total-pill strong {
+    font-size: 0.75rem;
   }
 
   .modal-actions {

@@ -21,6 +21,7 @@ import { apiServices } from "../plugins/apiServices";
 import { db } from "../db";
 
 let isProcessing = false;
+let rerunRequested = false;
 const FINANCE_BATCH_LIMIT = 100;
 
 // ============================================================================
@@ -120,6 +121,7 @@ const sanitizeTransactionPayload = (data) => {
     "amount",
     "type",
     "category_id",
+    "goal_id",
     "transaction_date",
     "status",
     "source",
@@ -991,10 +993,27 @@ const resolveBudgetGroupsForServer = async (groups = []) => {
   return resolved;
 };
 
+// Meta criada offline so tem id depois do sync. Meta removida antes disso nunca vai existir no
+// servidor: o aporte segue sem meta em vez de ficar esperando para sempre.
+const resolveGoalReferenceForServer = async (goalId) => {
+  const numeric = Number(goalId);
+  if (Number.isFinite(numeric)) return numeric;
+
+  const row = await db.finance_investment_goals.where("local_key").equals(goalId).first();
+  if (!row || row.is_archived) return null;
+  if (row.id && Number.isFinite(Number(row.id))) return Number(row.id);
+  throw new Error(`FINANCE_NOT_SYNCED: aguardando ID do servidor para finance_investment_goals ${goalId}`);
+};
+
 const resolveTransactionPayloadForServer = async (data) => {
   const cleanData = sanitizeTransactionPayload(data);
   if (cleanData.category_id) {
     cleanData.category_id = await resolveFinanceEntityId("finance_categories", cleanData.category_id);
+  }
+  if (cleanData.goal_id) {
+    const goalId = await resolveGoalReferenceForServer(cleanData.goal_id);
+    if (goalId) cleanData.goal_id = goalId;
+    else delete cleanData.goal_id;
   }
   return cleanData;
 };
@@ -1144,6 +1163,7 @@ async function _handleFinanceTask(task) {
     case "DELETE_FINANCE_INVESTMENT_GOAL": {
       const id = await resolveFinanceServerId("finance_investment_goals", payload);
       await api.delete(`/finance/investments/goals/${id}`);
+      await deleteFinanceLocalRecord("finance_investment_goals", payload);
       return;
     }
     case "CREATE_FINANCE_INVESTMENT_EVENT": {
@@ -1162,6 +1182,7 @@ async function _handleFinanceTask(task) {
     case "DELETE_FINANCE_INVESTMENT_EVENT": {
       const id = await resolveFinanceServerId("finance_investment_events", payload);
       await api.delete(`/finance/investments/events/${id}`);
+      await deleteFinanceLocalRecord("finance_investment_events", payload);
       return;
     }
     default:
@@ -1288,7 +1309,12 @@ async function processTaskItem(task) {
 
 export const syncService = {
   async processSyncQueue() {
-    if (isProcessing) return;
+    if (isProcessing) {
+      // Uma tarefa enfileirada depois da ultima leitura da fila, mas antes da execucao
+      // atual terminar, ficaria parada ate o proximo gatilho. Pede mais uma passada.
+      rerunRequested = true;
+      return;
+    }
 
     const utilsStore = useUtilsStore();
     if (!utilsStore.connection.connected) return;
@@ -1323,9 +1349,10 @@ export const syncService = {
           ADD_TRACK: 6,
           CREATE_FINANCE_MACRO_CATEGORY: 7,
           CREATE_FINANCE_CATEGORY: 8,
+          // a meta precisa existir antes do aporte que aponta para ela
+          CREATE_FINANCE_INVESTMENT_GOAL: 8,
           CREATE_FINANCE_TRANSACTION: 9,
           CREATE_FINANCE_TRANSACTIONS_BATCH: 9,
-          CREATE_FINANCE_INVESTMENT_GOAL: 10,
           SAVE_FINANCE_BUDGETS: 11,
           CREATE_FINANCE_INVESTMENT_EVENT: 12,
         };
@@ -1418,6 +1445,11 @@ export const syncService = {
       console.error("[SyncService] Erro Crítico na Fila:", globalError);
     } finally {
       isProcessing = false;
+    }
+
+    if (rerunRequested) {
+      rerunRequested = false;
+      await syncService.processSyncQueue();
     }
   },
 };

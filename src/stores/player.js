@@ -38,6 +38,8 @@ export const usePlayerStore = defineStore("player", {
     last_playback_position_sync_at: 0,
     is_shuffle: false,
     active_app: null,
+    // Aba ativa por app do Produtividade ({ kadem_nexo: "budget", ... }); so local, sobrevive ao F5.
+    active_app_tabs: {},
     mobile_tab: "playlists",
     is_initialized: false,
     is_player_ready: false,
@@ -775,6 +777,11 @@ export const usePlayerStore = defineStore("player", {
       this.syncState();
     },
 
+    setActiveAppTab(tabKey, tabId) {
+      if (!tabKey || !tabId || this.active_app_tabs?.[tabKey] === tabId) return;
+      this.active_app_tabs = { ...this.active_app_tabs, [tabKey]: tabId };
+    },
+
     set_mobile_tab(t) {
       this.mobile_tab = t;
     },
@@ -1021,6 +1028,7 @@ export const usePlayerStore = defineStore("player", {
       "playback_position",
       "is_shuffle",
       "active_app",
+      "active_app_tabs",
       "mobile_tab",
     ],
     serializer: {

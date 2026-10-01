@@ -32,6 +32,7 @@
                 <th>Tipo</th>
                 <th>Descrição</th>
                 <th class="right">Valor</th>
+                <th v-if="hasGoalColumn">Meta</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -47,6 +48,18 @@
                   <strong :class="row.type">
                     {{ row.type === "EXPENSE" ? "-" : "+" }} {{ formatMoney(row.amount) }}
                   </strong>
+                </td>
+                <td v-if="hasGoalColumn" class="goal-cell">
+                  <CategoryCombo
+                    v-if="canPickGoal(row)"
+                    :model-value="row.goal_id"
+                    :categories="goalOptions"
+                    placeholder="Sem meta"
+                    clear-option-label="Sem meta"
+                    empty-label="Nenhuma meta encontrada."
+                    @update:modelValue="updateGoal(row, $event)"
+                  />
+                  <span v-else class="goal-empty">—</span>
                 </td>
                 <td>
                   <span class="status-chip" :class="row.csv_status">
@@ -75,13 +88,15 @@
 
 <script>
 import BaseModal from "@/components/BaseModal.vue";
+import CategoryCombo from "../CategoryCombo.vue";
 
 export default {
   name: "NexoCsvPreviewModal",
   components: {
     BaseModal,
+    CategoryCombo,
   },
-  emits: ["close", "confirm"],
+  emits: ["close", "confirm", "update-goal"],
   props: {
     visible: {
       type: Boolean,
@@ -90,6 +105,15 @@ export default {
     rows: {
       type: Array,
       required: true,
+    },
+    categories: {
+      type: Array,
+      default: () => [],
+    },
+    // Metas no formato do CategoryCombo ({ id, name, macro_category, color, icon }).
+    goalOptions: {
+      type: Array,
+      default: () => [],
     },
     summary: {
       type: Object,
@@ -124,8 +148,29 @@ export default {
       if (!Array.isArray(this.summary.months) || this.summary.months.length < 2) return "";
       return this.summary.months.map((month) => `${month.count} em ${month.label}`).join(" | ");
     },
+    // A coluna so aparece quando alguma linha a importar e aporte/resgate e existe meta para escolher.
+    hasGoalColumn() {
+      return this.goalOptions.length > 0 && this.rows.some((row) => this.canPickGoal(row));
+    },
   },
   methods: {
+    isInvestmentRow(row) {
+      const id = row?.category_id
+      if (id === null || id === undefined || id === "") return false;
+      const category = this.categories.find(
+        (item) =>
+          String(item.id) === String(id) ||
+          String(item.local_id) === String(id) ||
+          String(item.local_key) === String(id),
+      );
+      return ["INVESTMENT_IN", "INVESTMENT_OUT"].includes(category?.investment_flow_type);
+    },
+    canPickGoal(row) {
+      return row.csv_status === "new" && this.isInvestmentRow(row);
+    },
+    updateGoal(row, goalId) {
+      this.$emit("update-goal", { line: row.csv_line_number, goalId: goalId ?? null });
+    },
     typeLabel(type) {
       return type === "INCOME" ? "Entrada" : "Saída";
     },
@@ -246,6 +291,14 @@ th {
 .description-cell strong,
 .description-cell small {
   display: block;
+}
+
+.goal-cell {
+  min-width: 220px;
+}
+
+.goal-empty {
+  color: var(--text-secondary);
 }
 
 .right {

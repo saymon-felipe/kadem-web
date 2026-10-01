@@ -78,10 +78,22 @@
           placeholder="Sem categoria"
           @update:modelValue="updateField('category_id', $event)"
         />
+        <div v-if="showGoalSelect" class="nexo-field static-label">
+          <label>Meta (opcional)</label>
+          <CategoryCombo
+            :model-value="form.goal_id"
+            :categories="goalOptions"
+            placeholder="Sem meta"
+            clear-option-label="Sem meta"
+            empty-label="Nenhuma meta encontrada."
+            @update:modelValue="updateField('goal_id', $event)"
+          />
+        </div>
         <div class="modal-actions">
-          <button type="button" class="text-btn" @click="$emit('close')">Cancelar</button>
-          <button type="submit" class="primary-action">
-            {{ form.id ? 'Salvar alterações' : 'Salvar' }}
+          <button type="button" class="text-btn" :disabled="saving" @click="$emit('close')">Cancelar</button>
+          <button type="submit" class="primary-action" :disabled="saving">
+            <font-awesome-icon v-if="saving" icon="circle-notch" spin />
+            {{ saving ? 'Salvando...' : form.id ? 'Salvar alterações' : 'Salvar' }}
           </button>
         </div>
       </form>
@@ -111,6 +123,34 @@ export default {
     categories: {
       type: Array,
       required: true,
+    },
+    // Metas no formato do CategoryCombo ({ id, name, macro_category, color, icon }).
+    goalOptions: {
+      type: Array,
+      default: () => [],
+    },
+    saving: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  computed: {
+    selectedCategory() {
+      const id = this.form.category_id
+      if (id === null || id === undefined || id === '') return null
+      return (
+        this.categories.find(
+          (category) =>
+            String(category.id) === String(id) ||
+            String(category.local_id) === String(id) ||
+            String(category.local_key) === String(id),
+        ) || null
+      )
+    },
+    // Meta so existe para aporte/resgate: categorias de investimento (fluxo IN/OUT).
+    showGoalSelect() {
+      const flow = this.selectedCategory?.investment_flow_type
+      return (flow === 'INVESTMENT_IN' || flow === 'INVESTMENT_OUT') && this.goalOptions.length > 0
     },
   },
   methods: {
@@ -182,7 +222,9 @@ export default {
 
 .nexo-field input,
 .nexo-field select {
-  height: 50px;
+  height: 42px !important;
+  min-height: 42px !important;
+  font-size: var(--fontsize-sx, 0.875rem);
 }
 
 .nexo-field textarea {
@@ -297,6 +339,14 @@ export default {
 .primary-action:hover {
   transform: translateY(-1px);
   filter: brightness(1.08);
+}
+
+.primary-action:disabled,
+.text-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
 }
 
 .text-btn {

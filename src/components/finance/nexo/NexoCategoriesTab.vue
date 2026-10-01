@@ -77,7 +77,7 @@
             <font-awesome-icon :icon="category.icon || 'tag'" class="category-icon" />
             <div>
               <strong>{{ category.name }}</strong>
-              <small>{{ typeLabel(category.type) }}</small>
+              <small>{{ categoryTypeLabel ? categoryTypeLabel(category) : typeLabel(category.type) }}</small>
             </div>
             <div class="row-actions">
               <button
@@ -131,6 +131,10 @@ export default {
     typeLabel: {
       type: Function,
       required: true,
+    },
+    categoryTypeLabel: {
+      type: Function,
+      default: null,
     },
     budgetGroupStyle: {
       type: Function,

@@ -43,13 +43,19 @@ const toPlain = (value, fallback = {}) => {
   return JSON.parse(JSON.stringify(value));
 };
 
-const enqueue = async (type, payload) => {
+// A escrita local (Dexie + fila) ja aconteceu quando este await volta; o envio ao servidor e um passo a
+// parte. Por padrao esperamos por ele; `waitForSync: false` devolve a promessa do envio para a tela
+// poder fechar o modal na hora e esperar o servidor em segundo plano.
+const enqueue = async (type, payload, { waitForSync = true } = {}) => {
   await syncQueueRepository.addSyncQueueTask({
     type,
     payload,
     timestamp: new Date().toISOString(),
   });
-  await syncService.processSyncQueue();
+  const synced = syncService.processSyncQueue();
+  if (waitForSync) await synced;
+  // Objeto, nao a promessa: retornar a promessa de uma funcao async faria o `await` do chamador esperar por ela.
+  return { synced };
 };
 
 const removePendingEntityTasks = async (tasks, types, localId) => {
@@ -296,7 +302,11 @@ export const financeService = {
       const result = await api.get("/finance/investments", { params });
       await financeRepository.setInvestmentGoals(result.data.goals || []);
       await financeRepository.setInvestmentEvents(result.data.events || []);
-      return response(result.data);
+      const [goals, events] = await Promise.all([
+        financeRepository.getInvestmentGoals(),
+        financeRepository.getInvestmentEvents(),
+      ]);
+      return response({ ...result.data, goals, events });
     } catch {
       return response(await financeRepository.getInvestmentsSummary(params));
     }
@@ -345,11 +355,11 @@ export const financeService = {
     }
   },
 
-  async createTransaction(data) {
+  async createTransaction(data, options) {
     const cleanData = toPlain(data);
     const local = await financeRepository.createLocalTransaction(cleanData);
-    await enqueue("CREATE_FINANCE_TRANSACTION", { local_id: local.local_id, data: cleanData });
-    return response(local);
+    const { synced } = await enqueue("CREATE_FINANCE_TRANSACTION", { local_id: local.local_id, data: cleanData }, options);
+    return { ...response(local), synced };
   },
 
   async createTransactionsBatch(transactions) {
@@ -368,11 +378,11 @@ export const financeService = {
     return response(local);
   },
 
-  async updateTransaction(id, data) {
+  async updateTransaction(id, data, options) {
     const cleanData = toPlain(data);
     const local = await financeRepository.updateLocalTransaction(id, cleanData);
-    await enqueue("UPDATE_FINANCE_TRANSACTION", { id, local_id: local.local_id, data: cleanData });
-    return response(local);
+    const { synced } = await enqueue("UPDATE_FINANCE_TRANSACTION", { id, local_id: local.local_id, data: cleanData }, options);
+    return { ...response(local), synced };
   },
 
   async deleteTransaction(id) {

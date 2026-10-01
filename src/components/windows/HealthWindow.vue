@@ -288,6 +288,10 @@ import HealthPublicCardTab from "@/components/health/HealthPublicCardTab.vue";
 import SubscriptionModal from "@/components/SubscriptionModal.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import { useAiCreditsStore } from "@/stores/aiCredits";
+import { usePlayerStore } from "@/stores/player";
+
+const HEALTH_TAB_STORAGE_KEY = "kadem_health";
+const HEALTH_TAB_IDS = ["overview", "schedules", "supplies", "tracking", "timeline", "ai", "public-card"];
 
 export default {
   name: "HealthWindow",
@@ -310,8 +314,10 @@ export default {
     ConfirmationModal,
   },
   data() {
+    // Reabre na aba em que o usuario estava antes do F5.
+    const savedTab = usePlayerStore().active_app_tabs?.[HEALTH_TAB_STORAGE_KEY];
     return {
-      activeTab: "overview",
+      activeTab: HEALTH_TAB_IDS.includes(savedTab) ? savedTab : "overview",
       aiUsage: {},
       isLoadingAiUsage: false,
       showPlanModal: false,
@@ -473,6 +479,7 @@ export default {
   },
   watch: {
     activeTab(tab) {
+      usePlayerStore().setActiveAppTab(HEALTH_TAB_STORAGE_KEY, tab);
       if (tab === "ai") {
         this.loadAiUsage();
       }

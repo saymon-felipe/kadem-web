@@ -1,10 +1,20 @@
 <template>
   <section class="csv-import-card">
     <div class="csv-import-header">
-      <div>
-        <strong>Importar CSV</strong>
-        <span v-if="csvImportFileName">{{ csvImportFileName }}</span>
-        <span v-else>Banco, cartão ou planilha</span>
+      <div class="header-main-info">
+        <div class="csv-icon-avatar">
+          <font-awesome-icon icon="file-import" />
+        </div>
+        <div class="csv-title-group">
+          <div class="csv-title-row">
+            <strong>Importar CSV</strong>
+            <span v-if="!isPaidPlan" class="pro-tag">PRO</span>
+          </div>
+          <span v-if="csvImportFileName" class="csv-filename-pill">
+            <font-awesome-icon icon="receipt" /> {{ csvImportFileName }}
+          </span>
+          <span v-else class="csv-subtitle">Extrato bancário, fatura de cartão ou planilha</span>
+        </div>
       </div>
       <div class="header-actions">
         <button
@@ -17,9 +27,14 @@
         >
           <font-awesome-icon icon="up-right-from-square" />
         </button>
-        <button class="text-btn" type="button" :disabled="importingCsv || loadingSchema" @click="pickFile">
+        <button
+          class="csv-trigger-btn"
+          type="button"
+          :disabled="importingCsv || loadingSchema"
+          @click="pickFile"
+        >
           <font-awesome-icon :icon="!isPaidPlan ? 'lock' : 'file-import'" />
-          Importar CSV
+          <span>{{ csvImportFileName ? 'Trocar arquivo' : 'Selecionar arquivo CSV' }}</span>
         </button>
       </div>
       <input ref="csvInput" class="visually-hidden" type="file" accept=".csv,text/csv" @change="handleFileChange" />
@@ -189,10 +204,10 @@ export default {
 .csv-import-card {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  background: var(--surface-0);
-  padding: var(--space-4);
+  background: var(--surface-1);
+  padding: var(--space-4) var(--space-5);
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-4);
   transition:
     background var(--transition-base),
     border-color var(--transition-base);
@@ -204,16 +219,119 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .csv-import-header {
   flex-wrap: wrap;
 }
 
-.csv-import-header strong {
+.header-main-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.csv-icon-avatar {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: var(--radius-sm);
+  background: rgba(53, 90, 253, 0.08);
+  border: 1px solid rgba(53, 90, 253, 0.16);
+  color: var(--color-info);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+[data-theme='dark'] .csv-icon-avatar {
+  background: rgba(95, 124, 255, 0.15);
+  border-color: rgba(95, 124, 255, 0.25);
+  color: #a5b4fc;
+}
+
+.csv-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.csv-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.csv-title-row strong {
   display: block;
   color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.pro-tag {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  background: var(--deep-blue-gradient);
+  color: var(--white);
+  letter-spacing: 0.05em;
+}
+
+.csv-subtitle {
+  color: var(--text-secondary);
+  font-size: var(--fontsize-xs);
+}
+
+.csv-filename-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-info);
+  background: var(--surface-2);
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-border);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csv-trigger-btn {
+  border: 1px solid var(--glass-border);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  height: 40px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.82rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.csv-trigger-btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--color-info);
+  color: var(--color-info);
+  transform: translateY(-1px);
+}
+
+.csv-trigger-btn:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .csv-import-header span,

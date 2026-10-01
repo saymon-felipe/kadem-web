@@ -216,7 +216,8 @@ export default {
 }
 
 .desktop-month-picker input {
-  height: 40px;
+  height: 42px;
+  min-height: 42px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   background: var(--surface-0);
@@ -225,13 +226,13 @@ export default {
   box-shadow: none;
   outline: none;
   font-size: var(--fontsize-sx);
-  transition: border-color var(--transition-fast);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .desktop-month-picker input:focus {
-  border-color: var(--deep-blue);
+  border-color: var(--color-info);
   outline: none;
-  box-shadow: none;
+  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.14);
 }
 
 .mobile-filter-dropdown {
@@ -342,7 +343,8 @@ export default {
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 40px;
+  height: 42px;
+  min-height: 42px;
   border-radius: var(--radius-sm);
   font-weight: 600;
   transition:
@@ -369,7 +371,7 @@ export default {
 }
 
 .icon-btn {
-  width: 40px;
+  width: 42px;
   background: var(--surface-2);
   color: var(--text-primary);
 }

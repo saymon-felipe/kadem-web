@@ -2,20 +2,32 @@
   <section class="investments-tab">
     <div class="summary-grid">
       <article class="metric-card invested">
-        <small>Investido no mês</small>
-        <strong>{{ formatMoney(summary.month_invested || 0) }}</strong>
+        <span class="metric-icon"><font-awesome-icon icon="arrow-up" /></span>
+        <div class="metric-body">
+          <small>Investido no mês</small>
+          <strong>{{ formatMoney(summary.month_invested || 0) }}</strong>
+        </div>
       </article>
       <article class="metric-card principal">
-        <small>Total aportado</small>
-        <strong>{{ formatMoney(summary.total_invested || 0) }}</strong>
+        <span class="metric-icon"><font-awesome-icon icon="layer-group" /></span>
+        <div class="metric-body">
+          <small>Total aportado</small>
+          <strong>{{ formatMoney(summary.total_invested || 0) }}</strong>
+        </div>
       </article>
       <article class="metric-card yield">
-        <small>Juros acumulados</small>
-        <strong>{{ formatMoney(summary.total_yield || 0) }}</strong>
+        <span class="metric-icon"><font-awesome-icon icon="chart-simple" /></span>
+        <div class="metric-body">
+          <small>Juros acumulados</small>
+          <strong class="positive">{{ formatMoney(summary.total_yield || 0) }}</strong>
+        </div>
       </article>
       <article class="metric-card balance">
-        <small>Saldo estimado</small>
-        <strong>{{ formatMoney(summary.estimated_balance || 0) }}</strong>
+        <span class="metric-icon"><font-awesome-icon icon="scale-balanced" /></span>
+        <div class="metric-body">
+          <small>Saldo estimado</small>
+          <strong>{{ formatMoney(summary.estimated_balance || 0) }}</strong>
+        </div>
       </article>
     </div>
 
@@ -24,19 +36,25 @@
       :active-tab="activeInvestmentTab"
       variant="pills"
       aria-label="Investimentos"
+      class="investment-subtabs"
       @update:activeTab="activeInvestmentTab = $event"
     />
 
     <div v-show="activeInvestmentTab === 'summary'" class="tab-content">
       <section class="panel momentum-panel">
         <div class="panel-title">
-          <h3>Ritmo</h3>
-          <span>{{ streakLabel }}</span>
+          <div class="panel-title-left">
+            <h3>Ritmo</h3>
+          </div>
+          <span class="panel-badge" :class="{ active: investingStreak > 0 }">
+            <font-awesome-icon icon="chart-simple" />
+            {{ streakLabel }}
+          </span>
         </div>
         <div class="momentum-grid">
           <div class="momentum-stat">
             <small>Sequência</small>
-            <strong>{{ investingStreak }} meses</strong>
+            <strong>{{ investingStreak }} {{ investingStreak === 1 ? 'mês' : 'meses' }}</strong>
           </div>
           <div class="momentum-stat">
             <small>Meta mais próxima</small>
@@ -44,7 +62,7 @@
           </div>
           <div class="momentum-stat">
             <small>Mês em foco</small>
-            <strong>{{ selectedMonth }}</strong>
+            <strong>{{ formatMonthDisplay(selectedMonth) }}</strong>
           </div>
         </div>
         <div class="progress-hero">
@@ -59,10 +77,14 @@
       </section>
 
       <div class="visual-grid">
-        <section class="panel">
+        <section class="panel category-panel">
           <div class="panel-title">
-            <h3>Categorias</h3>
-            <span>{{ categoryDistribution.length }} categorias</span>
+            <div class="panel-title-left">
+              <h3>Categorias</h3>
+            </div>
+            <span class="panel-badge">
+              {{ categoryDistribution.length }} {{ categoryDistribution.length === 1 ? 'categoria' : 'categorias' }}
+            </span>
           </div>
           <div class="donut-layout">
             <div class="donut-shell">
@@ -77,7 +99,7 @@
                   :stroke="segment.color"
                   :stroke-dasharray="segment.dashArray"
                   :stroke-dashoffset="segment.dashOffset"
-                  stroke-width="16"
+                  stroke-width="15"
                 />
               </svg>
               <svg v-else viewBox="0 0 100 100" class="donut-svg">
@@ -86,8 +108,8 @@
                   cy="50"
                   r="40"
                   fill="transparent"
-                  stroke="var(--glass-border)"
-                  stroke-width="16"
+                  stroke="var(--surface-2)"
+                  stroke-width="15"
                 />
               </svg>
               <div class="donut-hole">
@@ -98,7 +120,7 @@
             <div class="legend-list">
               <div v-for="segment in donutSegments" :key="segment.key" class="legend-row">
                 <span class="swatch" :style="{ background: segment.color || '#999999' }"></span>
-                <span>{{ segment.category_name }}</span>
+                <span class="legend-label">{{ segment.category_name }}</span>
                 <strong>{{ formatMoney(segment.estimated_balance) }}</strong>
               </div>
               <p v-if="donutSegments.length === 0" class="empty-line">
@@ -108,20 +130,31 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel bar-chart-panel">
           <div class="panel-title">
-            <h3>Aporte x juros</h3>
-            <span>{{ monthlyHistory.length }} meses</span>
+            <div class="panel-title-left">
+              <h3>Aporte x juros</h3>
+            </div>
+            <div class="bar-legend">
+              <span class="legend-item"><i class="swatch-invest"></i> Aporte</span>
+              <span class="legend-item"><i class="swatch-yield"></i> Juros</span>
+            </div>
           </div>
           <div class="bar-chart">
             <div v-for="item in barHistory" :key="item.month" class="bar-row">
               <div class="bar-meta">
-                <strong>{{ item.month }}</strong>
-                <span>{{ formatMoney(item.invested) }} / {{ formatMoney(item.yield) }}</span>
+                <strong>{{ formatMonthDisplay(item.month) }}</strong>
+                <div class="bar-values">
+                  <span class="val-invest">{{ formatMoney(item.invested) }}</span>
+                  <span class="val-sep" v-if="Number(item.yield) > 0">/</span>
+                  <span class="val-yield" v-if="Number(item.yield) > 0">+{{ formatMoney(item.yield) }}</span>
+                </div>
               </div>
-              <div class="bar-stack">
-                <i class="invest-bar" :style="{ width: `${item.investedPercent}%` }"></i>
-                <i class="yield-bar" :style="{ width: `${item.yieldPercent}%` }"></i>
+              <div class="bar-track">
+                <div class="bar-stack">
+                  <i class="invest-bar" :style="{ width: `${item.investedPercent}%` }" :title="`Aporte: ${formatMoney(item.invested)}`"></i>
+                  <i class="yield-bar" :style="{ width: `${item.yieldPercent}%` }" :title="`Juros: ${formatMoney(item.yield)}`"></i>
+                </div>
               </div>
             </div>
             <p v-if="barHistory.length === 0" class="empty-line">
@@ -131,42 +164,82 @@
         </section>
       </div>
 
-      <section class="panel">
+      <section class="panel projection-panel">
         <div class="panel-title">
-          <h3>Previsão no tempo</h3>
-          <span>{{ projectionMonths }} meses</span>
+          <div class="panel-title-left">
+            <h3>Previsão no tempo</h3>
+          </div>
+          <span class="projection-tag">
+            <font-awesome-icon icon="money-bill" />
+            {{ calculator.ratePercent }}% a.a.
+          </span>
         </div>
         <div class="projection-wrap">
-          <svg
-            v-if="projectionPoints.length > 1"
-            viewBox="0 0 100 40"
-            class="projection-svg"
-            preserveAspectRatio="none"
-          >
-            <polyline
-              :points="projectionPolyline"
-              fill="none"
-              stroke="#1f6f5f"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <div class="chart-container">
+            <svg
+              v-if="projectionPoints.length > 1"
+              viewBox="0 0 100 40"
+              class="projection-svg"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <linearGradient id="projGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#10b981" stop-opacity="0.32" />
+                  <stop offset="60%" stop-color="#10b981" stop-opacity="0.08" />
+                  <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="12" x2="100" y2="12" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,3" stroke-width="0.8" />
+              <line x1="0" y1="24" x2="100" y2="24" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,3" stroke-width="0.8" />
+              <line x1="0" y1="36" x2="100" y2="36" stroke="rgba(255,255,255,0.08)" stroke-width="0.8" />
+              <polygon
+                :points="projectionAreaPoints"
+                fill="url(#projGrad)"
+              />
+              <polyline
+                :points="projectionPolyline"
+                fill="none"
+                stroke="#10b981"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <circle
+                v-for="pt in keyProjectionPoints"
+                :key="pt.label"
+                :cx="pt.x"
+                :cy="pt.y"
+                r="2.2"
+                fill="#10b981"
+                stroke="#ffffff"
+                stroke-width="1"
+              />
+            </svg>
+          </div>
           <div class="projection-grid">
             <article v-for="point in projectionPreview" :key="point.label" class="projection-card">
-              <small>{{ point.label }}</small>
+              <small>{{ point.displayLabel || point.label }}</small>
               <strong>{{ formatMoney(point.value) }}</strong>
+              <span class="projection-growth" v-if="point.growthPercent > 0">
+                +{{ point.growthPercent }}%
+              </span>
             </article>
           </div>
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel history-panel">
         <div class="panel-title">
-          <h3>Histórico</h3>
-          <span>{{ monthlyHistory.length }} linhas</span>
+          <div class="panel-title-left">
+            <h3>Histórico</h3>
+          </div>
+          <span class="panel-badge">
+            {{ monthlyHistory.length }} {{ monthlyHistory.length === 1 ? 'registro' : 'registros' }}
+          </span>
         </div>
-        <div class="history-table">
+
+        <!-- Desktop Table View -->
+        <div class="history-table history-table-desktop">
           <div class="history-head">
             <span>Mês</span>
             <span>Aporte</span>
@@ -175,12 +248,42 @@
             <span>Saldo</span>
           </div>
           <div v-for="item in historyRows" :key="item.month" class="history-row">
-            <span>{{ item.month }}</span>
+            <span class="history-month-tag">{{ formatMonthDisplay(item.month) }}</span>
             <strong>{{ formatMoney(item.invested) }}</strong>
             <strong class="positive">{{ formatMoney(item.yield) }}</strong>
-            <strong class="negative">{{ formatMoney(item.withdrawn) }}</strong>
-            <strong>{{ formatMoney(item.estimated_balance) }}</strong>
+            <strong :class="{ negative: Number(item.withdrawn) > 0 }">{{ formatMoney(item.withdrawn) }}</strong>
+            <strong class="history-balance-val">{{ formatMoney(item.estimated_balance) }}</strong>
           </div>
+          <p v-if="historyRows.length === 0" class="empty-line">
+            Nenhum mês com investimento ainda.
+          </p>
+        </div>
+
+        <!-- Mobile Cards View -->
+        <div class="history-cards-mobile">
+          <article v-for="item in historyRows" :key="item.month" class="history-card-mobile">
+            <div class="card-mobile-top">
+              <span class="history-month-tag">{{ formatMonthDisplay(item.month) }}</span>
+              <div class="card-mobile-balance">
+                <small>Saldo final</small>
+                <strong>{{ formatMoney(item.estimated_balance) }}</strong>
+              </div>
+            </div>
+            <div class="card-mobile-metrics">
+              <div class="card-mobile-metric">
+                <small>Aporte</small>
+                <span>{{ formatMoney(item.invested) }}</span>
+              </div>
+              <div class="card-mobile-metric">
+                <small>Juro</small>
+                <span class="positive">{{ formatMoney(item.yield) }}</span>
+              </div>
+              <div class="card-mobile-metric">
+                <small>Resgate</small>
+                <span :class="{ negative: Number(item.withdrawn) > 0 }">{{ formatMoney(item.withdrawn) }}</span>
+              </div>
+            </div>
+          </article>
           <p v-if="historyRows.length === 0" class="empty-line">
             Nenhum mês com investimento ainda.
           </p>
@@ -190,8 +293,12 @@
 
     <section v-show="activeInvestmentTab === 'goals'" class="panel tab-content">
       <div class="panel-title">
-        <h3>Metas</h3>
-        <button class="text-btn" @click="resetGoalForm">Nova meta</button>
+        <div class="panel-title-left">
+          <h3>Metas</h3>
+        </div>
+        <button class="action-pill-btn" @click="resetGoalForm">
+          <font-awesome-icon icon="plus" /> Nova meta
+        </button>
       </div>
       <form class="stack-form" @submit.prevent="submitGoal">
         <label class="floating-field">
@@ -237,9 +344,9 @@
       <div class="goal-list">
         <article v-for="goal in goals" :key="goal.id || goal.local_id" class="goal-card">
           <div class="goal-head">
-            <div>
+            <div class="goal-title-wrap">
               <strong>{{ goal.name }}</strong>
-              <span>{{ horizonLabel(goal.horizon) }}</span>
+              <span class="goal-horizon-badge">{{ horizonLabel(goal.horizon) }}</span>
             </div>
             <div class="goal-actions">
               <button class="icon-btn small" @click="editGoal(goal)" title="Editar meta">
@@ -270,8 +377,12 @@
 
     <section v-show="activeInvestmentTab === 'calculator'" class="panel tab-content">
       <div class="panel-title">
-        <h3>Calculadora de juros compostos</h3>
-        <button class="text-btn" @click="$emit('refresh-rates')">Atualizar taxas</button>
+        <div class="panel-title-left">
+          <h3>Calculadora</h3>
+        </div>
+        <button class="action-pill-btn" @click="$emit('refresh-rates')">
+          <font-awesome-icon icon="arrows-rotate" /> Taxas
+        </button>
       </div>
       <form class="stack-form" @submit.prevent>
         <div class="inline-grid">
@@ -370,6 +481,10 @@
 
 <script>
 import KademTabs from '@/components/ui/KademTabs.vue';
+import { usePlayerStore } from '@/stores/player';
+
+const INVESTMENT_TAB_STORAGE_KEY = 'kadem_nexo.investments'
+const INVESTMENT_TAB_IDS = ['summary', 'goals', 'calculator']
 
 export default {
   name: 'NexoInvestmentsTab',
@@ -428,8 +543,9 @@ export default {
     },
   },
   data() {
+    const savedTab = usePlayerStore().active_app_tabs?.[INVESTMENT_TAB_STORAGE_KEY]
     return {
-      activeInvestmentTab: 'summary',
+      activeInvestmentTab: INVESTMENT_TAB_IDS.includes(savedTab) ? savedTab : 'summary',
       goalForm: this.createGoalForm(),
       calculator: {
         principal: 0,
@@ -501,7 +617,8 @@ export default {
       return streak
     },
     streakLabel() {
-      return this.investingStreak > 0 ? `${this.investingStreak} meses ativos` : 'Comece neste mês'
+      if (this.investingStreak <= 0) return 'Comece neste mês'
+      return this.investingStreak === 1 ? '1 mês ativo' : `${this.investingStreak} meses ativos`
     },
     nearestGoal() {
       if (this.goals.length === 0) return null
@@ -577,6 +694,24 @@ export default {
       }
       return points
     },
+    projectionCoords() {
+      if (this.projectionPoints.length < 2) return []
+      const maxValue = Math.max(...this.projectionPoints.map((point) => point.value), 1)
+      return this.projectionPoints.map((point, index) => {
+        const x = (index / (this.projectionPoints.length - 1)) * 100
+        const y = Math.max(4, 36 - (point.value / maxValue) * 30)
+        return { ...point, x, y }
+      })
+    },
+    keyProjectionPoints() {
+      if (this.projectionCoords.length < 2) return []
+      const mid = Math.floor(this.projectionCoords.length / 2)
+      return [
+        this.projectionCoords[0],
+        this.projectionCoords[mid],
+        this.projectionCoords[this.projectionCoords.length - 1],
+      ].filter(Boolean)
+    },
     projectionPolyline() {
       if (this.projectionPoints.length < 2) return ''
       const maxValue = Math.max(...this.projectionPoints.map((point) => point.value), 1)
@@ -588,12 +723,43 @@ export default {
         })
         .join(' ')
     },
+    projectionAreaPoints() {
+      if (this.projectionPoints.length < 2) return ''
+      return `0,38 ${this.projectionPolyline} 100,38`
+    },
     projectionPreview() {
-      return [
+      if (this.projectionPoints.length === 0) return []
+      const baseValue = this.projectionPoints[0]?.value || 0
+      const mid = Math.floor(this.projectionPoints.length / 2)
+      const list = [
         this.projectionPoints[0],
-        this.projectionPoints[Math.floor(this.projectionPoints.length / 2)],
+        this.projectionPoints[mid],
         this.projectionPoints[this.projectionPoints.length - 1],
       ].filter(Boolean)
+
+      return list.map((pt) => {
+        let displayLabel = pt.label
+        if (pt.monthIndex === 0) displayLabel = 'Hoje (M+0)'
+        else if (pt.monthIndex === 12) displayLabel = '1 ano (M+12)'
+        else if (pt.monthIndex === 24) displayLabel = '2 anos (M+24)'
+        else displayLabel = `${pt.monthIndex}m (${pt.label})`
+
+        const growthPercent =
+          baseValue > 0 && pt.value > baseValue
+            ? Math.round(((pt.value - baseValue) / baseValue) * 100)
+            : 0
+
+        return {
+          ...pt,
+          displayLabel,
+          growthPercent,
+        }
+      })
+    },
+  },
+  watch: {
+    activeInvestmentTab(tabId) {
+      usePlayerStore().setActiveAppTab(INVESTMENT_TAB_STORAGE_KEY, tabId)
     },
   },
   methods: {
@@ -632,8 +798,10 @@ export default {
       this.$emit('save-goal', payload)
       this.resetGoalForm()
     },
+    // Saldo inicial manual (current_amount) + aportes vinculados - resgates vinculados (linked_amount).
+    // Antes toda meta mostrava o saldo total dos investimentos, independente do aporte.
     goalCurrentAmount(goal) {
-      return Number(goal.current_amount ?? this.summary.estimated_balance ?? 0)
+      return Number(goal.current_amount ?? 0) + Number(goal.linked_amount ?? 0)
     },
     goalProgress(goal) {
       const target = Number(goal.target_amount || 0)
@@ -658,6 +826,18 @@ export default {
       }
       this.calculator.ratePercent = Number(annualPercent.toFixed(4))
       this.calculator.rateMode = 'annual'
+    },
+    formatMonthDisplay(month) {
+      if (!month) return ''
+      const parts = String(month).split('-')
+      if (parts.length === 2) {
+        const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+        const mIdx = Number.parseInt(parts[1], 10) - 1
+        if (mIdx >= 0 && mIdx < 12) {
+          return `${months[mIdx]}/${parts[0]}`
+        }
+      }
+      return month
     },
   },
 }
@@ -695,7 +875,7 @@ export default {
 }
 
 .summary-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .visual-grid {
@@ -709,37 +889,85 @@ export default {
 .panel,
 .metric-card,
 .projection-card,
-.goal-card {
+.goal-card,
+.history-card-mobile {
   background: var(--surface-0);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   transition:
     background var(--transition-base),
-    border-color var(--transition-base);
+    border-color var(--transition-base),
+    transform var(--transition-fast);
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
 }
 
 .panel {
-  padding: var(--space-5);
+  padding: var(--space-4) var(--space-5);
   overflow: hidden;
 }
 
+/* Metric Cards (Top Summary) */
 .metric-card {
-  padding: var(--space-4);
-  display: grid;
-  gap: var(--space-2);
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   overflow: hidden;
+}
+
+.metric-card:hover {
+  background: var(--surface-1);
+}
+
+.metric-icon {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  font-size: 1.05rem;
+  flex-shrink: 0;
+}
+
+.metric-card.invested .metric-icon {
+  color: #2e9b62;
+  background: rgba(46, 155, 98, 0.13);
+}
+
+.metric-card.principal .metric-icon {
+  color: #355afd;
+  background: rgba(53, 90, 253, 0.13);
+}
+
+.metric-card.yield .metric-icon {
+  color: #0d8f6f;
+  background: rgba(13, 143, 111, 0.13);
+}
+
+.metric-card.balance .metric-icon {
+  color: #008fa3;
+  background: rgba(0, 143, 163, 0.13);
+}
+
+.metric-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .metric-card small,
 .momentum-stat small,
 .projection-card small,
+.card-mobile-metric small,
+.card-mobile-balance small,
 .goal-card span,
 .empty-line,
-.panel-title span {
+.panel-subtitle {
   color: var(--text-secondary);
   font-size: var(--fontsize-xs);
   min-width: 0;
@@ -748,17 +976,25 @@ export default {
   white-space: nowrap;
 }
 
+.metric-card small {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .metric-card strong,
 .momentum-stat strong,
-.projection-card strong {
+.projection-card strong,
+.card-mobile-balance strong {
   font-size: var(--fontsize-sm);
+  font-weight: 700;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.metric-card.yield strong,
 .positive {
   color: #0d8f6f;
 }
@@ -767,22 +1003,105 @@ export default {
   color: var(--red);
 }
 
-.panel-title,
-.goal-head,
-.goal-actions,
-.bar-meta {
+.panel-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  min-height: 32px;
 }
 
-.panel-title {
-  margin-bottom: var(--space-4);
+.panel-title-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .panel-title h3 {
   margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.panel-subtitle {
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+  display: inline-block;
+  color: var(--text-secondary);
+}
+
+.panel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-pill, 999px);
+  background: rgba(53, 90, 253, 0.1);
+  color: var(--color-info, #355afd);
+  font-size: var(--fontsize-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.panel-badge.active {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.action-pill-btn {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill, 999px);
+  background: rgba(53, 90, 253, 0.1);
+  color: var(--color-info, #355afd);
+  font-weight: 600;
+  font-size: var(--fontsize-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid rgba(53, 90, 253, 0.2);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.action-pill-btn:hover {
+  background: rgba(53, 90, 253, 0.18);
+  border-color: rgba(53, 90, 253, 0.35);
+}
+
+.goal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.goal-title-wrap strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fontsize-sm);
+  color: var(--text-primary);
+}
+
+.goal-horizon-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .momentum-grid {
@@ -795,13 +1114,26 @@ export default {
 }
 
 .momentum-stat {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
+  border: 1px solid var(--glass-border);
   min-width: 0;
-  overflow: hidden;
+  text-align: center;
+}
+
+.momentum-stat small {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.momentum-stat strong {
+  font-size: var(--fontsize-xs);
 }
 
 .progress-hero,
@@ -817,43 +1149,50 @@ export default {
   box-sizing: border-box;
 }
 
-.progress-hero {
-  min-width: 0;
+.progress-copy {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
 }
 
 .progress-copy strong {
-  font-size: var(--fontsize-sm);
-  word-break: break-word;
+  font-size: var(--fontsize-xs);
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .progress-copy span {
+  font-size: var(--fontsize-xs);
   color: var(--text-secondary);
-  word-break: break-word;
+  font-variant-numeric: tabular-nums;
 }
 
 .progress-track {
   width: 100%;
-  height: 12px;
-  border-radius: 999px;
+  height: 10px;
+  border-radius: var(--radius-pill, 999px);
   background: var(--surface-2);
   overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .progress-track.compact {
-  height: 10px;
+  height: 8px;
 }
 
 .progress-track i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #0d8f6f, #78c7a8);
+  background: linear-gradient(90deg, #0d8f6f, #34d399);
   transition: width 0.45s ease;
 }
 
+/* Donut Chart */
 .donut-layout {
   display: grid;
-  grid-template-columns: 180px 1fr;
+  grid-template-columns: 170px 1fr;
   gap: var(--space-4);
   align-items: center;
   width: 100%;
@@ -861,8 +1200,8 @@ export default {
 }
 
 .donut-shell {
-  width: 180px;
-  height: 180px;
+  width: 170px;
+  height: 170px;
   display: grid;
   place-items: center;
   position: relative;
@@ -870,29 +1209,42 @@ export default {
 }
 
 .donut-svg {
-  width: 180px;
-  height: 180px;
+  width: 170px;
+  height: 170px;
   transform: rotate(-90deg);
 }
 
 .donut-hole {
   position: absolute;
-  width: 112px;
-  height: 112px;
+  width: 108px;
+  height: 108px;
   border-radius: 50%;
   background: var(--surface-0);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
   display: grid;
   place-items: center;
   text-align: center;
   padding: var(--space-2);
+  box-sizing: border-box;
 }
 
 .donut-hole strong {
   font-size: var(--fontsize-xs);
-  min-width: 0;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  max-width: 90px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.donut-hole small {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 700;
 }
 
 .legend-row {
@@ -902,29 +1254,67 @@ export default {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
+  border: 1px solid var(--glass-border);
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
+  font-size: var(--fontsize-xs);
 }
 
-.legend-row span:nth-of-type(2) {
+.legend-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--text-secondary);
 }
 
 .legend-row strong {
   margin-left: auto;
   white-space: nowrap;
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
 }
 
 .swatch {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  flex: 0 0 12px;
+  flex: 0 0 10px;
+}
+
+/* Bar Chart (Aporte x Juros) */
+.bar-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--fontsize-xs);
+  color: var(--text-secondary);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.swatch-invest {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #1f274c, #355afd);
+  display: inline-block;
+}
+
+.swatch-yield {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #0d8f6f, #34d399);
+  display: inline-block;
 }
 
 .bar-row {
@@ -936,123 +1326,182 @@ export default {
 
 .bar-meta {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
   min-width: 0;
+  font-size: var(--fontsize-xs);
 }
 
 .bar-meta strong {
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+  color: var(--text-primary);
   flex-shrink: 0;
 }
 
-.bar-meta span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.bar-values {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
   font-size: var(--fontsize-xs);
-  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.val-invest {
+  color: #355afd;
+}
+
+.val-yield {
+  color: #0d8f6f;
+}
+
+.val-sep {
+  color: var(--text-muted);
+}
+
+.bar-track {
+  width: 100%;
+  height: 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius-pill, 999px);
+  overflow: hidden;
+  padding: 2px;
+  box-sizing: border-box;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .bar-stack {
   display: flex;
-  gap: var(--space-1);
+  height: 100%;
+  gap: 2px;
   width: 100%;
-  height: 14px;
-  min-width: 0;
-}
-
-.bar-stack i {
-  border-radius: 999px;
-  transition: width 0.4s ease;
 }
 
 .invest-bar {
+  height: 100%;
+  border-radius: var(--radius-pill, 999px);
   background: linear-gradient(90deg, #1f274c, #355afd);
+  transition: width 0.4s ease;
 }
 
 .yield-bar {
-  background: linear-gradient(90deg, #0d8f6f, #78c7a8);
+  height: 100%;
+  border-radius: var(--radius-pill, 999px);
+  background: linear-gradient(90deg, #0d8f6f, #34d399);
+  transition: width 0.4s ease;
 }
 
+/* Projection Chart */
 .projection-wrap {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   width: 100%;
   min-width: 0;
+}
+
+.projection-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 3px var(--space-3);
+  border-radius: var(--radius-pill, 999px);
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.chart-container {
+  width: 100%;
+  height: 160px;
+  position: relative;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, rgba(16, 185, 129, 0.08), rgba(16, 185, 129, 0.01)),
+    var(--surface-1);
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+  padding: var(--space-2);
+  box-sizing: border-box;
 }
 
 .projection-svg {
   width: 100%;
-  max-width: 100%;
-  height: 180px;
-  border-radius: var(--radius-sm);
-  background:
-    linear-gradient(180deg, rgba(13, 143, 111, 0.1), rgba(13, 143, 111, 0.01)),
-    var(--surface-1);
-  border: 1px solid var(--glass-border);
+  height: 100%;
+  display: block;
 }
 
 .projection-grid,
 .calculator-results {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
+  gap: var(--space-2);
   width: 100%;
   min-width: 0;
 }
 
 .projection-card,
 .calculator-results article {
-  padding: var(--space-3);
-  display: grid;
-  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   min-width: 0;
   box-sizing: border-box;
-  overflow: hidden;
+  text-align: center;
 }
 
-.calculator-results article {
-  border-radius: var(--radius-sm);
-  background: var(--surface-1);
+.projection-card small,
+.calculator-results article small {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
+.projection-card strong,
 .calculator-results article strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: var(--fontsize-xs);
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
-.history-table {
+.projection-growth {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #10b981;
+}
+
+/* History */
+.history-table-desktop {
   display: grid;
   gap: var(--space-2);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
   width: 100%;
-  min-width: 0;
-  max-width: 100%;
   box-sizing: border-box;
-  padding-bottom: var(--space-2);
 }
 
 .history-head,
 .history-row {
   display: grid;
-  grid-template-columns: 90px repeat(4, minmax(75px, 1fr));
+  grid-template-columns: 110px repeat(4, 1fr);
   gap: var(--space-3);
   align-items: center;
-  min-width: 440px;
   box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fontsize-xs);
 }
 
 .history-head {
   color: var(--text-secondary);
-  font-size: var(--fontsize-xs);
   font-weight: 700;
   text-transform: uppercase;
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: var(--space-2);
 }
 
 .history-head span:not(:first-child),
@@ -1062,11 +1511,94 @@ export default {
 }
 
 .history-row {
-  padding: var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
+  border: 1px solid var(--glass-border);
+  transition: background var(--transition-base), border-color var(--transition-fast);
 }
 
+.history-row:hover {
+  border-color: rgba(53, 90, 253, 0.25);
+}
+
+.history-month-tag {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.history-balance-val {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* History Mobile Cards (<= 640px) */
+.history-cards-mobile {
+  display: none;
+}
+
+.history-card-mobile {
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.card-mobile-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-mobile-balance {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.card-mobile-balance small {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.card-mobile-balance strong {
+  font-size: var(--fontsize-xs);
+  color: var(--text-primary);
+}
+
+.card-mobile-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  background: var(--surface-1);
+  padding: var(--space-2);
+  border-radius: var(--radius-xs, 4px);
+  border: 1px solid var(--glass-border);
+}
+
+.card-mobile-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: center;
+}
+
+.card-mobile-metric small {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.card-mobile-metric span {
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+/* Forms & Inputs */
 .inline-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1084,13 +1616,16 @@ export default {
 .floating-field input,
 .floating-field select {
   width: 100%;
-  height: 52px;
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
   color: var(--text-primary);
-  padding: 18px var(--space-3) 4px;
+  padding: 14px var(--space-3) 2px;
   outline: none;
+  font-size: var(--fontsize-xs);
   transition:
     border-color var(--transition-fast),
     box-shadow var(--transition-fast),
@@ -1098,13 +1633,13 @@ export default {
 }
 
 .floating-field input[type='color'] {
-  padding: 20px var(--space-3) 6px;
+  padding: 14px var(--space-3) 4px;
 }
 
 .floating-field input:focus,
 .floating-field select:focus {
   border-color: var(--deep-blue);
-  box-shadow: 0 0 0 3px rgba(31, 39, 76, 0.08);
+  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.14);
 }
 
 .floating-field span {
@@ -1128,17 +1663,38 @@ export default {
 .floating-field.select-field span,
 .floating-field.date-field span,
 .floating-field.color-field span {
-  top: 7px;
+  top: 5px;
   transform: none;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   color: var(--text-muted);
 }
 
+/* Goals */
 .goal-card {
   padding: var(--space-3);
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+.goal-head,
+.goal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.goal-head > div:first-child {
+  min-width: 0;
+}
+
+.goal-head strong,
+.goal-head span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
 }
 
 .goal-values {
@@ -1156,6 +1712,7 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .rate-pills {
@@ -1175,15 +1732,22 @@ export default {
 }
 
 .rate-pill {
-  padding: var(--space-2) var(--space-3);
-  border-radius: 999px;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill, 999px);
   background: var(--surface-1);
+  border: 1px solid var(--glass-border);
   color: var(--text-primary);
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  max-width: 100%;
+  font-size: var(--fontsize-xs);
+  transition: background var(--transition-fast);
+}
+
+.rate-pill:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--deep-blue);
 }
 
 .rate-pill span,
@@ -1195,68 +1759,59 @@ export default {
 }
 
 .primary-action {
+  height: 42px;
   min-height: 42px;
   border-radius: var(--radius-sm);
   background: var(--deep-blue-gradient-right);
   color: var(--white);
   padding: 0 var(--space-4);
   font-weight: 700;
+  font-size: var(--fontsize-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .text-btn {
+  height: 42px;
   min-height: 42px;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-primary);
+  color: var(--color-info, #355afd);
   padding: 0 var(--space-2);
   font-weight: 600;
+  font-size: var(--fontsize-xs);
+  display: inline-flex;
+  align-items: center;
 }
 
 .icon-btn {
-  width: 34px;
-  min-height: 42px;
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--text-primary);
-}
-
-.goal-head > div:first-child {
-  min-width: 0;
-}
-
-.goal-head strong,
-.goal-head span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .icon-btn.danger {
   color: var(--red);
 }
 
+/* Responsive Container & Media Queries */
 @container (max-width: 960px) {
-  .visual-grid,
-  .donut-layout,
-  .momentum-grid,
-  .projection-grid,
-  .calculator-results {
+  .visual-grid {
     grid-template-columns: 1fr;
-  }
-
-  .donut-layout {
-    justify-items: center;
-  }
-
-  .legend-list {
-    width: 100%;
   }
 }
 
 @container (max-width: 640px) {
   .panel {
-    padding: var(--space-4);
+    padding: var(--space-3);
   }
 
   .summary-grid {
@@ -1265,88 +1820,167 @@ export default {
   }
 
   .metric-card {
-    padding: var(--space-3);
-    gap: var(--space-1);
+    min-height: 56px;
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .metric-icon {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    font-size: 0.85rem;
+  }
+
+  .metric-card small {
+    font-size: 0.65rem;
   }
 
   .metric-card strong {
     font-size: var(--fontsize-xs);
   }
 
-  .inline-grid {
-    grid-template-columns: 1fr;
+  /* Donut and legend stay side by side */
+  .donut-layout {
+    grid-template-columns: 130px 1fr;
+    gap: var(--space-3);
+    align-items: center;
   }
 
-  .panel-title {
-    align-items: flex-start;
-    flex-direction: column;
+  .donut-shell,
+  .donut-svg {
+    width: 130px;
+    height: 130px;
+  }
+
+  .donut-hole {
+    width: 82px;
+    height: 82px;
+  }
+
+  .donut-hole strong {
+    font-size: 0.78rem;
+  }
+
+  .donut-hole small {
+    font-size: 0.6rem;
+  }
+
+  .history-table-desktop {
+    display: none;
+  }
+
+  .history-cards-mobile {
+    display: grid;
     gap: var(--space-2);
+    width: 100%;
   }
 }
 
 @container (max-width: 480px) {
-  .panel {
-    padding: var(--space-3);
-  }
-
-  .panel-title .text-btn {
-    width: 100%;
-    justify-content: center;
-    background: var(--surface-1);
-  }
-
   .primary-action {
     width: 100%;
     justify-content: center;
   }
 
-  .donut-shell {
-    width: 150px;
-    height: 150px;
+  .donut-layout {
+    grid-template-columns: 104px 1fr;
+    gap: var(--space-2);
   }
 
+  .donut-shell,
   .donut-svg {
-    width: 150px;
-    height: 150px;
+    width: 104px;
+    height: 104px;
   }
 
   .donut-hole {
-    width: 92px;
-    height: 92px;
+    width: 66px;
+    height: 66px;
   }
 
-  .projection-svg {
+  .donut-hole strong {
+    font-size: 0.7rem;
+  }
+
+  .donut-hole small {
+    font-size: 0.55rem;
+  }
+
+  .legend-row {
+    padding: 3px var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .chart-container {
     height: 130px;
+  }
+
+  .momentum-stat {
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .momentum-stat small {
+    font-size: 0.58rem;
+  }
+
+  .momentum-stat strong {
+    font-size: 0.72rem;
+  }
+
+  .panel-title h3 {
+    font-size: 0.95rem;
+  }
+
+  .panel-badge {
+    padding: 3px var(--space-2);
+    font-size: 0.68rem;
+  }
+
+  .action-pill-btn {
+    height: 28px;
+    min-height: 28px;
+    padding: 0 var(--space-2);
+    font-size: 0.7rem;
   }
 }
 
 @container (max-width: 360px) {
   .summary-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-1);
+  }
+
+  .metric-card {
+    padding: var(--space-1) var(--space-2);
+    gap: var(--space-1);
+  }
+
+  .metric-icon {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    font-size: 0.75rem;
+  }
+
+  .metric-card small {
+    font-size: 0.6rem;
+  }
+
+  .metric-card strong {
+    font-size: 0.7rem;
   }
 }
 
 @media (max-width: 960px) {
-  .visual-grid,
-  .donut-layout,
-  .momentum-grid,
-  .projection-grid,
-  .calculator-results {
+  .visual-grid {
     grid-template-columns: 1fr;
-  }
-
-  .donut-layout {
-    justify-items: center;
-  }
-
-  .legend-list {
-    width: 100%;
   }
 }
 
 @media (max-width: 640px) {
   .panel {
-    padding: var(--space-4);
+    padding: var(--space-3);
   }
 
   .summary-grid {
@@ -1355,64 +1989,155 @@ export default {
   }
 
   .metric-card {
-    padding: var(--space-3);
-    gap: var(--space-1);
+    min-height: 56px;
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .metric-icon {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    font-size: 0.85rem;
+  }
+
+  .metric-card small {
+    font-size: 0.65rem;
   }
 
   .metric-card strong {
     font-size: var(--fontsize-xs);
   }
 
-  .inline-grid {
-    grid-template-columns: 1fr;
+  /* Donut and legend stay side by side */
+  .donut-layout {
+    grid-template-columns: 130px 1fr;
+    gap: var(--space-3);
+    align-items: center;
   }
 
-  .panel-title {
-    align-items: flex-start;
-    flex-direction: column;
+  .donut-shell,
+  .donut-svg {
+    width: 130px;
+    height: 130px;
+  }
+
+  .donut-hole {
+    width: 82px;
+    height: 82px;
+  }
+
+  .donut-hole strong {
+    font-size: 0.78rem;
+  }
+
+  .donut-hole small {
+    font-size: 0.6rem;
+  }
+
+  .history-table-desktop {
+    display: none;
+  }
+
+  .history-cards-mobile {
+    display: grid;
     gap: var(--space-2);
+    width: 100%;
   }
 }
 
 @media (max-width: 480px) {
-  .panel {
-    padding: var(--space-3);
-  }
-
-  .panel-title .text-btn {
-    width: 100%;
-    justify-content: center;
-    background: var(--surface-1);
-  }
-
   .primary-action {
     width: 100%;
     justify-content: center;
   }
 
-  .donut-shell {
-    width: 150px;
-    height: 150px;
+  .donut-layout {
+    grid-template-columns: 104px 1fr;
+    gap: var(--space-2);
   }
 
+  .donut-shell,
   .donut-svg {
-    width: 150px;
-    height: 150px;
+    width: 104px;
+    height: 104px;
   }
 
   .donut-hole {
-    width: 92px;
-    height: 92px;
+    width: 66px;
+    height: 66px;
   }
 
-  .projection-svg {
+  .donut-hole strong {
+    font-size: 0.7rem;
+  }
+
+  .donut-hole small {
+    font-size: 0.55rem;
+  }
+
+  .legend-row {
+    padding: 3px var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .chart-container {
     height: 130px;
+  }
+
+  .momentum-stat {
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .momentum-stat small {
+    font-size: 0.58rem;
+  }
+
+  .momentum-stat strong {
+    font-size: 0.72rem;
+  }
+
+  .panel-title h3 {
+    font-size: 0.95rem;
+  }
+
+  .panel-badge {
+    padding: 3px var(--space-2);
+    font-size: 0.68rem;
+  }
+
+  .action-pill-btn {
+    height: 28px;
+    min-height: 28px;
+    padding: 0 var(--space-2);
+    font-size: 0.7rem;
   }
 }
 
 @media (max-width: 360px) {
   .summary-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-1);
+  }
+
+  .metric-card {
+    padding: var(--space-1) var(--space-2);
+    gap: var(--space-1);
+  }
+
+  .metric-icon {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    font-size: 0.75rem;
+  }
+
+  .metric-card small {
+    font-size: 0.6rem;
+  }
+
+  .metric-card strong {
+    font-size: 0.7rem;
   }
 }
 </style>

@@ -196,7 +196,8 @@ export default {
 .macro-trigger {
   width: 100%;
   min-width: 0;
-  min-height: 40px;
+  height: 42px;
+  min-height: 42px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
@@ -207,8 +208,13 @@ export default {
   justify-content: space-between;
   gap: var(--space-2);
   cursor: pointer;
-  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease,
-    background 0.16s ease;
+  box-sizing: border-box;
+  font-size: var(--fontsize-sx, 0.875rem);
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .macro-trigger > span {
@@ -226,7 +232,7 @@ export default {
 
 .macro-trigger.open {
   border-color: var(--color-info);
-  box-shadow: 0 0 0 3px var(--glass-border);
+  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.14);
 }
 
 .placeholder {

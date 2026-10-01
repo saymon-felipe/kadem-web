@@ -3,7 +3,7 @@
     <button
       type="button"
       class="combo-trigger"
-      :class="{ open: isOpen }"
+      :class="[{ open: isOpen }, `size-${size}`]"
       @click="toggle"
     >
       <span v-if="selectedCategory" class="selected-category">
@@ -61,7 +61,7 @@
           </button>
 
             <p v-if="filteredCategories.length === 0" class="combo-empty">
-              Nenhuma categoria encontrada.
+              {{ emptyLabel }}
             </p>
           </div>
         </div>
@@ -105,6 +105,14 @@ export default {
     clearOptionValue: {
       type: [Number, String, null],
       default: null,
+    },
+    emptyLabel: {
+      type: String,
+      default: "Nenhuma categoria encontrada.",
+    },
+    size: {
+      type: String,
+      default: "md",
     },
   },
   emits: ["update:modelValue", "change", "create"],
@@ -222,19 +230,25 @@ export default {
 .combo-trigger {
   width: 100%;
   min-width: 0;
-  min-height: 40px;
+  height: 42px;
+  min-height: 42px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
   color: var(--text-primary);
-  padding: var(--space-2) var(--space-3);
+  padding: 0 var(--space-3);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
   cursor: pointer;
-  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease,
-    background 0.16s ease;
+  box-sizing: border-box;
+  font-size: var(--fontsize-sx, 0.875rem);
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .combo-trigger:hover {
@@ -245,7 +259,21 @@ export default {
 
 .combo-trigger.open {
   border-color: var(--color-info);
-  box-shadow: 0 0 0 3px var(--glass-border);
+  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.14);
+}
+
+.combo-trigger.size-sm,
+.combo-trigger.size-compact {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 var(--space-2);
+  font-size: var(--fontsize-xs);
+  transform: none;
+}
+
+.combo-trigger.size-sm:hover,
+.combo-trigger.size-compact:hover {
+  transform: none;
 }
 
 .selected-category {

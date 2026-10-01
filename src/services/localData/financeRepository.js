@@ -14,6 +14,9 @@ const INVESTMENT_FLOW = {
   OUT: "INVESTMENT_OUT",
 };
 const investmentWithdrawalCategoryName = (name = "") => `${String(name).trim()} (Saída)`;
+// Meta so faz sentido para aporte/resgate; categoria comum nunca carrega goal_id (o backend faz o mesmo).
+const isInvestmentFlowCategory = (category) =>
+  [INVESTMENT_FLOW.IN, INVESTMENT_FLOW.OUT].includes(category?.investment_flow_type);
 const normalizeFinanceText = (value = "") => String(value || "").trim().toLowerCase();
 
 const sameCategorySignature = (category, payload) => {
@@ -34,49 +37,56 @@ const normalizeDesc = (desc) => {
 
 const withUpdatedAt = (items = []) => items.map((item) => ({ ...item, updated_at: item.updated_at || now() }));
 
+// Leitura, clear e bulkPut precisam ser uma unica transacao: o Nexo dispara varios
+// pulls em paralelo (reloadAll, troca de aba, refresh apos mutacao). Sem isso, um
+// segundo pull le a tabela entre o clear e o bulkPut do primeiro e apaga as linhas
+// locais pendentes (meta criada some da tela ate o proximo F5).
 const replaceServerItemsPreservingPending = async (table, items = [], options = {}) => {
   const { preserveFields = [] } = options;
   const serverItems = withUpdatedAt(items);
-  const existing = await table.toArray();
-  const pendingItems = existing.filter((item) =>
-    item.pending_sync || (item.local_key && !isServerId(item.id) && item.pending_sync !== false),
-  );
-  const existingByServerId = new Map(
-    existing
-      .filter((item) => isServerId(item.id))
-      .map((item) => [String(item.id), item]),
-  );
-  const pendingServerIds = new Set(
-    pendingItems
-      .map((item) => Number(item.id))
-      .filter((id) => Number.isFinite(id)),
-  );
 
-  await table.clear();
+  await table.db.transaction("rw", table, async () => {
+    const existing = await table.toArray();
+    const pendingItems = existing.filter((item) =>
+      item.pending_sync || (item.local_key && !isServerId(item.id) && item.pending_sync !== false),
+    );
+    const existingByServerId = new Map(
+      existing
+        .filter((item) => isServerId(item.id))
+        .map((item) => [String(item.id), item]),
+    );
+    const pendingServerIds = new Set(
+      pendingItems
+        .map((item) => Number(item.id))
+        .filter((id) => Number.isFinite(id)),
+    );
 
-  const hydratedServerItems = serverItems.map((item) => {
-    const current = existingByServerId.get(String(item.id));
-    if (!current) return item;
+    await table.clear();
 
-    const merged = { ...item };
-    if (current.local_id) merged.local_id = current.local_id;
-    if (current.local_key) merged.local_key = current.local_key;
-    preserveFields.forEach((field) => {
-      if (Object.prototype.hasOwnProperty.call(current, field) && merged[field] === undefined) {
-        merged[field] = current[field];
-      }
+    const hydratedServerItems = serverItems.map((item) => {
+      const current = existingByServerId.get(String(item.id));
+      if (!current) return item;
+
+      const merged = { ...item };
+      if (current.local_id) merged.local_id = current.local_id;
+      if (current.local_key) merged.local_key = current.local_key;
+      preserveFields.forEach((field) => {
+        if (Object.prototype.hasOwnProperty.call(current, field) && merged[field] === undefined) {
+          merged[field] = current[field];
+        }
+      });
+      return merged;
     });
-    return merged;
+
+    const merged = [
+      ...hydratedServerItems.filter((item) => !pendingServerIds.has(Number(item.id))),
+      ...pendingItems,
+    ];
+
+    if (merged.length) {
+      await table.bulkPut(merged);
+    }
   });
-
-  const merged = [
-    ...hydratedServerItems.filter((item) => !pendingServerIds.has(Number(item.id))),
-    ...pendingItems,
-  ];
-
-  if (merged.length) {
-    await table.bulkPut(merged);
-  }
 };
 
 const normalizeCategoryMacroReferences = async () => {
@@ -607,6 +617,7 @@ export const financeRepository = {
     } else if (category?.investment_flow_type === INVESTMENT_FLOW.IN) {
       payload.type = "EXPENSE";
     }
+    if (!isInvestmentFlowCategory(category)) payload.goal_id = null;
     const local_id = await db.finance_transactions.add(payload);
     const created = { ...payload, local_id };
     if (!created.id) {
@@ -642,6 +653,7 @@ export const financeRepository = {
         } else if (category?.investment_flow_type === INVESTMENT_FLOW.IN) {
           payload.type = "EXPENSE";
         }
+        if (!isInvestmentFlowCategory(category)) payload.goal_id = null;
         const local_id = await db.finance_transactions.add(payload);
         createdItems.push({ ...payload, local_id });
       }
@@ -669,6 +681,12 @@ export const financeRepository = {
       } else if (category.investment_flow_type === INVESTMENT_FLOW.IN) {
         payload.type = "EXPENSE";
       }
+    }
+    // trocar a categoria (ou a meta) revalida o vinculo: categoria comum nao carrega meta
+    if (payload.category_id !== undefined || payload.goal_id !== undefined) {
+      const effectiveCategoryId = payload.category_id !== undefined ? payload.category_id : current.category_id;
+      const effectiveCategory = effectiveCategoryId ? await this.findCategory(effectiveCategoryId) : null;
+      if (!isInvestmentFlowCategory(effectiveCategory)) payload.goal_id = null;
     }
     await db.finance_transactions.update(current.local_id, payload);
     return { ...current, ...payload };
