@@ -400,6 +400,12 @@ export default {
   box-sizing: border-box;
 }
 
+/* No celular o SideModal vira bottom-sheet com z-index 99999 (!important); sem isto, qualquer diálogo
+   aberto por cima dele (ex.: confirmar exclusão de anexo) ficava escondido atrás do painel. */
+.kadem-modal-overlay.is-mobile {
+  z-index: 100000;
+}
+
 .kadem-modal-card {
   background: var(--surface-0);
   border-radius: var(--radius-lg);

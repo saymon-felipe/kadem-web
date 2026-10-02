@@ -19,6 +19,7 @@ import { useRadioStore } from "../stores/radio";
 import { parse_srt } from "../utils/srt_parser";
 import { apiServices } from "../plugins/apiServices";
 import { db } from "../db";
+import { reportAttachmentUpload, finishAttachmentUpload } from "./attachmentUploadProgress";
 
 let isProcessing = false;
 let rerunRequested = false;
@@ -457,18 +458,27 @@ async function _handleKanbanTask(task) {
       if (!parentTaskForAttachment.id) throw new Error("TASK_NOT_SYNCED: Anexo aguardando Task.");
       if (!attachment.blob) throw new Error("ATTACHMENT_BLOB_MISSING");
 
-      response = await api.post(`/kanban/tasks/${parentTaskForAttachment.id}/attachments`, attachment.blob, {
-        headers: {
-          "Content-Type": "application/octet-stream",
-          "X-Mime-Type": attachment.mime_type || "application/octet-stream",
-          "X-File-Name": encodeURIComponent(attachment.name || "arquivo"),
-          "X-File-Size": attachment.size_bytes || attachment.blob.size || 0,
-        },
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity,
-      });
+      try {
+        reportAttachmentUpload(attachment.local_id, 0, attachment.size_bytes || attachment.blob.size || 0);
 
-      await kanbanRepository.setServerDataForAttachment(attachment.local_id, response.data);
+        response = await api.post(`/kanban/tasks/${parentTaskForAttachment.id}/attachments`, attachment.blob, {
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "X-Mime-Type": attachment.mime_type || "application/octet-stream",
+            "X-File-Name": encodeURIComponent(attachment.name || "arquivo"),
+            "X-File-Size": attachment.size_bytes || attachment.blob.size || 0,
+          },
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
+          onUploadProgress: (progressEvent) => {
+            reportAttachmentUpload(attachment.local_id, progressEvent.loaded, progressEvent.total || attachment.blob.size);
+          },
+        });
+
+        await kanbanRepository.setServerDataForAttachment(attachment.local_id, response.data);
+      } finally {
+        finishAttachmentUpload(attachment.local_id);
+      }
       break;
 
     case "DELETE_TASK_ATTACHMENT":

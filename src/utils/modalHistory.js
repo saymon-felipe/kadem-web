@@ -8,8 +8,16 @@ let modalIdCounter = 0;
 const modalStack = [];
 let isHandlingPopstate = false;
 let isListenerAttached = false;
+// `history.back()` chamado por nós quando um modal fecha por código (Cancelar, Confirmar...). O
+// popstate dele chega depois e, sem esta contagem, seria lido como o "voltar" do usuário: fecharia
+// o próximo modal da pilha (ex.: cancelar a confirmação de exclusão fechava o painel da tarefa).
+let pendingProgrammaticBacks = 0;
 
 function handlePopState() {
+  if (pendingProgrammaticBacks > 0) {
+    pendingProgrammaticBacks -= 1;
+    return;
+  }
   if (modalStack.length === 0) return;
 
   // Pega o modal do topo da pilha
@@ -75,10 +83,12 @@ export function registerModal(closeCallback, options = { handleHistory: true }) 
     if (index !== -1) {
       const [removed] = modalStack.splice(index, 1);
       if (removed && removed.hasPushed && !isHandlingPopstate) {
+        pendingProgrammaticBacks += 1;
         try {
           window.history.back();
         } catch {
           // Ignora falhas caso o histórico já tenha mudado
+          pendingProgrammaticBacks -= 1;
         }
       }
     }

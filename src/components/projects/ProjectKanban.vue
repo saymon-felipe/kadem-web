@@ -68,6 +68,7 @@
         @save-task="handle_save_task"
         @delete="ask_delete_task"
         @delete-comment="ask_delete_comment"
+        @delete-attachment="ask_delete_attachment"
         ref="taskDetailForm"
       />
     </SideModal>
@@ -204,6 +205,10 @@ export default {
       if (this.delete_type == "comment") {
         return "Tem certeza que deseja excluir este comentário permanentemente?";
       }
+      // Sem o nome do arquivo: o ConfirmationModal renderiza a mensagem com v-html.
+      if (this.delete_type === "attachment") {
+        return "Tem certeza que deseja excluir este anexo permanentemente?";
+      }
       return "";
     },
   },
@@ -253,6 +258,7 @@ export default {
       "deleteColumn",
       "pullProjectKanban",
       "deleteTaskComment",
+      "deleteTaskAttachment",
       "updateProjectStatus",
       "updateTask",
     ]),
@@ -323,6 +329,11 @@ export default {
       this.delete_type = "comment";
       this.show_confirmation = true;
     },
+    ask_delete_attachment(obj) {
+      this.item_to_delete = obj;
+      this.delete_type = "attachment";
+      this.show_confirmation = true;
+    },
     ask_delete_task(task) {
       this.item_to_delete = task;
       this.delete_type = "task";
@@ -349,6 +360,16 @@ export default {
         if (this.$refs.taskDetailForm && this.$refs.taskDetailForm.editable_task) {
           this.$refs.taskDetailForm.editable_task.comments = this.$refs.taskDetailForm.editable_task.comments.filter(
             (c) => c.local_id !== this.item_to_delete.comment.local_id
+          );
+        }
+      } else if (this.delete_type === "attachment") {
+        const { task, attachment } = this.item_to_delete;
+        await this.deleteTaskAttachment(task, attachment);
+
+        const form = this.$refs.taskDetailForm;
+        if (form?.editable_task) {
+          form.editable_task.attachments = (form.editable_task.attachments || []).filter(
+            (item) => item.local_id !== attachment.local_id
           );
         }
       }

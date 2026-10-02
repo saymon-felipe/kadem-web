@@ -547,7 +547,9 @@ export const useKanbanStore = defineStore('kanban', {
       }
     },
 
-    async addTaskAttachment(task, file) {
+    // `onSaved` roda assim que o anexo esta gravado no Dexie e visivel na tarefa, antes do envio ao
+    // servidor (que pode demorar). Permite a tela trocar o "preparando" pela linha real do anexo.
+    async addTaskAttachment(task, file, { onSaved } = {}) {
       const authStore = useAuthStore();
       const limits = getPlanLimits(authStore.user?.plan_tier || 'free');
       const maxSize = limits.max_task_attachment_size_bytes || (5 * 1024 * 1024);
@@ -582,6 +584,8 @@ export const useKanbanStore = defineStore('kanban', {
         }
       }
 
+      onSaved?.(savedAttachment);
+
       await syncQueueRepository.addSyncQueueTask({
         type: 'ADD_TASK_ATTACHMENT',
         payload: {
@@ -594,17 +598,20 @@ export const useKanbanStore = defineStore('kanban', {
 
       await syncService.processSyncQueue();
 
-      const refreshedAttachment = await kanbanRepository.get_attachment_by_local_id(savedAttachment.local_id);
-      if (refreshedAttachment && columnTasks) {
-        const target = columnTasks.find(t => t.local_id === task.local_id);
-        const idx = target?.attachments?.findIndex(a => a.local_id === savedAttachment.local_id);
-        if (target && idx !== undefined && idx !== -1) {
-          target.attachments[idx] = refreshedAttachment;
-        }
-        return refreshedAttachment;
-      }
+      return (await this.refreshTaskAttachment(task, savedAttachment.local_id)) || savedAttachment;
+    },
 
-      return savedAttachment;
+    // Relê o anexo do Dexie (status, id e url vindos do servidor) e troca a cópia da tarefa na store.
+    async refreshTaskAttachment(task, attachment_local_id) {
+      const refreshedAttachment = await kanbanRepository.get_attachment_by_local_id(attachment_local_id);
+      if (!refreshedAttachment) return null;
+
+      const target = this.tasks[task.column_id]?.find(t => t.local_id === task.local_id);
+      const idx = target?.attachments?.findIndex(a => a.local_id === attachment_local_id);
+      if (idx !== undefined && idx !== -1) {
+        target.attachments[idx] = refreshedAttachment;
+      }
+      return refreshedAttachment;
     },
 
     async deleteTaskAttachment(task, attachment) {

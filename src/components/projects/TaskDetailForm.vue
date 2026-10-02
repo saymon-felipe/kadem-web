@@ -103,7 +103,8 @@
               <h4>Anexos</h4>
               <p>{{ attachment_count }} arquivo{{ attachment_count === 1 ? "" : "s" }}</p>
             </div>
-            <button type="button" class="btn-attach" @click="$refs.attachmentInput?.click()" title="Anexar arquivo">
+            <button type="button" class="btn-attach" :disabled="Boolean(attaching_file)"
+              @click="$refs.attachmentInput?.click()" title="Anexar arquivo">
               <font-awesome-icon icon="cloud-arrow-up" />
               <span>Anexar</span>
             </button>
@@ -112,7 +113,7 @@
 
           <p v-if="attachment_error" class="attachment-error">{{ attachment_error }}</p>
 
-          <div v-if="editable_task.attachments?.length" class="attachment-list custom-scrollbar">
+          <div v-if="editable_task.attachments?.length || attaching_file" class="attachment-list custom-scrollbar">
             <div v-for="attachment in editable_task.attachments" :key="attachment.local_id || attachment.id"
               class="attachment-item" role="button" tabindex="0" @click="open_attachment(attachment)"
               @keydown.enter.prevent="open_attachment(attachment)">
@@ -121,12 +122,19 @@
               </div>
               <div class="attachment-main">
                 <span class="attachment-name">{{ attachment.name }}</span>
-                <span class="attachment-size">{{ format_file_size(attachment.size_bytes) }}</span>
+                <div class="attachment-meta">
+                  <span class="attachment-size">{{ format_file_size(attachment.size_bytes) }}</span>
+                  <span v-if="attachment.upload_status !== 'synced'" class="attachment-status">
+                    <font-awesome-icon icon="spinner" spin />
+                    {{ attachment_status_label(attachment) }}
+                  </span>
+                </div>
+                <div v-if="attachment_uploads[attachment.local_id]" class="attachment-progress" role="progressbar"
+                  aria-label="Enviando anexo" aria-valuemin="0" aria-valuemax="100"
+                  :aria-valuenow="attachment_uploads[attachment.local_id].percent">
+                  <span :style="{ width: `${attachment_uploads[attachment.local_id].percent}%` }"></span>
+                </div>
               </div>
-              <span v-if="attachment.upload_status !== 'synced'" class="attachment-status">
-                <font-awesome-icon icon="spinner" spin />
-                Sincronizando
-              </span>
               <div class="attachment-actions">
                 <button type="button" class="btn-attachment-action" @click.stop="download_attachment(attachment)"
                   title="Baixar anexo">
@@ -137,6 +145,25 @@
                   <font-awesome-icon icon="trash-can" />
                 </button>
               </div>
+            </div>
+
+            <!-- Aparece no instante da escolha do arquivo, enquanto ele ainda é gravado localmente. -->
+            <div v-if="attaching_file" class="attachment-item is-preparing" role="status">
+              <div class="attachment-icon">
+                <font-awesome-icon :icon="attachment_icon(attaching_file)" />
+              </div>
+              <div class="attachment-main">
+                <span class="attachment-name">{{ attaching_file.name }}</span>
+                <div class="attachment-meta">
+                  <span class="attachment-size">{{ format_file_size(attaching_file.size_bytes) }}</span>
+                  <span class="attachment-status">
+                    <font-awesome-icon icon="spinner" spin />
+                    Preparando
+                  </span>
+                </div>
+                <div class="attachment-progress is-indeterminate" aria-hidden="true"><span></span></div>
+              </div>
+              <div class="attachment-actions" aria-hidden="true"></div>
             </div>
           </div>
 
@@ -268,6 +295,7 @@
 import { mapActions, mapState } from "pinia";
 import { useKanbanStore } from "@/stores/kanban";
 import { useAuthStore } from "@/stores/auth";
+import { attachmentUploads } from "@/services/attachmentUploadProgress";
 import defaultAccountImage from "@/assets/images/kadem-default-account.jpg";
 import BaseModal from "@/components/BaseModal.vue";
 import CustomDropdown from "../ui/CustomDropdown.vue";
@@ -285,7 +313,7 @@ export default {
     projectName: { type: String, default: "Projeto" },
     members: { type: Array, default: () => [] },
   },
-  emits: ["close", "save-task", "delete", "delete-comment"],
+  emits: ["close", "save-task", "delete", "delete-comment", "delete-attachment"],
 
   directives: {
     "click-outside": {
@@ -314,6 +342,8 @@ export default {
       size_options: ["P - Pequeno", "M - M\u00e9dio", "G - Grande"],
       selected_responsible_wrapper: null,
       attachment_error: "",
+      // Arquivo recém escolhido que ainda não foi gravado localmente (vira linha real em seguida).
+      attaching_file: null,
       preview_attachment: null,
       preview_url: "",
       preview_kind: "",
@@ -344,6 +374,15 @@ export default {
 
     attachment_count() {
       return this.editable_task.attachments?.length || 0;
+    },
+
+    attachment_uploads() {
+      return attachmentUploads;
+    },
+
+    // Só muda quando um envio começa ou termina (não a cada atualização de percentual).
+    uploading_attachment_ids() {
+      return Object.keys(attachmentUploads);
     },
 
     comment_count() {
@@ -424,7 +463,7 @@ export default {
       "editTaskComment",
       "deleteTaskComment",
       "addTaskAttachment",
-      "deleteTaskAttachment",
+      "refreshTaskAttachment",
     ]),
 
     get_clean_task_data(task) {
@@ -608,29 +647,62 @@ export default {
       this.attachment_error = "";
       if (!file) return;
 
-      try {
-        const attachment = await this.addTaskAttachment(this.editable_task, file);
-        if (!this.editable_task.attachments) this.editable_task.attachments = [];
+      // Feedback imediato: gravar o arquivo no Dexie e enviá-lo leva tempo e, sem isso, a lista só
+      // mudaria no fim de tudo.
+      this.attaching_file = { name: file.name, size_bytes: file.size, mime_type: file.type };
 
-        const idx = this.editable_task.attachments.findIndex(
-          (item) => item.local_id === attachment.local_id
-        );
-        if (idx === -1) {
-          this.editable_task.attachments.push(attachment);
-        } else {
-          this.editable_task.attachments[idx] = attachment;
-        }
+      try {
+        const attachment = await this.addTaskAttachment(this.editable_task, file, {
+          onSaved: (saved) => {
+            this.upsert_attachment_row(saved);
+            this.attaching_file = null;
+          },
+        });
+        this.upsert_attachment_row(attachment);
       } catch (error) {
         this.attachment_error =
           error?.response?.data?.message || error.message || "Nao foi possivel anexar.";
+      } finally {
+        this.attaching_file = null;
       }
     },
 
-    async remove_attachment(attachment) {
-      await this.deleteTaskAttachment(this.editable_task, attachment);
-      this.editable_task.attachments = (this.editable_task.attachments || []).filter(
-        (item) => item.local_id !== attachment.local_id
+    // Insere a linha do anexo ou atualiza a existente (status, id e url vindos do servidor).
+    upsert_attachment_row(attachment) {
+      if (!attachment) return;
+      if (!this.editable_task.attachments) this.editable_task.attachments = [];
+
+      const idx = this.editable_task.attachments.findIndex(
+        (item) => item.local_id === attachment.local_id
       );
+      if (idx === -1) {
+        this.editable_task.attachments.push({ ...attachment });
+      } else {
+        this.editable_task.attachments[idx] = { ...attachment };
+      }
+    },
+
+    attachment_status_label(attachment) {
+      const upload = this.attachment_uploads[attachment.local_id];
+      if (!upload) return "Sincronizando";
+      return upload.processing ? "Finalizando" : `Enviando ${upload.percent}%`;
+    },
+
+    // O envio terminou (ou falhou e voltou para a fila): relê o anexo para a linha refletir o
+    // resultado sem esperar o resto da fila de sincronização.
+    async refresh_attachment_row(local_id) {
+      const known = this.editable_task.attachments?.some((item) => item.local_id === local_id);
+      if (!known) return;
+
+      const refreshed = await this.refreshTaskAttachment(this.editable_task, local_id);
+      if (refreshed?.task_local_id === this.editable_task.local_id) {
+        this.upsert_attachment_row(refreshed);
+      }
+    },
+
+    // A confirmação e a exclusão ficam no ProjectKanban (mesmo caminho de comentário e tarefa).
+    remove_attachment(attachment) {
+      this.$emit("delete-attachment", { task: this.editable_task, attachment });
     },
 
     get_attachment_download_name(attachment) {
@@ -856,6 +928,11 @@ export default {
         });
       },
       deep: true,
+    },
+    uploading_attachment_ids(new_ids, old_ids) {
+      old_ids
+        .filter((id) => !new_ids.includes(id))
+        .forEach((id) => this.refresh_attachment_row(Number(id)));
     },
     selected_responsible_wrapper: {
       handler(newVal) {
@@ -1250,6 +1327,11 @@ export default {
   background: #344079;
 }
 
+.btn-attach:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 [data-theme="dark"] .btn-attach {
   background: var(--color-info);
   color: #ffffff;
@@ -1280,9 +1362,11 @@ export default {
 }
 
 .attachment-item {
+  position: relative;
+  overflow: hidden;
   min-height: 54px;
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto auto;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   border: 1px solid var(--glass-border);
@@ -1332,17 +1416,81 @@ export default {
   font-weight: 700;
 }
 
+/* O status divide a linha do tamanho do arquivo (tamanho à esquerda, status à direita) em vez de ter
+   coluna própria na grade: assim a largura do nome e a altura do cartão são as mesmas com ou sem
+   status, e o texto que muda a cada percentual não empurra nada. */
+.attachment-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .attachment-status {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.attachment-item.is-preparing {
+  cursor: progress;
+}
+
+/* Linha na borda inferior do cartão: fora do fluxo, então a altura da linha não muda quando o
+   envio começa ou termina. */
+.attachment-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.attachment-progress span {
+  display: block;
+  height: 100%;
+  background: var(--color-info);
+  transition: width 0.2s ease;
+}
+
+.attachment-progress.is-indeterminate span {
+  width: 40%;
+  transition: none;
+  animation: attachment-progress-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes attachment-progress-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attachment-progress.is-indeterminate span {
+    width: 100%;
+    animation: none;
+    opacity: 0.5;
+  }
 }
 
 .attachment-actions {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* Reserva o espaço dos botões (2 x 30px + gap) para o nome não encolher quando o placeholder
+   vira a linha real. */
+.attachment-item.is-preparing .attachment-actions {
+  width: 66px;
 }
 
 .btn-attachment-action {
@@ -1735,17 +1883,6 @@ export default {
 
   .attachment-item {
     grid-template-columns: 34px minmax(0, 1fr) auto;
-    row-gap: var(--space-2);
-  }
-
-  .attachment-status {
-    grid-column: 2;
-  }
-
-  .attachment-actions {
-    grid-column: 3;
-    grid-row: 1 / span 2;
-    align-self: center;
   }
 
   .comment-content-wrapper {
