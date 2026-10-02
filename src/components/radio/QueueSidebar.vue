@@ -54,6 +54,7 @@
       </div>
 
       <draggable
+        ref="queue_list"
         v-model="queue_model"
         group="music"
         item-key="youtube_id"
@@ -138,6 +139,9 @@ export default {
   computed: {
     ...mapState(usePlayerStore, ["is_playing"]),
     ...mapState(useAppStore, ["isMobile"]),
+    queue_order() {
+      return this.next_tracks.map((track) => track.youtube_id);
+    },
     queue_model: {
       get() {
         return this.next_tracks;
@@ -147,15 +151,73 @@ export default {
       },
     },
   },
+  watch: {
+    queue_order() {
+      this.capture_queue_positions();
+      this.$nextTick(this.animate_queue_changes);
+    },
+  },
   created() {
     // Estado do autoscroll fica fora do data() para não gerar reatividade a cada frame.
     this.autoscroll = { raf: 0, pointer: null, last_time: 0, carry: 0 };
+    this.queue_animation = { positions: new Map(), running: new Map() };
   },
   beforeUnmount() {
     this.stop_autoscroll();
+    this.stop_queue_animations();
   },
   methods: {
     decode_html_entities,
+    queue_rows() {
+      return Array.from(this.$refs.queue_list?.$el.children || []);
+    },
+
+    capture_queue_positions() {
+      this.queue_animation.positions = new Map(
+        this.queue_rows().map((row) => [row, row.getBoundingClientRect().top])
+      );
+    },
+
+    stop_queue_animations() {
+      this.queue_animation.running.forEach((animation) => animation.cancel());
+      this.queue_animation.running.clear();
+    },
+
+    animate_queue_changes() {
+      const rows = this.queue_rows();
+      const { positions, running } = this.queue_animation;
+      const previous_rows = Array.from(positions.keys());
+      const queue_changed = rows.length !== previous_rows.length ||
+        rows.some((row, index) => row !== previous_rows[index]);
+      if (
+        !queue_changed ||
+        document.body.classList.contains("is-global-dragging") ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ) return;
+
+      // Anima entradas e deslocamentos em qualquer mudança da fila, inclusive avançar e retroceder.
+      this.stop_queue_animations();
+      rows.forEach((row) => {
+        if (typeof row.animate !== "function") return;
+        const previous_top = positions.get(row);
+        const is_new = previous_top === undefined;
+        const offset = is_new ? -10 : previous_top - row.getBoundingClientRect().top;
+        if (!is_new && Math.abs(offset) < 1) return;
+
+        const animation = row.animate(
+          [
+            { transform: `translateY(${offset}px)`, ...(is_new ? { opacity: 0 } : {}) },
+            { transform: "translateY(0)", ...(is_new ? { opacity: 1 } : {}) },
+          ],
+          { duration: 220, easing: "ease-out" }
+        );
+        running.set(row, animation);
+        animation.onfinish = () => {
+          if (running.get(row) === animation) running.delete(row);
+        };
+      });
+    },
+
     check_move(evt) {
       const dragged_track = evt.draggedContext.element;
       const is_internal_item = this.next_tracks.some(
@@ -170,6 +232,7 @@ export default {
     },
 
     handle_drag_start(evt) {
+      this.stop_queue_animations();
       this.drag = true;
       this.beginGlobalDrag();
       this.track_autoscroll_pointer(evt.originalEvent);
@@ -187,6 +250,7 @@ export default {
 
       // Arrasto vindo de fora da fila (ex.: lista da playlist): o @start não é deste Sortable.
       if (document.body.classList.contains("is-global-dragging")) {
+        this.stop_queue_animations();
         this.track_autoscroll_pointer(e);
         this.start_autoscroll();
       }
