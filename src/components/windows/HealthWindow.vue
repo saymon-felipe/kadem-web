@@ -24,10 +24,12 @@
     </div>
 
     <!-- Estado de Carregamento Inicial -->
-    <div v-else-if="isLoading && !objects.length && !events.length" class="health-loading">
-      <font-awesome-icon icon="circle-notch" spin />
-      <span>Carregando Kadem Health…</span>
-    </div>
+    <DashboardSkeleton
+      v-else-if="isLoading && !objects.length && !events.length"
+      class="health-skeleton"
+      :variant="activeTab === 'overview' ? 'overview' : 'list'"
+      label="Carregando Kadem Health…"
+    />
 
     <!-- Viewport das Abas com transição deslizante idêntica ao Nexo -->
     <div v-else class="tab-viewport">
@@ -273,6 +275,7 @@ import { healthAiService } from "@/services/healthAiService";
 
 import HealthHeader from "@/components/health/HealthHeader.vue";
 import HealthTabs from "@/components/health/HealthTabs.vue";
+import DashboardSkeleton from "@/components/ui/DashboardSkeleton.vue";
 import HealthOverviewTab from "@/components/health/HealthOverviewTab.vue";
 import HealthObjectsTab from "@/components/health/HealthObjectsTab.vue";
 import HealthActivityTab from "@/components/health/HealthActivityTab.vue";
@@ -298,6 +301,7 @@ export default {
   components: {
     HealthHeader,
     HealthTabs,
+    DashboardSkeleton,
     HealthOverviewTab,
     HealthObjectsTab,
     HealthActivityTab,
@@ -873,7 +877,11 @@ export default {
   box-sizing: border-box;
 }
 
-.health-loading,
+.health-skeleton {
+  --sk-panels-cols: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  padding: var(--space-1) var(--space-2) var(--space-5) 0;
+}
+
 .health-error {
   flex: 1;
   display: flex;
@@ -884,10 +892,6 @@ export default {
   text-align: center;
   padding: var(--space-6);
   color: var(--text-secondary);
-}
-
-.health-loading {
-  font-size: 1.1rem;
 }
 
 .health-error {

@@ -1,7 +1,13 @@
 import { defineAsyncComponent } from 'vue';
+import ProjectsWindowSkeleton from '@/components/projects/ProjectsWindowSkeleton.vue';
+import ProductivityWindowSkeleton from '@/components/windows/ProductivityWindowSkeleton.vue';
 
-const importWithRetry = (importFn) => {
+// `loadingComponent` ocupa o conteudo da janela enquanto o chunk baixa (sem ele a janela abria vazia).
+// delay: 0 porque os esqueletos ja trazem o proprio atraso anti-flash (ver KademSkeletonGroup).
+const importWithRetry = (importFn, loadingComponent) => {
   return defineAsyncComponent({
+    loadingComponent,
+    delay: 0,
     loader: () => {
       return importFn().catch(error => {
         const isChunkError =
@@ -21,10 +27,12 @@ const importWithRetry = (importFn) => {
 };
 
 export const windowComponentMap = {
-  'ProjectsWindow': importWithRetry(() =>
-    import('@/components/windows/ProjectsWindow.vue')
+  'ProjectsWindow': importWithRetry(
+    () => import('@/components/windows/ProjectsWindow.vue'),
+    ProjectsWindowSkeleton
   ),
-  'ProductivityWindow': importWithRetry(() =>
-    import('@/components/windows/ProductivityWindow.vue')
+  'ProductivityWindow': importWithRetry(
+    () => import('@/components/windows/ProductivityWindow.vue'),
+    ProductivityWindowSkeleton
   )
 };

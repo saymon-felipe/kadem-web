@@ -20,8 +20,19 @@
       class="playlist-list-container"
       :style="isMobile ? 'padding-top: var(--space-4)' : ''"
     >
+      <KademSkeletonGroup
+        v-if="loading && playlists.length === 0"
+        class="sk-playlists"
+        label="Carregando playlists…"
+      >
+        <div v-for="n in 5" :key="n" class="sk-playlist" :style="{ '--sk-delay': `${n * 90}ms` }">
+          <KademSkeleton shape="block" :width="40" :height="40" class="sk-cover" />
+          <KademSkeleton v-if="!collapsed" :width="`${82 - n * 8}%`" :height="12" />
+        </div>
+      </KademSkeletonGroup>
+
       <transition-group name="playlist-anim" tag="div" class="playlist-list">
-        <div v-if="playlists.length === 0 && !collapsed" class="empty-msg">
+        <div v-if="playlists.length === 0 && !loading && !collapsed" class="empty-msg">
           Nenhuma playlist.
         </div>
         <div
@@ -69,9 +80,13 @@
 <script>
 import { mapState } from "pinia";
 import { useAppStore } from "@/stores/app";
+import KademSkeleton from "@/components/ui/KademSkeleton.vue";
+import KademSkeletonGroup from "@/components/ui/KademSkeletonGroup.vue";
 
 export default {
+  components: { KademSkeleton, KademSkeletonGroup },
   props: {
+    loading: { type: Boolean, default: false },
     playlists: { type: Array, required: true },
     selected_playlist_id: { type: Number, default: null },
     current_playing_playlist_id: { type: Number, default: null },
@@ -145,6 +160,23 @@ export default {
   flex-direction: column;
   gap: var(--space-2);
   padding-bottom: var(--space-3);
+}
+
+.sk-playlists {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sk-playlist {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.sk-playlist .sk-cover {
+  --sk-radius: 4px;
 }
 
 .playlist-item {

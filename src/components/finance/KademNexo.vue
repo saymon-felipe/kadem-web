@@ -12,7 +12,15 @@
     <NexoTabs :tabs="tabs" :active-tab="activeTab" :is-paid-plan="isPaidPlan" @update:activeTab="setActiveTab" />
 
     <div class="tab-viewport" ref="tabViewport" @scroll.passive="handleViewportScroll">
-      <div class="tabs-track" :style="trackStyle">
+      <!-- As abas seguem montadas (o chat de IA, por exemplo, depende delas durante o reloadAll); so ficam escondidas. -->
+      <DashboardSkeleton
+        v-if="initialLoading"
+        class="tab-skeleton"
+        :variant="activeTab === 'overview' ? 'overview' : 'list'"
+        :metrics="5"
+        label="Carregando seus dados financeiros…"
+      />
+      <div class="tabs-track" :class="{ 'is-initial-loading': initialLoading }" :style="trackStyle">
         <section v-for="tab in tabs" :key="tab.id" class="tab-pane custom-scrollbar" :style="paneStyle">
           <template v-if="tab.id === 'overview'">
             <NexoOverviewTab
@@ -565,6 +573,7 @@ import BaseModal from "@/components/BaseModal.vue";
 import SubscriptionModal from "@/components/SubscriptionModal.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import FormSwitch from "@/components/FormSwitch.vue";
+import DashboardSkeleton from "@/components/ui/DashboardSkeleton.vue";
 import CategoryCombo from "./CategoryCombo.vue";
 import MacroCategoryCombo from "./MacroCategoryCombo.vue";
 import NexoHeader from "./nexo/NexoHeader.vue";
@@ -597,6 +606,7 @@ export default {
     SubscriptionModal,
     ConfirmationModal,
     FormSwitch,
+    DashboardSkeleton,
     CategoryCombo,
     MacroCategoryCombo,
     NexoHeader,
@@ -627,6 +637,7 @@ export default {
       activeTab: tabs.some((tab) => tab.id === savedTab) ? savedTab : "overview",
       selectedMonth: new Date().toISOString().slice(0, 7),
       loading: false,
+      hasLoadedOnce: false,
       syncingBanks: false,
       loadingAi: false,
       importingCsv: false,
@@ -748,6 +759,11 @@ export default {
         0,
         this.tabs.findIndex((tab) => tab.id === this.activeTab),
       );
+    },
+    // So a primeira carga troca a tela por esqueleto; trocar de mes ou recarregar mantem o conteudo visivel.
+    // `loading` so vira true no mounted, entao ele sozinho deixaria o primeiro frame mostrar os valores zerados.
+    initialLoading() {
+      return !this.hasLoadedOnce;
     },
     trackStyle() {
       const step = 100 / this.tabs.length;
@@ -1204,6 +1220,7 @@ export default {
         this.loadBudgetAiConversation();
       } finally {
         this.loading = false;
+        this.hasLoadedOnce = true;
       }
     },
     async loadDashboard() {
@@ -3302,6 +3319,18 @@ button:disabled {
   height: 100%;
   will-change: transform;
   transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+.tabs-track.is-initial-loading {
+  visibility: hidden;
+}
+
+.tab-skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: var(--space-1) var(--space-2) var(--space-5) 0;
+  pointer-events: none;
 }
 
 .tab-pane {

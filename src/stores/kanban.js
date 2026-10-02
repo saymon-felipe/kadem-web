@@ -523,14 +523,16 @@ export const useKanbanStore = defineStore('kanban', {
     },
 
     async updateTasksForColumn({ columnId, tasks, event }) {
+      // O vuedraggable move o mesmo objeto entre as listas sem alterá-lo. Sem atualizar
+      // column_id/order aqui, deleteTask, updateTask e anexos procurariam a tarefa na coluna
+      // de origem (a exclusão só sumia da tela após F5 e a edição devolvia a tarefa à coluna antiga).
+      tasks.forEach((task, index) => {
+        task.column_id = columnId;
+        task.order = index;
+      });
       this.tasks[columnId] = tasks;
       try {
-        const plain_tasks = JSON.parse(JSON.stringify(tasks));
-        const updates = plain_tasks.map((t, index) => ({
-          ...t,
-          column_id: columnId,
-          order: index
-        }));
+        const updates = JSON.parse(JSON.stringify(tasks));
         await kanbanRepository.bulk_put_tasks(updates);
         if (event && (event.added || event.moved)) {
           await syncQueueRepository.addSyncQueueTask({

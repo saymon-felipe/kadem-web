@@ -10,6 +10,7 @@
           :default_cover="isDark ? default_cover_dark : default_cover"
           :default_avatar="default_avatar"
           :collapsed="is_sidebar_collapsed && !is_mobile"
+          :loading="is_loading_data"
           @select-playlist="handle_mobile_select_playlist"
           @create-playlist="handle_create_playlist"
           @toggle-collapse="toggle_sidebar"
@@ -175,6 +176,10 @@
             <font-awesome-icon icon="magnifying-glass" />
           </button>
         </template>
+
+        <div v-else-if="is_loading_data && playlists.length === 0" class="welcome-state">
+          <KademLoader size="lg" title="Carregando suas playlists…" />
+        </div>
 
         <div v-else class="welcome-state">
           <div class="welcome-card glass">
@@ -388,6 +393,7 @@ import QueueSidebar from "./QueueSidebar.vue";
 import PlaylistSelector from "./PlaylistSelector.vue";
 import UploadTrackModal from "./UploadTrackModal.vue";
 import LoadingSpinner from "@/components/loadingSpinner.vue";
+import KademLoader from "@/components/ui/KademLoader.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import BaseModal from "@/components/BaseModal.vue";
 
@@ -404,6 +410,7 @@ export default {
     PlayerWrapper,
     QueueSidebar,
     LoadingSpinner,
+    KademLoader,
     PlaylistSelector,
     UploadTrackModal,
     ConfirmationModal,
@@ -444,6 +451,8 @@ export default {
       },
       next_page_token: null,
       is_loading_more: false,
+      // Carga inicial das playlists: evita mostrar "Nenhuma playlist" enquanto o servidor ainda responde.
+      is_loading_data: true,
 
       show_upload_modal: false,
       show_uploads_dropdown: false,
@@ -969,7 +978,9 @@ export default {
     },
   },
   mounted() {
-    this.load_data();
+    this.load_data().finally(() => {
+      this.is_loading_data = false;
+    });
     this.observe_container_size();
     this.fetchStorageUsage();
     document.addEventListener("mousedown", this.close_uploads_dropdown_on_outside_click);

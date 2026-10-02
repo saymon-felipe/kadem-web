@@ -1,9 +1,6 @@
 <template>
   <div class="projects-window-content">
-    <div v-if="loading" class="loading-state">
-      <loadingSpinner />
-      <span>Carregando workspace...</span>
-    </div>
+    <ProjectsWindowSkeleton v-if="loading" />
 
     <transition name="fade-kanban" mode="out-in" v-else>
       <ProjectList
@@ -27,14 +24,14 @@ import { mapState, mapActions } from "pinia";
 import { useProjectStore } from "@/stores/projects";
 import ProjectList from "../projects/ProjectList.vue";
 import ProjectKanban from "../projects/ProjectKanban.vue";
-import loadingSpinner from "@/components/loadingSpinner.vue";
+import ProjectsWindowSkeleton from "../projects/ProjectsWindowSkeleton.vue";
 
 export default {
   name: "ProjectsWindow",
   components: {
     ProjectList,
     ProjectKanban,
-    loadingSpinner,
+    ProjectsWindowSkeleton,
   },
   data() {
     return {
@@ -86,16 +83,6 @@ export default {
   height: 100%;
   overflow: hidden;
   position: relative;
-}
-
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: var(--space-4);
-  color: var(--gray-500);
 }
 
 .fade-kanban-enter-active,

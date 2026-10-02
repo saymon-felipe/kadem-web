@@ -11,6 +11,7 @@
     "build": "vite build",
     "test:biometrics": "node --experimental-vm-modules --test tests/biometricAuth.test.js",
     "test:finance": "node --test tests/financeSync.test.js",
+    "test:kanban": "node --test tests/kanbanBoard.test.js",
     "test:autoscroll": "node --test tests/dragAutoscroll.test.js",
     "preview": "vite preview",
     "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",

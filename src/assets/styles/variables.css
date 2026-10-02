@@ -143,6 +143,12 @@
   --fontsize-lg:  clamp(1.75rem,  1.5rem + 2vw,     2.125rem);   /* 28→34px */
   --fontsize-xl:  clamp(2.25rem,  1.75rem + 3vw,    2.875rem);   /* 36→46px */
 
+  /* ---- Loading (skeleton + loader) ---- */
+  --skeleton-base: rgba(31, 39, 76, 0.08);
+  --skeleton-shine: rgba(255, 255, 255, 0.7);
+  --loader-track: rgba(31, 39, 76, 0.1);
+  --loader-halo: rgba(255, 202, 55, 0.3);
+
   /* ---- Transitions ---- */
   --transition-fast:   0.15s ease;
   --transition-base:   0.22s ease;
@@ -187,6 +193,12 @@
   /* ---- Dark Yellow (mantém, mas mais suave) ---- */
   --dark-yellow: rgba(206, 179, 134, 0.1);
   --dark-yellow-2: rgba(206, 179, 134, 0.06);
+
+  /* ---- Loading (dark) ---- */
+  --skeleton-base: rgba(255, 255, 255, 0.07);
+  --skeleton-shine: rgba(255, 255, 255, 0.13);
+  --loader-track: rgba(255, 255, 255, 0.09);
+  --loader-halo: rgba(255, 202, 55, 0.2);
 
   /* ---- Glass Effect (dark) ---- */
   --glass-bg: rgba(26, 29, 46, 0.88);

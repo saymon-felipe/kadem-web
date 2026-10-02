@@ -22,7 +22,9 @@
       </div>
     </div>
 
-    <div class="kanban-columns-container">
+    <KanbanBoardSkeleton v-if="board_loading" />
+
+    <div v-show="!board_loading" class="kanban-columns-container">
       <draggable
         v-model="columns"
         @start="on_column_drag_start"
@@ -90,17 +92,23 @@ import { useAuthStore } from "@/stores/auth";
 import { useAppStore } from "@/stores/app";
 
 import KanbanColumn from "./KanbanColumn.vue";
+import KanbanBoardSkeleton from "./KanbanBoardSkeleton.vue";
 import SideModal from "@/components/SideModal.vue";
 import TaskDetailForm from "./TaskDetailForm.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import ProjectDropdown from "./ProjectDropdown.vue";
 import ProjectStatusDropdown from "./ProjectStatusDropdown.vue";
 
+// Sem cache local, o quadro espera a primeira resposta do servidor; este teto evita que uma
+// rede travada deixe o esqueleto na tela para sempre.
+const BOARD_FIRST_SYNC_MAX_WAIT_MS = 6000;
+
 export default {
   name: "ProjectKanban",
   components: {
     draggable,
     KanbanColumn,
+    KanbanBoardSkeleton,
     SideModal,
     TaskDetailForm,
     ConfirmationModal,
@@ -133,6 +141,8 @@ export default {
       show_confirmation: false,
       item_to_delete: null,
       delete_type: null,
+      board_loading: true,
+      board_load_token: 0,
     };
   },
   computed: {
@@ -203,13 +213,34 @@ export default {
       async handler(newId) {
         if (!newId) return;
 
+        // Trocar de projeto rapido nao pode deixar uma carga antiga mexer no estado da nova.
+        const load_token = ++this.board_load_token;
+        const is_current_load = () => load_token === this.board_load_token;
+        this.board_loading = true;
+
         await this.loadBoardFromLocal(newId);
 
+        const has_cached_board = this.columns.length > 0;
+        if (has_cached_board && is_current_load()) this.board_loading = false;
+
         if (this.project && this.project.id) {
-          this.pullProjectKanban(this.project.id, newId).catch((err) => {
+          const pull = this.pullProjectKanban(this.project.id, newId).catch((err) => {
             console.warn("Falha ao atualizar kanban em segundo plano:", err);
           });
+
+          // Com cache o quadro ja esta na tela e o pull atualiza por baixo; sem cache nao
+          // ha o que mostrar, entao o esqueleto fica ate o servidor responder (ou o teto).
+          if (!has_cached_board) {
+            let timeout_id;
+            const max_wait = new Promise((resolve) => {
+              timeout_id = setTimeout(resolve, BOARD_FIRST_SYNC_MAX_WAIT_MS);
+            });
+            await Promise.race([pull, max_wait]);
+            clearTimeout(timeout_id);
+          }
         }
+
+        if (is_current_load()) this.board_loading = false;
       },
     },
   },
@@ -512,6 +543,25 @@ export default {
   overflow-y: hidden;
   padding: var(--space-6) var(--space-6) var(--space-4) var(--space-6);
   align-items: flex-start;
+  /* Reexibido por v-show quando o quadro termina de carregar: entra suave no lugar do esqueleto. */
+  animation: kanban-board-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes kanban-board-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kanban-columns-container {
+    animation: none;
+  }
 }
 
 .column-ghost {
