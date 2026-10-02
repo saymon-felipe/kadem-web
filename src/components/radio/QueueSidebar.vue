@@ -2,7 +2,7 @@
   <aside
     class="queue-sidebar glass"
     :class="{ 'mini-mode': collapsed }"
-    @dragover.prevent="on_drag_over"
+    @dragover.prevent.capture="on_drag_over"
     @dragleave="on_drag_leave"
     @drop="on_drop"
   >
@@ -18,7 +18,11 @@
       </button>
     </div>
 
-    <div class="queue-content" :style="isMobile ? 'padding-top: var(--space-4)' : ''">
+    <div
+      ref="queue_content"
+      class="queue-content"
+      :style="isMobile ? 'padding-top: var(--space-4)' : ''"
+    >
       <div class="section-title" v-if="!collapsed">Neste momento</div>
 
       <transition name="fade-slide" mode="out-in">
@@ -57,6 +61,7 @@
         ghost-class="queue-ghost"
         drag-class="queue-drag"
         animation="200"
+        :scroll="false"
         :delay="isMobile ? 250 : 0"
         :delay-on-touch-only="true"
         :touch-start-threshold="isMobile ? 8 : 1"
@@ -103,7 +108,13 @@ import { mapState } from "pinia";
 import { usePlayerStore } from "@/stores/player";
 import { useAppStore } from "@/stores/app";
 import { decode_html_entities } from "@/utils/string_helpers";
+import { get_autoscroll_velocity } from "@/utils/drag_autoscroll";
 import kadem_default_music from "@/assets/images/kadem-default-music.jpg";
+
+// dragover: arrasto nativo (mouse); pointermove/touchmove/mousemove: fallback do Sortable (touch).
+const AUTOSCROLL_POINTER_EVENTS = ["dragover", "pointermove", "touchmove", "mousemove"];
+const AUTOSCROLL_END_EVENTS = ["dragend", "drop"];
+const AUTOSCROLL_MAX_FRAME_MS = 50;
 
 export default {
   name: "QueueSidebar",
@@ -136,6 +147,13 @@ export default {
       },
     },
   },
+  created() {
+    // Estado do autoscroll fica fora do data() para não gerar reatividade a cada frame.
+    this.autoscroll = { raf: 0, pointer: null, last_time: 0, carry: 0 };
+  },
+  beforeUnmount() {
+    this.stop_autoscroll();
+  },
   methods: {
     decode_html_entities,
     check_move(evt) {
@@ -151,18 +169,103 @@ export default {
       return !is_internal_item;
     },
 
-    handle_drag_start() {
+    handle_drag_start(evt) {
       this.drag = true;
       this.beginGlobalDrag();
+      this.track_autoscroll_pointer(evt.originalEvent);
+      this.start_autoscroll();
     },
 
     handle_drag_end() {
       this.drag = false;
+      this.stop_autoscroll();
       this.endGlobalDrag();
     },
 
     on_drag_over(e) {
       this.is_drag_over = true;
+
+      // Arrasto vindo de fora da fila (ex.: lista da playlist): o @start não é deste Sortable.
+      if (document.body.classList.contains("is-global-dragging")) {
+        this.track_autoscroll_pointer(e);
+        this.start_autoscroll();
+      }
+    },
+
+    track_autoscroll_pointer(e) {
+      const point = e && e.touches && e.touches.length ? e.touches[0] : e;
+      if (!point || point.clientX == null || point.clientY == null) return;
+
+      this.autoscroll.pointer = { x: point.clientX, y: point.clientY };
+    },
+
+    start_autoscroll() {
+      const state = this.autoscroll;
+      if (state.raf) return;
+
+      AUTOSCROLL_POINTER_EVENTS.forEach((name) =>
+        document.addEventListener(name, this.track_autoscroll_pointer, {
+          capture: true,
+          passive: true,
+        })
+      );
+      AUTOSCROLL_END_EVENTS.forEach((name) =>
+        document.addEventListener(name, this.stop_autoscroll, true)
+      );
+
+      state.last_time = performance.now();
+      state.carry = 0;
+      state.raf = requestAnimationFrame(this.tick_autoscroll);
+    },
+
+    stop_autoscroll() {
+      const state = this.autoscroll;
+      if (!state) return;
+
+      if (state.raf) cancelAnimationFrame(state.raf);
+      state.raf = 0;
+      state.pointer = null;
+      state.carry = 0;
+
+      AUTOSCROLL_POINTER_EVENTS.forEach((name) =>
+        document.removeEventListener(name, this.track_autoscroll_pointer, true)
+      );
+      AUTOSCROLL_END_EVENTS.forEach((name) =>
+        document.removeEventListener(name, this.stop_autoscroll, true)
+      );
+    },
+
+    tick_autoscroll(now) {
+      const state = this.autoscroll;
+      const container = this.$refs.queue_content;
+
+      // Sem arrasto ativo (ex.: cancelado com Esc) o loop se encerra sozinho.
+      if (!container || !document.body.classList.contains("is-global-dragging")) {
+        this.stop_autoscroll();
+        return;
+      }
+
+      const elapsed = Math.min(now - state.last_time, AUTOSCROLL_MAX_FRAME_MS);
+      state.last_time = now;
+
+      const velocity = get_autoscroll_velocity(state.pointer, container.getBoundingClientRect());
+
+      if (velocity === 0) {
+        state.carry = 0;
+      } else {
+        // scrollTop é arredondado pelo browser: acumula a fração para não travar em velocidades baixas.
+        const wanted = (velocity * elapsed) / 1000 + state.carry;
+        const step = Math.trunc(wanted);
+        state.carry = wanted - step;
+
+        if (step !== 0) {
+          const before = container.scrollTop;
+          container.scrollTop = before + step;
+          if (container.scrollTop === before) state.carry = 0; // chegou no início/fim da lista
+        }
+      }
+
+      state.raf = requestAnimationFrame(this.tick_autoscroll);
     },
 
     on_drag_leave() {
