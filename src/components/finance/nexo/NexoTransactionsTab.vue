@@ -34,7 +34,7 @@
         @file-change="$emit('csv-file-change', $event)"
         @open-preview="$emit('open-csv-preview')"
         @reset="$emit('reset-csv')"
-        @confirm="$emit('confirm-csv')"
+        @confirm="$emit('confirm-csv', $event)"
       />
       <div class="transaction-filters-bar">
         <div class="filter-field search-filter">

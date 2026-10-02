@@ -24,6 +24,12 @@
           <span v-if="monthBreakdown">{{ monthBreakdown }}</span>
         </div>
 
+        <NexoCsvMonthNotice
+          :summary="summary"
+          :importing-csv="importingCsv"
+          @confirm="$emit('confirm', $event)"
+        />
+
         <div class="preview-table-wrap custom-scrollbar">
           <table>
             <thead>
@@ -89,12 +95,14 @@
 <script>
 import BaseModal from "@/components/BaseModal.vue";
 import CategoryCombo from "../CategoryCombo.vue";
+import NexoCsvMonthNotice from "./NexoCsvMonthNotice.vue";
 
 export default {
   name: "NexoCsvPreviewModal",
   components: {
     BaseModal,
     CategoryCombo,
+    NexoCsvMonthNotice,
   },
   emits: ["close", "confirm", "update-goal"],
   props: {

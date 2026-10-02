@@ -42,7 +42,7 @@
 
     <p v-if="csvImportError" class="import-feedback error">{{ csvImportError }}</p>
     <p v-if="loadingSchema" class="import-feedback">
-      <font-awesome-icon icon="circle-notch" spin /> Analisando padrão do CSV com IA...
+      <font-awesome-icon icon="circle-notch" spin /> Preparando prévia do CSV...
     </p>
 
     <div v-if="hasPreview" class="csv-preview">
@@ -57,6 +57,11 @@
       </div>
 
       <p v-if="monthBreakdown" class="import-feedback">{{ monthBreakdown }}</p>
+      <NexoCsvMonthNotice
+        :summary="csvImportSummary"
+        :importing-csv="importingCsv"
+        @confirm="$emit('confirm', $event)"
+      />
       <p v-if="allRowsAlreadyImported" class="import-feedback">
         Todas as linhas válidas deste arquivo já existem no sistema ou estão repetidas no próprio CSV.
       </p>
@@ -101,8 +106,11 @@
 </template>
 
 <script>
+import NexoCsvMonthNotice from "./NexoCsvMonthNotice.vue";
+
 export default {
   name: "NexoCsvImportCard",
+  components: { NexoCsvMonthNotice },
   emits: ["confirm", "file-change", "open-preview", "reset", "upgrade"],
   props: {
     isPaidPlan: {

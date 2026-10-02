@@ -892,8 +892,12 @@ export default {
         duplicateFile: 0,
         skipped: Number(this.csvSkippedRows || 0),
         months: [],
+        importMonths: [],
+        outsideSelectedMonth: 0,
+        selectedMonthLabel: this.monthLabelFromKey(this.selectedMonth, "long"),
       };
       const monthsMap = new Map();
+      const importMonthsMap = new Map();
 
       rows.forEach((row) => {
         if (!row) return;
@@ -909,6 +913,10 @@ export default {
         const monthKey = String(row.transaction_date || "").slice(0, 7);
         if (!monthKey) return;
         monthsMap.set(monthKey, (monthsMap.get(monthKey) || 0) + 1);
+        if (row.csv_status === "new") {
+          importMonthsMap.set(monthKey, (importMonthsMap.get(monthKey) || 0) + 1);
+          if (monthKey !== this.selectedMonth) summary.outsideSelectedMonth += 1;
+        }
       });
 
       summary.months = [...monthsMap.entries()]
@@ -919,6 +927,10 @@ export default {
           label: this.monthLabelFromKey(key),
           is_selected: key === this.selectedMonth,
         }));
+
+      summary.importMonths = [...importMonthsMap.entries()]
+        .sort((left, right) => right[0].localeCompare(left[0]))
+        .map(([key, count]) => ({ key, count, label: this.monthLabelFromKey(key, "long") }));
 
       return summary;
     },
@@ -1120,13 +1132,13 @@ export default {
         return "--";
       }
     },
-    monthLabelFromKey(monthKey) {
+    monthLabelFromKey(monthKey, monthFormat = "short") {
       const [year, month] = String(monthKey || "")
         .split("-")
         .map(Number);
       if (!year || !month) return monthKey || "--";
       return new Date(year, month - 1, 1).toLocaleDateString("pt-BR", {
-        month: "short",
+        month: monthFormat,
         year: "numeric",
       });
     },
@@ -1481,8 +1493,13 @@ export default {
 
         if (!schema) {
           // Send to backend for schema analysis
-          const response = await financeService.analyzeCsvSchema({ header, samples });
-          schema = response.data;
+          try {
+            const response = await financeService.analyzeCsvSchema({ header, samples });
+            schema = response.data;
+          } finally {
+            // O backend registra o consumo antes da análise, inclusive se o provedor falhar.
+            await this.loadUsage();
+          }
           if (!schema || !schema.dateColumn || !schema.descriptionColumn || !schema.amountColumn) {
             throw new Error("A IA não conseguiu determinar o esquema de colunas deste CSV.");
           }
@@ -2276,8 +2293,8 @@ export default {
         ) || this.categories.find((category) => this.normalize(category.name) === normalized)
       );
     },
-    async confirmCsvImport() {
-      if (!this.csvImportRows.length) return;
+    async confirmCsvImport(showMonth = null) {
+      if (this.importingCsv || !this.csvImportRows.length) return;
       this.importingCsv = true;
       this.csvImportError = "";
       try {
@@ -2293,6 +2310,9 @@ export default {
           source: "IMPORT",
         }));
         await financeService.createTransactionsBatch(cleanRows);
+        if (typeof showMonth === "string" && cleanRows.some((row) => row.transaction_date.startsWith(`${showMonth}-`))) {
+          this.selectedMonth = showMonth;
+        }
         this.resetCsvImport();
         await this.refreshTransactionDrivenViews();
       } catch (error) {
