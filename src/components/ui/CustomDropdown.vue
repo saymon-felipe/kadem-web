@@ -1,6 +1,6 @@
 <template>
-    <div class="custom-dropdown" v-click-outside="close">
-        <div class="dropdown-trigger" @click="toggle" :class="{ 'is-open': is_open }">
+    <div class="custom-dropdown" ref="dropdownRoot">
+        <div ref="trigger" class="dropdown-trigger" @click="toggle" :class="{ 'is-open': is_open }">
             <div class="trigger-content">
                 <slot name="trigger" :selected="modelValue" :placeholder="placeholder">
                     <span v-if="!modelValue" class="placeholder">{{ placeholder }}</span>
@@ -10,18 +10,20 @@
             <font-awesome-icon icon="chevron-down" class="arrow-icon" :class="{ 'rotated': is_open }" />
         </div>
 
-        <transition name="dropdown-fade">
-            <div v-if="is_open" class="dropdown-menu glass">
-                <ul class="dropdown-list">
-                    <li v-for="(option, index) in options" :key="index" class="dropdown-item"
-                        :class="{ 'is-selected': is_selected(option) }" @click="select_option(option)">
-                        <slot name="option" :option="option">
-                            {{ label_getter(option) }}
-                        </slot>
-                    </li>
-                </ul>
-            </div>
-        </transition>
+        <Teleport to="body">
+            <transition name="dropdown-fade">
+                <div v-if="is_open" ref="dropdownMenu" class="dropdown-menu glass" :style="menu_style">
+                    <ul class="dropdown-list">
+                        <li v-for="(option, index) in options" :key="index" class="dropdown-item"
+                            :class="{ 'is-selected': is_selected(option) }" @click.stop="select_option(option)">
+                            <slot name="option" :option="option">
+                                {{ label_getter(option) }}
+                            </slot>
+                        </li>
+                    </ul>
+                </div>
+            </transition>
+        </Teleport>
     </div>
 </template>
 
@@ -48,36 +50,66 @@ export default {
         }
     },
     emits: ['update:modelValue', 'change'],
-    directives: {
-        'click-outside': {
-            mounted(el, binding) {
-                el.clickOutsideEvent = function (event) {
-                    const path = event.composedPath ? event.composedPath() : (event.path || []);
-                    const isClickInside = path.includes(el) || el.contains(event.target);
-
-                    if (!isClickInside) {
-                        binding.value(event);
-                    }
-                };
-
-                document.addEventListener('mousedown', el.clickOutsideEvent);
-            },
-            unmounted(el) {
-                document.removeEventListener('mousedown', el.clickOutsideEvent);
-            }
-        }
-    },
     data() {
         return {
-            is_open: false
+            is_open: false,
+            menu_style: {}
         };
     },
     methods: {
         toggle() {
-            this.is_open = !this.is_open;
+            if (this.is_open) {
+                this.close();
+                return;
+            }
+
+            this.open();
+        },
+        open() {
+            this.is_open = true;
+            this.update_position();
+            this.$nextTick(this.update_position);
+            window.addEventListener('resize', this.update_position, { passive: true });
+            window.addEventListener('scroll', this.update_position, { passive: true, capture: true });
+            document.addEventListener('pointerdown', this.handle_outside_pointer_down);
         },
         close() {
+            if (!this.is_open) return;
+
             this.is_open = false;
+            window.removeEventListener('resize', this.update_position);
+            window.removeEventListener('scroll', this.update_position, true);
+            document.removeEventListener('pointerdown', this.handle_outside_pointer_down);
+        },
+        update_position() {
+            const trigger = this.$refs.trigger;
+            if (!trigger) return;
+
+            const rect = trigger.getBoundingClientRect();
+            const viewport_width = window.innerWidth;
+            const viewport_height = window.innerHeight;
+            const width = Math.min(rect.width, Math.max(0, viewport_width - 16));
+            const left = Math.max(8, Math.min(rect.left, viewport_width - width - 8));
+            const space_below = viewport_height - rect.bottom - 8;
+            const space_above = rect.top - 8;
+            const menu_height = Math.min(this.$refs.dropdownMenu?.scrollHeight || 220, 220);
+            const open_upwards = space_below < menu_height && space_above > space_below;
+            const available_space = Math.max(80, (open_upwards ? space_above : space_below) - 8);
+
+            this.menu_style = {
+                position: 'fixed',
+                left: `${left}px`,
+                width: `${width}px`,
+                maxHeight: `${Math.min(220, available_space)}px`,
+                zIndex: 100001,
+                top: open_upwards ? 'auto' : `${rect.bottom + 4}px`,
+                bottom: open_upwards ? `${viewport_height - rect.top + 4}px` : 'auto'
+            };
+        },
+        handle_outside_pointer_down(event) {
+            const clicked_trigger = this.$refs.dropdownRoot?.contains(event.target);
+            const clicked_menu = this.$refs.dropdownMenu?.contains(event.target);
+            if (!clicked_trigger && !clicked_menu) this.close();
         },
         select_option(option) {
             this.$emit('update:modelValue', option);
@@ -96,6 +128,9 @@ export default {
             }
             return option === this.modelValue;
         }
+    },
+    beforeUnmount() {
+        this.close();
     }
 };
 </script>
@@ -164,6 +199,7 @@ export default {
     z-index: 100;
     padding: 4px 0;
     border: 1px solid var(--gray-700);
+    box-sizing: border-box;
 }
 
 .dropdown-list {
