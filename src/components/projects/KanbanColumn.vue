@@ -1,5 +1,5 @@
 <template>
-  <div class="kanban-column" :class="{ searching: show_search }">
+  <div class="kanban-column" :class="{ searching: show_search, 'task-drop-disabled': is_searching }">
     <header class="column-header">
       <div class="header-left">
         <span class="column-drag-handle" title="Arrastar coluna">
@@ -221,6 +221,7 @@
       animation="300"
       force-fallback="true"
       :fallback-on-body="true"
+      :scroll-sensitivity="100"
       fallback-class="task-fallback"
       ghost-class="task-ghost"
       drag-class="task-drag"
@@ -267,6 +268,29 @@ export default {
     },
   },
   emits: ["task-selected", "delete-column"],
+
+  created() {
+    this._task_drag_preview = null;
+    this._task_drag_pointer = null;
+    this._task_drag_pointer_frame = 0;
+    this._task_drag_preview_cleanups = new Map();
+  },
+
+  beforeUnmount() {
+    this.stop_tracking_task_drag();
+    const preview = this._task_drag_preview;
+    if (preview?.column?.isConnected) {
+      preview.column.classList.remove("task-drop-target");
+      preview.column.style.removeProperty("height");
+    }
+
+    this._task_drag_preview_cleanups.forEach((cleanup, column) => {
+      clearTimeout(cleanup.timer);
+      column.removeEventListener("transitionend", cleanup.on_transition_end);
+      if (column.isConnected) column.style.removeProperty("height");
+    });
+    this._task_drag_preview_cleanups.clear();
+  },
 
   directives: {
     "click-outside": {
@@ -511,11 +535,189 @@ export default {
       this.reset_filters();
       this.show_search = false;
     },
-    on_task_drag_start() {
+    on_task_drag_start(evt) {
       this.beginGlobalDrag();
+      const item_rect = evt.item.getBoundingClientRect();
+      const point = evt.originalEvent?.touches?.[0] || evt.originalEvent;
+      const start_x = point?.clientX ?? item_rect.left + item_rect.width / 2;
+      const start_y = point?.clientY ?? item_rect.top + item_rect.height / 2;
+      this._task_drag_pointer = {
+        x: start_x,
+        y: start_y,
+        offset_y: start_y - item_rect.top,
+        card_height: item_rect.height,
+      };
+
+      ["pointermove", "mousemove", "touchmove"].forEach((name) =>
+        document.addEventListener(name, this.track_task_drag_pointer, {
+          capture: true,
+          passive: true,
+        })
+      );
     },
-    on_task_drag_end() {
+    track_task_drag_pointer(evt) {
+      const point = evt.touches?.[0] || evt;
+      if (point.clientX == null || !this._task_drag_pointer) return;
+
+      this._task_drag_pointer.x = point.clientX;
+      this._task_drag_pointer.y = point.clientY;
+      if (this._task_drag_pointer_frame) cancelAnimationFrame(this._task_drag_pointer_frame);
+      this._task_drag_pointer_frame = requestAnimationFrame(this.update_task_drag_preview);
+    },
+    stop_tracking_task_drag() {
+      ["pointermove", "mousemove", "touchmove"].forEach((name) =>
+        document.removeEventListener(name, this.track_task_drag_pointer, true)
+      );
+      if (this._task_drag_pointer_frame) cancelAnimationFrame(this._task_drag_pointer_frame);
+      this._task_drag_pointer_frame = 0;
+      this._task_drag_pointer = null;
+    },
+    update_task_drag_preview() {
+      this._task_drag_pointer_frame = 0;
+      const pointer = this._task_drag_pointer;
+      const board = this.$el.closest(".kanban-board");
+      const columns_area = board?.querySelector(".kanban-columns-container");
+      if (!pointer || !columns_area || this.is_mobile) return;
+
+      const area_bottom = columns_area.getBoundingClientRect().bottom;
+      const target_column = [...board.querySelectorAll(".kanban-column")].find((column) => {
+        if (column === this.$el || column.classList.contains("task-drop-disabled")) return false;
+        const rect = column.getBoundingClientRect();
+        return (
+          pointer.x >= rect.left &&
+          pointer.x <= rect.right &&
+          pointer.y >= rect.top &&
+          pointer.y <= area_bottom
+        );
+      });
+      const target_list = target_column?.querySelector(".task-list");
+
+      if (!target_list) {
+        this.restore_task_drag_preview();
+        return;
+      }
+
+      let preview = this._task_drag_preview;
+      if (preview?.column !== target_column) {
+        this.restore_task_drag_preview();
+        this.cancel_task_drag_preview_cleanup(target_column);
+
+        const base_height = this.measure_natural_column_height(target_column);
+        const parent_height = target_column.parentElement?.clientHeight || 0;
+        const css_max_height = getComputedStyle(target_column).maxHeight;
+        const css_max_height_px = css_max_height.endsWith("px")
+          ? Number.parseFloat(css_max_height)
+          : 0;
+        preview = {
+          column: target_column,
+          list: target_list,
+          base_height,
+          max_height: Math.max(base_height, css_max_height_px || parent_height),
+          initialized: false,
+        };
+        this._task_drag_preview = preview;
+        target_column.classList.add("task-drop-target");
+      }
+
+      const floating_card = document.querySelector(".task-fallback");
+      const floating_bottom = floating_card?.getBoundingClientRect().bottom ??
+        pointer.y - pointer.offset_y + pointer.card_height;
+      const placeholder = preview.list.querySelector(".task-ghost");
+      const card_bottom = Math.max(
+        floating_bottom,
+        placeholder?.getBoundingClientRect().bottom || floating_bottom
+      );
+      const column_rect = preview.column.getBoundingClientRect();
+      const bottom_space =
+        Number.parseFloat(getComputedStyle(preview.list).paddingBottom) +
+        Number.parseFloat(getComputedStyle(preview.column).borderBottomWidth);
+      const next_height = Math.min(
+        preview.max_height,
+        Math.max(preview.base_height, Math.ceil(card_bottom - column_rect.top + bottom_space))
+      );
+
+      if (!preview.initialized && preview.base_height < preview.max_height - 1) {
+        preview.column.style.height = `${preview.base_height}px`;
+        preview.column.offsetHeight;
+        preview.initialized = true;
+      }
+      if (preview.initialized) preview.column.style.height = `${next_height}px`;
+    },
+    on_task_drag_end(evt) {
+      this.stop_tracking_task_drag();
+      const preview = this._task_drag_preview;
+      this._task_drag_preview = null;
+
+      if (preview) {
+        const dropped_in_preview_column = evt?.to === preview.list;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() =>
+            this.finish_task_drag_preview(preview, dropped_in_preview_column)
+          );
+        });
+      }
+
       this.endGlobalDrag();
+    },
+    measure_natural_column_height(column) {
+      const previous_height = column.style.height;
+      const previous_transition = column.style.transition;
+
+      column.style.transition = "none";
+      column.style.removeProperty("height");
+      const natural_height = column.getBoundingClientRect().height;
+      if (previous_height) column.style.height = previous_height;
+      column.offsetHeight;
+      column.style.transition = previous_transition;
+
+      return natural_height;
+    },
+    finish_task_drag_preview(preview, dropped) {
+      const { column } = preview;
+      if (!column.isConnected) return;
+      column.classList.remove("task-drop-target");
+      if (!preview.initialized) return;
+
+      this.cancel_task_drag_preview_cleanup(column);
+      const current_height = column.getBoundingClientRect().height;
+      const target_height = dropped
+        ? this.measure_natural_column_height(column)
+        : preview.base_height;
+
+      column.style.height = `${current_height}px`;
+      column.offsetHeight;
+      column.style.height = `${target_height}px`;
+      this.schedule_task_drag_preview_cleanup(column);
+    },
+    restore_task_drag_preview() {
+      const preview = this._task_drag_preview;
+      if (!preview) return;
+
+      this._task_drag_preview = null;
+      this.finish_task_drag_preview(preview, false);
+    },
+    cancel_task_drag_preview_cleanup(column) {
+      const cleanup = this._task_drag_preview_cleanups.get(column);
+      if (!cleanup) return;
+
+      clearTimeout(cleanup.timer);
+      column.removeEventListener("transitionend", cleanup.on_transition_end);
+      this._task_drag_preview_cleanups.delete(column);
+    },
+    schedule_task_drag_preview_cleanup(column) {
+      this.cancel_task_drag_preview_cleanup(column);
+
+      const cleanup = () => {
+        this.cancel_task_drag_preview_cleanup(column);
+        if (column.isConnected) column.style.removeProperty("height");
+      };
+      const on_transition_end = (event) => {
+        if (event.target === column && event.propertyName === "height") cleanup();
+      };
+      const timer = setTimeout(cleanup, 400);
+
+      column.addEventListener("transitionend", on_transition_end);
+      this._task_drag_preview_cleanups.set(column, { timer, on_transition_end });
     },
     on_task_change(event) {
       if (this.is_searching) return;
@@ -966,7 +1168,13 @@ export default {
   position: relative;
 }
 
+.kanban-column.task-drop-target .task-list {
+  flex-grow: 1;
+}
+
 .empty-column-message {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -978,6 +1186,12 @@ export default {
   user-select: none;
   pointer-events: none;
   width: 100%;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.kanban-column.task-drop-target .empty-column-message {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 .empty-icon {
