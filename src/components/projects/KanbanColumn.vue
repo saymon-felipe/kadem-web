@@ -30,6 +30,7 @@
 
       <div class="header-actions">
         <button
+          ref="filterTrigger"
           class="btn-icon btn-filter-trigger"
           :class="{ active: show_search || has_active_filters }"
           @click="toggle_search"
@@ -68,68 +69,78 @@
       </div>
     </header>
 
-    <div v-if="show_search" class="search-wrapper filter-panel">
-      <div class="search-input-box">
-        <input
-          ref="searchInput"
-          v-model="search_query"
-          class="search-input"
-          placeholder="Buscar descrição ou #ID..."
-          @keydown.esc="close_search"
-        />
-        <button
-          v-if="search_query"
-          class="clear-search"
-          @click="search_query = ''"
-          @mousedown.prevent
-          type="button"
-        >
-          <font-awesome-icon icon="xmark" />
-        </button>
-      </div>
+    <transition name="filter-expand" @after-leave="reset_filters">
+      <div
+        v-if="show_search"
+        class="filter-panel-wrapper"
+        v-click-outside="handle_click_outside_search"
+      >
+        <div class="filter-panel-content">
+          <div class="search-wrapper filter-panel">
+            <div class="search-input-box">
+              <input
+                ref="searchInput"
+                v-model="search_query"
+                class="search-input"
+                placeholder="Buscar descrição ou #ID..."
+                @keydown.esc="close_search"
+              />
+              <button
+                v-if="search_query"
+                class="clear-search"
+                @click="search_query = ''"
+                @mousedown.prevent
+                type="button"
+              >
+                <font-awesome-icon icon="xmark" />
+              </button>
+            </div>
 
-      <div class="column-filters-row">
-        <div class="filter-item">
-          <label class="filter-label">Membro</label>
-          <SearchableDropdown
-            v-model="filter_user"
-            :options="member_filter_options"
-            :searchable="true"
-            searchPlaceholder="Buscar membro..."
-            placeholder="Todos"
-          />
+            <div class="column-filters-row">
+              <div class="filter-item">
+                <label class="filter-label">Membro</label>
+                <SearchableDropdown
+                  v-model="filter_user"
+                  :options="member_filter_options"
+                  :searchable="true"
+                  searchPlaceholder="Buscar membro..."
+                  placeholder="Todos"
+                />
+              </div>
+
+              <div class="filter-item">
+                <label class="filter-label">Prioridade</label>
+                <SearchableDropdown
+                  v-model="filter_priority"
+                  :options="priority_filter_options"
+                  :searchable="false"
+                  placeholder="Todas"
+                />
+              </div>
+
+              <div class="filter-item">
+                <label class="filter-label">Tamanho</label>
+                <SearchableDropdown
+                  v-model="filter_size"
+                  :options="size_filter_options"
+                  :searchable="false"
+                  placeholder="Todos"
+                />
+              </div>
+            </div>
+
+            <div class="filter-footer-actions" v-if="has_active_filters">
+              <span class="filtered-results-text">
+                {{ filtered_tasks.length }} tarefa{{ filtered_tasks.length === 1 ? '' : 's' }}
+              </span>
+              <button class="btn-clear-filters" @click="reset_filters" type="button">
+                Limpar filtros
+              </button>
+            </div>
+          </div>
         </div>
-
-        <div class="filter-item">
-          <label class="filter-label">Prioridade</label>
-          <SearchableDropdown
-            v-model="filter_priority"
-            :options="priority_filter_options"
-            :searchable="false"
-            placeholder="Todas"
-          />
-        </div>
-
-        <div class="filter-item">
-          <label class="filter-label">Tamanho</label>
-          <SearchableDropdown
-            v-model="filter_size"
-            :options="size_filter_options"
-            :searchable="false"
-            placeholder="Todos"
-          />
-        </div>
       </div>
-
-      <div class="filter-footer-actions" v-if="has_active_filters">
-        <span class="filtered-results-text">
-          {{ filtered_tasks.length }} tarefa{{ filtered_tasks.length === 1 ? '' : 's' }}
-        </span>
-        <button class="btn-clear-filters" @click="reset_filters" type="button">
-          Limpar filtros
-        </button>
-      </div>
-    </div>
+    </transition>
 
     <transition name="task-expand">
       <div v-if="is_creating_task" class="new-task-wrapper">
@@ -213,6 +224,7 @@
     </transition>
 
     <draggable
+      ref="taskList"
       :list="filtered_tasks"
       @change="on_task_change"
       item-key="local_id"
@@ -232,11 +244,15 @@
       :disabled="is_searching || is_mobile"
     >
       <template #item="{ element }">
-        <KanbanTask :task="element" @click="handle_task_click(element)" />
+        <KanbanTask
+          :task="element"
+          :data-task-id="element.local_id"
+          @click="handle_task_click(element)"
+        />
       </template>
 
       <template #footer>
-        <div v-if="filtered_tasks.length === 0" class="empty-column-message">
+        <div v-if="filtered_tasks.length === 0" key="empty-column" class="empty-column-message">
           <span>Nenhuma tarefa</span>
         </div>
       </template>
@@ -274,9 +290,12 @@ export default {
     this._task_drag_pointer = null;
     this._task_drag_pointer_frame = 0;
     this._task_drag_preview_cleanups = new Map();
+    this._filter_task_animations = new Set();
+    this._filter_task_clones = new Set();
   },
 
   beforeUnmount() {
+    this.cancel_filter_task_animations();
     this.stop_tracking_task_drag();
     const preview = this._task_drag_preview;
     if (preview?.column?.isConnected) {
@@ -337,6 +356,9 @@ export default {
 
     raw_column_tasks() {
       return this.getTasks(this.column.local_id);
+    },
+    filter_values() {
+      return [this.search_query, this.filter_user, this.filter_priority, this.filter_size];
     },
     has_active_filters() {
       return (
@@ -480,6 +502,11 @@ export default {
       ];
     },
   },
+  watch: {
+    filter_values() {
+      this.animate_filter_change();
+    },
+  },
   methods: {
     ...mapActions(useKanbanStore, ["createTask", "updateTasksForColumn", "updateColumn"]),
 
@@ -522,20 +549,106 @@ export default {
       this.filter_size = "all";
     },
     toggle_search() {
-      this.show_search = !this.show_search;
       if (this.show_search) {
-        this.$nextTick(() => {
-          if (this.$refs.searchInput) this.$refs.searchInput.focus();
-        });
-      } else {
-        this.reset_filters();
+        this.close_search();
+        return;
       }
+      this.show_search = true;
+      this.$nextTick(() => {
+        if (this.$refs.searchInput) this.$refs.searchInput.focus();
+      });
     },
     close_search() {
-      this.reset_filters();
       this.show_search = false;
     },
+    handle_click_outside_search(event) {
+      if (this.$refs.filterTrigger?.contains(event.target)) return;
+      this.close_search();
+    },
+    cancel_filter_task_animations() {
+      this._filter_task_animations.forEach((animation) => animation.cancel());
+      this._filter_task_animations.clear();
+      this._filter_task_clones.forEach((el) => el.remove());
+      this._filter_task_clones.clear();
+    },
+    animate_filter_change() {
+      const list = this.$refs.taskList?.$el;
+      if (!list?.isConnected) return;
+      const previous_list_rect = list.getBoundingClientRect();
+
+      // Captura as posições antes de o Vue aplicar o novo filtro ao DOM.
+      const previous = new Map(
+        [...list.querySelectorAll(":scope > .kanban-task:not(.task-filter-leaving)")].map((el) => [
+          el.dataset.taskId,
+          { el, rect: el.getBoundingClientRect(), opacity: getComputedStyle(el).opacity },
+        ])
+      );
+      this.cancel_filter_task_animations();
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+      const next_ids = new Set(this.filtered_tasks.map((task) => String(task.local_id)));
+      const leaving = [...previous.entries()]
+        .filter(([id]) => !next_ids.has(id))
+        .map(([, card]) => ({ ...card, el: card.el.cloneNode(true) }));
+
+      this.$nextTick(() => {
+        if (!list.isConnected) return;
+        const list_rect = list.getBoundingClientRect();
+        if (previous_list_rect.height !== list_rect.height) {
+          this.animate_filter_task(list, [
+            { height: `${previous_list_rect.height}px` },
+            { height: `${list_rect.height}px` },
+          ]);
+        }
+        leaving.forEach(({ el, rect, opacity }) => {
+          el.classList.add("task-filter-leaving");
+          el.removeAttribute("data-draggable");
+          el.setAttribute("aria-hidden", "true");
+          Object.assign(el.style, {
+            left: `${rect.left - list_rect.left + list.scrollLeft - list.clientLeft}px`,
+            top: `${rect.top - list_rect.top + list.scrollTop - list.clientTop}px`,
+            width: `${rect.width}px`,
+            height: `${rect.height}px`,
+          });
+          list.appendChild(el);
+          this._filter_task_clones.add(el);
+          this.animate_filter_task(el, [
+            { opacity, transform: "none" },
+            { opacity: 0, transform: "translateY(6px) scale(0.97)" },
+          ], true);
+        });
+
+        list.querySelectorAll(":scope > .kanban-task:not(.task-filter-leaving)").forEach((el) => {
+          const old = previous.get(el.dataset.taskId);
+          const rect = el.getBoundingClientRect();
+          const x = old ? old.rect.left - rect.left : 0;
+          const y = old ? old.rect.top - rect.top : 10;
+          if (old && !x && !y && old.opacity === "1") return;
+          this.animate_filter_task(el, [
+            { opacity: old?.opacity ?? 0, transform: `translate(${x}px, ${y}px) scale(${old ? 1 : 0.97})` },
+            { opacity: 1, transform: "none" },
+          ]);
+        });
+      });
+    },
+    animate_filter_task(el, keyframes, remove_after = false) {
+      const animation = el.animate(keyframes, {
+        duration: 260,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        fill: "both",
+      });
+      this._filter_task_animations.add(animation);
+      animation.finished.then(() => {
+        this._filter_task_animations.delete(animation);
+        animation.cancel();
+        if (remove_after) {
+          el.remove();
+          this._filter_task_clones.delete(el);
+        }
+      }, () => {});
+    },
     on_task_drag_start(evt) {
+      this.cancel_filter_task_animations();
       this.beginGlobalDrag();
       const item_rect = evt.item.getBoundingClientRect();
       const point = evt.originalEvent?.touches?.[0] || evt.originalEvent;
@@ -1035,6 +1148,34 @@ export default {
   position: relative;
 }
 
+.filter-panel-wrapper {
+  display: grid;
+  grid-template-rows: 1fr;
+  flex-shrink: 0;
+}
+
+.filter-panel-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.filter-expand-enter-active,
+.filter-expand-leave-active {
+  transition: grid-template-rows 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease, transform 0.26s ease;
+}
+
+.filter-expand-enter-from,
+.filter-expand-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.filter-expand-leave-active {
+  pointer-events: none;
+}
+
 .filter-panel {
   display: flex;
   flex-direction: column;
@@ -1221,8 +1362,16 @@ export default {
   opacity: 0;
 }
 
-.task-list-anim-move {
-  transition: transform 0.3s ease;
+.task-list > .task-filter-leaving {
+  position: absolute;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-expand-enter-active,
+  .filter-expand-leave-active {
+    transition-duration: 0.01ms;
+  }
 }
 
 .new-task-wrapper {

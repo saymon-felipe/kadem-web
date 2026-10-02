@@ -40,6 +40,7 @@
           class="searchable-dropdown-menu"
           :class="{ 'size-md': size === 'md' }"
           :style="menu_style"
+          @click.stop
           v-click-outside="handle_click_outside"
         >
           <div v-if="searchable" class="dropdown-search-header" @click.stop>
