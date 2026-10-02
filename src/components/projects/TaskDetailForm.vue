@@ -958,9 +958,14 @@ export default {
   display: flex;
   flex-direction: column;
 
+  & > .modal-header,
+  & > .task-detail-tabs {
+    flex: 0 0 auto;
+  }
+
   & main {
     width: 100% !important;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
   }
 }
@@ -1124,17 +1129,16 @@ export default {
 }
 
 .details-panel {
-  display: grid;
-  grid-template-rows: auto auto auto;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-5);
-  align-content: start;
 }
 
 .description-card {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  min-height: 0;
+  flex: 0 0 auto;
 }
 
 .description-card label,
@@ -1150,6 +1154,7 @@ export default {
   height: clamp(160px, 30vh, 260px);
   min-height: 160px;
   max-height: 280px;
+  flex: 0 0 auto;
   resize: none;
   overflow: auto;
   background-color: var(--surface-2);
@@ -1169,6 +1174,7 @@ export default {
 .field-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+  flex: 0 0 auto;
   gap: var(--space-4);
   width: 100%;
   max-width: 100%;
@@ -1263,6 +1269,7 @@ export default {
 }
 
 .meta-info {
+  flex: 0 0 auto;
   min-height: 42px;
   border: 1px solid var(--glass-border);
   background: var(--surface-2);
@@ -1871,7 +1878,6 @@ export default {
   }
 
   .details-panel {
-    grid-template-rows: auto auto auto;
     gap: var(--space-4);
   }
 

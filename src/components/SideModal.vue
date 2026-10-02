@@ -322,8 +322,8 @@ export default {
 .variant-floating {
   width: 80dvw;
   max-width: 860px;
-  height: clamp(620px, 78vh, 800px);
-  max-height: 60dvh;
+  height: min(78dvh, 800px);
+  max-height: calc(100dvh - 48px);
   min-height: 0;
   overflow: hidden;
   display: flex;
@@ -449,7 +449,6 @@ export default {
   .modal-content.variant-floating {
     width: 100% !important;
     max-width: 100% !important;
-    height: auto !important;
     min-height: 40dvh !important;
     max-height: calc(100dvh - 76px) !important;
     border-radius: 24px 24px 0 0 !important;
