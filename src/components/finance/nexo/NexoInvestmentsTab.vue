@@ -175,45 +175,75 @@
           </span>
         </div>
         <div class="projection-wrap">
-          <div class="chart-container">
+          <div ref="chartContainer" class="chart-container">
             <svg
               v-if="projectionPoints.length > 1"
-              viewBox="0 0 100 40"
+              :viewBox="`0 0 ${svgWidth} ${svgHeight}`"
               class="projection-svg"
-              preserveAspectRatio="none"
             >
               <defs>
                 <linearGradient id="projGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#10b981" stop-opacity="0.32" />
-                  <stop offset="60%" stop-color="#10b981" stop-opacity="0.08" />
+                  <stop offset="0%" stop-color="#10b981" stop-opacity="0.25" />
+                  <stop offset="70%" stop-color="#10b981" stop-opacity="0.05" />
                   <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
                 </linearGradient>
               </defs>
-              <line x1="0" y1="12" x2="100" y2="12" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,3" stroke-width="0.8" />
-              <line x1="0" y1="24" x2="100" y2="24" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,3" stroke-width="0.8" />
-              <line x1="0" y1="36" x2="100" y2="36" stroke="rgba(255,255,255,0.08)" stroke-width="0.8" />
-              <polygon
-                :points="projectionAreaPoints"
+
+              <!-- Reference Gridlines -->
+              <line
+                :x1="16"
+                :y1="svgHeight * 0.28"
+                :x2="svgWidth - 16"
+                :y2="svgHeight * 0.28"
+                stroke="rgba(255, 255, 255, 0.05)"
+                stroke-dasharray="4,6"
+                stroke-width="1"
+              />
+              <line
+                :x1="16"
+                :y1="svgHeight * 0.58"
+                :x2="svgWidth - 16"
+                :y2="svgHeight * 0.58"
+                stroke="rgba(255, 255, 255, 0.05)"
+                stroke-dasharray="4,6"
+                stroke-width="1"
+              />
+
+              <!-- Area Fill -->
+              <path
+                :d="projectionAreaPath"
                 fill="url(#projGrad)"
               />
-              <polyline
-                :points="projectionPolyline"
+
+              <!-- Smooth Curve Line -->
+              <path
+                :d="projectionCurvePath"
                 fill="none"
                 stroke="#10b981"
-                stroke-width="2.2"
+                stroke-width="2.5"
                 stroke-linecap="round"
                 stroke-linejoin="round"
               />
-              <circle
-                v-for="pt in keyProjectionPoints"
-                :key="pt.label"
-                :cx="pt.x"
-                :cy="pt.y"
-                r="2.2"
-                fill="#10b981"
-                stroke="#ffffff"
-                stroke-width="1"
-              />
+
+              <!-- Milestone Markers (Halo + Inner Dot) -->
+              <g v-for="pt in keyProjectionPoints" :key="pt.label">
+                <!-- Outer soft glow halo -->
+                <circle
+                  :cx="pt.x"
+                  :cy="pt.y"
+                  r="7.5"
+                  fill="rgba(16, 185, 129, 0.25)"
+                />
+                <!-- Inner solid dot with white border -->
+                <circle
+                  :cx="pt.x"
+                  :cy="pt.y"
+                  r="4"
+                  fill="#10b981"
+                  stroke="#ffffff"
+                  stroke-width="2"
+                />
+              </g>
             </svg>
           </div>
           <div class="projection-grid">
@@ -461,19 +491,177 @@
           Sem taxa automática disponível no momento.
         </p>
       </div>
-      <div class="calculator-results">
-        <article>
-          <small>Total investido</small>
-          <strong>{{ formatMoney(calculatorResult.totalContributed) }}</strong>
+      <!-- Indicadores Encapsulados (3 KPIs) -->
+      <div class="calc-kpi-grid">
+        <article class="calc-kpi-card principal">
+          <span class="calc-kpi-icon"><font-awesome-icon icon="layer-group" /></span>
+          <div class="calc-kpi-body">
+            <div class="calc-kpi-header">
+              <small>Total investido</small>
+              <span class="calc-kpi-tag blue">{{ calcInvestedPercent }}%</span>
+            </div>
+            <strong>{{ formatMoney(calculatorResult.totalContributed) }}</strong>
+          </div>
         </article>
-        <article>
-          <small>Juros estimados</small>
-          <strong class="positive">{{ formatMoney(calculatorResult.estimatedInterestNet) }}</strong>
+        <article class="calc-kpi-card yield">
+          <span class="calc-kpi-icon"><font-awesome-icon icon="chart-simple" /></span>
+          <div class="calc-kpi-body">
+            <div class="calc-kpi-header">
+              <small>Juros acumulados</small>
+              <span class="calc-kpi-tag green">+{{ calcYieldPercent }}%</span>
+            </div>
+            <strong class="positive">+{{ formatMoney(calculatorResult.estimatedInterestNet) }}</strong>
+          </div>
         </article>
-        <article>
-          <small>Valor futuro</small>
-          <strong>{{ formatMoney(calculatorResult.futureValueNet) }}</strong>
+        <article class="calc-kpi-card total">
+          <span class="calc-kpi-icon"><font-awesome-icon icon="scale-balanced" /></span>
+          <div class="calc-kpi-body">
+            <div class="calc-kpi-header">
+              <small>Valor futuro líquido</small>
+              <span class="calc-kpi-tag purple">{{ calculator.months }}m</span>
+            </div>
+            <strong class="highlight-val">{{ formatMoney(calculatorResult.futureValueNet) }}</strong>
+          </div>
         </article>
+      </div>
+
+      <!-- Gráfico Comparativo Mês a Mês -->
+      <div class="calc-chart-card">
+        <div class="calc-chart-head">
+          <div class="calc-chart-title">
+            <strong>Evolução mês a mês</strong>
+            <span>Comparativo dos 3 valores ao longo de {{ calculator.months }} meses</span>
+          </div>
+          <div class="calc-chart-legend">
+            <span class="legend-chip total"><i class="dot-purple"></i> Valor futuro</span>
+            <span class="legend-chip invested"><i class="dot-blue"></i> Aportado</span>
+            <span class="legend-chip yield"><i class="dot-green"></i> Juros</span>
+          </div>
+        </div>
+
+        <!-- Barra de hover interativo com os 3 valores (sempre visível para evitar bounce no layout) -->
+        <div class="calc-hover-bar" :class="{ 'is-empty': !hoveredCalcPoint }">
+          <span class="hover-month">{{ hoveredCalcPoint ? `${hoveredCalcPoint.label}:` : 'Mês: --' }}</span>
+          <span class="hover-item total">Total: <strong>{{ hoveredCalcPoint ? formatMoney(hoveredCalcPoint.totalValue) : '--' }}</strong></span>
+          <span class="hover-item invested">Aportado: <strong>{{ hoveredCalcPoint ? formatMoney(hoveredCalcPoint.totalInvested) : '--' }}</strong></span>
+          <span class="hover-item yield">Juros: <strong>{{ hoveredCalcPoint ? formatMoney(hoveredCalcPoint.interest) : '--' }}</strong></span>
+        </div>
+
+        <div
+          ref="calcChartContainer"
+          class="calc-chart-container"
+          @mousemove="onCalcChartMouseMove"
+          @mouseleave="onCalcChartMouseLeave"
+          @touchmove="onCalcChartMouseMove"
+          @touchend="onCalcChartMouseLeave"
+        >
+          <svg
+            v-if="calcChartCoords.length > 1"
+            :viewBox="`0 0 ${calcSvgWidth} ${calcSvgHeight}`"
+            class="calc-svg"
+          >
+            <defs>
+              <linearGradient id="calcTotalGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.22" />
+                <stop offset="70%" stop-color="#8b5cf6" stop-opacity="0.04" />
+                <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.0" />
+              </linearGradient>
+              <linearGradient id="calcInvestGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#355afd" stop-opacity="0.16" />
+                <stop offset="100%" stop-color="#355afd" stop-opacity="0.02" />
+              </linearGradient>
+            </defs>
+
+            <!-- Linhas de grade de referência -->
+            <line
+              :x1="16"
+              :y1="calcSvgHeight * 0.25"
+              :x2="calcSvgWidth - 16"
+              :y2="calcSvgHeight * 0.25"
+              stroke="rgba(255, 255, 255, 0.05)"
+              stroke-dasharray="4,6"
+              stroke-width="1"
+            />
+            <line
+              :x1="16"
+              :y1="calcSvgHeight * 0.5"
+              :x2="calcSvgWidth - 16"
+              :y2="calcSvgHeight * 0.5"
+              stroke="rgba(255, 255, 255, 0.05)"
+              stroke-dasharray="4,6"
+              stroke-width="1"
+            />
+            <line
+              :x1="16"
+              :y1="calcSvgHeight * 0.75"
+              :x2="calcSvgWidth - 16"
+              :y2="calcSvgHeight * 0.75"
+              stroke="rgba(255, 255, 255, 0.05)"
+              stroke-dasharray="4,6"
+              stroke-width="1"
+            />
+
+            <!-- Áreas sob as curvas -->
+            <path :d="calcAreaTotal" fill="url(#calcTotalGrad)" />
+            <path :d="calcAreaInvested" fill="url(#calcInvestGrad)" />
+
+            <!-- Curvas suaves dos 3 valores -->
+            <path
+              :d="calcCurveTotal"
+              fill="none"
+              stroke="#8b5cf6"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              :d="calcCurveInvested"
+              fill="none"
+              stroke="#355afd"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              :d="calcCurveInterest"
+              fill="none"
+              stroke="#10b981"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+
+            <!-- Marcadores de marco (Início, Meio, Fim) -->
+            <g v-for="pt in calcKeyMilestones" :key="pt.label">
+              <circle :cx="pt.x" :cy="pt.yTotal" r="4.5" fill="#8b5cf6" stroke="#ffffff" stroke-width="1.8" />
+              <circle :cx="pt.x" :cy="pt.yInvested" r="3.5" fill="#355afd" stroke="#ffffff" stroke-width="1.5" />
+              <circle :cx="pt.x" :cy="pt.yInterest" r="3.5" fill="#10b981" stroke="#ffffff" stroke-width="1.5" />
+            </g>
+
+            <!-- Cursor vertical e pontos em hover -->
+            <g v-if="hoveredCalcPoint">
+              <line
+                :x1="hoveredCalcPoint.x"
+                :y1="14"
+                :x2="hoveredCalcPoint.x"
+                :y2="calcSvgHeight - 16"
+                stroke="rgba(255, 255, 255, 0.25)"
+                stroke-dasharray="3,3"
+                stroke-width="1.2"
+              />
+              <circle :cx="hoveredCalcPoint.x" :cy="hoveredCalcPoint.yTotal" r="6" fill="#8b5cf6" stroke="#ffffff" stroke-width="2" />
+              <circle :cx="hoveredCalcPoint.x" :cy="hoveredCalcPoint.yInvested" r="5" fill="#355afd" stroke="#ffffff" stroke-width="1.8" />
+              <circle :cx="hoveredCalcPoint.x" :cy="hoveredCalcPoint.yInterest" r="5" fill="#10b981" stroke="#ffffff" stroke-width="1.8" />
+            </g>
+          </svg>
+        </div>
+
+        <!-- Eixo X com marcos de meses -->
+        <div class="calc-axis-row">
+          <span>Início (M+0)</span>
+          <span>Mês {{ Math.round(calculator.months / 2) }}</span>
+          <span>Fim (M+{{ calculator.months }})</span>
+        </div>
       </div>
     </section>
   </section>
@@ -556,7 +744,21 @@ export default {
         taxProfile: 'taxed',
       },
       projectionMonths: 24,
+      svgWidth: 800,
+      svgHeight: 160,
+      calcSvgWidth: 800,
+      calcSvgHeight: 190,
+      hoveredCalcIndex: null,
     }
+  },
+  watch: {
+    activeInvestmentTab(tab) {
+      if (tab === 'summary' || tab === 'calculator') {
+        this.$nextTick(() => {
+          this.updateChartDimensions()
+        })
+      }
+    },
   },
   computed: {
     investmentTabs() {
@@ -671,6 +873,128 @@ export default {
         futureValueNet: totalContributed + estimatedInterest * taxFactor,
       }
     },
+    calcInvestedPercent() {
+      const total = this.calculatorResult.futureValueNet || 1
+      return Math.round((this.calculatorResult.totalContributed / total) * 100)
+    },
+    calcYieldPercent() {
+      const invested = this.calculatorResult.totalContributed || 1
+      return Math.round((this.calculatorResult.estimatedInterestNet / invested) * 100)
+    },
+    calculatorMonthlySeries() {
+      const principal = Number(this.calculator.principal || 0)
+      const contribution = Number(this.calculator.monthlyContribution || 0)
+      const months = Math.max(1, Math.min(360, Number(this.calculator.months || 1)))
+      const monthlyRate = this.calculatorRateMonthly
+      const taxFactor = this.calculator.taxProfile === 'tax_free' ? 1 : 0.85
+
+      const series = []
+      const step = months <= 36 ? 1 : Math.ceil(months / 36)
+
+      for (let m = 0; m <= months; m += step) {
+        const totalInvested = principal + contribution * m
+        let grossFuture = totalInvested
+        if (monthlyRate !== 0) {
+          grossFuture =
+            principal * Math.pow(1 + monthlyRate, m) +
+            contribution * ((Math.pow(1 + monthlyRate, m) - 1) / monthlyRate)
+        }
+        const grossInterest = Math.max(0, grossFuture - totalInvested)
+        const netInterest = grossInterest * taxFactor
+        const totalValue = totalInvested + netInterest
+
+        series.push({
+          month: m,
+          label: m === 0 ? 'Início' : `Mês ${m}`,
+          totalInvested,
+          interest: netInterest,
+          totalValue,
+        })
+      }
+
+      if (series[series.length - 1].month !== months) {
+        const m = months
+        const totalInvested = principal + contribution * m
+        let grossFuture = totalInvested
+        if (monthlyRate !== 0) {
+          grossFuture =
+            principal * Math.pow(1 + monthlyRate, m) +
+            contribution * ((Math.pow(1 + monthlyRate, m) - 1) / monthlyRate)
+        }
+        const grossInterest = Math.max(0, grossFuture - totalInvested)
+        const netInterest = grossInterest * taxFactor
+        const totalValue = totalInvested + netInterest
+
+        series.push({
+          month: m,
+          label: `Mês ${m}`,
+          totalInvested,
+          interest: netInterest,
+          totalValue,
+        })
+      }
+
+      return series
+    },
+    calcChartCoords() {
+      const series = this.calculatorMonthlySeries
+      if (series.length < 2) return []
+      const maxVal = Math.max(...series.map((s) => s.totalValue), 1)
+
+      const paddingX = 28
+      const paddingTop = 24
+      const paddingBottom = 22
+      const usableWidth = Math.max(50, this.calcSvgWidth - paddingX * 2)
+      const usableHeight = Math.max(40, this.calcSvgHeight - paddingTop - paddingBottom)
+
+      return series.map((item, index) => {
+        const x = paddingX + (index / (series.length - 1)) * usableWidth
+        const yTotal = paddingTop + (1 - item.totalValue / maxVal) * usableHeight
+        const yInvested = paddingTop + (1 - item.totalInvested / maxVal) * usableHeight
+        const yInterest = paddingTop + (1 - item.interest / maxVal) * usableHeight
+        return {
+          ...item,
+          x,
+          yTotal,
+          yInvested,
+          yInterest,
+        }
+      })
+    },
+    calcKeyMilestones() {
+      if (this.calcChartCoords.length < 2) return []
+      const mid = Math.floor(this.calcChartCoords.length / 2)
+      return [
+        this.calcChartCoords[0],
+        this.calcChartCoords[mid],
+        this.calcChartCoords[this.calcChartCoords.length - 1],
+      ].filter(Boolean)
+    },
+    hoveredCalcPoint() {
+      if (this.hoveredCalcIndex === null || !this.calcChartCoords[this.hoveredCalcIndex]) return null
+      return this.calcChartCoords[this.hoveredCalcIndex]
+    },
+    calcCurveTotal() {
+      return this.buildSvgCurvePath(this.calcChartCoords, 'yTotal')
+    },
+    calcCurveInvested() {
+      return this.buildSvgCurvePath(this.calcChartCoords, 'yInvested')
+    },
+    calcCurveInterest() {
+      return this.buildSvgCurvePath(this.calcChartCoords, 'yInterest')
+    },
+    calcAreaTotal() {
+      const pts = this.calcChartCoords
+      if (pts.length < 2) return ''
+      const bottom = this.calcSvgHeight - 6
+      return `${this.calcCurveTotal} L ${pts[pts.length - 1].x.toFixed(1)} ${bottom} L ${pts[0].x.toFixed(1)} ${bottom} Z`
+    },
+    calcAreaInvested() {
+      const pts = this.calcChartCoords
+      if (pts.length < 2) return ''
+      const bottom = this.calcSvgHeight - 6
+      return `${this.calcCurveInvested} L ${pts[pts.length - 1].x.toFixed(1)} ${bottom} L ${pts[0].x.toFixed(1)} ${bottom} Z`
+    },
     projectionPoints() {
       const basePrincipal = Math.max(
         Number(this.summary.estimated_balance || 0),
@@ -696,10 +1020,27 @@ export default {
     },
     projectionCoords() {
       if (this.projectionPoints.length < 2) return []
-      const maxValue = Math.max(...this.projectionPoints.map((point) => point.value), 1)
+      const values = this.projectionPoints.map((p) => p.value)
+      const valMin = Math.min(...values)
+      const valMax = Math.max(...values)
+      const delta = valMax - valMin
+
+      // Provide generous breathing room above and below so the line has a smooth,
+      // natural upward trajectory without clipping or looking flat
+      const baseline = Math.max(0, valMin - (delta > 0 ? delta * 0.45 : valMin * 0.25))
+      const ceiling = valMax + (delta > 0 ? delta * 0.25 : valMax * 0.25)
+      const range = ceiling - baseline || 1
+
+      const paddingX = 28
+      const paddingTop = 26
+      const paddingBottom = 22
+      const usableWidth = Math.max(50, this.svgWidth - paddingX * 2)
+      const usableHeight = Math.max(40, this.svgHeight - paddingTop - paddingBottom)
+
       return this.projectionPoints.map((point, index) => {
-        const x = (index / (this.projectionPoints.length - 1)) * 100
-        const y = Math.max(4, 36 - (point.value / maxValue) * 30)
+        const x = paddingX + (index / (this.projectionPoints.length - 1)) * usableWidth
+        const ratio = Math.min(1, Math.max(0, (point.value - baseline) / range))
+        const y = paddingTop + (1 - ratio) * usableHeight
         return { ...point, x, y }
       })
     },
@@ -712,20 +1053,14 @@ export default {
         this.projectionCoords[this.projectionCoords.length - 1],
       ].filter(Boolean)
     },
-    projectionPolyline() {
-      if (this.projectionPoints.length < 2) return ''
-      const maxValue = Math.max(...this.projectionPoints.map((point) => point.value), 1)
-      return this.projectionPoints
-        .map((point, index) => {
-          const x = (index / (this.projectionPoints.length - 1)) * 100
-          const y = 36 - (point.value / maxValue) * 30
-          return `${x},${Math.max(4, y)}`
-        })
-        .join(' ')
+    projectionCurvePath() {
+      return this.buildSvgCurvePath(this.projectionCoords, 'y')
     },
-    projectionAreaPoints() {
-      if (this.projectionPoints.length < 2) return ''
-      return `0,38 ${this.projectionPolyline} 100,38`
+    projectionAreaPath() {
+      const pts = this.projectionCoords
+      if (pts.length < 2) return ''
+      const bottom = this.svgHeight - 6
+      return `${this.projectionCurvePath} L ${pts[pts.length - 1].x.toFixed(1)} ${bottom} L ${pts[0].x.toFixed(1)} ${bottom} Z`
     },
     projectionPreview() {
       if (this.projectionPoints.length === 0) return []
@@ -839,6 +1174,70 @@ export default {
       }
       return month
     },
+    buildSvgCurvePath(pts, yKey = 'y') {
+      if (!pts || pts.length < 2) return ''
+      let d = `M ${pts[0].x.toFixed(1)} ${pts[0][yKey].toFixed(1)}`
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = i > 0 ? pts[i - 1] : pts[i]
+        const p1 = pts[i]
+        const p2 = pts[i + 1]
+        const p3 = i < pts.length - 2 ? pts[i + 2] : p2
+
+        const cp1x = p1.x + (p2.x - p0.x) / 6
+        const cp1y = p1[yKey] + (p2[yKey] - p0[yKey]) / 6
+        const cp2x = p2.x - (p3.x - p1.x) / 6
+        const cp2y = p2[yKey] - (p3[yKey] - p1[yKey]) / 6
+
+        d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2[yKey].toFixed(1)}`
+      }
+      return d
+    },
+    onCalcChartMouseMove(event) {
+      if (!this.$refs.calcChartContainer || this.calcChartCoords.length === 0) return
+      const rect = this.$refs.calcChartContainer.getBoundingClientRect()
+      const clientX = event.clientX || (event.touches && event.touches[0] ? event.touches[0].clientX : null)
+      if (clientX === null) return
+      const relX = clientX - rect.left - 28
+      const usableW = Math.max(50, this.calcSvgWidth - 56)
+      const pct = Math.max(0, Math.min(1, relX / usableW))
+      const index = Math.round(pct * (this.calcChartCoords.length - 1))
+      this.hoveredCalcIndex = Math.max(0, Math.min(this.calcChartCoords.length - 1, index))
+    },
+    onCalcChartMouseLeave() {
+      this.hoveredCalcIndex = null
+    },
+    updateChartDimensions() {
+      if (this.$refs.chartContainer) {
+        const rect = this.$refs.chartContainer.getBoundingClientRect()
+        if (rect.width > 0) this.svgWidth = Math.round(rect.width)
+        if (rect.height > 0) this.svgHeight = Math.round(rect.height)
+      }
+      if (this.$refs.calcChartContainer) {
+        const rect = this.$refs.calcChartContainer.getBoundingClientRect()
+        if (rect.width > 0) this.calcSvgWidth = Math.round(rect.width)
+        if (rect.height > 0) this.calcSvgHeight = Math.round(rect.height)
+      }
+    },
+  },
+  mounted() {
+    this.updateChartDimensions()
+    if (typeof ResizeObserver !== 'undefined') {
+      this.chartResizeObserver = new ResizeObserver(() => {
+        this.updateChartDimensions()
+      })
+      if (this.$refs.chartContainer) {
+        this.chartResizeObserver.observe(this.$refs.chartContainer)
+      }
+      if (this.$refs.calcChartContainer) {
+        this.chartResizeObserver.observe(this.$refs.calcChartContainer)
+      }
+    }
+  },
+  beforeUnmount() {
+    if (this.chartResizeObserver) {
+      this.chartResizeObserver.disconnect()
+      this.chartResizeObserver = null
+    }
   },
 }
 </script>
@@ -1423,7 +1822,7 @@ export default {
     var(--surface-1);
   border: 1px solid var(--glass-border);
   overflow: hidden;
-  padding: var(--space-2);
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -1433,8 +1832,7 @@ export default {
   display: block;
 }
 
-.projection-grid,
-.calculator-results {
+.projection-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
@@ -1442,8 +1840,7 @@ export default {
   min-width: 0;
 }
 
-.projection-card,
-.calculator-results article {
+.projection-card {
   padding: var(--space-2) var(--space-3);
   display: flex;
   flex-direction: column;
@@ -1455,16 +1852,14 @@ export default {
   text-align: center;
 }
 
-.projection-card small,
-.calculator-results article small {
+.projection-card small {
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
   color: var(--text-secondary);
 }
 
-.projection-card strong,
-.calculator-results article strong {
+.projection-card strong {
   font-size: var(--fontsize-xs);
   font-weight: 700;
   color: var(--text-primary);
@@ -1475,6 +1870,299 @@ export default {
   font-size: 0.65rem;
   font-weight: 700;
   color: #10b981;
+}
+
+/* Calculator Indicators (KPI Grid) */
+.calc-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  width: 100%;
+  min-width: 0;
+}
+
+.calc-kpi-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.calc-kpi-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.calc-kpi-card.principal {
+  border-left: 3px solid #355afd;
+}
+
+.calc-kpi-card.yield {
+  border-left: 3px solid #10b981;
+}
+
+.calc-kpi-card.total {
+  border-left: 3px solid #8b5cf6;
+}
+
+.calc-kpi-icon {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+}
+
+.calc-kpi-card.principal .calc-kpi-icon {
+  background: rgba(53, 90, 253, 0.12);
+  color: #355afd;
+}
+
+.calc-kpi-card.yield .calc-kpi-icon {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.calc-kpi-card.total .calc-kpi-icon {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+}
+
+.calc-kpi-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.calc-kpi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+
+.calc-kpi-header small {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calc-kpi-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill, 999px);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.calc-kpi-tag.blue {
+  background: rgba(53, 90, 253, 0.12);
+  color: #355afd;
+}
+
+.calc-kpi-tag.green {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.calc-kpi-tag.purple {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+}
+
+.calc-kpi-body strong {
+  font-size: var(--fontsize-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.highlight-val {
+  color: #a78bfa;
+}
+
+/* Calculator Month-by-Month Chart Card */
+.calc-chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-0);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-card);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.calc-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.calc-chart-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calc-chart-title strong {
+  font-size: var(--fontsize-xs);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.calc-chart-title span {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+}
+
+.calc-chart-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--surface-1);
+  border: 1px solid var(--glass-border);
+  white-space: nowrap;
+}
+
+.dot-purple {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  display: inline-block;
+}
+
+.dot-blue {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #355afd;
+  display: inline-block;
+}
+
+.dot-green {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+}
+
+.calc-hover-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 6px var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--glass-border);
+  font-size: var(--fontsize-xs);
+  flex-wrap: wrap;
+  min-height: 36px;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+}
+
+.calc-hover-bar.is-empty {
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+.hover-month {
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.hover-item {
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.hover-item.total strong {
+  color: #a78bfa;
+}
+
+.hover-item.invested strong {
+  color: #355afd;
+}
+
+.hover-item.yield strong {
+  color: #10b981;
+}
+
+.calc-hover-bar.is-empty .hover-month,
+.calc-hover-bar.is-empty .hover-item strong {
+  color: var(--text-muted);
+}
+
+.calc-chart-container {
+  width: 100%;
+  height: 190px;
+  position: relative;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, rgba(139, 92, 246, 0.05), rgba(139, 92, 246, 0.01)),
+    var(--surface-1);
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+  box-sizing: border-box;
+  cursor: crosshair;
+}
+
+.calc-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.calc-axis-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 var(--space-3);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 /* History */
@@ -1866,6 +2554,38 @@ export default {
     font-size: 0.6rem;
   }
 
+  .calc-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .calc-kpi-card {
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .calc-kpi-icon {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    font-size: 0.8rem;
+  }
+
+  .calc-kpi-body strong {
+    font-size: var(--fontsize-xs);
+  }
+
+  .calc-chart-container {
+    height: 160px;
+  }
+
+  .calc-hover-bar {
+    gap: var(--space-2);
+    padding: 4px var(--space-2);
+    font-size: 0.72rem;
+    min-height: 32px;
+  }
+
   .history-table-desktop {
     display: none;
   }
@@ -1881,6 +2601,31 @@ export default {
   .primary-action {
     width: 100%;
     justify-content: center;
+  }
+
+  .calc-chart-container {
+    height: 140px;
+  }
+
+  .calc-hover-bar {
+    gap: 6px;
+    padding: 3px var(--space-2);
+    font-size: 0.68rem;
+    min-height: 28px;
+  }
+
+  .calc-kpi-header small {
+    font-size: 0.58rem;
+  }
+
+  .calc-kpi-tag {
+    font-size: 0.58rem;
+    padding: 1px 4px;
+  }
+
+  .legend-chip {
+    font-size: 0.65rem;
+    padding: 2px 6px;
   }
 
   .donut-layout {
@@ -2035,6 +2780,31 @@ export default {
     font-size: 0.6rem;
   }
 
+  .calc-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .calc-kpi-card {
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .calc-kpi-icon {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    font-size: 0.8rem;
+  }
+
+  .calc-kpi-body strong {
+    font-size: var(--fontsize-xs);
+  }
+
+  .calc-chart-container {
+    height: 160px;
+  }
+
   .history-table-desktop {
     display: none;
   }
@@ -2050,6 +2820,24 @@ export default {
   .primary-action {
     width: 100%;
     justify-content: center;
+  }
+
+  .calc-chart-container {
+    height: 140px;
+  }
+
+  .calc-kpi-header small {
+    font-size: 0.58rem;
+  }
+
+  .calc-kpi-tag {
+    font-size: 0.58rem;
+    padding: 1px 4px;
+  }
+
+  .legend-chip {
+    font-size: 0.65rem;
+    padding: 2px 6px;
   }
 
   .donut-layout {
