@@ -32,21 +32,7 @@
 
         <p><strong>2.</strong> Digite o código de 6 dígitos que o app mostra para confirmar.</p>
 
-        <div class="form-group">
-          <input
-            id="totp-code"
-            ref="codeInput"
-            v-model="code"
-            class="sec-code-input"
-            type="text"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            maxlength="8"
-            placeholder=" "
-            @keyup.enter="confirm"
-          />
-          <label for="totp-code">Código de 6 dígitos</label>
-        </div>
+        <OtpInput ref="codeInput" v-model="code" label="Código de 6 dígitos" @enter="confirm" />
       </template>
 
       <p v-if="error" class="sec-inline-message error">{{ error }}</p>
@@ -59,7 +45,7 @@
           v-if="setup"
           type="button"
           class="sec-btn primary"
-          :disabled="confirming || code.trim().length < 6"
+          :disabled="confirming || code.length < OTP_LENGTH"
           @click="confirm"
         >
           {{ confirming ? "Ativando..." : "Ativar" }}
@@ -72,19 +58,22 @@
 
 <script>
 import BaseModal from "@/components/BaseModal.vue";
+import OtpInput from "@/components/security/OtpInput.vue";
 import QRCode from "qrcode";
 import { apiErrorCode, apiErrorMessage, securityService } from "@/services/securityService";
+import { OTP_LENGTH } from "@/utils/otp_code";
 import "./security.css";
 
 export default {
   name: "TotpSetupModal",
-  components: { BaseModal },
+  components: { BaseModal, OtpInput },
   props: {
     modelValue: { type: Boolean, default: false },
   },
   emits: ["update:modelValue", "enabled"],
   data() {
     return {
+      OTP_LENGTH,
       loading: false,
       confirming: false,
       setup: null,
@@ -111,7 +100,6 @@ export default {
       try {
         this.setup = await securityService.beginTotpSetup();
         this.qrDataUrl = await QRCode.toDataURL(this.setup.otpauth_uri, { margin: 1, width: 196 });
-        this.$nextTick(() => this.$refs.codeInput?.focus());
       } catch (error) {
         this.setup = null;
         this.error = apiErrorCode(error) === "REAUTH_REQUIRED"
@@ -120,15 +108,21 @@ export default {
       } finally {
         this.loading = false;
       }
+
+      // O campo só existe depois que o "Preparando..." sai da tela, então o foco vem depois do loading.
+      if (this.setup) {
+        await this.$nextTick();
+        this.$refs.codeInput?.focus();
+      }
     },
     async confirm() {
-      if (this.confirming || this.code.trim().length < 6) return;
+      if (this.confirming || this.code.length < OTP_LENGTH) return;
 
       this.confirming = true;
       this.error = "";
 
       try {
-        const result = await securityService.confirmTotpSetup(this.setup.setup_token, this.code.trim());
+        const result = await securityService.confirmTotpSetup(this.setup.setup_token, this.code);
         this.$emit("enabled", result.recovery_codes);
         this.$emit("update:modelValue", false);
         this.reset();

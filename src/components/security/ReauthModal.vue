@@ -47,20 +47,8 @@
           </button>
         </div>
 
-        <div class="form-group">
-          <input
-            id="reauth-code"
-            v-model="code"
-            class="sec-code-input"
-            type="text"
-            :inputmode="method === 'recovery_code' ? 'text' : 'numeric'"
-            autocomplete="one-time-code"
-            :maxlength="method === 'recovery_code' ? 16 : 8"
-            placeholder=" "
-            @keyup.enter="submit"
-          />
-          <label for="reauth-code">{{ method === "recovery_code" ? "Código de backup" : "Código de verificação" }}</label>
-        </div>
+        <RecoveryCodeInput v-if="method === 'recovery_code'" id="reauth-code" v-model="code" @enter="submit" />
+        <OtpInput v-else v-model="code" label="Código de verificação" @enter="submit" />
 
         <p v-if="method === 'totp'" class="sec-hint">
           Se você acabou de usar este código, aguarde o app gerar o próximo.
@@ -98,10 +86,13 @@
 <script>
 import { mapStores } from "pinia";
 import BaseModal from "@/components/BaseModal.vue";
+import OtpInput from "@/components/security/OtpInput.vue";
+import RecoveryCodeInput from "@/components/security/RecoveryCodeInput.vue";
 import { useReauthStore } from "@/stores/reauth";
 import { useAuthStore } from "@/stores/auth";
 import { authenticateWithBiometrics, isBiometricCancellationError, isBiometricSupported } from "@/services/biometricAuth";
 import { apiErrorCode, apiErrorMessage, mfaMethodLabels, securityService } from "@/services/securityService";
+import { normalizeRecoveryCode, OTP_LENGTH, RECOVERY_CODE_LENGTH } from "@/utils/otp_code";
 import "./security.css";
 
 const METHOD_ORDER = ["totp", "email", "recovery_code"];
@@ -110,7 +101,7 @@ const METHOD_ORDER = ["totp", "email", "recovery_code"];
 // A confirmação vale por alguns minutos e a requisição que falhou é repetida automaticamente pelo interceptor.
 export default {
   name: "ReauthModal",
-  components: { BaseModal },
+  components: { BaseModal, OtpInput, RecoveryCodeInput },
   data() {
     return {
       methodLabels: mfaMethodLabels,
@@ -154,7 +145,12 @@ export default {
     },
     canSubmit() {
       if (!this.password) return false;
-      return !this.mfaEnabled || this.code.trim().length >= 4;
+      return !this.mfaEnabled || this.codeComplete;
+    },
+    codeComplete() {
+      return this.method === "recovery_code"
+        ? normalizeRecoveryCode(this.code).length === RECOVERY_CODE_LENGTH
+        : this.code.length === OTP_LENGTH;
     },
   },
   watch: {
@@ -210,7 +206,7 @@ export default {
       try {
         await securityService.reauthenticate({
           password: this.password,
-          mfa: this.mfaEnabled ? { method: this.method, code: this.code.trim() } : undefined,
+          mfa: this.mfaEnabled ? { method: this.method, code: this.code } : undefined,
         });
         this.reauthStore.complete();
       } catch (error) {

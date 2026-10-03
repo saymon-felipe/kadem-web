@@ -265,13 +265,6 @@
   min-width: 110px;
 }
 
-.sec-code-input {
-  letter-spacing: 0.35em;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-  font-weight: 600;
-}
-
 @media (max-width: 560px) {
   .sec-row {
     align-items: flex-start;

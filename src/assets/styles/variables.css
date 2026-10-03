@@ -69,6 +69,11 @@
   --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.2), inset 0 4px 20px rgba(255, 255, 255, 0.3);
   --glass-blur: blur(5px) saturate(180%);
 
+  /* ---- Campo de código (OtpInput) ---- */
+  --otp-border: rgba(31, 39, 76, 0.4);
+  --otp-border-filled: rgba(31, 39, 76, 0.65);
+  --otp-focus-ring: rgba(53, 90, 253, 0.22);
+
   /* ---- Header (Taskbar) ---- */
   --header-bg: rgba(206, 179, 134, 0.24);
   --header-border: transparent;
@@ -205,6 +210,11 @@
   --glass-border: rgba(255, 255, 255, 0.07);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --glass-blur: blur(12px) saturate(160%);
+
+  /* ---- Campo de código (OtpInput) (dark) ---- */
+  --otp-border: rgba(255, 255, 255, 0.34);
+  --otp-border-filled: rgba(255, 255, 255, 0.55);
+  --otp-focus-ring: rgba(95, 124, 255, 0.3);
 
   /* ---- Header (Taskbar) (dark) ---- */
   --header-bg: var(--glass-bg);

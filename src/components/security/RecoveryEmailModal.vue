@@ -34,21 +34,7 @@
       <template v-else>
         <p>Enviamos um código de 6 dígitos para <strong>{{ emailHint }}</strong>. Ele vale por {{ validMinutes }} minutos.</p>
 
-        <div class="form-group">
-          <input
-            id="recovery-email-code"
-            ref="codeInput"
-            v-model="code"
-            class="sec-code-input"
-            type="text"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            maxlength="8"
-            placeholder=" "
-            @keyup.enter="confirm"
-          />
-          <label for="recovery-email-code">Código recebido</label>
-        </div>
+        <OtpInput ref="codeInput" v-model="code" label="Código recebido" @enter="confirm" />
 
         <div class="sec-actions">
           <button type="button" class="sec-btn ghost" :disabled="sending || cooldown > 0" @click="sendCode">
@@ -79,7 +65,7 @@
           v-else
           type="button"
           class="sec-btn primary"
-          :disabled="confirming || code.trim().length < 4"
+          :disabled="confirming || code.length < OTP_LENGTH"
           @click="confirm"
         >
           {{ confirming ? "Confirmando..." : "Confirmar" }}
@@ -91,18 +77,21 @@
 
 <script>
 import BaseModal from "@/components/BaseModal.vue";
+import OtpInput from "@/components/security/OtpInput.vue";
 import { apiErrorCode, apiErrorMessage, securityService } from "@/services/securityService";
+import { OTP_LENGTH } from "@/utils/otp_code";
 import "./security.css";
 
 export default {
   name: "RecoveryEmailModal",
-  components: { BaseModal },
+  components: { BaseModal, OtpInput },
   props: {
     modelValue: { type: Boolean, default: false },
   },
   emits: ["update:modelValue", "saved"],
   data() {
     return {
+      OTP_LENGTH,
       email: "",
       code: "",
       sent: false,
@@ -165,13 +154,13 @@ export default {
       }
     },
     async confirm() {
-      if (this.confirming || this.code.trim().length < 4) return;
+      if (this.confirming || this.code.length < OTP_LENGTH) return;
 
       this.confirming = true;
       this.error = "";
 
       try {
-        await securityService.confirmRecoveryEmail(this.code.trim());
+        await securityService.confirmRecoveryEmail(this.code);
         this.$emit("saved");
         this.$emit("update:modelValue", false);
         this.reset();

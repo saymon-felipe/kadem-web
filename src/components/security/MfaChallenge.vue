@@ -41,21 +41,10 @@
           <label for="mfa-email-confirm">E-mail de recuperação</label>
         </div>
 
-        <div v-if="showCodeInput" class="form-group">
-          <input
-            id="mfa-code"
-            ref="codeInput"
-            v-model="code"
-            type="text"
-            class="mfa-code-input"
-            :inputmode="method === 'recovery_code' ? 'text' : 'numeric'"
-            autocomplete="one-time-code"
-            :maxlength="method === 'recovery_code' ? 16 : 8"
-            placeholder=" "
-            required
-          />
-          <label for="mfa-code">{{ codeLabel }}</label>
-        </div>
+        <template v-if="showCodeInput">
+          <RecoveryCodeInput v-if="method === 'recovery_code'" id="mfa-code" ref="codeInput" v-model="code" :label="codeLabel" />
+          <OtpInput v-else ref="codeInput" v-model="code" :label="codeLabel" />
+        </template>
 
         <button
           v-if="otherMethods.length"
@@ -88,7 +77,7 @@
 
         <LoadingResponse :msg="message" :type="messageType" styletype="small" :loading="loading" />
 
-        <button v-if="showCodeInput" type="submit" class="btn btn-primary" :disabled="loading || !code.trim()">
+        <button v-if="showCodeInput" type="submit" class="btn btn-primary" :disabled="loading || !codeComplete">
           {{ loading ? "Verificando..." : "Verificar" }}
         </button>
         <button type="button" class="btn mfa-secondary" :disabled="loading" @click="$emit('cancel')">
@@ -101,7 +90,10 @@
 
 <script>
 import LoadingResponse from "@/components/loadingResponse.vue";
+import OtpInput from "@/components/security/OtpInput.vue";
+import RecoveryCodeInput from "@/components/security/RecoveryCodeInput.vue";
 import { apiErrorCode, apiErrorMessage, mfaMethodLabels, securityService } from "@/services/securityService";
+import { normalizeRecoveryCode, OTP_LENGTH, RECOVERY_CODE_LENGTH } from "@/utils/otp_code";
 
 const METHOD_ORDER = ["totp", "email", "recovery_code"];
 
@@ -121,7 +113,7 @@ const METHOD_DESCRIPTIONS = {
 // login do app e a de vínculo da Alexa não guardam a sessão do mesmo jeito.
 export default {
   name: "MfaChallenge",
-  components: { LoadingResponse },
+  components: { LoadingResponse, OtpInput, RecoveryCodeInput },
   props: {
     // { mfa_token, methods, email_hint }
     challenge: { type: Object, required: true },
@@ -161,6 +153,12 @@ export default {
     },
     canConfirmEmail() {
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.emailConfirm.trim());
+    },
+    // Código completo: 6 dígitos (app e e-mail) ou os 10 caracteres do código de backup.
+    codeComplete() {
+      return this.method === "recovery_code"
+        ? normalizeRecoveryCode(this.code).length === RECOVERY_CODE_LENGTH
+        : this.code.length === OTP_LENGTH;
     },
     leadText() {
       if (this.methodPickerOpen) {
@@ -241,7 +239,7 @@ export default {
       }
     },
     async submit() {
-      if (this.loading || !this.code.trim()) return;
+      if (this.loading || !this.codeComplete) return;
 
       this.loading = true;
       this.message = "";
@@ -249,7 +247,7 @@ export default {
       try {
         const response = await this.verifyFn({
           method: this.method,
-          code: this.code.trim(),
+          code: this.code,
         });
         this.$emit("verified", response);
       } catch (error) {
@@ -356,13 +354,6 @@ export default {
   cursor: pointer;
   margin-top: var(--space-2);
   margin-bottom: var(--space-1);
-}
-
-.mfa-code-input {
-  letter-spacing: 0.3em;
-  font-weight: 600;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
 }
 
 .mfa-challenge .form-group label {
