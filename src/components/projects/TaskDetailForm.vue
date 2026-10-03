@@ -2,10 +2,28 @@
   <div class="task-detail-modal" @click="handle_global_click">
     <header class="modal-header">
       <div class="header-content">
-        <span class="project-name">{{ projectName }}</span>
-        <div class="title-row">
-          <h3 class="task-id">#{{ task_display_id }}</h3>
-          <span v-if="is_dirty" class="dirty-badge">Alterações não salvas</span>
+        <div class="header-titles">
+          <div class="breadcrumb-trail">
+            <span class="project-name">{{ projectName }}</span>
+            <template v-if="parent_task">
+              <font-awesome-icon icon="chevron-right" class="breadcrumb-sep" />
+              <button
+                type="button"
+                class="breadcrumb-parent-btn"
+                @click="open_related_task(parent_task)"
+                :title="`Voltar para tarefa pai #${parent_task.id || parent_task.local_id}`"
+              >
+                <font-awesome-icon icon="arrow-left" class="breadcrumb-back-icon" />
+                <span class="breadcrumb-parent-id">#{{ parent_task.id || parent_task.local_id }}</span>
+                <span class="breadcrumb-parent-desc">{{ parent_task.description || parent_task.title || 'Tarefa pai' }}</span>
+              </button>
+            </template>
+          </div>
+          <div class="title-row">
+            <h3 class="task-id">#{{ task_display_id }}</h3>
+            <span v-if="parent_task" class="subtask-badge">Subtarefa</span>
+            <span v-if="is_dirty" class="dirty-badge">Alterações não salvas</span>
+          </div>
         </div>
       </div>
       <div class="header-actions">
@@ -94,6 +112,12 @@
             <span>{{ created_time_ago }}</span>
           </footer>
         </form>
+
+        <section
+          :class="['tab-panel subtasks-panel custom-scrollbar', { 'is-active': active_tab === 'subtasks' }]"
+          :aria-hidden="active_tab !== 'subtasks'">
+          <TaskRelations :task="task" :members="members" @open-task="open_related_task" />
+        </section>
 
         <section
           :class="['tab-panel attachments-panel custom-scrollbar', { 'is-active': active_tab === 'attachments' }]"
@@ -296,11 +320,13 @@
 import { mapActions, mapState } from "pinia";
 import { useKanbanStore } from "@/stores/kanban";
 import { useAuthStore } from "@/stores/auth";
+import { useAppStore } from "@/stores/app";
 import { attachmentUploads } from "@/services/attachmentUploadProgress";
 import defaultAccountImage from "@/assets/images/kadem-default-account.jpg";
 import BaseModal from "@/components/BaseModal.vue";
 import CustomDropdown from "../ui/CustomDropdown.vue";
 import KademTabs from "../ui/KademTabs.vue";
+import TaskRelations from "./TaskRelations.vue";
 
 import moment from "moment/min/moment-with-locales";
 
@@ -308,13 +334,13 @@ moment.locale("pt-br");
 
 export default {
   name: "TaskDetailForm",
-  components: { BaseModal, CustomDropdown, KademTabs },
+  components: { BaseModal, CustomDropdown, KademTabs, TaskRelations },
   props: {
     task: { type: Object, required: true },
     projectName: { type: String, default: "Projeto" },
     members: { type: Array, default: () => [] },
   },
-  emits: ["close", "save-task", "delete", "delete-comment", "delete-attachment"],
+  emits: ["close", "save-task", "delete", "delete-comment", "delete-attachment", "open-task"],
 
   directives: {
     "click-outside": {
@@ -362,6 +388,10 @@ export default {
   },
   computed: {
     ...mapState(useAuthStore, ["user"]),
+    ...mapState(useKanbanStore, ["taskHierarchy"]),
+    parent_task() {
+      return this.taskHierarchy?.byId?.get(this.task.parent_task_local_id);
+    },
     task_display_id() {
       return this.task.id || this.task.local_id;
     },
@@ -397,9 +427,14 @@ export default {
       }));
     },
 
+    child_count() {
+      return this.taskHierarchy?.children?.get(this.task.local_id)?.length || 0;
+    },
+
     task_tabs() {
       return [
         { id: "details", label: "Detalhes" },
+        { id: "subtasks", label: "Subtarefas", badge: this.child_count },
         { id: "attachments", label: "Anexos", badge: this.attachment_count },
         { id: "comments", label: "Comentários", badge: this.comment_count },
       ];
@@ -411,10 +446,12 @@ export default {
     },
 
     track_style() {
-      const step = 100 / this.task_tabs.length;
+      const count = this.task_tabs.length;
+      const step = 100 / count;
       return {
-        width: `${this.task_tabs.length * 100}%`,
+        width: `${count * 100}%`,
         transform: `translateX(-${this.active_tab_index * step}%)`,
+        '--tabs-count': count,
       };
     },
 
@@ -464,6 +501,16 @@ export default {
     moment.locale("pt-br");
   },
   methods: {
+    async open_related_task(task) {
+      if (this.is_saving) return;
+      this.is_saving = true;
+      try {
+        if (this.is_dirty) await this.updateTask(this.editable_task);
+        this.$emit('open-task', task);
+      } catch {
+        useAppStore().showToast({ message: 'Não foi possível salvar as alterações antes de abrir a tarefa.', type: 'error' });
+      } finally { this.is_saving = false; }
+    },
     ...mapActions(useKanbanStore, [
       "updateTask",
       "addCommentToTask",
@@ -478,7 +525,7 @@ export default {
       // Exclui dados volumosos ANTES de serializar e criar dependências reativas.
       const fields = {};
       Object.keys(task).forEach((key) => {
-        if (key !== "comments" && key !== "attachments") fields[key] = task[key];
+        if (!["comments", "attachments", "parent_task_local_id", "parent_task_id", "parent_link_timestamp"].includes(key)) fields[key] = task[key];
       });
       return fields;
     },
@@ -1003,6 +1050,76 @@ export default {
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  flex: 1;
+}
+
+.header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.breadcrumb-trail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fontsize-xs);
+  min-width: 0;
+}
+
+.breadcrumb-sep {
+  font-size: 8px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.breadcrumb-parent-btn {
+  background: transparent;
+  border: 0;
+  padding: 2px 6px;
+  color: var(--color-info);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 280px;
+  overflow: hidden;
+  font-size: var(--fontsize-xs);
+  font-weight: 500;
+  transition: background var(--transition-fast) ease, color var(--transition-fast) ease;
+}
+
+.breadcrumb-parent-btn:hover {
+  background: var(--surface-3);
+}
+
+.breadcrumb-back-icon {
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+.breadcrumb-parent-id {
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.breadcrumb-parent-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtask-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: rgba(95, 124, 255, 0.15);
+  color: var(--color-info);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .project-name {
@@ -1135,8 +1252,8 @@ export default {
 }
 
 .tab-panel {
-  width: calc(100% / 3);
-  flex: 0 0 calc(100% / 3);
+  width: calc(100% / var(--tabs-count, 4));
+  flex: 0 0 calc(100% / var(--tabs-count, 4));
   height: 100%;
   min-height: 0;
   min-width: 0;
@@ -1144,6 +1261,11 @@ export default {
   overflow-x: hidden;
   padding: var(--space-6) var(--space-7) var(--space-7);
   box-sizing: border-box;
+}
+
+.subtasks-panel {
+  display: flex;
+  flex-direction: column;
 }
 
 .details-panel {

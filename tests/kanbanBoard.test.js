@@ -103,6 +103,171 @@ const dragTask = async (store, task, fromColumn, toColumn) => {
 // em deleteTask/updateTask.
 const openInModal = (task) => JSON.parse(JSON.stringify(task));
 
+const withHierarchyBoard = async (run) => {
+  const server = await createViteServer();
+  let board;
+  try {
+    board = await loadBoard(server);
+    const { useAuthStore } = await server.ssrLoadModule('/src/stores/auth.js');
+    useAuthStore().user = { id: 1, name: 'Teste' };
+    await run(board, server);
+  } finally {
+    board?.db.close();
+    await server.close();
+  }
+};
+
+test('criar, vincular e desvincular filhas offline persiste após recarregar', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, columnB, kanbanRepository: repo, syncQueueRepository: queue }) => {
+  const child = await store.createTask(columnB.local_id, { project_id: PROJECT_ID, description: 'Filha offline', parent_task_local_id: task.local_id });
+  assert.equal(child.parent_task_local_id, task.local_id);
+  assert.equal(child.id, null);
+  await store.loadBoardFromLocal(PROJECT_ID);
+  assert.equal(store.taskHierarchy.children.get(task.local_id)[0].local_id, child.local_id);
+  await store.setTaskParent(child, null);
+  assert.equal(store.taskHierarchy.children.get(task.local_id), undefined);
+  await store.setTaskParent(child, task.local_id);
+  assert.equal((await repo.get_task_by_local_id(child.local_id)).parent_task_local_id, task.local_id);
+  assert.equal((await queue.getPendingTasksByType('CREATE_TASK')).length, 1);
+  assert.equal((await queue.getPendingTasksByType('UPDATE_TASK_PARENT')).length, 2);
+}));
+
+test('hierarquia recusa ciclos e vínculos entre projetos', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, columnA, kanbanRepository: repo }) => {
+  const child = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Filha', parent_task_local_id: task.local_id });
+  const grandchild = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Neta', parent_task_local_id: child.local_id });
+  await assert.rejects(store.setTaskParent(task, grandchild.local_id), /circular/);
+  await assert.rejects(store.setTaskParent(task, task.local_id), /circular/);
+  const other = await repo.add_task({ project_id: 999, column_id: columnA.local_id });
+  await assert.rejects(store.setTaskParent(task, other.local_id), /circular/);
+  assert.equal((await repo.get_task_by_local_id(task.local_id)).parent_task_local_id ?? null, null);
+}));
+
+test('falha ao enfileirar criação de filha não deixa tarefa órfã no dispositivo', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, columnA, db, syncQueueRepository: queue }) => {
+  const originalAdd = queue.addSyncQueueTask;
+  const initialCount = await db.kanban_tasks.count();
+  queue.addSyncQueueTask = async () => { throw new Error('Fila indisponível'); };
+  try {
+    await assert.rejects(store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Não deve ficar salva', parent_task_local_id: task.local_id }), /Fila indisponível/);
+    assert.equal(await db.kanban_tasks.count(), initialCount);
+    assert.equal(store.getTasks(columnA.local_id).length, 1);
+  } finally { queue.addSyncQueueTask = originalAdd; }
+}));
+
+test('excluir pai ou coluna preserva filhas em outras colunas', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, columnA, columnB, kanbanRepository: repo }) => {
+  const child = await store.createTask(columnB.local_id, { project_id: PROJECT_ID, description: 'Filha', parent_task_local_id: task.local_id });
+  await store.deleteTask(task);
+  assert.equal((await repo.get_task_by_local_id(child.local_id)).parent_task_local_id, null);
+  assert.equal(store.getTasks(columnB.local_id)[0].parent_task_local_id, null);
+  const nextParent = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Outro pai' });
+  await store.setTaskParent(child, nextParent.local_id);
+  await store.deleteColumn(columnA);
+  assert.equal((await repo.get_task_by_local_id(child.local_id)).parent_task_local_id, null);
+  assert.equal(await repo.get_task_by_local_id(nextParent.local_id), undefined);
+}));
+
+test('pull resolve pai em qualquer ordem e preserva edição de vínculo pendente', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, columnA, kanbanRepository: repo, db }) => {
+  const columns = [{ id: 11, title: 'A fazer', order_index: 0 }];
+  const remote = (id, parent_task_id) => ({ id, parent_task_id, column_id: 11, description: `Remota ${id}`, order_index: 0 });
+  await repo.mergeServerData(PROJECT_ID, columns, [remote(202, 201), remote(201, null), remote(task.id, null)]);
+  await store.loadBoardFromLocal(PROJECT_ID);
+  const all = store.getProjectTasks(PROJECT_ID);
+  const parent = all.find(t => t.id === 201);
+  const child = all.find(t => t.id === 202);
+  assert.equal(child.parent_task_local_id, parent.local_id);
+  await store.setTaskParent(child, task.local_id);
+  // Even a retry not due yet must protect the local relationship.
+  await db.syncQueue.toCollection().modify({ status: 'RETRY', next_attempt_at: '2099-01-01T00:00:00Z' });
+  await repo.mergeServerData(PROJECT_ID, [], [remote(202, 201)], true);
+  assert.equal((await repo.get_task_by_local_id(child.local_id)).parent_task_local_id, task.local_id);
+  await db.syncQueue.clear();
+  await repo.mergeServerData(PROJECT_ID, [], [remote(202, null)], true);
+  assert.equal((await repo.get_task_by_local_id(child.local_id)).parent_task_local_id, null);
+  assert.equal((await repo.get_task_by_local_id(child.local_id)).column_id, columnA.local_id);
+}));
+
+test('editar os detalhes com snapshot antigo não restaura um pai desvinculado', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, columnA, kanbanRepository: repo }) => {
+  const child = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Filha', parent_task_local_id: task.local_id });
+  const snapshot = openInModal(child);
+  await store.setTaskParent(child, null);
+  snapshot.description = 'Editada';
+  await store.updateTask(snapshot);
+  assert.equal((await repo.get_task_by_local_id(child.local_id)).parent_task_local_id, null);
+  assert.equal(store.taskHierarchy.byId.get(child.local_id).parent_task_local_id, null);
+}));
+
+test('reconectar cria pais antes de filhas e envia apenas IDs remotos', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, db, syncQueueRepository: queue, kanbanRepository: repo }, server) => {
+  const { api } = await server.ssrLoadModule('/src/plugins/api.js');
+  const { syncService } = await server.ssrLoadModule('/src/services/syncService.js');
+  const { useUtilsStore } = await server.ssrLoadModule('/src/stores/utils.js');
+  const posts = [], puts = [];
+  api.post = async (url, body) => { posts.push({ url, body }); return { data: { id: 900 + posts.length } }; };
+  api.put = async (url, body) => { puts.push({ url, body }); return { data: {} }; };
+  api.get = async () => ({ data: { changes: [], next_cursor: 0, has_more: false } });
+  const parent = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Pai novo' });
+  const child = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Filha nova', parent_task_local_id: parent.local_id });
+  await store.setTaskParent(child, null);
+  assert.equal(posts.length, 0);
+  const utils = useUtilsStore();
+  utils.is_network_online = true;
+  utils.is_kadem_api_available = true;
+  await syncService.processSyncQueue();
+  assert.equal(posts.length, 2);
+  assert.equal(posts[0].body.parent_task_id, null);
+  assert.equal(posts[1].body.parent_task_id, 901);
+  assert.equal('parent_task_local_id' in posts[1].body, false);
+  assert.equal(puts[0].url, '/kanban/tasks/902');
+  assert.equal(puts[0].body.changes[0].value, null);
+  assert.equal((await queue.getPendingTasks()).length, 0);
+  assert.equal((await repo.get_task_by_local_id(child.local_id)).id, 902);
+  assert.equal((await db.kanban_tasks.get(child.local_id)).parent_task_local_id, null);
+}));
+
+test('excluir pai criado offline antes de reconectar envia apenas a filha independente', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, syncQueueRepository: queue }, server) => {
+  const { api } = await server.ssrLoadModule('/src/plugins/api.js');
+  const { syncService } = await server.ssrLoadModule('/src/services/syncService.js');
+  const { useUtilsStore } = await server.ssrLoadModule('/src/stores/utils.js');
+  const posts = [];
+  api.post = async (_url, body) => { posts.push(body); return { data: { id: 1001 } }; };
+  api.put = async () => ({ data: {} });
+  api.get = async () => ({ data: { changes: [], next_cursor: 0, has_more: false } });
+  const parent = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Pai temporário' });
+  await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Filha preservada', parent_task_local_id: parent.local_id });
+  await store.deleteTask(parent);
+  useUtilsStore().is_network_online = true;
+  useUtilsStore().is_kadem_api_available = true;
+  await syncService.processSyncQueue();
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].description, 'Filha preservada');
+  assert.equal(posts[0].parent_task_id, null);
+  assert.equal((await queue.getPendingTasks()).length, 0);
+}));
+
+test('upgrade Dexie v22 → v23 preserva tarefa, comentários e blob offline', { timeout: 30000 }, async () => {
+  const server = await createViteServer();
+  let db;
+  let oldDb;
+  try {
+    installMemoryStorage();
+    ({ db } = await server.ssrLoadModule('/src/db.js'));
+    const oldSchema = Object.fromEntries(db.tables.map(table => [table.name,
+      [table.schema.primKey.src, ...table.schema.indexes.filter(index => index.name !== 'parent_task_local_id').map(index => index.src)].join(', ')
+    ]));
+    await db.delete();
+    oldDb = new db.constructor(db.name);
+    oldDb.version(22).stores(oldSchema);
+    await oldDb.open();
+    await oldDb.table('kanban_tasks').add({ local_id: 91, project_id: PROJECT_ID, description: 'Existente', comments: [{ content: 'Preservado' }] });
+    await oldDb.table('kanban_task_attachments').add({ task_local_id: 91, project_id: PROJECT_ID, blob: new Blob(['Arquivo preservado']) });
+    oldDb.close();
+    await db.open();
+    assert.equal(db.verno, 23);
+    const task = await db.kanban_tasks.get(91);
+    assert.equal(task.description, 'Existente');
+    assert.equal(task.comments[0].content, 'Preservado');
+    assert.equal(task.parent_task_local_id, null);
+    assert.equal(await (await db.kanban_task_attachments.toArray())[0].blob.text(), 'Arquivo preservado');
+  } finally { oldDb?.close(); db?.close(); await server.close(); }
+});
+
 test("carregar quadro lê tarefas/anexos uma vez e preserva colunas, ordem e arquivos", { timeout: 30000 }, async () => {
   const server = await createViteServer();
   let db;

@@ -66,6 +66,7 @@
         :members="project_members"
         @close="is_modal_open = false"
         @save-task="handle_save_task"
+        @open-task="open_task_modal"
         @delete="ask_delete_task"
         @delete-comment="ask_delete_comment"
         @delete-attachment="ask_delete_attachment"

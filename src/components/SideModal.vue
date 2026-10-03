@@ -54,11 +54,14 @@ export default {
     is_floating() {
       return this.variant === "floating";
     },
+    should_track_height() {
+      return this.isMobile || this.is_floating;
+    },
     transition_name() {
       return this.is_floating ? "floating-modal" : "side-modal";
     },
     dynamicStyle() {
-      if (this.isMobile && this.modalHeight) {
+      if (this.should_track_height && this.modalHeight) {
         return {
           height: `${this.modalHeight}px`,
         };
@@ -80,7 +83,7 @@ export default {
       }
       this.isReadyForHeightTransition = false;
       this.$nextTick(() => {
-        if (this.isMobile) {
+        if (this.should_track_height) {
           this.updateModalHeight(false);
           this.initObservers();
           setTimeout(() => {
@@ -99,16 +102,8 @@ export default {
     handleWindowResize() {
       const wasMobile = this.isMobile;
       this.checkMobile();
-      if (this.isMobile !== wasMobile) {
-        if (this.isMobile) {
-          this.initObservers();
-          this.updateModalHeight(false);
-        } else {
-          this.destroyObservers();
-          this.modalHeight = null;
-        }
-      } else if (this.isMobile) {
-        this.updateModalHeight(false);
+      if (this.should_track_height) {
+        this.updateModalHeight(true);
       }
     },
     close() {
@@ -124,13 +119,13 @@ export default {
       }
     },
     updateModalHeight(animate = true) {
-      if (!this.modelValue || !this.isMobile) return;
+      if (!this.modelValue || !this.should_track_height) return;
       const el = this.$refs.modalContentRef;
       if (!el) return;
 
       const screenH = typeof window !== "undefined" ? window.innerHeight : 800;
-      const minH = Math.round(screenH * 0.40);
-      const maxH = Math.max(minH, screenH - 76);
+      const minH = this.isMobile ? Math.round(screenH * 0.40) : 340;
+      const maxH = this.isMobile ? Math.max(minH, screenH - 76) : Math.min(screenH - 76, 700);
 
       const bodyEl = el.querySelector(".modal-body, .modal-body-area");
       let naturalHeight = 0;
@@ -139,7 +134,21 @@ export default {
         const activePanel = bodyEl.querySelector(".tab-panel.is-active, .tab-panel:not([style*='display: none'])");
         let bodyContentHeight = 0;
         if (activePanel) {
-          bodyContentHeight = activePanel.scrollHeight;
+          const panelStyle = window.getComputedStyle(activePanel);
+          const gap = parseFloat(panelStyle.rowGap) || 0;
+          const panelPaddingTop = parseFloat(panelStyle.paddingTop) || 0;
+          const panelPaddingBottom = parseFloat(panelStyle.paddingBottom) || 0;
+          const children = Array.from(activePanel.children);
+          if (children.length > 0) {
+            const childrenHeight = children.reduce((total, child, index) => {
+              const style = window.getComputedStyle(child);
+              const margins = (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+              return total + child.getBoundingClientRect().height + margins + (index > 0 ? gap : 0);
+            }, 0);
+            bodyContentHeight = Math.ceil(childrenHeight + panelPaddingTop + panelPaddingBottom);
+          } else {
+            bodyContentHeight = activePanel.scrollHeight;
+          }
         } else {
           bodyContentHeight = bodyEl.scrollHeight;
         }
@@ -153,20 +162,26 @@ export default {
         let nonBodyHeight = 0;
         for (const child of formRoot.children) {
           if (child !== bodyEl && !child.contains(bodyEl)) {
-            nonBodyHeight += child.offsetHeight;
+            nonBodyHeight += Math.ceil(child.getBoundingClientRect().height);
           }
         }
 
         if (this.$refs.dragIndicatorRef) {
-          nonBodyHeight += this.$refs.dragIndicatorRef.offsetHeight;
+          nonBodyHeight += Math.ceil(this.$refs.dragIndicatorRef.getBoundingClientRect().height);
         }
 
         const elComputed = window.getComputedStyle(el);
+        const elPaddingTop = parseFloat(elComputed.paddingTop) || 0;
         const elPaddingBottom = parseFloat(elComputed.paddingBottom) || 0;
+        const elBorderTop = parseFloat(elComputed.borderTopWidth) || 0;
+        const elBorderBottom = parseFloat(elComputed.borderBottomWidth) || 0;
 
-        naturalHeight = nonBodyHeight + totalBody + elPaddingBottom;
+        // Buffer sutil de 6px apenas para tolerância de renderização subpixel
+        const verticalBuffer = 6;
+
+        naturalHeight = nonBodyHeight + totalBody + elPaddingTop + elPaddingBottom + elBorderTop + elBorderBottom + verticalBuffer;
       } else {
-        naturalHeight = el.scrollHeight;
+        naturalHeight = el.scrollHeight + 6;
       }
 
       const targetHeight = Math.round(Math.min(Math.max(naturalHeight, minH), maxH));
@@ -182,7 +197,7 @@ export default {
     },
     initObservers() {
       this.destroyObservers();
-      if (!this.isMobile) return;
+      if (!this.should_track_height) return;
       const el = this.$refs.modalContentRef;
       if (!el) return;
 
@@ -237,7 +252,7 @@ export default {
         }
         this.isReadyForHeightTransition = false;
         this.$nextTick(() => {
-          if (this.isMobile) {
+          if (this.should_track_height) {
             this.updateModalHeight(false);
             this.initObservers();
             setTimeout(() => {
@@ -322,8 +337,8 @@ export default {
 .variant-floating {
   width: 80dvw;
   max-width: 860px;
-  height: min(78dvh, 800px);
-  max-height: calc(100dvh - 48px);
+  height: auto;
+  max-height: calc(100dvh - 76px);
   min-height: 0;
   overflow: hidden;
   display: flex;

@@ -363,6 +363,14 @@ async function _handleProjectTask(task) {
   }
 }
 
+async function resolveTaskParentId(parentLocalId) {
+  if (parentLocalId == null) return null;
+  const parent = await kanbanRepository.get_task_by_local_id(parentLocalId);
+  if (!parent) return null; // Pai excluído localmente: a filha permanece independente.
+  if (!parent.id) throw new Error('TASK_NOT_SYNCED: Aguardando tarefa pai.');
+  return parent.id;
+}
+
 async function _handleKanbanTask(task) {
   let serverId, response;
 
@@ -419,16 +427,35 @@ async function _handleKanbanTask(task) {
       break;
 
     case "CREATE_TASK":
+      if (!await kanbanRepository.get_task_by_local_id(task.entity_id)) return;
       const tProjId = await resolveServerProjectId(task.payload.project_id);
       const parentCol = await kanbanRepository.get_column_by_local_id(task.payload.column_id);
       if (!parentCol || !parentCol.id) throw new Error("COLUMN_NOT_SYNCED: Coluna pai não sincronizada.");
 
       const taskPayload = { ...task.payload, project_id: tProjId, column_id: parentCol.id };
+      taskPayload.parent_task_id = await resolveTaskParentId(task.payload.parent_task_local_id);
+      delete taskPayload.parent_task_local_id;
+      delete taskPayload.parent_link_timestamp;
       response = await api.post(`/kanban/tasks`, taskPayload);
       await kanbanRepository.setServerIdForTask(task.entity_id, response.data.id);
       break;
 
+    case "UPDATE_TASK_PARENT": {
+      const localTask = await kanbanRepository.get_task_by_local_id(task.entity_id);
+      if (!localTask) return;
+      if (!localTask.id) throw new Error("TASK_NOT_SYNCED: Aguardando tarefa para vincular.");
+      const parentId = await resolveTaskParentId(task.payload.parent_task_local_id);
+      await api.put(`/kanban/tasks/${localTask.id}`, {
+        changes: [{ field: 'parent_task_id', value: parentId, timestamp: task.timestamp }],
+      });
+      break;
+    }
+
     case "UPDATE_TASK":
+      if (!await kanbanRepository.get_task_by_local_id(task.entity_id)) return;
+      delete task.payload.parent_task_local_id;
+      delete task.payload.parent_task_id;
+      delete task.payload.parent_link_timestamp;
       serverId = task.payload.id;
       if (task.payload.column_id) {
         const col = await kanbanRepository.get_column_by_local_id(task.payload.column_id);

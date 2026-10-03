@@ -7,6 +7,8 @@ import { useAuthStore } from './auth';
 import { api } from '../plugins/api';
 import { useUtilsStore } from '../stores/utils';
 import { getPlanLimits } from '../services/subscription_plans';
+import { canSetTaskParent } from '../utils/taskHierarchy';
+import { db } from '../db';
 
 const formatBytes = (bytes) => {
   if (!bytes) return '0 B';
@@ -24,6 +26,22 @@ export const useKanbanStore = defineStore('kanban', {
   }),
 
   getters: {
+    taskHierarchy: (state) => {
+      const byId = new Map();
+      const children = new Map();
+      for (const columns of Object.values(state.columns)) {
+        for (const task of columns.flatMap(column => state.tasks[column.local_id] || [])) {
+          byId.set(task.local_id, task);
+          if (task.parent_task_local_id != null) {
+            if (!children.has(task.parent_task_local_id)) children.set(task.parent_task_local_id, []);
+            children.get(task.parent_task_local_id).push(task);
+          }
+        }
+      }
+      return { byId, children };
+    },
+    getProjectTasks: (state) => (projectId) =>
+      (state.columns[projectId] || []).flatMap(column => state.tasks[column.local_id] || []),
     getColumns: (state) => (project_id) => {
       const pid = Number(project_id) || project_id;
       return state.columns[pid] || [];
@@ -34,6 +52,37 @@ export const useKanbanStore = defineStore('kanban', {
   },
 
   actions: {
+    async setTaskParent(task, parentLocalId) {
+      const localTask = await kanbanRepository.get_task_by_local_id(task.local_id);
+      if (!localTask) throw new Error('Tarefa não encontrada.');
+      await db.transaction('rw', db.kanban_tasks, db.syncQueue, async () => {
+        const tasks = await db.kanban_tasks.where('project_id').equals(localTask.project_id).toArray();
+        if (!canSetTaskParent(tasks, task.local_id, parentLocalId)) {
+          throw new Error('Escolha uma tarefa do mesmo projeto que não forme um vínculo circular.');
+        }
+        const current = tasks.find(t => t.local_id === task.local_id);
+        const timestamp = Math.max(Date.now(), (current.parent_link_timestamp || 0) + 1);
+        await kanbanRepository.update_task(task.local_id, { parent_task_local_id: parentLocalId, parent_link_timestamp: timestamp });
+        await syncQueueRepository.addSyncQueueTask({
+          type: 'UPDATE_TASK_PARENT',
+          entity_id: task.local_id,
+          payload: { local_id: task.local_id, parent_task_local_id: parentLocalId },
+          timestamp,
+        });
+      });
+      const storedTask = this.taskHierarchy.byId.get(task.local_id);
+      if (storedTask) storedTask.parent_task_local_id = parentLocalId;
+      syncService.processSyncQueue();
+    },
+
+    async detachChildren(taskIds) {
+      const ids = new Set(taskIds);
+      for (const task of this.taskHierarchy.byId.values()) {
+        if (ids.has(task.parent_task_local_id) && !ids.has(task.local_id)) {
+          await this.setTaskParent(task, null);
+        }
+      }
+    },
     async loadBoardFromLocal(projectId) {
       if (!projectId) return;
 
@@ -386,6 +435,7 @@ export const useKanbanStore = defineStore('kanban', {
 
     async deleteColumn(column) {
       try {
+        await this.detachChildren((this.tasks[column.local_id] || []).map(task => task.local_id));
         const pid = column.project_id;
         if (this.columns[pid]) {
           this.columns[pid] = this.columns[pid]
@@ -414,10 +464,16 @@ export const useKanbanStore = defineStore('kanban', {
       const authStore = useAuthStore();
       const current_tasks = this.tasks[column_local_id] || [];
       const pid = Number(task_data.project_id) || task_data.project_id;
+      const parentLocalId = task_data.parent_task_local_id ?? null;
+      if (parentLocalId != null) {
+        const parent = await kanbanRepository.get_task_by_local_id(parentLocalId);
+        if (!parent || parent.project_id !== pid) throw new Error('Tarefa pai inválida.');
+      }
 
       const new_task_obj = {
         id: null,
         column_id: column_local_id,
+        parent_task_local_id: parentLocalId,
         project_id: pid,
         order: current_tasks.length,
         title: '',
@@ -435,17 +491,19 @@ export const useKanbanStore = defineStore('kanban', {
       };
 
       try {
-        const saved_task = await kanbanRepository.add_task(new_task_obj);
+        const saved_task = await db.transaction('rw', db.kanban_tasks, db.syncQueue, async () => {
+          const saved = await kanbanRepository.add_task(new_task_obj);
+          await syncQueueRepository.addSyncQueueTask({
+            type: 'CREATE_TASK',
+            payload: saved,
+            entity_id: saved.local_id,
+            timestamp: Date.now()
+          });
+          return saved;
+        });
 
         if (!this.tasks[column_local_id]) this.tasks[column_local_id] = [];
         this.tasks[column_local_id].push(saved_task);
-
-        await syncQueueRepository.addSyncQueueTask({
-          type: 'CREATE_TASK',
-          payload: saved_task,
-          entity_id: saved_task.local_id,
-          timestamp: Date.now()
-        });
 
         await syncService.processSyncQueue();
         const refreshedTask = await kanbanRepository.get_task_by_local_id(saved_task.local_id);
@@ -467,13 +525,13 @@ export const useKanbanStore = defineStore('kanban', {
     async updateTask(task) {
       try {
         const attachments = task.attachments || [];
-        const clean_task = JSON.parse(JSON.stringify({ ...task, attachments: undefined }));
+        const clean_task = JSON.parse(JSON.stringify({ ...task, attachments: undefined, parent_task_local_id: undefined, parent_task_id: undefined, parent_link_timestamp: undefined }));
         await kanbanRepository.update_task(task.local_id, clean_task);
 
         const column_tasks = this.tasks[task.column_id];
         if (column_tasks) {
           const index = column_tasks.findIndex(t => t.local_id === task.local_id);
-          if (index !== -1) column_tasks[index] = { ...clean_task, attachments };
+          if (index !== -1) column_tasks[index] = { ...column_tasks[index], ...clean_task, attachments };
         }
 
         await syncQueueRepository.addSyncQueueTask({
@@ -493,6 +551,7 @@ export const useKanbanStore = defineStore('kanban', {
 
     async deleteTask(task) {
       try {
+        await this.detachChildren([task.local_id]);
         const column_tasks = this.tasks[task.column_id];
         if (column_tasks) {
           this.tasks[task.column_id] = column_tasks.filter(t => t.local_id !== task.local_id);
@@ -553,6 +612,33 @@ export const useKanbanStore = defineStore('kanban', {
       } catch (error) {
         console.error("Erro mover tarefas:", error);
       }
+    },
+
+    async moveTaskToColumn(task, targetColumnId) {
+      if (!task || !targetColumnId || task.column_id === targetColumnId) return;
+      const fromColumnId = task.column_id;
+      const source = this.tasks[fromColumnId];
+      if (!source) return;
+      const taskIndex = source.findIndex((t) => t.local_id === task.local_id);
+      if (taskIndex === -1) return;
+
+      if (!this.tasks[targetColumnId]) {
+        this.tasks[targetColumnId] = [];
+      }
+
+      const [moved] = source.splice(taskIndex, 1);
+      this.tasks[targetColumnId].push(moved);
+
+      await this.updateTasksForColumn({
+        columnId: fromColumnId,
+        tasks: this.tasks[fromColumnId],
+        event: { removed: { element: moved } },
+      });
+      await this.updateTasksForColumn({
+        columnId: targetColumnId,
+        tasks: this.tasks[targetColumnId],
+        event: { added: { element: moved } },
+      });
     },
 
     // `onSaved` roda assim que o anexo esta gravado no Dexie e visivel na tarefa, antes do envio ao

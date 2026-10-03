@@ -98,6 +98,12 @@ db.version(19).stores(SCHEMA_V19);
 db.version(20).stores(SCHEMA_V20);
 db.version(21).stores(SCHEMA_V21);
 db.version(22).stores(SCHEMA_V22);
+db.version(23).stores({
+  ...SCHEMA_V22,
+  kanban_tasks: "++local_id, id, column_id, project_id, parent_task_local_id",
+}).upgrade(tx => tx.table('kanban_tasks').toCollection().modify(task => {
+  task.parent_task_local_id ??= null;
+}));
 
 let dbOpenPromise = null;
 

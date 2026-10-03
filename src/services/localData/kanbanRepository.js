@@ -48,7 +48,11 @@ export const kanbanRepository = {
     },
 
     async delete_column(local_id) {
-        return await db.kanban_columns.delete(local_id);
+        await db.transaction('rw', db.kanban_columns, db.kanban_tasks, async () => {
+            const tasks = await db.kanban_tasks.where('column_id').equals(local_id).toArray();
+            for (const task of tasks) await this.delete_task(task.local_id);
+            await db.kanban_columns.delete(local_id);
+        });
     },
 
     async bulk_put_columns(cols) {
@@ -78,7 +82,11 @@ export const kanbanRepository = {
     },
 
     async delete_task(lid) {
-        return await db.kanban_tasks.delete(lid);
+        await db.transaction('rw', db.kanban_tasks, async () => {
+            await db.kanban_tasks.where('parent_task_local_id').equals(lid)
+                .modify({ parent_task_local_id: null });
+            await db.kanban_tasks.delete(lid);
+        });
     },
 
     async bulk_put_tasks(tasks) {
@@ -154,7 +162,15 @@ export const kanbanRepository = {
             return;
         }
 
-        await db.transaction('rw', db.kanban_columns, db.kanban_tasks, db.kanban_task_attachments, async () => {
+        await db.transaction('rw', db.kanban_columns, db.kanban_tasks, db.kanban_task_attachments, db.syncQueue, async () => {
+            // Includes retries scheduled in the future and failed operations: no silent loss.
+            const queue = await db.syncQueue.toArray();
+            const pendingParents = new Set(queue.filter(t =>
+                t.type === 'UPDATE_TASK_PARENT' || t.type === 'CREATE_TASK'
+            ).map(t => t.entity_id));
+            const deletedTasks = new Set(queue.filter(t => t.type === 'DELETE_TASK').map(t => t.payload.id));
+            const deletedColumns = new Set(queue.filter(t => t.type === 'DELETE_COLUMN').map(t => t.payload.id));
+            const pendingTasks = new Set(queue.filter(t => t.type === 'UPDATE_TASK').map(t => t.entity_id));
             const serverColumnIds = apiColumns.map(c => c.id);
             const serverTaskIds = apiTasks.map(t => t.id);
 
@@ -166,7 +182,8 @@ export const kanbanRepository = {
 
                 await db.kanban_tasks
                     .where('project_id').equals(localProjectId)
-                    .filter(task => task.id !== null && !serverTaskIds.includes(task.id))
+                    .filter(task => task.id != null && !serverTaskIds.includes(task.id) &&
+                        !pendingParents.has(task.local_id) && !pendingTasks.has(task.local_id))
                     .delete();
             }
 
@@ -178,6 +195,7 @@ export const kanbanRepository = {
             });
 
             for (const col of apiColumns) {
+                if (deletedColumns.has(col.id)) continue;
                 let existingLocalId = columnIdMap.get(col.id);
 
                 if (!existingLocalId) {
@@ -202,6 +220,7 @@ export const kanbanRepository = {
             }
 
             for (const task of apiTasks) {
+                if (deletedTasks.has(task.id) || deletedColumns.has(task.column_id)) continue;
                 const existing = await db.kanban_tasks.where({ project_id: localProjectId }).filter(t => t.id === task.id).first();
 
                 const parentLocalId = columnIdMap.get(task.column_id);
@@ -225,7 +244,10 @@ export const kanbanRepository = {
                 };
 
                 if (existing) {
+                    if (pendingTasks.has(existing.local_id)) Object.assign(taskData, existing);
                     taskData.local_id = existing.local_id;
+                    taskData.parent_task_local_id = existing.parent_task_local_id ?? null;
+                    taskData.parent_link_timestamp = existing.parent_link_timestamp;
                 }
 
                 const taskLocalId = await db.kanban_tasks.put(taskData);
@@ -267,6 +289,21 @@ export const kanbanRepository = {
                     }
                 }
             }
+
+            // Resolve after every task has a local ID; API order is not hierarchy order.
+            const localTasks = await db.kanban_tasks.where('project_id').equals(localProjectId).toArray();
+            const taskIdMap = new Map(localTasks.filter(t => t.id).map(t => [t.id, t.local_id]));
+            for (const task of apiTasks) {
+                const localId = taskIdMap.get(task.id);
+                if (!localId || pendingParents.has(localId)) continue;
+                await db.kanban_tasks.update(localId, {
+                    parent_task_local_id: taskIdMap.get(task.parent_task_id) ?? null,
+                });
+            }
+            const survivingIds = new Set(localTasks.map(t => t.local_id));
+            await db.kanban_tasks.where('project_id').equals(localProjectId)
+                .filter(t => t.parent_task_local_id != null && !survivingIds.has(t.parent_task_local_id))
+                .modify({ parent_task_local_id: null });
         });
     },
 
