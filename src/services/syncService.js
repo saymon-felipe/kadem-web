@@ -379,6 +379,7 @@ async function _handleKanbanTask(task) {
       const serverProjId = await resolveServerProjectId(task.payload.project_id);
       const colPayload = {
         title: task.payload.title,
+        type: task.payload.type || 'TODO',
         order: task.payload.order,
         project_id: serverProjId,
       };
@@ -395,7 +396,8 @@ async function _handleKanbanTask(task) {
       }
 
       // Delta Sync: Converte objeto em array changes
-      const colChanges = buildChangesArray(task.payload, task.timestamp);
+      const colChanges = ['title', 'type', 'order'].filter(field => task.payload[field] !== undefined)
+        .map(field => ({ field, value: task.payload[field], timestamp: task.timestamp }));
       if (colChanges.length > 0) {
         await api.put(`/kanban/columns/${serverId}`, { changes: colChanges });
       }
@@ -436,6 +438,9 @@ async function _handleKanbanTask(task) {
       taskPayload.parent_task_id = await resolveTaskParentId(task.payload.parent_task_local_id);
       delete taskPayload.parent_task_local_id;
       delete taskPayload.parent_link_timestamp;
+      delete taskPayload.status;
+      delete taskPayload.events;
+      delete taskPayload.column_move_timestamp;
       response = await api.post(`/kanban/tasks`, taskPayload);
       await kanbanRepository.setServerIdForTask(task.entity_id, response.data.id);
       break;
@@ -456,6 +461,9 @@ async function _handleKanbanTask(task) {
       delete task.payload.parent_task_local_id;
       delete task.payload.parent_task_id;
       delete task.payload.parent_link_timestamp;
+      delete task.payload.status;
+      delete task.payload.events;
+      delete task.payload.column_move_timestamp;
       serverId = task.payload.id;
       if (task.payload.column_id) {
         const col = await kanbanRepository.get_column_by_local_id(task.payload.column_id);
@@ -545,12 +553,9 @@ async function _handleKanbanTask(task) {
       const tasksToReorder = [];
 
       for (const t of task.payload.tasks) {
-        let tServerId = t.id;
-
-        if (!tServerId) {
-          const localTaskData = await kanbanRepository.get_task_by_local_id(t.local_id);
-          tServerId = localTaskData.id;
-        }
+        const localTaskData = await kanbanRepository.get_task_by_local_id(t.local_id);
+        if (!localTaskData) continue;
+        const tServerId = t.id || localTaskData.id;
 
         if (tServerId) {
           tasksToReorder.push({
@@ -558,13 +563,14 @@ async function _handleKanbanTask(task) {
             order: t.order,
           });
         } else {
-          console.warn(`[SyncService] Tarefa ${t.local_id} ignorada no reorder (sem ID server).`);
+          throw new Error('TASK_NOT_SYNCED: Aguardando tarefa para mover.');
         }
       }
 
       if (tasksToReorder.length > 0) {
         await api.post(`/kanban/columns/${serverColId}/reorder-tasks`, {
           tasks: tasksToReorder,
+          timestamp: task.timestamp,
         });
       }
       break;

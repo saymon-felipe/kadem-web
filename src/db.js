@@ -1,4 +1,5 @@
 import Dexie from "dexie";
+import { normalizeColumn } from './utils/kanbanTypes';
 
 export const LOCAL_DB_ISSUE_KEY = "kadem_local_db_issue";
 export const LOCAL_DB_ISSUE_EVENT = "kadem:local-db-issue";
@@ -103,6 +104,13 @@ db.version(23).stores({
   kanban_tasks: "++local_id, id, column_id, project_id, parent_task_local_id",
 }).upgrade(tx => tx.table('kanban_tasks').toCollection().modify(task => {
   task.parent_task_local_id ??= null;
+}));
+
+db.version(24).stores({
+  ...SCHEMA_V22,
+  kanban_tasks: "++local_id, id, column_id, project_id, parent_task_local_id",
+}).upgrade(tx => tx.table('kanban_columns').toCollection().modify(column => {
+  Object.assign(column, normalizeColumn(column));
 }));
 
 let dbOpenPromise = null;

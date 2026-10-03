@@ -7,21 +7,10 @@
         </span>
 
         <div v-if="is_renaming" class="rename-wrapper">
-          <input
-            ref="renameInput"
-            v-model="edit_title"
-            @blur="save_rename"
-            @keydown.enter="save_rename"
-            @keydown.esc="cancel_rename"
-            class="rename-input"
-          />
+          <input ref="renameInput" v-model="edit_title" @blur="save_rename" @keydown.enter="save_rename"
+            @keydown.esc="cancel_rename" class="rename-input" />
         </div>
-        <span
-          class="column-name"
-          v-else
-          @dblclick="start_rename"
-          title="Duplo clique para renomear"
-        >
+        <span class="column-name" v-else @dblclick="start_rename" title="Duplo clique para renomear">
           {{ column.title }}
         </span>
 
@@ -29,13 +18,9 @@
       </div>
 
       <div class="header-actions">
-        <button
-          ref="filterTrigger"
-          class="btn-icon btn-filter-trigger"
-          :class="{ active: show_search || has_active_filters }"
-          @click="toggle_search"
-          :title="has_active_filters ? `${active_filters_count} filtro(s) ativo(s)` : 'Filtrar tarefas'"
-        >
+        <button ref="filterTrigger" class="btn-icon btn-filter-trigger"
+          :class="{ active: show_search || has_active_filters }" @click="toggle_search"
+          :title="has_active_filters ? `${active_filters_count} filtro(s) ativo(s)` : 'Filtrar tarefas'">
           <font-awesome-icon icon="magnifying-glass" />
           <span v-if="has_active_filters" class="filter-indicator-dot"></span>
         </button>
@@ -45,13 +30,12 @@
             <font-awesome-icon icon="ellipsis-vertical" />
           </button>
 
-          <div
-            v-if="show_options"
-            class="options-dropdown"
-            v-click-outside="close_options"
-          >
+          <div v-if="show_options" class="options-dropdown" v-click-outside="close_options">
             <button @click="start_rename">
               <font-awesome-icon icon="pencil" /> Renomear
+            </button>
+            <button @click="open_type_config">
+              <font-awesome-icon icon="cog" /> Configurar tipo
             </button>
             <button class="danger" @click="emit_delete_request">
               <font-awesome-icon icon="trash-can" /> Excluir
@@ -59,39 +43,120 @@
           </div>
         </div>
 
-        <button
-          class="btn-icon add-btn"
-          @click.stop="show_new_task_form"
-          title="Nova Tarefa"
-        >
+        <button class="btn-icon add-btn" @click.stop="show_new_task_form" title="Nova Tarefa">
           <font-awesome-icon icon="plus" />
         </button>
       </div>
     </header>
+    <button class="column-type-label" :title="`Configurar tipo: ${column_type.description}`" @click="open_type_config">
+      <span class="column-type-dot" :style="{ backgroundColor: column_type.color || 'var(--text-muted)' }"></span>
+      <span class="column-type-name">{{ column_type.label }}</span>
+    </button>
+    <BaseModal v-model="show_type_config" size="md" :show-close="!is_saving_type" :close-on-backdrop="!is_saving_type"
+      :close-on-escape="!is_saving_type">
+      <template #title>
+        <div class="column-type-modal-title">
+          <div class="title-icon-box">
+            <font-awesome-icon icon="sliders" />
+          </div>
+          <div class="title-meta">
+            <h3 class="title-text">Configurar tipo da coluna</h3>
+            <span class="title-subtitle">Defina o comportamento e o status desta etapa no fluxo</span>
+          </div>
+        </div>
+      </template>
+
+      <form :id="`column-type-form-${column.local_id}`" class="column-type-modal-form"
+        @submit.prevent="save_column_type">
+        <!-- Banner de Contexto da Coluna -->
+        <div class="column-context-card">
+          <div class="context-pill-row">
+            <div class="context-tag">
+              <font-awesome-icon icon="table-cells-large" class="context-icon" />
+              <span>Coluna alvo</span>
+            </div>
+            <span class="context-column-name" :title="column.title">{{ column.title }}</span>
+          </div>
+          <p class="context-explanation">
+            O tipo define a categoria semântica e o status automático das tarefas nesta coluna. O nome do título
+            continua
+            livre para você renomear como quiser.
+          </p>
+        </div>
+
+        <!-- Seletor em Lista de Cards Interativos -->
+        <div class="type-selection-block">
+          <div class="selection-header">
+            <span class="selection-label">Selecione o tipo de etapa</span>
+            <span class="selection-count">{{ column_types.length }} etapas disponíveis</span>
+          </div>
+
+          <div class="type-cards-grid custom-scrollbar" role="radiogroup" aria-label="Tipos de coluna disponíveis">
+            <div v-for="(option, idx) in column_types" :key="option.value" class="type-card" :class="{
+              'is-selected': edit_column_type === option.value,
+              'is-current': column.type === option.value,
+              'is-disabled': is_saving_type
+            }" :style="{ '--type-accent': option.color }" role="radio"
+              :aria-checked="edit_column_type === option.value" :tabindex="is_saving_type ? -1 : 0"
+              @click="!is_saving_type && (edit_column_type = option.value)"
+              @dblclick="!is_saving_type && save_column_type()" @keydown="handle_type_keydown($event, idx)">
+              <div class="type-card-icon" :style="{
+                color: option.color,
+                backgroundColor: option.color + '1a',
+                borderColor: option.color + '33'
+              }">
+                <font-awesome-icon :icon="option.icon" />
+              </div>
+
+              <div class="type-card-body">
+                <div class="type-card-title-row">
+                  <span class="type-card-name">{{ option.label }}</span>
+                  <span v-if="column.type === option.value" class="type-current-pill">Atual</span>
+                </div>
+                <p class="type-card-desc">{{ option.description }}</p>
+              </div>
+
+              <div class="type-card-radio" :class="{ 'is-checked': edit_column_type === option.value }">
+                <font-awesome-icon v-if="edit_column_type === option.value" icon="check" class="check-icon" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mensagem de erro caso ocorra -->
+        <transition name="fade">
+          <div v-if="type_error" class="column-type-error-alert" role="alert">
+            <font-awesome-icon icon="triangle-exclamation" class="error-alert-icon" />
+            <span class="error-alert-text">{{ type_error }}</span>
+          </div>
+        </transition>
+      </form>
+
+      <template #footer>
+        <div class="column-type-modal-footer">
+          <button type="button" class="modal-btn modal-btn-cancel" :disabled="is_saving_type"
+            @click="show_type_config = false">
+            Cancelar
+          </button>
+          <button type="submit" class="modal-btn modal-btn-save" :form="`column-type-form-${column.local_id}`"
+            :disabled="is_saving_type">
+            <font-awesome-icon v-if="is_saving_type" icon="circle-notch" spin class="btn-spin" />
+            <font-awesome-icon v-else icon="check" class="btn-check" />
+            <span>{{ is_saving_type ? 'Salvando...' : 'Salvar Alterações' }}</span>
+          </button>
+        </div>
+      </template>
+    </BaseModal>
 
     <transition name="filter-expand" @after-leave="reset_filters">
-      <div
-        v-if="show_search"
-        class="filter-panel-wrapper"
-        v-click-outside="handle_click_outside_search"
-      >
+      <div v-if="show_search" class="filter-panel-wrapper" v-click-outside="handle_click_outside_search">
         <div class="filter-panel-content">
           <div class="search-wrapper filter-panel">
             <div class="search-input-box">
-              <input
-                ref="searchInput"
-                v-model="search_query"
-                class="search-input"
-                placeholder="Buscar descrição ou #ID..."
-                @keydown.esc="close_search"
-              />
-              <button
-                v-if="search_query"
-                class="clear-search"
-                @click="search_query = ''"
-                @mousedown.prevent
-                type="button"
-              >
+              <input ref="searchInput" v-model="search_query" class="search-input"
+                placeholder="Buscar descrição ou #ID..." @keydown.esc="close_search" />
+              <button v-if="search_query" class="clear-search" @click="search_query = ''" @mousedown.prevent
+                type="button">
                 <font-awesome-icon icon="xmark" />
               </button>
             </div>
@@ -99,33 +164,20 @@
             <div class="column-filters-row">
               <div class="filter-item">
                 <label class="filter-label">Membro</label>
-                <SearchableDropdown
-                  v-model="filter_user"
-                  :options="member_filter_options"
-                  :searchable="true"
-                  searchPlaceholder="Buscar membro..."
-                  placeholder="Todos"
-                />
+                <SearchableDropdown v-model="filter_user" :options="member_filter_options" :searchable="true"
+                  searchPlaceholder="Buscar membro..." placeholder="Todos" />
               </div>
 
               <div class="filter-item">
                 <label class="filter-label">Prioridade</label>
-                <SearchableDropdown
-                  v-model="filter_priority"
-                  :options="priority_filter_options"
-                  :searchable="false"
-                  placeholder="Todas"
-                />
+                <SearchableDropdown v-model="filter_priority" :options="priority_filter_options" :searchable="false"
+                  placeholder="Todas" />
               </div>
 
               <div class="filter-item">
                 <label class="filter-label">Tamanho</label>
-                <SearchableDropdown
-                  v-model="filter_size"
-                  :options="size_filter_options"
-                  :searchable="false"
-                  placeholder="Todos"
-                />
+                <SearchableDropdown v-model="filter_size" :options="size_filter_options" :searchable="false"
+                  placeholder="Todos" />
               </div>
             </div>
 
@@ -145,38 +197,19 @@
     <transition name="task-expand">
       <div v-if="is_creating_task" class="new-task-wrapper">
         <div class="new-task-card" v-click-outside="handle_click_outside_creation">
-          <textarea
-            v-model="new_task_content"
-            placeholder="Descreva a tarefa..."
-            ref="new_task_input"
-            rows="3"
-            class="task-textarea"
-            @keydown.enter.exact.prevent="handle_create_task"
-            @keydown.esc="cancel_create_task"
-          ></textarea>
+          <textarea v-model="new_task_content" placeholder="Descreva a tarefa..." ref="new_task_input" rows="3"
+            class="task-textarea" @keydown.enter.exact.prevent="handle_create_task"
+            @keydown.esc="cancel_create_task"></textarea>
 
           <div class="new-task-footer">
             <div class="assignee-selector-wrapper">
-              <button
-                class="btn-assignee"
-                ref="assigneeTrigger"
-                @click.stop="toggle_assignee_menu"
-                :title="selected_assignee_name"
-              >
-                <div
-                  v-if="is_special_assignee"
-                  class="avatar-placeholder"
-                  :class="special_assignee_class"
-                >
+              <button class="btn-assignee" ref="assigneeTrigger" @click.stop="toggle_assignee_menu"
+                :title="selected_assignee_name">
+                <div v-if="is_special_assignee" class="avatar-placeholder" :class="special_assignee_class">
                   <font-awesome-icon :icon="special_assignee_icon" />
                 </div>
 
-                <img
-                  v-else
-                  :src="selected_assignee_avatar"
-                  class="avatar-xs"
-                  alt="Responsável"
-                />
+                <img v-else :src="selected_assignee_avatar" class="avatar-xs" alt="Responsável" />
 
                 <span class="assignee-label" v-if="selected_assignee_label">
                   {{ selected_assignee_label }}
@@ -185,12 +218,8 @@
 
               <Teleport to="body">
                 <transition name="fade">
-                  <div
-                    v-if="show_assignee_menu"
-                    class="assignee-dropdown glass"
-                    v-click-outside="close_assignee_menu"
-                    :style="dropdown_position_style"
-                  >
+                  <div v-if="show_assignee_menu" class="assignee-dropdown glass" v-click-outside="close_assignee_menu"
+                    :style="dropdown_position_style">
                     <ul>
                       <li @click="select_assignee('all')">
                         <div class="avatar-placeholder all-icon">
@@ -205,11 +234,7 @@
                         <span>Qualquer</span>
                       </li>
                       <hr class="divider" v-if="members && members.length > 0" />
-                      <li
-                        v-for="member in members"
-                        :key="member.id"
-                        @click="select_assignee(member)"
-                      >
+                      <li v-for="member in members" :key="member.id" @click="select_assignee(member)">
                         <img :src="member.avatar || default_avatar" class="avatar-xs" />
                         <span>{{ member.name }}</span>
                       </li>
@@ -223,32 +248,13 @@
       </div>
     </transition>
 
-    <draggable
-      ref="taskList"
-      :list="filtered_tasks"
-      @change="on_task_change"
-      item-key="local_id"
-      group="tasks"
-      class="task-list custom-scrollbar"
-      animation="300"
-      force-fallback="true"
-      :fallback-on-body="true"
-      :scroll-sensitivity="100"
-      fallback-class="task-fallback"
-      ghost-class="task-ghost"
-      drag-class="task-drag"
-      @start="on_task_drag_start"
-      @end="on_task_drag_end"
-      :delay="0"
-      :delay-on-touch-only="true"
-      :disabled="is_searching || is_mobile"
-    >
+    <draggable ref="taskList" :list="filtered_tasks" @change="on_task_change" item-key="local_id" group="tasks"
+      class="task-list custom-scrollbar" animation="300" force-fallback="true" :fallback-on-body="true"
+      :scroll-sensitivity="100" fallback-class="task-fallback" ghost-class="task-ghost" drag-class="task-drag"
+      @start="on_task_drag_start" @end="on_task_drag_end" :delay="0" :delay-on-touch-only="true"
+      :disabled="is_searching || is_mobile">
       <template #item="{ element }">
-        <KanbanTask
-          :task="element"
-          :data-task-id="element.local_id"
-          @click="handle_task_click(element)"
-        />
+        <KanbanTask :task="element" :data-task-id="element.local_id" @click="handle_task_click(element)" />
       </template>
 
       <template #footer>
@@ -269,10 +275,12 @@ import { useAuthStore } from "@/stores/auth";
 import KanbanTask from "./KanbanTask.vue";
 import SearchableDropdown from "@/components/ui/SearchableDropdown.vue";
 import defaultAvatar from "@/assets/images/kadem-default-account.jpg";
+import { KANBAN_COLUMN_TYPES } from '@/utils/kanbanTypes';
+import BaseModal from '@/components/BaseModal.vue';
 
 export default {
   name: "KanbanColumn",
-  components: { draggable, KanbanTask, SearchableDropdown },
+  components: { draggable, KanbanTask, SearchableDropdown, BaseModal },
   props: {
     column: {
       type: Object,
@@ -337,6 +345,10 @@ export default {
       filter_priority: "all",
       filter_size: "all",
       show_options: false,
+      show_type_config: false,
+      edit_column_type: 'TODO',
+      is_saving_type: false,
+      type_error: '',
       is_renaming: false,
       edit_title: "",
       selected_assignee: "any",
@@ -350,6 +362,9 @@ export default {
     };
   },
   computed: {
+    column_types() { return KANBAN_COLUMN_TYPES; },
+    column_type() { return KANBAN_COLUMN_TYPES.find(option => option.value === this.column.type) || KANBAN_COLUMN_TYPES[1]; },
+    selected_column_type() { return KANBAN_COLUMN_TYPES.find(option => option.value === this.edit_column_type) || KANBAN_COLUMN_TYPES[1]; },
     ...mapState(useKanbanStore, { getTasks: "getTasks" }),
     ...mapState(useWindowStore, ["_getOrCreateCurrentUserState"]),
     ...mapState(useAuthStore, ["user"]),
@@ -530,12 +545,62 @@ export default {
     },
     async save_rename() {
       if (this.edit_title.trim() && this.edit_title !== this.column.title) {
-        await this.updateColumn({ ...this.column, title: this.edit_title });
+        await this.updateColumn({ local_id: this.column.local_id, title: this.edit_title.trim() });
       }
       this.is_renaming = false;
     },
     cancel_rename() {
       this.is_renaming = false;
+    },
+    open_type_config() {
+      this.edit_column_type = this.column.type || 'TODO';
+      this.type_error = '';
+      this.close_options();
+      this.show_type_config = true;
+      this.$nextTick(() => {
+        const activeCard = document.querySelector('.type-card.is-selected');
+        if (activeCard) {
+          activeCard.focus?.();
+          activeCard.scrollIntoView?.({ block: 'nearest' });
+        }
+      });
+    },
+    handle_type_keydown(e, index) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const nextIndex = (index + 1) % this.column_types.length;
+        this.edit_column_type = this.column_types[nextIndex].value;
+        this.$nextTick(() => {
+          const cards = document.querySelectorAll('.type-card');
+          cards[nextIndex]?.focus?.();
+          cards[nextIndex]?.scrollIntoView?.({ block: 'nearest' });
+        });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prevIndex = (index - 1 + this.column_types.length) % this.column_types.length;
+        this.edit_column_type = this.column_types[prevIndex].value;
+        this.$nextTick(() => {
+          const cards = document.querySelectorAll('.type-card');
+          cards[prevIndex]?.focus?.();
+          cards[prevIndex]?.scrollIntoView?.({ block: 'nearest' });
+        });
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.edit_column_type = this.column_types[index].value;
+      }
+    },
+    async save_column_type() {
+      if (this.is_saving_type) return;
+      this.is_saving_type = true;
+      this.type_error = '';
+      try {
+        await this.updateColumn({ local_id: this.column.local_id, type: this.edit_column_type });
+        this.show_type_config = false;
+      } catch (error) {
+        this.type_error = error.message || 'Não foi possível salvar o tipo da coluna.';
+      } finally {
+        this.is_saving_type = false;
+      }
     },
 
     emit_delete_request() {
@@ -645,7 +710,7 @@ export default {
           el.remove();
           this._filter_task_clones.delete(el);
         }
-      }, () => {});
+      }, () => { });
     },
     on_task_drag_start(evt) {
       this.cancel_filter_task_animations();
@@ -958,6 +1023,414 @@ export default {
 </script>
 
 <style scoped>
+.column-type-label {
+  /*display: inline-flex;*/
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--space-3) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--fontsize-xs);
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: color var(--transition-fast), opacity var(--transition-fast);
+  border-radius: var(--radius-sm);
+  width: fit-content;
+}
+
+.column-type-label:hover {
+  color: var(--text-primary);
+}
+
+.column-type-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.column-type-name {
+  font-weight: 500;
+}
+
+/* Modal de Configuração de Tipo da Coluna */
+.column-type-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  color: var(--blue);
+  display: grid;
+  place-items: center;
+  font-size: 1.05rem;
+  flex-shrink: 0;
+}
+
+.title-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title-meta .title-text {
+  font-size: 1.12rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.title-meta .title-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.column-type-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 0 2px;
+}
+
+.column-context-card {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.context-pill-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.context-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+}
+
+.context-icon {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.context-column-name {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: var(--surface-3);
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--glass-border);
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.context-explanation {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.type-selection-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.selection-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.selection-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.type-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.type-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  background: var(--surface-1);
+  cursor: pointer;
+  outline: none;
+  transition:
+    border-color var(--transition-fast),
+    background-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+  user-select: none;
+  position: relative;
+}
+
+.type-card:hover:not(.is-disabled) {
+  background: var(--surface-2);
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+}
+
+.type-card:focus-visible {
+  box-shadow: 0 0 0 2px var(--type-accent, var(--blue));
+}
+
+.type-card.is-selected {
+  border-color: var(--type-accent, var(--blue));
+  background: rgba(53, 90, 253, 0.08);
+  background: color-mix(in srgb, var(--type-accent, #355afd) 10%, var(--surface-1));
+  box-shadow: 0 4px 14px -3px rgba(0, 0, 0, 0.25), 0 0 0 1px var(--type-accent, var(--blue));
+  transform: translateY(-1px);
+}
+
+[data-theme='dark'] .type-card.is-selected {
+  background: rgba(53, 90, 253, 0.15);
+  background: color-mix(in srgb, var(--type-accent, #355afd) 14%, var(--surface-1));
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--type-accent, var(--blue));
+}
+
+.type-card.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.type-card-icon {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+  transition: transform var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.type-card:hover:not(.is-disabled) .type-card-icon {
+  transform: scale(1.08);
+}
+
+.type-card-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.type-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.type-card-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+
+.type-current-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+
+.type-card-desc {
+  margin: 0;
+  font-size: 0.77rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.type-card-radio {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--gray-400);
+  background: transparent;
+  display: grid;
+  place-items: center;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.type-card-radio.is-checked {
+  border-color: var(--type-accent, var(--blue));
+  background-color: var(--type-accent, var(--blue));
+  color: #ffffff;
+}
+
+.type-card-radio .check-icon {
+  font-size: 0.65rem;
+}
+
+.column-type-error-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(214, 74, 46, 0.12);
+  border: 1px solid rgba(214, 74, 46, 0.28);
+  color: var(--color-expense);
+  font-size: 0.82rem;
+}
+
+.error-alert-icon {
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.error-alert-text {
+  line-height: 1.35;
+}
+
+.column-type-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 20px;
+  border-top: 1px solid var(--glass-border);
+  background: var(--surface-1);
+}
+
+.modal-btn {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  transition: all var(--transition-fast);
+}
+
+.modal-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.modal-btn-cancel {
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--glass-border);
+}
+
+.modal-btn-cancel:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.modal-btn-save {
+  background-image: var(--deep-blue-gradient);
+  background-size: 200% auto;
+  color: var(--white);
+  box-shadow: 0 2px 10px rgba(53, 90, 253, 0.25);
+}
+
+[data-theme='dark'] .modal-btn-save {
+  background-image: linear-gradient(135deg, #355afd, #243fb8);
+  color: #ffffff;
+  box-shadow: 0 3px 12px rgba(53, 90, 253, 0.35);
+}
+
+.modal-btn-save:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.modal-btn-save:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-spin,
+.btn-check {
+  font-size: 0.88rem;
+}
+
+@media (max-width: 640px) {
+  .column-type-modal-footer {
+    padding: 12px 16px;
+    gap: 8px;
+  }
+
+  .modal-btn {
+    flex: 1;
+    padding: 0 12px;
+  }
+
+  .type-cards-grid {
+    max-height: 260px;
+  }
+}
+
 .kanban-column {
   min-width: 320px;
   max-width: 320px;
@@ -1093,7 +1566,7 @@ export default {
   background: var(--surface-2);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-float);
-  min-width: 140px;
+  min-width: 170px;
   z-index: 100;
   overflow: hidden;
   display: flex;
@@ -1106,6 +1579,7 @@ export default {
   border: none;
   padding: 10px 12px;
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1362,12 +1836,13 @@ export default {
   opacity: 0;
 }
 
-.task-list > .task-filter-leaving {
+.task-list>.task-filter-leaving {
   position: absolute;
   pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .filter-expand-enter-active,
   .filter-expand-leave-active {
     transition-duration: 0.01ms;

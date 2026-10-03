@@ -1,4 +1,5 @@
 import { db } from '../../db';
+import { normalizeColumn, DEFAULT_COLUMN_TYPE } from '../../utils/kanbanTypes';
 
 const strip_task_relations = (task) => {
     if (!task) return task;
@@ -27,7 +28,8 @@ const attach_files_to_tasks = async (tasks, project_id) => {
 
 export const kanbanRepository = {
     async get_columns_by_project(project_id) {
-        return await db.kanban_columns.where('project_id').equals(project_id).sortBy('order');
+        const columns = await db.kanban_columns.where('project_id').equals(project_id).toArray();
+        return columns.map(normalizeColumn).sort((a, b) => a.order - b.order);
     },
 
     async get_column_by_local_id(local_id) {
@@ -35,8 +37,9 @@ export const kanbanRepository = {
     },
 
     async add_column(data) {
-        const id = await db.kanban_columns.add(data);
-        return { ...data, local_id: id };
+        const column = normalizeColumn(data);
+        const id = await db.kanban_columns.add(column);
+        return { ...column, local_id: id };
     },
 
     async update_column(local_id, data) {
@@ -61,11 +64,16 @@ export const kanbanRepository = {
 
     async get_tasks_by_project(pid) {
         const tasks = await db.kanban_tasks.where('project_id').equals(pid).toArray();
-        return await attach_files_to_tasks(tasks, pid);
+        const columns = await this.get_columns_by_project(pid);
+        const types = new Map(columns.map(column => [column.local_id, column.type]));
+        return await attach_files_to_tasks(tasks.map(task => ({ ...task, status: types.get(task.column_id) || DEFAULT_COLUMN_TYPE })), pid);
     },
 
     async get_task_by_local_id(lid) {
-        return await db.kanban_tasks.get(lid);
+        const task = await db.kanban_tasks.get(lid);
+        if (!task) return task;
+        const column = await db.kanban_columns.get(task.column_id);
+        return { ...task, status: column?.type || DEFAULT_COLUMN_TYPE };
     },
 
     async add_task(data) {
@@ -171,13 +179,27 @@ export const kanbanRepository = {
             const deletedTasks = new Set(queue.filter(t => t.type === 'DELETE_TASK').map(t => t.payload.id));
             const deletedColumns = new Set(queue.filter(t => t.type === 'DELETE_COLUMN').map(t => t.payload.id));
             const pendingTasks = new Set(queue.filter(t => t.type === 'UPDATE_TASK').map(t => t.entity_id));
+            for (const operation of queue.filter(t => t.type === 'MOVE_TASK_LIST')) {
+                for (const task of operation.payload.tasks) pendingTasks.add(task.local_id);
+            }
+            const pendingColumnFields = new Map();
+            const protectColumnFields = (localId, fields) => {
+                if (!pendingColumnFields.has(localId)) pendingColumnFields.set(localId, new Set());
+                fields.forEach(field => pendingColumnFields.get(localId).add(field));
+            };
+            for (const operation of queue) {
+                if (operation.type === 'UPDATE_COLUMN') protectColumnFields(operation.entity_id, Object.keys(operation.payload));
+                if (operation.type === 'REORDER_COLUMNS') {
+                    operation.payload.columns_order.forEach(column => protectColumnFields(column.local_id, ['order', 'position']));
+                }
+            }
             const serverColumnIds = apiColumns.map(c => c.id);
             const serverTaskIds = apiTasks.map(t => t.id);
 
             if (!isDelta) {
                 await db.kanban_columns
                     .where('project_id').equals(localProjectId)
-                    .filter(col => col.id !== null && !serverColumnIds.includes(col.id))
+                    .filter(col => col.id != null && !serverColumnIds.includes(col.id) && !pendingColumnFields.has(col.local_id))
                     .delete();
 
                 await db.kanban_tasks
@@ -203,14 +225,21 @@ export const kanbanRepository = {
                     if (existing) existingLocalId = existing.local_id;
                 }
 
-                const colData = {
+                const colData = normalizeColumn({
                     id: col.id,
                     project_id: localProjectId,
                     title: col.title,
-                    order: col.order !== undefined ? col.order : (col.order_index || 0)
-                };
+                    name: col.name,
+                    type: col.type || DEFAULT_COLUMN_TYPE,
+                    order: col.position ?? col.order ?? col.order_index ?? 0
+                });
 
                 if (existingLocalId) {
+                    const existing = currentCols.find(column => column.local_id === existingLocalId);
+                    for (const field of pendingColumnFields.get(existingLocalId) || []) {
+                        if (existing && field in existing) colData[field] = existing[field];
+                    }
+                    Object.assign(colData, normalizeColumn(colData));
                     await db.kanban_columns.update(existingLocalId, colData);
                     columnIdMap.set(col.id, existingLocalId);
                 } else {
@@ -240,7 +269,8 @@ export const kanbanRepository = {
                     creator: task.creator,
                     comments: task.comments || [],
                     created_at: task.created_at,
-                    updated_at: task.updated_at
+                    updated_at: task.updated_at,
+                    events: task.events || []
                 };
 
                 if (existing) {

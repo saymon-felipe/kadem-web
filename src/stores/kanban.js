@@ -9,6 +9,15 @@ import { useUtilsStore } from '../stores/utils';
 import { getPlanLimits } from '../services/subscription_plans';
 import { canSetTaskParent } from '../utils/taskHierarchy';
 import { db } from '../db';
+import { DEFAULT_COLUMN_TYPE, isColumnType, normalizeColumn } from '../utils/kanbanTypes';
+
+const loadKanbanSyncs = () => {
+  if (localStorage.getItem('kadem_kanban_semantics_version') !== '1') {
+    localStorage.removeItem('kadem_kanban_syncs');
+    localStorage.setItem('kadem_kanban_semantics_version', '1');
+  }
+  return JSON.parse(localStorage.getItem('kadem_kanban_syncs') || '{}');
+};
 
 const formatBytes = (bytes) => {
   if (!bytes) return '0 B';
@@ -22,7 +31,7 @@ export const useKanbanStore = defineStore('kanban', {
   state: () => ({
     columns: {},
     tasks: {},
-    lastSyncs: JSON.parse(localStorage.getItem('kadem_kanban_syncs') || '{}')
+    lastSyncs: loadKanbanSyncs()
   }),
 
   getters: {
@@ -365,28 +374,29 @@ export const useKanbanStore = defineStore('kanban', {
       }
     },
 
-    async createColumn(project_id, title) {
+    async createColumn(project_id, title, type = DEFAULT_COLUMN_TYPE) {
+      if (!isColumnType(type)) throw new Error('Tipo de coluna inválido.');
       const pid = Number(project_id) || project_id;
       const current_columns = this.columns[pid] || [];
       const new_column_data = {
         id: null,
         project_id: pid,
         title: title,
+        type,
         order: current_columns.length
       };
 
       try {
-        const saved_column = await kanbanRepository.add_column(new_column_data);
+        const saved_column = await db.transaction('rw', db.kanban_columns, db.syncQueue, async () => {
+          const saved = await kanbanRepository.add_column(new_column_data);
+          await syncQueueRepository.addSyncQueueTask({
+            type: 'CREATE_COLUMN', payload: saved, entity_id: saved.local_id, timestamp: Date.now()
+          });
+          return saved;
+        });
 
         if (!this.columns[pid]) this.columns[pid] = [];
         this.columns[pid].push(saved_column);
-
-        await syncQueueRepository.addSyncQueueTask({
-          type: 'CREATE_COLUMN',
-          payload: saved_column,
-          entity_id: saved_column.local_id,
-          timestamp: Date.now()
-        });
 
         await syncService.processSyncQueue();
         const refreshedColumn = await kanbanRepository.get_column_by_local_id(saved_column.local_id);
@@ -407,10 +417,29 @@ export const useKanbanStore = defineStore('kanban', {
 
     async updateColumn(column) {
       try {
-        const clean_column = JSON.parse(JSON.stringify(column));
-        await kanbanRepository.update_column(column.local_id, clean_column);
+        const clean_column = await db.transaction('rw', db.kanban_columns, db.syncQueue, async () => {
+          const existing = await kanbanRepository.get_column_by_local_id(column.local_id);
+          if (!existing) throw new Error('Coluna não encontrada.');
+          const patch = { ...column };
+          if (patch.name !== undefined && patch.title === undefined) patch.title = patch.name;
+          if (patch.position !== undefined && patch.order === undefined) patch.order = patch.position;
+          const next = normalizeColumn({ ...existing, ...patch });
+          if (!isColumnType(next.type)) throw new Error('Tipo de coluna inválido.');
+          const payload = { id: existing.id, local_id: column.local_id };
+          for (const field of ['title', 'type', 'order']) {
+            if (next[field] !== existing[field]) payload[field] = next[field];
+          }
+          if (Object.keys(payload).length === 2) return next;
+          const timestamp = Math.max(Date.now(), (existing.column_change_timestamp || 0) + 1);
+          next.column_change_timestamp = timestamp;
+          await kanbanRepository.update_column(column.local_id, next);
+          await syncQueueRepository.addSyncQueueTask({
+            type: 'UPDATE_COLUMN', payload, entity_id: column.local_id, timestamp
+          });
+          return next;
+        });
 
-        const pid = column.project_id;
+        const pid = clean_column.project_id;
         const project_cols = this.columns[pid];
         if (project_cols) {
           const idx = project_cols.findIndex(c => c.local_id === column.local_id);
@@ -419,17 +448,13 @@ export const useKanbanStore = defineStore('kanban', {
           }
         }
 
-        await syncQueueRepository.addSyncQueueTask({
-          type: 'UPDATE_COLUMN',
-          payload: clean_column,
-          entity_id: column.local_id,
-          timestamp: Date.now()
-        });
+        for (const task of this.tasks[column.local_id] || []) task.status = clean_column.type;
 
         await syncService.processSyncQueue();
 
       } catch (error) {
         console.error("[KanbanStore] Erro update coluna:", error);
+        throw error;
       }
     },
 
@@ -489,6 +514,9 @@ export const useKanbanStore = defineStore('kanban', {
         size: 'M - Médio',
         comments: []
       };
+      const column = await kanbanRepository.get_column_by_local_id(column_local_id);
+      if (!column || column.project_id !== pid) throw new Error('A coluna deve pertencer ao mesmo projeto da tarefa.');
+      new_task_obj.status = column?.type || DEFAULT_COLUMN_TYPE;
 
       try {
         const saved_task = await db.transaction('rw', db.kanban_tasks, db.syncQueue, async () => {
@@ -525,7 +553,8 @@ export const useKanbanStore = defineStore('kanban', {
     async updateTask(task) {
       try {
         const attachments = task.attachments || [];
-        const clean_task = JSON.parse(JSON.stringify({ ...task, attachments: undefined, parent_task_local_id: undefined, parent_task_id: undefined, parent_link_timestamp: undefined }));
+        const clean_task = JSON.parse(JSON.stringify({ ...task, attachments: undefined, parent_task_local_id: undefined, parent_task_id: undefined, parent_link_timestamp: undefined,
+          column_id: undefined, order: undefined, status: undefined, events: undefined, column_move_timestamp: undefined }));
         await kanbanRepository.update_task(task.local_id, clean_task);
 
         const column_tasks = this.tasks[task.column_id];
@@ -573,10 +602,10 @@ export const useKanbanStore = defineStore('kanban', {
 
     async updateColumnsForProject({ projectId, columns }) {
       const pid = Number(projectId) || projectId;
-      this.columns[pid] = columns;
+      this.columns[pid] = columns.map((column, index) => normalizeColumn({ ...column, order: index }));
       try {
         const plain_columns = JSON.parse(JSON.stringify(columns));
-        const updates = plain_columns.map((col, index) => ({ ...col, order: index }));
+        const updates = plain_columns.map((col, index) => normalizeColumn({ ...col, order: index }));
         await kanbanRepository.bulk_put_columns(updates);
         await syncQueueRepository.addSyncQueueTask({
           type: 'REORDER_COLUMNS',
@@ -590,23 +619,28 @@ export const useKanbanStore = defineStore('kanban', {
     },
 
     async updateTasksForColumn({ columnId, tasks, event }) {
+      const column = Object.values(this.columns).flat().find(column => column.local_id === columnId);
       // O vuedraggable move o mesmo objeto entre as listas sem alterá-lo. Sem atualizar
       // column_id/order aqui, deleteTask, updateTask e anexos procurariam a tarefa na coluna
       // de origem (a exclusão só sumia da tela após F5 e a edição devolvia a tarefa à coluna antiga).
       tasks.forEach((task, index) => {
         task.column_id = columnId;
         task.order = index;
+        task.status = column?.type || DEFAULT_COLUMN_TYPE;
       });
       this.tasks[columnId] = tasks;
       try {
+        const isMove = event && (event.added || event.moved);
+        const timestamp = Math.max(Date.now(), ...tasks.map(task => (task.column_move_timestamp || 0) + 1));
+        if (isMove) tasks.forEach(task => { task.column_move_timestamp = timestamp; });
         const updates = JSON.parse(JSON.stringify(tasks));
-        await kanbanRepository.bulk_put_tasks(updates);
-        if (event && (event.added || event.moved)) {
-          await syncQueueRepository.addSyncQueueTask({
-            type: 'MOVE_TASK_LIST',
-            payload: { column_id: columnId, tasks: updates },
-            timestamp: Date.now()
+        await db.transaction('rw', db.kanban_tasks, db.syncQueue, async () => {
+          await kanbanRepository.bulk_put_tasks(updates);
+          if (isMove) await syncQueueRepository.addSyncQueueTask({
+            type: 'MOVE_TASK_LIST', payload: { column_id: columnId, tasks: updates }, timestamp
           });
+        });
+        if (isMove) {
           await syncService.processSyncQueue();
         }
       } catch (error) {

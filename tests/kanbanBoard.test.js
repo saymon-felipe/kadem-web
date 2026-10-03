@@ -44,6 +44,95 @@ const createViteServer = () =>
 
 const PROJECT_ID = 1;
 
+test('tipo e nome são independentes; status acompanha configuração e movimento offline', { timeout: 30000 }, async () => withHierarchyBoard(async ({ store, columnA, columnB, kanbanRepository: repo, syncQueueRepository: queue }) => {
+  await store.updateColumn({ local_id: columnA.local_id, title: 'Publicado 🚀', type: 'WAITING' });
+  assert.equal(store.getTasks(columnA.local_id)[0].status, 'WAITING');
+  assert.equal(store.getColumns(PROJECT_ID)[0].name, 'Publicado 🚀');
+  await store.updateColumn({ local_id: columnA.local_id, title: 'Aguardando cliente' });
+  assert.equal((await repo.get_column_by_local_id(columnA.local_id)).type, 'WAITING');
+  const edits = await queue.getPendingTasksByType('UPDATE_COLUMN');
+  assert.equal(edits.at(-1).payload.type, undefined, 'Renomear não deve reenviar o tipo anterior.');
+  await store.updateColumn({ local_id: columnB.local_id, type: 'DONE' });
+  await dragTask(store, store.getTasks(columnA.local_id)[0], columnA, columnB);
+  assert.equal(store.getTasks(columnB.local_id)[0].status, 'DONE');
+  await store.loadBoardFromLocal(PROJECT_ID);
+  assert.equal(store.getTasks(columnB.local_id)[0].status, 'DONE');
+  await store.updateColumn({ local_id: columnB.local_id, type: 'BLOCKED' });
+  assert.equal(store.getTasks(columnB.local_id)[0].status, 'BLOCKED');
+  await assert.rejects(store.updateColumn({ local_id: columnB.local_id, type: 'INVALID' }));
+  assert.equal((await repo.get_column_by_local_id(columnB.local_id)).type, 'BLOCKED');
+}));
+
+test('pull preserva tipo e movimento pendentes, inclusive retry futuro, e recebe o nome remoto', { timeout: 30000 }, async () => withHierarchyBoard(async ({ store, columnA, columnB, kanbanRepository: repo, db }) => {
+  await store.updateColumn({ local_id: columnA.local_id, type: 'WAITING' });
+  await store.moveTaskToColumn(store.getTasks(columnA.local_id)[0], columnB.local_id);
+  await db.syncQueue.toCollection().modify({ status: 'RETRY', next_attempt_at: Date.now() + 60000 });
+  await repo.mergeServerData(PROJECT_ID, [
+    { id: 11, name: 'Nome remoto', type: 'TODO', position: 0 },
+    { id: 12, name: 'Publicado 🚀', type: 'DONE', position: 1 },
+  ], [{ id: 101, column_id: 11, description: 'Snapshot remoto antigo', order: 0 }]);
+  await store.loadBoardFromLocal(PROJECT_ID);
+  assert.equal(store.getColumns(PROJECT_ID)[0].type, 'WAITING');
+  assert.equal(store.getColumns(PROJECT_ID)[0].name, 'Nome remoto');
+  assert.equal(store.getTasks(columnA.local_id).length, 0);
+  assert.equal(store.getTasks(columnB.local_id)[0].status, 'DONE');
+}));
+
+test('reconectar envia tipo na criação e edição, e timestamp no movimento', { timeout: 30000 }, async () => withHierarchyBoard(async ({ store, columnA, columnB, syncQueueRepository: queue }, server) => {
+  const { api } = await server.ssrLoadModule('/src/plugins/api.js');
+  const { syncService } = await server.ssrLoadModule('/src/services/syncService.js');
+  const { useUtilsStore } = await server.ssrLoadModule('/src/stores/utils.js');
+  const { projectRepository } = await server.ssrLoadModule('/src/services/localData/projectRepository.js');
+  await projectRepository.saveLocalProject({ localId: PROJECT_ID, id: 8, name: 'Teste' });
+  await store.createColumn(PROJECT_ID, 'Publicado 🚀', 'DONE');
+  await store.updateColumn({ local_id: columnA.local_id, type: 'WAITING' });
+  await store.moveTaskToColumn(store.getTasks(columnA.local_id)[0], columnB.local_id);
+  const oldPost = api.post, oldPut = api.put, oldGet = api.get;
+  const writes = [];
+  try {
+    api.post = async (url, payload) => { writes.push({ url, payload }); return { data: { id: 99 } }; };
+    api.put = async (url, payload) => { writes.push({ url, payload }); return { data: {} }; };
+    api.get = async () => ({ data: { changes: [], next_cursor: 0, has_more: false } });
+    useUtilsStore().is_network_online = true;
+    useUtilsStore().is_kadem_api_available = true;
+    await syncService.processSyncQueue();
+    assert.equal(writes.find(write => write.url === '/kanban/columns').payload.type, 'DONE');
+    assert.deepEqual(writes.find(write => write.url === '/kanban/columns/11').payload.changes.map(change => [change.field, change.value]), [['type', 'WAITING']]);
+    assert.equal(typeof writes.find(write => write.url.endsWith('/reorder-tasks')).payload.timestamp, 'number');
+    assert.equal((await queue.getPendingTasks()).length, 0);
+  } finally {
+    api.post = oldPost; api.put = oldPut; api.get = oldGet;
+    useUtilsStore().is_network_online = false;
+    useUtilsStore().is_kadem_api_available = false;
+  }
+}));
+
+test('upgrade Dexie v23 → v24 acrescenta tipo e aliases sem inferir pelo nome nem perder a fila', { timeout: 30000 }, async () => {
+  const server = await createViteServer();
+  let db, oldDb;
+  try {
+    installMemoryStorage();
+    ({ db } = await server.ssrLoadModule('/src/db.js'));
+    const oldSchema = Object.fromEntries(db.tables.map(table => [table.name,
+      [table.schema.primKey.src, ...table.schema.indexes.map(index => index.src)].join(', ')
+    ]));
+    await db.delete();
+    oldDb = new db.constructor(db.name);
+    oldDb.version(23).stores(oldSchema);
+    await oldDb.open();
+    await oldDb.table('kanban_columns').add({ local_id: 90, title: 'Publicado 🚀', order: 4, project_id: PROJECT_ID });
+    await oldDb.table('syncQueue').add({ type: 'UPDATE_COLUMN', entity_id: 90, payload: { title: 'Nome pendente' }, status: 'FAILED' });
+    oldDb.close();
+    await db.open();
+    const column = await db.kanban_columns.get(90);
+    assert.equal(column.type, 'TODO');
+    assert.equal(column.name, 'Publicado 🚀');
+    assert.equal(column.position, 4);
+    assert.equal((await db.syncQueue.toArray())[0].payload.title, 'Nome pendente');
+    assert.equal((await db.syncQueue.toArray())[0].status, 'FAILED');
+  } finally { oldDb?.close(); db?.close(); await server.close(); }
+});
+
 // Quadro com duas colunas e uma tarefa na primeira, tudo offline (a fila nao e enviada).
 const loadBoard = async (server) => {
   installMemoryStorage();
@@ -241,7 +330,7 @@ test('excluir pai criado offline antes de reconectar envia apenas a filha indepe
   assert.equal((await queue.getPendingTasks()).length, 0);
 }));
 
-test('upgrade Dexie v22 → v23 preserva tarefa, comentários e blob offline', { timeout: 30000 }, async () => {
+test('upgrade Dexie v22 → v24 preserva tarefa, comentários e blob offline', { timeout: 30000 }, async () => {
   const server = await createViteServer();
   let db;
   let oldDb;
@@ -259,7 +348,7 @@ test('upgrade Dexie v22 → v23 preserva tarefa, comentários e blob offline', {
     await oldDb.table('kanban_task_attachments').add({ task_local_id: 91, project_id: PROJECT_ID, blob: new Blob(['Arquivo preservado']) });
     oldDb.close();
     await db.open();
-    assert.equal(db.verno, 23);
+    assert.equal(db.verno, 24);
     const task = await db.kanban_tasks.get(91);
     assert.equal(task.description, 'Existente');
     assert.equal(task.comments[0].content, 'Preservado');
