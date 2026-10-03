@@ -1,7 +1,12 @@
 <template>
   <transition name="menu-pop">
     <div v-if="modelValue" class="options-backdrop" @click.self="close">
-      <div class="options-menu" :style="position_style">
+      <div
+        ref="menu"
+        class="options-menu"
+        :class="{ 'opens-up': placement.opens_up, 'is-scrollable': placement.max_height !== null }"
+        :style="position_style"
+      >
         <button class="menu-item option-red" @click="$emit('delete')">
           <font-awesome-icon icon="trash-can" />
           <span>Excluir</span>
@@ -135,11 +140,19 @@ export default {
     "add-to-playlist",
     "copy-link",
   ],
+  data() {
+    return {
+      placement: { top: null, left: null, max_height: null, opens_up: false },
+    };
+  },
   computed: {
     position_style() {
+      const { top, left, max_height, opens_up } = this.placement;
       return {
-        top: `${this.position.y}px`,
-        left: `${this.position.x - 210}px`,
+        top: `${top ?? this.position.y}px`,
+        left: `${left ?? this.position.x - 210}px`,
+        maxHeight: max_height !== null ? `${max_height}px` : "",
+        transformOrigin: opens_up ? "bottom right" : "top right",
       };
     },
     audio_download_label() {
@@ -171,9 +184,58 @@ export default {
       return this.download_unavailable_title;
     },
   },
+  watch: {
+    modelValue(is_open) {
+      if (is_open) this.$nextTick(this.update_placement);
+    },
+    position: {
+      deep: true,
+      handler() {
+        if (this.modelValue) this.$nextTick(this.update_placement);
+      },
+    },
+  },
+  mounted() {
+    window.addEventListener("resize", this.update_placement);
+  },
+  beforeUnmount() {
+    window.removeEventListener("resize", this.update_placement);
+  },
   methods: {
     close() {
       this.$emit("update:modelValue", false);
+    },
+    update_placement() {
+      const menu = this.$refs.menu;
+      if (!this.modelValue || !menu) return;
+
+      const margin = 8;
+      const min_height = 120;
+      // offsetHeight/Width ignoram o transform da animação de entrada; scrollHeight dá a altura natural
+      // mesmo quando max-height já está aplicado.
+      const border_y = menu.offsetHeight - menu.clientHeight;
+      const natural_height = menu.scrollHeight + border_y;
+      const width = menu.offsetWidth;
+
+      const anchor_bottom = this.position.y;
+      const anchor_top = this.position.top ?? this.position.y;
+      const space_below = window.innerHeight - anchor_bottom - margin;
+      const space_above = anchor_top - margin;
+
+      const opens_up = natural_height > space_below && space_above > space_below;
+      const available = Math.max(opens_up ? space_above : space_below, min_height);
+      const visible_height = Math.min(natural_height, available);
+
+      const top = opens_up ? anchor_top - visible_height : anchor_bottom;
+      const max_top = Math.max(margin, window.innerHeight - visible_height - margin);
+      const max_left = Math.max(margin, window.innerWidth - width - margin);
+
+      this.placement = {
+        top: Math.min(Math.max(top, margin), max_top),
+        left: Math.min(Math.max(this.position.x - 210, margin), max_left),
+        max_height: natural_height > available ? available : null,
+        opens_up,
+      };
     },
   },
 };
@@ -200,6 +262,11 @@ export default {
   box-shadow: var(--shadow-float);
   display: flex;
   flex-direction: column;
+}
+
+.options-menu.is-scrollable {
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .disabled-item {
@@ -259,11 +326,15 @@ export default {
 .menu-pop-enter-active .options-menu,
 .menu-pop-leave-active .options-menu {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  transform-origin: top right;
 }
 
 .menu-pop-enter-from .options-menu,
 .menu-pop-leave-to .options-menu {
   transform: scale(0.8) translateY(-10px);
+}
+
+.menu-pop-enter-from .options-menu.opens-up,
+.menu-pop-leave-to .options-menu.opens-up {
+  transform: scale(0.8) translateY(10px);
 }
 </style>

@@ -278,7 +278,7 @@ export default {
   data() {
     return {
       show_options_menu: false,
-      options_position: { x: 0, y: 0 },
+      options_position: { x: 0, y: 0, top: 0 },
       selected_track_for_menu: null,
       existing_track_playlist_ids: [],
       success_feedback_map: {},
@@ -445,6 +445,7 @@ export default {
       this.options_position = {
         x: finalX,
         y: rect.bottom,
+        top: rect.top,
       };
       this.show_options_menu = true;
 
