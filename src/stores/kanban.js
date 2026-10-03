@@ -619,7 +619,16 @@ export const useKanbanStore = defineStore('kanban', {
     },
 
     async updateTasksForColumn({ columnId, tasks, event }) {
-      const column = Object.values(this.columns).flat().find(column => column.local_id === columnId);
+      const columns = Object.values(this.columns).flat();
+      const column = columns.find(column => column.local_id === columnId);
+      const addedTask = event?.added?.element;
+      const sourceColumn = columns.find(column => column.local_id === addedTask?.column_id);
+      const user = useAuthStore().user;
+      if (addedTask && sourceColumn?.local_id !== columnId && sourceColumn?.type === 'TODO' &&
+          column?.type === 'IN_PROGRESS' && user?.id &&
+          (addedTask.responsible?.type === 'any' || addedTask.responsible === 'any')) {
+        addedTask.responsible = { type: 'user', id: user.id, name: user.name, avatar: user.avatar };
+      }
       // O vuedraggable move o mesmo objeto entre as listas sem alterá-lo. Sem atualizar
       // column_id/order aqui, deleteTask, updateTask e anexos procurariam a tarefa na coluna
       // de origem (a exclusão só sumia da tela após F5 e a edição devolvia a tarefa à coluna antiga).

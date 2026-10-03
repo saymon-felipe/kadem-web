@@ -44,6 +44,62 @@ const createViteServer = () =>
 
 const PROJECT_ID = 1;
 
+test('TODO → Em andamento atribui Qualquer ao usuário conectado por arrasto e ação de mover', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB, kanbanRepository: repo, syncQueueRepository: queue, db }, server) => {
+  await store.updateColumn({ local_id: columnB.local_id, type: 'IN_PROGRESS' });
+  for (const move of [
+    task => dragTask(store, task, columnA, columnB),
+    task => store.moveTaskToColumn(task, columnB.local_id),
+  ]) {
+    const created = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Qualquer', responsible: { type: 'any' } });
+    const task = store.getTasks(columnA.local_id).find(task => task.local_id === created.local_id);
+    await move(task);
+    assert.deepEqual(task.responsible, { type: 'user', id: 1, name: 'Teste', avatar: undefined });
+    assert.equal((await repo.get_task_by_local_id(task.local_id)).responsible.id, 1);
+    assert.equal((await queue.getPendingTasksByType('MOVE_TASK_LIST')).at(-1).payload.tasks.find(item => item.local_id === task.local_id).responsible.id, 1);
+  }
+  const moved = store.getTasks(columnB.local_id).at(-1);
+  await repo.setServerIdForTask(moved.local_id, 909);
+  await db.syncQueue.toCollection().modify({ status: 'RETRY', next_attempt_at: Date.now() + 60000 });
+  await repo.mergeServerData(PROJECT_ID, [
+    { id: 11, type: 'TODO', name: 'A fazer' }, { id: 12, type: 'IN_PROGRESS', name: 'Em andamento' },
+  ], [{ id: 909, column_id: 11, responsible: { type: 'any' } }]);
+  await store.loadBoardFromLocal(PROJECT_ID);
+  assert.equal(store.getTasks(columnB.local_id).find(task => task.id === 909).responsible.id, 1);
+  const { useAuthStore } = await server.ssrLoadModule('/src/stores/auth.js');
+  useAuthStore().user = { id: 2, name: 'Outro' };
+  const task = store.getTasks(columnB.local_id).find(task => task.id === 909);
+  await store.moveTaskToColumn(task, columnA.local_id);
+  await store.moveTaskToColumn(task, columnB.local_id);
+  assert.equal(task.responsible.id, 1, 'Voltar para TODO não libera a atribuição anterior.');
+}));
+
+test('atribuição automática preserva Todos/usuários e só ocorre numa movimentação de TODO para IN_PROGRESS', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB }) => {
+  await store.updateColumn({ local_id: columnB.local_id, type: 'IN_PROGRESS' });
+  for (const responsible of [{ type: 'all' }, { type: 'user', id: 2, name: 'Outro' }, null]) {
+    const created = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, responsible });
+    const task = store.getTasks(columnA.local_id).find(task => task.local_id === created.local_id);
+    await store.moveTaskToColumn(task, columnB.local_id);
+    assert.deepEqual(task.responsible, responsible);
+  }
+  const created = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, responsible: { type: 'any' } });
+  const task = store.getTasks(columnA.local_id).find(task => task.local_id === created.local_id);
+  await store.updateColumn({ local_id: columnA.local_id, type: 'IN_PROGRESS' });
+  assert.equal(task.responsible.type, 'any', 'Configurar o tipo da coluna não atribui os cards.');
+  await store.moveTaskToColumn(task, columnB.local_id);
+  assert.equal(task.responsible.type, 'any', 'IN_PROGRESS → IN_PROGRESS não atribui.');
+  await store.updateTasksForColumn({ columnId: columnB.local_id, tasks: store.getTasks(columnB.local_id), event: { moved: { element: task } } });
+  assert.equal(task.responsible.type, 'any', 'Reordenar na mesma coluna não atribui.');
+  await store.updateColumn({ local_id: columnA.local_id, type: 'BACKLOG' });
+  await store.moveTaskToColumn(task, columnA.local_id);
+  await store.moveTaskToColumn(task, columnB.local_id);
+  assert.equal(task.responsible.type, 'any', 'BACKLOG → IN_PROGRESS não atribui.');
+  await store.updateColumn({ local_id: columnA.local_id, type: 'TODO' });
+  await store.updateColumn({ local_id: columnB.local_id, type: 'DONE' });
+  await store.moveTaskToColumn(task, columnA.local_id);
+  await store.moveTaskToColumn(task, columnB.local_id);
+  assert.equal(task.responsible.type, 'any', 'TODO → DONE não atribui.');
+}));
+
 test('tipo e nome são independentes; status acompanha configuração e movimento offline', { timeout: 30000 }, async () => withHierarchyBoard(async ({ store, columnA, columnB, kanbanRepository: repo, syncQueueRepository: queue }) => {
   await store.updateColumn({ local_id: columnA.local_id, title: 'Publicado 🚀', type: 'WAITING' });
   assert.equal(store.getTasks(columnA.local_id)[0].status, 'WAITING');
