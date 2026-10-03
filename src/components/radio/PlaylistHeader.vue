@@ -102,23 +102,25 @@
         </transition>
       </div>
 
-      <button class="btn-options" @click.stop="showMenu = !showMenu">
-        <font-awesome-icon icon="ellipsis-vertical" />
-      </button>
+      <div class="menu-options-wrapper" v-click-outside="closeMenu">
+        <button class="btn-options" @click.stop="toggle_options_menu">
+          <font-awesome-icon icon="ellipsis-vertical" />
+        </button>
 
-      <transition name="menu-pop">
-        <div v-if="showMenu" class="options-dropdown" v-click-outside="closeMenu">
-          <button @click="start_rename" class="dropdown-item">
-            <font-awesome-icon icon="pen" /> Renomear
-          </button>
-          <button @click="open_cover_modal" class="dropdown-item">
-            <font-awesome-icon icon="image" /> Alterar foto
-          </button>
-          <button @click="confirm_delete" class="dropdown-item danger">
-            <font-awesome-icon icon="trash" /> Excluir
-          </button>
-        </div>
-      </transition>
+        <transition name="menu-pop">
+          <div v-if="showMenu" class="options-dropdown">
+            <button @click="start_rename" class="dropdown-item">
+              <font-awesome-icon icon="pen" /> Renomear
+            </button>
+            <button @click="open_cover_modal" class="dropdown-item">
+              <font-awesome-icon icon="image" /> Alterar foto
+            </button>
+            <button @click="confirm_delete" class="dropdown-item danger">
+              <font-awesome-icon icon="trash" /> Excluir
+            </button>
+          </div>
+        </transition>
+      </div>
     </div>
 
     <ConfirmationModal
@@ -342,7 +344,18 @@ export default {
 
     toggle_download_menu() {
       this.show_download_menu = !this.show_download_menu;
-      if (!this.show_download_menu) this.show_video_quality_menu = false;
+      if (this.show_download_menu) {
+        this.closeMenu();
+      } else {
+        this.show_video_quality_menu = false;
+      }
+    },
+
+    toggle_options_menu() {
+      this.showMenu = !this.showMenu;
+      if (this.showMenu) {
+        this.close_download_menu();
+      }
     },
 
     start_rename() {
@@ -532,7 +545,8 @@ h1 {
   background: rgba(0, 0, 0, 0.5);
 }
 
-.download-options-wrapper {
+.download-options-wrapper,
+.menu-options-wrapper {
   position: relative;
 }
 

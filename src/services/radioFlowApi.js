@@ -25,6 +25,14 @@ const state_snapshot = () => {
     playback_position: player.playback_position,
     duration: player.get_duration(),
     volume: player.volume,
+    normalization_enabled: player.normalization_enabled,
+    normalization_status: player.normalization_status,
+    normalization_gain_db: player.normalization_gain_db,
+    normalization_is_estimated: player.normalization_is_estimated,
+    normalization_detail: player.normalization_detail,
+    audio_settings: { ...player.audio_settings, bands: { ...player.audio_settings.bands } },
+    audio_settings_status: player.audio_settings_status,
+    audio_settings_detail: player.audio_settings_detail,
     is_shuffle: player.is_shuffle,
     queue: [...player.queue],
     playlists: [...radio.playlists],
@@ -114,6 +122,22 @@ export const radioFlowApi = {
 
   set_volume(value, options) {
     return player_store().set_volume(value, options);
+  },
+
+  set_normalization_enabled(enabled) {
+    return player_store().set_normalization_enabled(enabled);
+  },
+
+  set_audio_settings(settings, options) {
+    return player_store().set_audio_settings(settings, options);
+  },
+
+  set_audio_preset(id) {
+    return player_store().set_audio_preset(id);
+  },
+
+  reset_audio_settings() {
+    return player_store().reset_audio_settings();
   },
 
   play_track(track, playlist = null, options = {}) {

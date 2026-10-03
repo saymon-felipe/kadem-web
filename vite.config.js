@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
     env.VITE_API_HOMOLOG,
     env.VITE_API_PROD
   ].filter(Boolean).map(url => {
-    try { return new URL(url).origin; } catch (e) { return null; }
+    try { return new URL(url).origin; } catch { return null; }
   }).filter(Boolean);
 
   const origins_regex_part = api_origins.map(escapeRegExp).join('|');
@@ -86,7 +86,7 @@ export default defineConfig(({ mode }) => {
               }
             },
             {
-              urlPattern: ({ url }) => url.hostname.includes('s3.sa-east-1.amazonaws.com'),
+              urlPattern: ({ url, request }) => request.destination === 'image' && url.hostname.includes('s3.sa-east-1.amazonaws.com'),
               handler: 'CacheFirst',
               options: {
                 cacheName: 's3-images-cache',

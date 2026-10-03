@@ -10,6 +10,10 @@ import { db } from "../db";
 import { parse_srt } from "../utils/srt_parser";
 import { apiServices } from "../plugins/apiServices";
 import { useAuthStore } from "./auth";
+import { VolumeNormalizer } from "../services/audio/volumeNormalizer";
+import { db_to_gain, profile_key, PROFILE_VERSION } from "../services/audio/loudness";
+import { loudnessRepository } from "../services/localData/loudnessRepository";
+import { AUDIO_PRESETS, default_audio_settings, sanitize_audio_settings } from "../services/audio/audioSettings";
 
 function debounce(func, wait) {
   let timeout;
@@ -22,6 +26,20 @@ function debounce(func, wait) {
 
 const DEFAULT_PLAYER_VOLUME = 1;
 const PLAYER_VOLUME_STORAGE_PREFIX = "kadem_radio_player_volume";
+const NORMALIZATION_STORAGE_PREFIX = "kadem_radio_normalization_enabled";
+const AUDIO_SETTINGS_STORAGE_PREFIX = "kadem_radio_audio_settings";
+const normalization_runtimes = new WeakMap();
+
+function normalization_runtime(store) {
+  // Pinia can wrap `this` in a distinct proxy for each action (devtools).
+  // The state object is stable across actions and never serializes this runtime.
+  const identity = store.$state;
+  if (!normalization_runtimes.has(identity)) {
+    normalization_runtimes.set(identity, { native: null, video: null, normalizer: null,
+      epoch: 0, request: null, volume_timer: null });
+  }
+  return normalization_runtimes.get(identity);
+}
 
 export const usePlayerStore = defineStore("player", {
   state: () => ({
@@ -34,6 +52,14 @@ export const usePlayerStore = defineStore("player", {
     is_playing: false,
     player_mode: "none",
     volume: DEFAULT_PLAYER_VOLUME,
+    normalization_enabled: false,
+    normalization_status: "disabled",
+    normalization_gain_db: 0,
+    normalization_is_estimated: false,
+    normalization_detail: "",
+    audio_settings: default_audio_settings(),
+    audio_settings_status: "disabled",
+    audio_settings_detail: "",
     playback_position: 0,
     last_playback_position_sync_at: 0,
     is_shuffle: false,
@@ -53,6 +79,212 @@ export const usePlayerStore = defineStore("player", {
   }),
 
   actions: {
+    _set_normalization_state({ status, gain_db = 0, estimated = false, detail = "" }) {
+      this.normalization_status = status;
+      this.normalization_gain_db = gain_db;
+      this.normalization_is_estimated = estimated;
+      this.normalization_detail = detail;
+    },
+
+    _get_normalizer() {
+      const runtime = normalization_runtime(this);
+      if (!runtime.normalizer) {
+        runtime.normalizer = new VolumeNormalizer({
+          repository: loudnessRepository,
+          onState: (state) => this._set_normalization_state(state),
+          onAudioState: (status, detail) => {
+            this.audio_settings_status = status;
+            this.audio_settings_detail = detail;
+          },
+          onFailure: (element) => {
+            if (runtime.video?.element === element) runtime.video.recover?.();
+            else this._recover_native_audio(element);
+          },
+        });
+        runtime.normalizer.set_audio_settings(this.audio_settings);
+      }
+      return runtime.normalizer;
+    },
+
+    restore_local_normalization() {
+      const user_id = useAuthStore().user?.id;
+      if (!user_id) return;
+      try {
+        const enabled = localStorage.getItem(`${NORMALIZATION_STORAGE_PREFIX}:${user_id}`) === "true";
+        if (this.normalization_enabled !== enabled) this.set_normalization_enabled(enabled, { persist: false });
+      } catch { /* Storage restrictions do not block playback. */ }
+    },
+
+    set_normalization_enabled(enabled, { persist = true } = {}) {
+      if (typeof enabled !== "boolean") return;
+      this.normalization_enabled = enabled;
+      const user_id = useAuthStore().user?.id;
+      if (persist && user_id) {
+        try { localStorage.setItem(`${NORMALIZATION_STORAGE_PREFIX}:${user_id}`, String(enabled)); } catch { /* Optional preference. */ }
+      }
+      if (enabled) this._get_normalizer().warmup();
+      this._refresh_normalization();
+    },
+
+    restore_local_audio_settings() {
+      const user_id = useAuthStore().user?.id;
+      if (!user_id) return;
+      let settings = default_audio_settings();
+      try {
+        settings = sanitize_audio_settings(JSON.parse(localStorage.getItem(`${AUDIO_SETTINGS_STORAGE_PREFIX}:${user_id}`)));
+      } catch { /* Invalid or inaccessible preferences fall back to neutral audio. */ }
+      this.set_audio_settings(settings, { persist: false });
+    },
+
+    set_audio_settings(patch, { persist = true } = {}) {
+      if (!patch || typeof patch !== "object") return;
+      this.audio_settings = sanitize_audio_settings({ ...this.audio_settings, ...patch,
+        bands: { ...this.audio_settings.bands, ...patch.bands } });
+      const user_id = useAuthStore().user?.id;
+      if (persist && user_id) {
+        try {
+          localStorage.setItem(`${AUDIO_SETTINGS_STORAGE_PREFIX}:${user_id}`, JSON.stringify(this.audio_settings));
+        } catch { /* Optional device preference. */ }
+      }
+      const runtime = normalization_runtime(this);
+      this.audio_settings_status = this.audio_settings.enabled ? "pending" : "disabled";
+      this.audio_settings_detail = "";
+      runtime.normalizer?.set_audio_settings(this.audio_settings);
+      if (runtime.normalizer?.active && (this.audio_settings.enabled || this.normalization_enabled)) return;
+      if (this.audio_settings.enabled) this._get_normalizer().warmup();
+      this._refresh_normalization();
+    },
+
+    set_audio_preset(id) {
+      const preset = AUDIO_PRESETS.find((item) => item.id === id);
+      if (!preset) return;
+      this.set_audio_settings({ enabled: true, preset: id, bands: preset.bands, night_mode: preset.night_mode });
+    },
+
+    reset_audio_settings() {
+      this.set_audio_settings(default_audio_settings());
+    },
+
+    _refresh_normalization() {
+      const runtime = normalization_runtime(this);
+      const epoch = ++runtime.epoch;
+      runtime.request?.abort();
+      runtime.request = null;
+      clearInterval(runtime.volume_timer);
+      runtime.normalizer?.stop();
+      this._set_normalization_state({ status: this.normalization_enabled ? "measuring" : "disabled" });
+      this._apply_youtube_volume(!this.normalization_enabled);
+      this.audio_settings_status = this.audio_settings.enabled ? "pending" : "disabled";
+      this.audio_settings_detail = "";
+      if (!this.current_music) return;
+      const descriptor = this.is_video_active ? runtime.video : this.player_mode === "native" ? runtime.native : null;
+      if (descriptor) {
+        if (descriptor.allowed === false) {
+          if (this.normalization_enabled) this._set_normalization_state({ status: "unavailable", detail: "Não foi possível processar este áudio. Reprodução original mantida." });
+          this.audio_settings_status = "unavailable";
+          this.audio_settings_detail = "Esta faixa não permite ajustes de áudio. Reprodução original mantida.";
+          return;
+        }
+        if (!this.normalization_enabled && !this.audio_settings.enabled) return;
+        const user_id = useAuthStore().user?.id;
+        void this._get_normalizer().start(descriptor.element, {
+          key: profile_key(user_id, this.current_music, descriptor.source), user_id,
+          remote: typeof descriptor.source === "string" && !descriptor.source.startsWith("blob:"),
+          start_position: descriptor.start_position || 0,
+          initial_profile: descriptor.initial_profile,
+          normalize: this.normalization_enabled,
+        });
+      } else if (!this.is_video_active && this.player_mode === "youtube") {
+        this.audio_settings_status = "unavailable";
+        this.audio_settings_detail = "O YouTube online permite volume e normalização, mas não equalização. Use uma faixa baixada para aplicar os perfis.";
+        if (this.normalization_enabled) void this._normalize_youtube(epoch);
+      }
+    },
+
+    async _normalize_youtube(epoch) {
+      const runtime = normalization_runtime(this);
+      const video_id = this.current_music?.youtube_id;
+      const user_id = useAuthStore().user?.id;
+      if (!/^[a-zA-Z0-9_-]{11}$/.test(video_id || "")) return;
+      const key = `${user_id}:v${PROFILE_VERSION}:youtube:${video_id}`;
+      const is_current = () => runtime.epoch === epoch && this.normalization_enabled &&
+        this.player_mode === "youtube" && this.current_music?.youtube_id === video_id && !this.is_video_active;
+      try {
+        let profile = await loudnessRepository.getYoutube(key).catch(() => null);
+        if (!is_current()) return;
+        if (!profile) {
+          const controller = new AbortController();
+          runtime.request = controller;
+          const response = await api.get(`${apiServices.MEDIA_ENGINE}/loudness/${video_id}`, {
+            signal: controller.signal, timeout: 20000,
+            headers: { Authorization: `Bearer ${useAuthStore().getToken}` },
+          });
+          if (!is_current()) return;
+          if (response.data?.status !== "ready" || !Number.isFinite(response.data.gain_db)) {
+            this._set_normalization_state({ status: "unavailable", detail: "YouTube não forneceu uma medição confiável para esta faixa." });
+            return;
+          }
+          profile = { gain_db: Math.max(-30, Math.min(12, response.data.gain_db)) };
+          void loudnessRepository.saveYoutube(key, user_id, profile).catch(() => {});
+        }
+        if (!is_current()) return;
+        this._set_normalization_state({ status: "limited", gain_db: profile.gain_db, estimated: true,
+          detail: "YouTube: ajuste estimado, limitado ao volume máximo do player." });
+        this._apply_youtube_volume(true);
+      } catch {
+        if (is_current()) this._set_normalization_state({ status: "unavailable", detail: "Medição indisponível. Reprodução original mantida." });
+      } finally {
+        if (runtime.epoch === epoch) runtime.request = null;
+      }
+    },
+
+    _apply_youtube_volume(smooth = false) {
+      const runtime = normalization_runtime(this);
+      clearInterval(runtime.volume_timer);
+      if (!this.yt_player_instance?.setVolume) return;
+      const gain = this.normalization_enabled && this.player_mode === "youtube" ? db_to_gain(this.normalization_gain_db) : 1;
+      const target = Math.round(Math.min(100, Math.max(0, this.volume * gain * 100)));
+      if (!smooth) { this.yt_player_instance.setVolume(target); return; }
+      const start = this.yt_player_instance.getVolume?.() ?? this.volume * 100;
+      let step = 0;
+      runtime.volume_timer = setInterval(() => {
+        this.yt_player_instance?.setVolume(Math.round(start + (target - start) * ++step / 6));
+        if (step >= 6) clearInterval(runtime.volume_timer);
+      }, 40);
+    },
+
+    set_video_normalization_element(element, source = null, recover = null, { unavailable = false } = {}) {
+      const runtime = normalization_runtime(this);
+      if (runtime.video?.element === element && !unavailable) return;
+      if (runtime.video?.element) runtime.normalizer?.release(runtime.video.element);
+      const initial_profile = runtime.normalizer?.active?.profile || runtime.handoff_profile;
+      runtime.video = element ? { element, source, recover, initial_profile,
+        start_position: this.get_current_time() } : unavailable ? { allowed: false } : null;
+      this._refresh_normalization();
+    },
+
+    _recover_native_audio(element) {
+      const runtime = normalization_runtime(this);
+      if (this.native_audio_instance !== element || !element.src) return;
+      runtime.normalizer?.release(element);
+      const position = element.currentTime || runtime.native?.start_position || 0;
+      const should_play = this.is_playing || !element.paused || runtime.native?.pending_play;
+      const recovered = markRaw(new Audio());
+      recovered.volume = this.volume;
+      recovered.src = element.src;
+      recovered.loop = element.loop;
+      recovered.onloadedmetadata = () => { recovered.currentTime = Math.min(position, Math.max(0, recovered.duration - 0.25)); };
+      recovered.ontimeupdate = () => { if (Math.floor(recovered.currentTime) % 5 === 0) this._update_media_session_position(); };
+      recovered.onended = () => this.next();
+      element.pause();
+      element.removeAttribute("src");
+      this.native_audio_instance = recovered;
+      runtime.native = { ...runtime.native, element: recovered, allowed: false };
+      this.audio_settings_status = "unavailable";
+      this.audio_settings_detail = "Não foi possível processar este áudio. Reprodução original mantida.";
+      if (should_play) recovered.play().then(() => { this.is_playing = true; }).catch(() => { this.is_playing = false; });
+    },
+
     setViewedPlaylistId(id) {
       this.viewed_playlist_id = id;
     },
@@ -190,6 +422,12 @@ export const usePlayerStore = defineStore("player", {
     },
 
     _reset_native_player() {
+      const runtime = normalization_runtime(this);
+      ++runtime.epoch;
+      runtime.request?.abort();
+      runtime.normalizer?.stop();
+      clearInterval(runtime.volume_timer);
+      runtime.native = null;
       this._ensure_audio_instance();
       this.native_audio_instance.pause();
       this.native_audio_instance.loop = false;
@@ -197,6 +435,7 @@ export const usePlayerStore = defineStore("player", {
       this.native_audio_instance.onended = null;
       this.native_audio_instance.ontimeupdate = null;
       this.native_audio_instance.onloadedmetadata = null;
+      this.native_audio_instance.onerror = null;
     },
 
     /**
@@ -249,6 +488,7 @@ export const usePlayerStore = defineStore("player", {
       this.is_loading = true;
 
       try {
+        audio.crossOrigin = "anonymous";
         if (source instanceof Blob) {
           this.current_audio_url = URL.createObjectURL(source);
           audio.src = this.current_audio_url;
@@ -260,6 +500,14 @@ export const usePlayerStore = defineStore("player", {
         }
         audio.loop = false;
         audio.volume = this.volume;
+        const runtime = normalization_runtime(this);
+        runtime.native = { element: audio, source, start_position: start_seconds, pending_play: should_play };
+        audio.onerror = () => {
+          if (typeof source !== "string" || this.native_audio_instance !== audio) return;
+          this._recover_native_audio(audio);
+          if (this.normalization_enabled) this._set_normalization_state({ status: "unavailable", detail: "Este upload não permite análise de áudio. Reprodução original mantida." });
+        };
+        this._refresh_normalization();
 
         const resume_position = Math.max(0, Number(start_seconds) || 0);
         audio.onloadedmetadata = () => {
@@ -282,9 +530,12 @@ export const usePlayerStore = defineStore("player", {
           this.is_playing = false;
         }
       } catch (e) {
+        if (this.native_audio_instance !== audio) return;
         console.error("Erro fatal nativo:", e);
         this.is_playing = false;
       } finally {
+        const descriptor = normalization_runtime(this).native;
+        if (descriptor?.element === audio) descriptor.pending_play = false;
         this.is_loading = false;
       }
     },
@@ -295,7 +546,7 @@ export const usePlayerStore = defineStore("player", {
         typeof this.yt_player_instance.loadVideoById === "function"
       ) {
         this.is_loading = true;
-        this.yt_player_instance.setVolume(this.volume * 100);
+        this._refresh_normalization();
 
         if (should_play) {
           await this.yt_player_instance.loadVideoById({
@@ -532,6 +783,7 @@ export const usePlayerStore = defineStore("player", {
 
     async toggle_play() {
       if (!this.current_music) return;
+      if (this.normalization_enabled || this.audio_settings.enabled) this._get_normalizer().warmup();
 
       this.update_playback_position(this.get_current_time(), { force_sync: true });
 
@@ -729,13 +981,14 @@ export const usePlayerStore = defineStore("player", {
 
       this.volume = Math.min(Math.max(normalized_volume, 0), 1);
       if (this.native_audio_instance) this.native_audio_instance.volume = this.volume;
-      if (this.yt_player_instance?.setVolume) {
-        this.yt_player_instance.setVolume(this.volume * 100);
-      }
+      this._apply_youtube_volume();
+      normalization_runtime(this).normalizer?.update_activity();
       if (persist) this._persist_local_volume();
     },
 
     set_video_modal_active(active) {
+      const runtime = normalization_runtime(this);
+      runtime.handoff_profile = runtime.normalizer?.active?.profile || null;
       this.is_video_active = !!active;
       if (this.native_audio_instance) {
         this.native_audio_instance.muted = !!active;
@@ -746,16 +999,17 @@ export const usePlayerStore = defineStore("player", {
         } else if (!active && this.yt_player_instance.unMute) {
           this.yt_player_instance.unMute();
           if (this.yt_player_instance.setVolume) {
-            this.yt_player_instance.setVolume(this.volume * 100);
+            this._apply_youtube_volume();
           }
         }
       }
+      this._refresh_normalization();
     },
 
     register_yt_instance(player) {
       this.yt_player_instance = markRaw(player);
-      if (this.yt_player_instance?.setVolume)
-        this.yt_player_instance.setVolume(this.volume * 100);
+      this._apply_youtube_volume();
+      if (this.normalization_enabled && this.player_mode === "youtube") this._refresh_normalization();
     },
 
     add_to_queue(track) {
@@ -811,10 +1065,13 @@ export const usePlayerStore = defineStore("player", {
       this.set_player_ready(false);
       this._ensure_audio_instance();
       this.restore_local_volume();
+      this.restore_local_normalization();
+      this.restore_local_audio_settings();
       const resume_position = Math.max(0, Number(this.playback_position) || 0);
       let waiting_for_youtube_cue = false;
 
       if (this.current_music && this.player_mode === "youtube") {
+        this._refresh_normalization();
         if (this.yt_player_instance?.cueVideoById) {
           this.pending_youtube_restore = {
             youtube_id: this.current_music.youtube_id,
@@ -1004,6 +1261,8 @@ export const usePlayerStore = defineStore("player", {
 
     clearState() {
       this._reset_native_player();
+      normalization_runtime(this).normalizer?.dispose();
+      normalization_runtimes.delete(this.$state);
       try {
         if (this.yt_player_instance?.stopVideo) this.yt_player_instance.stopVideo();
       } catch (error) {

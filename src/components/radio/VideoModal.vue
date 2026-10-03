@@ -33,11 +33,12 @@
             <div class="video-player-wrapper">
               <video
                 ref="video_player"
+                :key="video_element_key"
                 class="offline-video"
                 :src="video_url"
                 playsinline
                 preload="metadata"
-                @loadedmetadata="sync_playback(true)"
+                @loadedmetadata="handle_video_metadata"
                 @canplay="sync_playback()"
                 @play="handle_video_play"
                 @pause="handle_video_pause"
@@ -88,6 +89,9 @@ export default {
   data() {
     return {
       video_url: null,
+      video_blob: null,
+      video_element_key: 0,
+      normalization_failed: false,
       is_loading: false,
       load_error: null,
       is_closing: false,
@@ -145,6 +149,16 @@ export default {
   },
   methods: {
     decode_html_entities,
+    handle_video_metadata() {
+      this.sync_playback(true);
+      if (!this.normalization_failed) {
+        this.playerStore.set_video_normalization_element(this.$refs.video_player, this.video_blob, () => {
+          this.normalization_failed = true;
+          this.playerStore.set_video_normalization_element(null, null, null, { unavailable: true });
+          this.video_element_key++;
+        });
+      }
+    },
     async toggle_native_fullscreen() {
       const video = this.$refs.video_player;
       if (!video) return;
@@ -194,6 +208,9 @@ export default {
     },
 
     handle_video_pause() {
+      // Closing pauses only the video element; the main player must keep
+      // advancing when audio takes over after the modal fades out.
+      if (this.is_closing || !this.modelValue) return;
       const video = this.$refs.video_player;
       if (video && video.ended) return;
       if (this.is_playing && !this.is_internal_seeking && this.playerStore) {
@@ -253,6 +270,8 @@ export default {
         }
 
         this.video_url = URL.createObjectURL(blob);
+        this.video_blob = blob;
+        this.normalization_failed = false;
         if (this.playerStore?.set_video_modal_active) {
           this.playerStore.set_video_modal_active(true);
         }
@@ -273,7 +292,7 @@ export default {
       if (force_seek || Math.abs(video.currentTime - target_time) > 0.6) {
         try {
           video.currentTime = target_time;
-        } catch (error) {
+        } catch {
           // O navegador ainda pode estar carregando os metadados
         }
       }
@@ -300,8 +319,10 @@ export default {
     },
 
     release_video_url() {
+      this.playerStore.set_video_normalization_element(null);
       if (this.video_url) URL.revokeObjectURL(this.video_url);
       this.video_url = null;
+      this.video_blob = null;
     },
 
     close_modal() {

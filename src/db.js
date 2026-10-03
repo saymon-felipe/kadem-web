@@ -76,6 +76,11 @@ const SCHEMA_V21 = {
   health_sync_state: "&user_id, cursor, updated_at",
 };
 
+const SCHEMA_V22 = {
+  ...SCHEMA_V21,
+  radio_loudness_profiles: "&key, user_id, updated_at",
+};
+
 export const db = new Dexie("KademDB");
 
 db.version(5).stores(SCHEMA_V5);
@@ -92,6 +97,7 @@ db.version(18).stores(SCHEMA_V14);
 db.version(19).stores(SCHEMA_V19);
 db.version(20).stores(SCHEMA_V20);
 db.version(21).stores(SCHEMA_V21);
+db.version(22).stores(SCHEMA_V22);
 
 let dbOpenPromise = null;
 

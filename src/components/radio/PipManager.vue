@@ -17,6 +17,7 @@
 <script>
 import system_icon from "@/assets/images/icons/system.png";
 import background_image_src from "@/assets/images/fundo-auth.webp";
+import kadem_default_music from "@/assets/images/kadem-default-music.jpg";
 import { decode_html_entities } from "@/utils/string_helpers";
 
 export default {
@@ -51,36 +52,25 @@ export default {
     };
   },
   async mounted() {
-    this.album_art_img.crossOrigin = "anonymous";
     this.background_img.crossOrigin = "anonymous";
 
     this.ctx = this.$refs.pip_canvas.getContext("2d", { alpha: false });
     await this.load_assets();
   },
+  computed: {
+    cover_url() {
+      return this.current_music?.thumbnail || kadem_default_music;
+    },
+  },
   watch: {
-    "current_music.thumbnail": {
+    cover_url: {
       handler(new_cover_url) {
-        if (new_cover_url) {
-          const separator = new_cover_url.includes("?") ? "&" : "?";
-          const safeUrl = `${new_cover_url}${separator}pip_request=true`;
-
-          this.album_art_img.src = safeUrl;
-
-          this.album_art_img.onload = () => {
-            this.draw_canvas_content();
-          };
-
-          this.album_art_img.onerror = (e) => {
-            console.warn("Falha ao carregar capa no PiP com CORS:", e);
-
-            this.album_art_img.removeAttribute("src");
-            this.draw_canvas_content();
-          };
-        } else {
-          this.draw_canvas_content();
-        }
+        this.load_album_art(new_cover_url);
       },
       immediate: true,
+    },
+    current_music() {
+      this.redraw_pip();
     },
     is_playing: {
       handler(should_play) {
@@ -142,6 +132,31 @@ export default {
   },
   methods: {
     decode_html_entities,
+    redraw_pip() {
+      this.draw_canvas_content();
+      if (this.is_pip_ready && !this.is_playing) this.force_frame_update();
+    },
+    load_album_art(cover_url) {
+      // Cancel the previous request and ignore its callbacks after a track change.
+      this.album_art_img.onload = null;
+      this.album_art_img.onerror = null;
+      this.album_art_img.removeAttribute("src");
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      this.album_art_img = image;
+      image.onload = () => {
+        if (this.album_art_img === image) this.redraw_pip();
+      };
+      image.onerror = () => {
+        if (this.album_art_img !== image) return;
+        if (cover_url !== kadem_default_music) this.load_album_art(kadem_default_music);
+        else this.redraw_pip();
+      };
+      const is_remote_cover = cover_url !== kadem_default_music && /^https?:/i.test(cover_url);
+      const separator = cover_url.includes("?") ? "&" : "?";
+      image.src = is_remote_cover ? `${cover_url}${separator}pip_request=true` : cover_url;
+      this.redraw_pip();
+    },
     force_frame_update() {
       if (!document.pictureInPictureElement) return;
       if (this.is_internal_update) return;
@@ -547,6 +562,10 @@ export default {
     },
   },
   beforeUnmount() {
+    this.album_art_img.onload = null;
+    this.album_art_img.onerror = null;
+    this.album_art_img.removeAttribute("src");
+    this.ctx = null;
     if (this.$refs.pip_video && this.$refs.pip_video.srcObject) {
       const stream = this.$refs.pip_video.srcObject;
       stream.getTracks().forEach((track) => track.stop());

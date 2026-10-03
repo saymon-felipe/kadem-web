@@ -47,30 +47,41 @@
       </div>
 
       <div class="controls-center">
-        <div class="controls-left" :class="{ 'disabled-area': is_disabled }">
-          <button
-            class="btn-control"
-            @click="!is_disabled && prev()"
-            :disabled="is_disabled"
-          >
-            <font-awesome-icon icon="backward-step" />
-          </button>
+        <div class="playback-controls">
+          <div class="audio-controls-mobile">
+            <NormalizationToggle :enabled="normalization_enabled"
+              :status="normalization_status" :detail="normalization_detail" @toggle="set_normalization_enabled" />
+            <button type="button" class="btn-icon expand-audio" :class="{ active: audio_settings_status === 'active' }"
+              :aria-expanded="show_audio_settings" aria-haspopup="dialog" aria-label="Expandir ajustes de áudio"
+              title="Expandir ajustes de áudio: equalização, mixagem e perfis" @click="open_audio_settings">
+              <font-awesome-icon icon="chevron-down" />
+            </button>
+          </div>
+          <div class="controls-left" :class="{ 'disabled-area': is_disabled }">
+            <button
+              class="btn-control"
+              @click="!is_disabled && prev()"
+              :disabled="is_disabled"
+            >
+              <font-awesome-icon icon="backward-step" />
+            </button>
 
-          <button
-            class="btn-control play-btn"
-            @click="!is_disabled && toggle_play()"
-            :disabled="is_disabled"
-          >
-            <font-awesome-icon :icon="is_playing ? 'circle-pause' : 'circle-play'" />
-          </button>
+            <button
+              class="btn-control play-btn"
+              @click="!is_disabled && toggle_play()"
+              :disabled="is_disabled"
+            >
+              <font-awesome-icon :icon="is_playing ? 'circle-pause' : 'circle-play'" />
+            </button>
 
-          <button
-            class="btn-control"
-            @click="!is_disabled && next()"
-            :disabled="is_disabled"
-          >
-            <font-awesome-icon icon="forward-step" />
-          </button>
+            <button
+              class="btn-control"
+              @click="!is_disabled && next()"
+              :disabled="is_disabled"
+            >
+              <font-awesome-icon icon="forward-step" />
+            </button>
+          </div>
         </div>
 
         <div class="progress-container" :class="{ 'disabled-area': is_disabled }">
@@ -90,8 +101,15 @@
         </div>
       </div>
 
-      <div class="controls-right" :class="{ 'disabled-area': is_disabled }">
-        <div class="volume-control">
+      <div class="controls-right">
+        <NormalizationToggle :enabled="normalization_enabled" :status="normalization_status"
+          :detail="normalization_detail" @toggle="set_normalization_enabled" />
+        <button type="button" class="btn-icon expand-audio" :class="{ active: audio_settings_status === 'active' }"
+          :aria-expanded="show_audio_settings" aria-haspopup="dialog" aria-label="Expandir ajustes de áudio"
+          title="Expandir ajustes de áudio: equalização, mixagem e perfis" @click="open_audio_settings">
+          <font-awesome-icon icon="chevron-down" />
+        </button>
+        <div class="volume-control" :class="{ 'disabled-area': is_disabled }">
           <button class="btn-icon" @click="toggle_mute">
             <font-awesome-icon :icon="volume_icon" />
           </button>
@@ -178,6 +196,13 @@
       </div>
     </div>
 
+    <AudioSettingsPanel v-model="show_audio_settings" :settings="audio_settings" :volume="volume"
+      :status="audio_settings_status" :detail="audio_settings_detail"
+      :normalization-enabled="normalization_enabled" :normalization-status="normalization_status"
+      :normalization-detail="normalization_detail" @settings="set_audio_settings" @preset="set_audio_preset"
+      @normalization="set_normalization_enabled" @volume="update_volume_from_external"
+      @reset="reset_audio_settings" @save="save_audio_settings" />
+
     <PipManager
       ref="pip_manager"
       :current_music="current_music"
@@ -225,9 +250,13 @@ import { db } from "@/db";
 import LyricsModal from "./LyricsModal.vue";
 import VideoModal from "./VideoModal.vue";
 import { radioFlowApi } from "@/services/radioFlowApi";
+import NormalizationToggle from "./NormalizationToggle.vue";
+import AudioSettingsPanel from "./AudioSettingsPanel.vue";
 
 export default {
   components: {
+    NormalizationToggle,
+    AudioSettingsPanel,
     PipManager,
     LyricsModal,
     VideoModal,
@@ -248,6 +277,8 @@ export default {
       kadem_default_music,
       show_lyrics_modal: false,
       show_video_modal: false,
+      show_audio_settings: false,
+      audio_settings_trigger: null,
       top_z_index: 2500,
       lyrics_z_index: 2500,
       video_z_index: 2500,
@@ -258,6 +289,12 @@ export default {
       "current_music",
       "is_playing",
       "volume",
+      "normalization_enabled",
+      "normalization_status",
+      "normalization_detail",
+      "audio_settings",
+      "audio_settings_status",
+      "audio_settings_detail",
       "playback_position",
       "is_loading",
       "current_playlist",
@@ -323,6 +360,25 @@ export default {
     },
     set_volume(value) {
       return radioFlowApi.set_volume(value);
+    },
+    set_normalization_enabled(enabled) {
+      return radioFlowApi.set_normalization_enabled(enabled);
+    },
+    open_audio_settings(event) {
+      this.audio_settings_trigger = event.currentTarget;
+      this.show_audio_settings = true;
+    },
+    set_audio_settings(settings, options) {
+      return radioFlowApi.set_audio_settings(settings, options);
+    },
+    save_audio_settings() {
+      return radioFlowApi.set_audio_settings({});
+    },
+    set_audio_preset(id) {
+      return radioFlowApi.set_audio_preset(id);
+    },
+    reset_audio_settings() {
+      return radioFlowApi.reset_audio_settings();
     },
     get_current_time() {
       return radioFlowApi.get_current_time();
@@ -435,6 +491,14 @@ export default {
     },
   },
   watch: {
+    show_audio_settings(visible) {
+      if (!visible) this.$nextTick(() => {
+        const trigger = this.audio_settings_trigger?.getClientRects().length
+          ? this.audio_settings_trigger
+          : Array.from(this.$el.querySelectorAll('.expand-audio')).find((button) => button.getClientRects().length);
+        trigger?.focus();
+      });
+    },
     current_music: {
       handler(new_val) {
         this.show_video_modal = false;
@@ -622,6 +686,14 @@ export default {
   gap: var(--space-1);
 }
 
+.playback-controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
 .track-info {
   display: flex;
   flex-direction: column;
@@ -799,7 +871,12 @@ export default {
 }
 
 /* Responsividade do Player */
+.audio-controls-mobile { display: none; }
+.expand-audio { width: 24px; height: 28px; padding: 0; flex-shrink: 0; transform: rotate(180deg); }
+.expand-audio.active { color: var(--color-info); }
+.expand-audio:focus-visible { outline: 2px solid var(--color-info); outline-offset: 2px; border-radius: 3px; }
 @container (max-width: 1100px) {
+  .audio-controls-mobile { display: flex; gap: 2px; position: absolute; left: 0; top: 50%; transform: translateY(-50%); }
   .lyrics-overlay {
     bottom: 150px;
     width: calc(100% - 40px);
