@@ -1,3 +1,5 @@
+const frames = new WeakMap();
+
 const onTransitionEnd = (e) => {
     if (e.propertyName === 'height') {
         e.target.style.height = 'auto';
@@ -25,20 +27,24 @@ const vAnimateHeight = {
     },
 
     updated(el) {
+        if (frames.has(el)) cancelAnimationFrame(frames.get(el));
         const oldHeight = el.dataset.oldHeight;
         if (!oldHeight) return;
 
-        requestAnimationFrame(() => {
+        frames.set(el, requestAnimationFrame(() => {
+            frames.delete(el);
             const newHeight = el.scrollHeight;
             if (oldHeight == newHeight) return;
 
             el.style.height = `${oldHeight}px`;
             void el.offsetHeight;
             el.style.height = `${newHeight}px`;
-        });
+        }));
     },
 
     unmounted(el) {
+        if (frames.has(el)) cancelAnimationFrame(frames.get(el));
+        frames.delete(el);
         el.removeEventListener('transitionend', onTransitionEnd);
     }
 };

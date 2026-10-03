@@ -174,6 +174,7 @@
         </section>
 
         <section :class="['tab-panel comments-panel custom-scrollbar', { 'is-active': active_tab === 'comments' }]"
+          v-memo="[comment_render_dependencies, active_tab, user?.id, user?.avatar, open_comment_menu, editing_comment_id, editing_comment_content, new_comment_text]"
           :aria-hidden="active_tab !== 'comments'">
           <div class="comments-header">
             <h4>Comentários</h4>
@@ -368,8 +369,7 @@ export default {
     is_dirty() {
       if (!this.original_snapshot) return false;
       const current = this.get_clean_task_data(this.editable_task);
-      const original = this.get_clean_task_data(JSON.parse(this.original_snapshot));
-      return JSON.stringify(current) !== JSON.stringify(original);
+      return JSON.stringify(current) !== this.original_snapshot;
     },
 
     attachment_count() {
@@ -387,6 +387,14 @@ export default {
 
     comment_count() {
       return this.editable_task.comments?.length || 0;
+    },
+
+    comment_render_dependencies() {
+      // Projeção cacheada: editar a descrição não renderiza novamente comentários,
+      // avatares e datas. Mutações de comentário/autor invalidam a projeção.
+      return (this.editable_task.comments || []).map((comment) => ({
+        ...comment, author: { ...comment.author },
+      }));
     },
 
     task_tabs() {
@@ -467,10 +475,12 @@ export default {
     ]),
 
     get_clean_task_data(task) {
-      const clone = JSON.parse(JSON.stringify(task));
-      delete clone.comments;
-      delete clone.attachments;
-      return clone;
+      // Exclui dados volumosos ANTES de serializar e criar dependências reativas.
+      const fields = {};
+      Object.keys(task).forEach((key) => {
+        if (key !== "comments" && key !== "attachments") fields[key] = task[key];
+      });
+      return fields;
     },
 
     snapshot_task() {
@@ -489,7 +499,7 @@ export default {
 
       this.apply_responsible_change(this.selected_responsible_wrapper);
 
-      this.original_snapshot = JSON.stringify(this.editable_task);
+      this.original_snapshot = JSON.stringify(this.get_clean_task_data(this.editable_task));
     },
 
     sync_responsible_wrapper() {
@@ -892,12 +902,16 @@ export default {
         if (!newComments) return;
         if (!this.editable_task.comments) this.editable_task.comments = [];
 
+        const comments_by_id = new Map();
+        this.editable_task.comments.forEach((comment) => {
+          if (!comments_by_id.has(comment.local_id)) comments_by_id.set(comment.local_id, comment);
+        });
         newComments.forEach((serverComment) => {
-          const exists = this.editable_task.comments.find(
-            (local) => local.local_id === serverComment.local_id
-          );
+          const exists = comments_by_id.get(serverComment.local_id);
           if (!exists) {
-            this.editable_task.comments.push(JSON.parse(JSON.stringify(serverComment)));
+            const comment = JSON.parse(JSON.stringify(serverComment));
+            this.editable_task.comments.push(comment);
+            comments_by_id.set(comment.local_id, comment);
           } else {
             if (this.editing_comment_id !== serverComment.local_id) {
               exists.likes = serverComment.likes;
@@ -913,11 +927,14 @@ export default {
         if (!newAttachments) return;
         if (!this.editable_task.attachments) this.editable_task.attachments = [];
 
+        const attachment_indices = new Map();
+        this.editable_task.attachments.forEach((attachment, index) => {
+          if (!attachment_indices.has(attachment.local_id)) attachment_indices.set(attachment.local_id, index);
+        });
         newAttachments.forEach((attachment) => {
-          const index = this.editable_task.attachments.findIndex(
-            (local) => local.local_id === attachment.local_id
-          );
-          if (index === -1) {
+          const index = attachment_indices.get(attachment.local_id);
+          if (index === undefined) {
+            attachment_indices.set(attachment.local_id, this.editable_task.attachments.length);
             this.editable_task.attachments.push({ ...attachment });
           } else {
             this.editable_task.attachments[index] = {
@@ -930,8 +947,9 @@ export default {
       deep: true,
     },
     uploading_attachment_ids(new_ids, old_ids) {
+      const current_ids = new Set(new_ids);
       old_ids
-        .filter((id) => !new_ids.includes(id))
+        .filter((id) => !current_ids.has(id))
         .forEach((id) => this.refresh_attachment_row(Number(id)));
     },
     selected_responsible_wrapper: {

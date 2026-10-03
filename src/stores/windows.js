@@ -10,7 +10,7 @@ export const useWindowStore = defineStore('windows', {
     snapTarget: null,
   }),
   getters: {
-    activeWindowId(state) {
+    activeWindowId() {
       const windows = this.currentUserWindows;
       const windowList = Object.values(windows);
 
@@ -354,12 +354,12 @@ export const useWindowStore = defineStore('windows', {
       return this.windowStatesByUser[userId];
     },
   },
-  persist: {
-    paths: [
+  localPersist: {
+    pick: [
       "windowStatesByUser",
       "_zIndexCounter"
     ],
-    afterRestore: (ctx) => {
+    afterHydrate: (ctx) => {
       ctx.store.snapTarget = null;
     },
   }

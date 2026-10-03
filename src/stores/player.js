@@ -456,7 +456,7 @@ export const usePlayerStore = defineStore("player", {
         console.warn("[PlayerStore] Aviso: Falha ao hidratar metadados da track:", err);
       }
 
-      const { audio_blob, ...cleanTrack } = targetTrack;
+      const { audio_blob: _audio_blob, ...cleanTrack } = targetTrack;
       this.current_music = cleanTrack;
       this.playback_position = 0;
       this.last_playback_position_sync_at = 0;
@@ -571,17 +571,18 @@ export const usePlayerStore = defineStore("player", {
 
       if (this.player_mode === "native") {
         if (this.native_audio_instance.src) {
-          should_play
-            ? this.native_audio_instance
+          if (should_play) {
+            this.native_audio_instance
               .play()
-              .catch((e) => console.error("Erro playback nativo:", e))
-            : this.native_audio_instance.pause();
+              .catch((e) => console.error("Erro playback nativo:", e));
+          } else {
+            this.native_audio_instance.pause();
+          }
         }
       } else if (this.player_mode === "youtube") {
         if (this.yt_player_instance?.playVideo) {
-          should_play
-            ? this.yt_player_instance.playVideo()
-            : this.yt_player_instance.pauseVideo();
+          if (should_play) this.yt_player_instance.playVideo();
+          else this.yt_player_instance.pauseVideo();
         }
 
         if (should_play) {
@@ -983,7 +984,7 @@ export const usePlayerStore = defineStore("player", {
         }
       }
 
-      const sanitizedQueue = this.queue.map(({ audio_blob, ...rest }) => rest);
+      const sanitizedQueue = this.queue.map(({ audio_blob: _audio_blob, ...rest }) => rest);
 
       const payload = {
         active_app: this.active_app,
@@ -1013,13 +1014,15 @@ export const usePlayerStore = defineStore("player", {
       this.is_player_ready = false;
       this.is_playing = false;
       localStorage.removeItem("player");
+      localStorage.removeItem("player:playback_position");
       this.$reset();
       this.native_audio_instance = markRaw(new Audio());
     },
   },
 
-  persist: {
-    paths: [
+  localPersist: {
+    separate: ["playback_position"],
+    pick: [
       "current_music",
       "current_playlist",
       "viewed_playlist_id",
@@ -1039,7 +1042,7 @@ export const usePlayerStore = defineStore("player", {
         }),
       deserialize: (value) => JSON.parse(value),
     },
-    afterRestore: (ctx) => {
+    afterHydrate: (ctx) => {
       ctx.store.is_playing = false;
       ctx.store.is_loading = false;
       ctx.store.current_audio_url = null;

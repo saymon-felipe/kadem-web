@@ -103,6 +103,44 @@ const dragTask = async (store, task, fromColumn, toColumn) => {
 // em deleteTask/updateTask.
 const openInModal = (task) => JSON.parse(JSON.stringify(task));
 
+test("carregar quadro lê tarefas/anexos uma vez e preserva colunas, ordem e arquivos", { timeout: 30000 }, async () => {
+  const server = await createViteServer();
+  let db;
+  let repository;
+  let originalGetTasks;
+  try {
+    const board = await loadBoard(server);
+    db = board.db;
+    repository = board.kanbanRepository;
+    const { store, columnA, columnB, task } = board;
+    const later = await repository.add_task({ project_id: PROJECT_ID, column_id: columnA.local_id, order: 5, description: "Depois" });
+    const earlier = await repository.add_task({ project_id: PROJECT_ID, column_id: columnA.local_id, order: 1, description: "Antes" });
+    const other = await repository.add_task({ project_id: PROJECT_ID, column_id: columnB.local_id, order: 0, description: "Outra coluna" });
+    const attachment = await repository.add_attachment({
+      task_local_id: task.local_id, project_id: PROJECT_ID,
+      name: "arquivo.txt", blob: new Blob(["Conteúdo offline"]), upload_status: "pending",
+    });
+    let reads = 0;
+    originalGetTasks = repository.get_tasks_by_project;
+    repository.get_tasks_by_project = async (projectId) => {
+      reads++;
+      return originalGetTasks.call(repository, projectId);
+    };
+    await store.loadBoardFromLocal(PROJECT_ID);
+    assert.equal(reads, 1, "Não pode reler todos os anexos para cada coluna");
+    assert.deepEqual(store.getTasks(columnA.local_id).map((item) => item.local_id), [task.local_id, earlier.local_id, later.local_id]);
+    assert.deepEqual(store.getTasks(columnB.local_id).map((item) => item.local_id), [other.local_id]);
+    const [loadedAttachment] = store.getTasks(columnA.local_id)[0].attachments;
+    assert.equal(loadedAttachment.local_id, attachment.local_id);
+    assert.equal(loadedAttachment.upload_status, "pending");
+    assert.equal(await loadedAttachment.blob.text(), "Conteúdo offline");
+  } finally {
+    if (originalGetTasks) repository.get_tasks_by_project = originalGetTasks;
+    db?.close();
+    await server.close();
+  }
+});
+
 test("excluir tarefa sem mover de coluna remove ela da interface", { timeout: 30000 }, async () => {
   const server = await createViteServer();
   let db;

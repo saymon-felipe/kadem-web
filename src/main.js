@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import piniaPluginPersistedState from 'pinia-plugin-persistedstate';
+import { selectivePersistence } from './plugins/selectivePersistence';
 import App from './App.vue';
 import router from './router';
 import './assets/styles/main.css';
@@ -315,6 +316,7 @@ import KademTabs from '@/components/ui/KademTabs.vue';
 const app = createApp(App);
 const pinia = createPinia();
 pinia.use(piniaPluginPersistedState);
+pinia.use(selectivePersistence);
 
 app.directive('animate-height', vAnimateHeight);
 

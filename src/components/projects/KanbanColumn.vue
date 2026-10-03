@@ -674,7 +674,7 @@ export default {
 
       this._task_drag_pointer.x = point.clientX;
       this._task_drag_pointer.y = point.clientY;
-      if (this._task_drag_pointer_frame) cancelAnimationFrame(this._task_drag_pointer_frame);
+      if (this._task_drag_pointer_frame) return;
       this._task_drag_pointer_frame = requestAnimationFrame(this.update_task_drag_preview);
     },
     stop_tracking_task_drag() {
@@ -751,7 +751,7 @@ export default {
 
       if (!preview.initialized && preview.base_height < preview.max_height - 1) {
         preview.column.style.height = `${preview.base_height}px`;
-        preview.column.offsetHeight;
+        void preview.column.offsetHeight;
         preview.initialized = true;
       }
       if (preview.initialized) preview.column.style.height = `${next_height}px`;
@@ -780,7 +780,7 @@ export default {
       column.style.removeProperty("height");
       const natural_height = column.getBoundingClientRect().height;
       if (previous_height) column.style.height = previous_height;
-      column.offsetHeight;
+      void column.offsetHeight;
       column.style.transition = previous_transition;
 
       return natural_height;
@@ -798,7 +798,7 @@ export default {
         : preview.base_height;
 
       column.style.height = `${current_height}px`;
-      column.offsetHeight;
+      void column.offsetHeight;
       column.style.height = `${target_height}px`;
       this.schedule_task_drag_preview_cleanup(column);
     },

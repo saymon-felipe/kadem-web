@@ -187,7 +187,6 @@ export const useProjectStore = defineStore("projects", {
 
     async updateProject(originalProject, changes) {
       const utilsStore = useUtilsStore();
-      const authStore = useAuthStore();
 
       const cleanOriginal = JSON.parse(JSON.stringify(originalProject));
       const cleanChanges = JSON.parse(JSON.stringify(changes));
@@ -485,6 +484,6 @@ export const useProjectStore = defineStore("projects", {
   },
 
   persist: {
-    paths: ["active_project_id"],
+    pick: ["active_project_id"],
   },
 });

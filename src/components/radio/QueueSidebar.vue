@@ -57,7 +57,7 @@
         ref="queue_list"
         v-model="queue_model"
         group="music"
-        item-key="youtube_id"
+        :item-key="(track) => track.local_id || track.id || track.youtube_id"
         class="next-list"
         ghost-class="queue-ghost"
         drag-class="queue-drag"
@@ -76,7 +76,7 @@
             :class="{ 'mini-item': collapsed }"
             :title="collapsed ? decode_html_entities(track.title) : ''"
           >
-            <img :src="track.thumbnail || kadem_default_music" class="q-cover" />
+            <img :src="track.thumbnail || kadem_default_music" class="q-cover" loading="lazy" decoding="async" />
 
             <div class="q-info" v-if="!collapsed">
               <strong>{{ decode_html_entities(track.title) }}</strong>
@@ -140,7 +140,7 @@ export default {
     ...mapState(usePlayerStore, ["is_playing"]),
     ...mapState(useAppStore, ["isMobile"]),
     queue_order() {
-      return this.next_tracks.map((track) => track.youtube_id);
+      return this.next_tracks.map((track) => track.local_id || track.id || track.youtube_id);
     },
     queue_model: {
       get() {
@@ -163,6 +163,7 @@ export default {
     this.queue_animation = { positions: new Map(), running: new Map() };
   },
   beforeUnmount() {
+    if (this.drag) this.endGlobalDrag();
     this.stop_autoscroll();
     this.stop_queue_animations();
   },
@@ -197,11 +198,13 @@ export default {
 
       // Anima entradas e deslocamentos em qualquer mudança da fila, inclusive avançar e retroceder.
       this.stop_queue_animations();
-      rows.forEach((row) => {
+      // Todas as leituras de layout precedem a criação das animações.
+      const measured_rows = rows.map((row) => ({ row, top: row.getBoundingClientRect().top }));
+      measured_rows.forEach(({ row, top }) => {
         if (typeof row.animate !== "function") return;
         const previous_top = positions.get(row);
         const is_new = previous_top === undefined;
-        const offset = is_new ? -10 : previous_top - row.getBoundingClientRect().top;
+        const offset = is_new ? -10 : previous_top - top;
         if (!is_new && Math.abs(offset) < 1) return;
 
         const animation = row.animate(

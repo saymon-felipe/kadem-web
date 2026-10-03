@@ -42,7 +42,7 @@
 
             <div class="track-title-col">
               <div class="thumb-wrapper">
-                <img :src="track.thumbnail || kadem_default_music" class="mini-thumb" :class="{ grayscale: is_track_unavailable(track) }" />
+                <img :src="track.thumbnail || kadem_default_music" class="mini-thumb" :class="{ grayscale: is_track_unavailable(track) }" loading="lazy" decoding="async" />
 
                 <div
                   v-if="!is_mobile && !is_track_unavailable(track)"
@@ -571,7 +571,7 @@ export default {
         try {
           ctx.drawImage(originalImg, 0, 0, 48, 48);
           thumbVisual = canvas;
-        } catch (e) {
+        } catch {
           thumbVisual = this.create_fallback_thumb();
         }
       } else {

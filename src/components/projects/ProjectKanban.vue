@@ -123,6 +123,10 @@ export default {
     },
   },
   emits: ["back-to-list", "switch-project"],
+  beforeUnmount() {
+    if (this.drag_ctx.is_dragging) this.on_column_drag_end();
+    if (this._column_drag_frame) cancelAnimationFrame(this._column_drag_frame);
+  },
   data() {
     return {
       selected_task: null,
@@ -411,33 +415,46 @@ export default {
       window.addEventListener("mousemove", this.track_mouse);
       window.addEventListener("touchmove", this.track_mouse);
 
+      let styled_fallback = null;
+      let previous_x = null;
+      let previous_y = null;
       const force_axis_loop = () => {
         if (!this.drag_ctx.is_dragging) return;
         const fallback_el = document.querySelector(".column-fallback");
 
         if (fallback_el) {
-          fallback_el.style.setProperty(
-            "width",
-            `${this.drag_ctx.initial_width}px`,
-            "important"
-          );
-          fallback_el.style.setProperty(
-            "min-width",
-            `${this.drag_ctx.initial_width}px`,
-            "important"
-          );
-          fallback_el.style.setProperty(
-            "max-width",
-            `${this.drag_ctx.initial_width}px`,
-            "important"
-          );
-          fallback_el.style.setProperty(
-            "height",
-            `${this.drag_ctx.initial_height}px`,
-            "important"
-          );
+          if (styled_fallback !== fallback_el) {
+            styled_fallback = fallback_el;
+            fallback_el.style.setProperty("width", `${this.drag_ctx.initial_width}px`, "important");
+            fallback_el.style.setProperty("min-width", `${this.drag_ctx.initial_width}px`, "important");
+            fallback_el.style.setProperty("max-width", `${this.drag_ctx.initial_width}px`, "important");
+            fallback_el.style.setProperty("height", `${this.drag_ctx.initial_height}px`, "important");
+            fallback_el.style.setProperty("box-sizing", "border-box", "important");
 
-          fallback_el.style.setProperty("box-sizing", "border-box", "important");
+            if (this.is_mobile) {
+              const taskListEl = fallback_el.querySelector(".task-list");
+              if (taskListEl) {
+                taskListEl.style.setProperty("display", "flex", "important");
+                taskListEl.style.setProperty("flex-direction", "row", "important");
+                taskListEl.style.setProperty("overflow-y", "hidden", "important");
+                taskListEl.style.setProperty("overflow-x", "auto", "important");
+                taskListEl.querySelectorAll(".kanban-task").forEach((task) => {
+                  task.style.setProperty("width", "200px", "important");
+                  task.style.setProperty("min-width", "200px", "important");
+                  task.style.setProperty("max-width", "200px", "important");
+                  task.style.setProperty("height", "100%", "important");
+                });
+              }
+            }
+          }
+
+          const { current_mouse_x, current_mouse_y } = this.column_drag_live;
+          if (current_mouse_x === previous_x && current_mouse_y === previous_y) {
+            this._column_drag_frame = requestAnimationFrame(force_axis_loop);
+            return;
+          }
+          previous_x = current_mouse_x;
+          previous_y = current_mouse_y;
 
           if (this.is_mobile) {
             const delta_y = this.column_drag_live.current_mouse_y - this.drag_ctx.start_mouse_y;
@@ -452,21 +469,6 @@ export default {
               `translate3d(0px, ${delta_y}px, 0px)`,
               "important"
             );
-
-            const taskListEl = fallback_el.querySelector(".task-list");
-            if (taskListEl) {
-              taskListEl.style.setProperty("display", "flex", "important");
-              taskListEl.style.setProperty("flex-direction", "row", "important");
-              taskListEl.style.setProperty("overflow-y", "hidden", "important");
-              taskListEl.style.setProperty("overflow-x", "auto", "important");
-
-              taskListEl.querySelectorAll(".kanban-task").forEach((task) => {
-                task.style.setProperty("width", "200px", "important");
-                task.style.setProperty("min-width", "200px", "important");
-                task.style.setProperty("max-width", "200px", "important");
-                task.style.setProperty("height", "100%", "important");
-              });
-            }
           } else {
             const delta_x = this.column_drag_live.current_mouse_x - this.drag_ctx.start_mouse_x;
 
@@ -482,12 +484,14 @@ export default {
             );
           }
         }
-        requestAnimationFrame(force_axis_loop);
+        this._column_drag_frame = requestAnimationFrame(force_axis_loop);
       };
-      requestAnimationFrame(force_axis_loop);
+      this._column_drag_frame = requestAnimationFrame(force_axis_loop);
     },
     on_column_drag_end() {
       this.drag_ctx.is_dragging = false;
+      if (this._column_drag_frame) cancelAnimationFrame(this._column_drag_frame);
+      this._column_drag_frame = 0;
       this.endGlobalDrag();
       window.removeEventListener("mousemove", this.track_mouse);
       window.removeEventListener("touchmove", this.track_mouse);

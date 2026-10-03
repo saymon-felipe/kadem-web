@@ -41,10 +41,18 @@ export const useKanbanStore = defineStore('kanban', {
 
       this.columns[projectId] = localColumns;
 
+      // Cada leitura hidrata também os anexos: fazê-la por coluna multiplica
+      // consultas, cópias e blobs em memória pelo número de colunas.
+      const localTasks = localColumns.length
+        ? await kanbanRepository.get_tasks_by_project(projectId)
+        : [];
+      const tasksByColumn = new Map();
+      for (const task of localTasks) {
+        if (!tasksByColumn.has(task.column_id)) tasksByColumn.set(task.column_id, []);
+        tasksByColumn.get(task.column_id).push(task);
+      }
       for (const col of localColumns) {
-        const localTasks = await kanbanRepository.get_tasks_by_project(projectId);
-        const columnTasks = localTasks
-          .filter(t => t.column_id === col.local_id)
+        const columnTasks = (tasksByColumn.get(col.local_id) || [])
           .sort((a, b) => a.order - b.order);
 
         this.tasks[col.local_id] = columnTasks;
