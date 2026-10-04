@@ -32,10 +32,11 @@
       />
     </button>
 
-    <Teleport to="body">
+    <Teleport :to="overlay_target">
       <transition name="dropdown-pop">
         <div
           v-if="is_open"
+          v-show="overlay_active"
           ref="dropdownMenu"
           class="searchable-dropdown-menu"
           :class="{ 'size-md': size === 'md' }"
@@ -106,8 +107,10 @@
 </template>
 
 <script>
+import { overlayScopeMixin } from '@/utils/overlayScope';
 export default {
   name: "SearchableDropdown",
+  mixins: [overlayScopeMixin],
   props: {
     modelValue: {
       type: [String, Number, Object, null],
@@ -207,14 +210,13 @@ export default {
     close() {
       this.is_open = false;
       window.removeEventListener("resize", this.calculate_position);
-      window.removeEventListener("scroll", this.calculate_position);
+      window.removeEventListener("scroll", this.calculate_position, true);
     },
     calculate_position() {
-      if (!this.$refs.triggerBtn) return;
-      const rect = this.$refs.triggerBtn.getBoundingClientRect();
+      if (!this.$refs.triggerBtn || !this.overlay_active) return;
+      const rect = this.overlay_rect(this.$refs.triggerBtn);
 
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
+      const { width: viewportWidth, height: viewportHeight } = this.overlay_viewport();
 
       const targetWidth = Math.min(Math.max(rect.width, 210), Math.max(160, viewportWidth - 20));
 
@@ -249,6 +251,7 @@ export default {
       this.menu_style = style;
     },
     handle_click_outside(e) {
+      if (!this.overlay_active) return;
       if (this.$refs.triggerBtn && (this.$refs.triggerBtn === e.target || this.$refs.triggerBtn.contains(e.target))) {
         return;
       }
@@ -265,7 +268,12 @@ export default {
   },
   beforeUnmount() {
     window.removeEventListener("resize", this.calculate_position);
-    window.removeEventListener("scroll", this.calculate_position);
+    window.removeEventListener("scroll", this.calculate_position, true);
+  },
+  watch: {
+    overlay_active(value) { if (value && this.is_open) this.$nextTick(this.calculate_position); },
+    'overlayScope.width'() { if (this.is_open) this.$nextTick(this.calculate_position); },
+    'overlayScope.height'() { if (this.is_open) this.$nextTick(this.calculate_position); },
   },
 };
 </script>

@@ -15,6 +15,8 @@ export const useProjectStore = defineStore("projects", {
   state: () => ({
     projects: [],
     active_project_id: null,
+    workspace_tabs: [],
+    active_workspace_tab_id: null,
     is_populating_offline_cache: false,
     lastSyncTimestamp: localStorage.getItem("kadem_projects_last_sync") || null,
   }),
@@ -68,13 +70,76 @@ export const useProjectStore = defineStore("projects", {
     async _loadProjectsFromDB() {
       try {
         this.projects = await projectRepository.getLocalProjects();
+        for (const tab of this.workspace_tabs) {
+          if (tab.project_local_id != null && !this.projects.some(project => String(project.localId) === String(tab.project_local_id))) {
+            this.clearWorkspaceProject(tab.project_local_id);
+          }
+        }
       } catch (error) {
         console.error("Falha ao carregar projetos do banco local:", error);
       }
     },
 
     selectProject(localId) {
-      this.active_project_id = localId;
+      this.ensureWorkspaceTabs();
+      this.selectWorkspaceTabProject(this.active_workspace_tab_id, localId);
+    },
+
+    selectWorkspaceTabProject(id, localId) {
+      const tab = this.workspace_tabs.find(tab => tab.id === id);
+      if (!tab) return;
+      tab.project_local_id = localId;
+      if (id === this.active_workspace_tab_id) this.active_project_id = localId;
+    },
+
+    ensureWorkspaceTabs() {
+      if (this.workspace_tabs.length === 0) {
+        this.workspace_tabs.push({ id: crypto.randomUUID(), project_local_id: this.active_project_id });
+      }
+      const active = this.workspace_tabs.find(tab => tab.id === this.active_workspace_tab_id) || this.workspace_tabs[0];
+      this.active_workspace_tab_id = active.id;
+      this.active_project_id = active.project_local_id;
+    },
+
+    openWorkspaceTab(project_local_id = null) {
+      const tab = { id: crypto.randomUUID(), project_local_id };
+      this.workspace_tabs.push(tab);
+      this.activateWorkspaceTab(tab.id);
+      return tab;
+    },
+
+    duplicateWorkspaceTab() {
+      this.ensureWorkspaceTabs();
+      return this.openWorkspaceTab(this.active_project_id);
+    },
+
+    activateWorkspaceTab(id) {
+      const tab = this.workspace_tabs.find(tab => tab.id === id);
+      if (!tab) return;
+      this.active_workspace_tab_id = id;
+      this.active_project_id = tab.project_local_id;
+    },
+
+    closeWorkspaceTab(id) {
+      const index = this.workspace_tabs.findIndex(tab => tab.id === id);
+      if (index < 0 || this.workspace_tabs.length === 1) return;
+      const was_active = this.active_workspace_tab_id === id;
+      this.workspace_tabs.splice(index, 1);
+      if (was_active) {
+        this.activateWorkspaceTab(this.workspace_tabs[Math.min(index, this.workspace_tabs.length - 1)].id);
+      }
+    },
+
+    clearWorkspaceProject(localId) {
+      for (const tab of this.workspace_tabs) {
+        if (String(tab.project_local_id) === String(localId)) tab.project_local_id = null;
+      }
+      if (String(this.active_project_id) === String(localId)) this.active_project_id = null;
+    },
+
+    reorderWorkspaceTabs(tabs) {
+      if (!Array.isArray(tabs) || tabs.length === 0) return;
+      this.workspace_tabs = [...tabs];
     },
 
     async markProjectAsAccessed(localId) {
@@ -347,6 +412,7 @@ export const useProjectStore = defineStore("projects", {
 
             await projectRepository.deleteLocalProject(localId);
             this.projects = this.projects.filter((p) => p.localId !== localId);
+            this.clearWorkspaceProject(localId);
             if (this.active_project_id === localId) this.active_project_id = null;
 
             throw apiError;
@@ -381,6 +447,7 @@ export const useProjectStore = defineStore("projects", {
         });
         await projectRepository.deleteLocalProject(localId);
         this.projects = this.projects.filter((p) => p.localId !== localId);
+        this.clearWorkspaceProject(localId);
 
         if (this.active_project_id === localId) {
           this.active_project_id = null;
@@ -467,6 +534,11 @@ export const useProjectStore = defineStore("projects", {
       );
 
       try {
+        for (const project of this.projects) {
+          if (String(project.id) === String(projectId) || String(project.localId) === String(projectId)) {
+            this.clearWorkspaceProject(project.localId);
+          }
+        }
         this.projects = this.projects.filter(
           (p) =>
             String(p.id) !== String(projectId) && String(p.localId) !== String(projectId)
@@ -483,7 +555,14 @@ export const useProjectStore = defineStore("projects", {
     },
   },
 
+  localPersist: {
+    pick: ["active_project_id", "workspace_tabs", "active_workspace_tab_id"],
+    afterHydrate: (ctx) => {
+      ctx.store.ensureWorkspaceTabs();
+    },
+  },
+
   persist: {
-    pick: ["active_project_id"],
+    pick: ["active_project_id", "workspace_tabs", "active_workspace_tab_id"],
   },
 });

@@ -1,12 +1,13 @@
 <template>
-  <Teleport to="body" :disabled="!teleport">
+  <Teleport :to="overlay_target" :disabled="!teleport">
     <Transition name="kadem-modal">
       <div
         v-if="modelValue"
+        v-show="overlay_active"
         class="kadem-modal-overlay"
-        :class="[backdropClass, { 'is-mobile': isMobileView }]"
+        :class="[backdropClass, { 'is-mobile': isMobileView, 'is-scoped': overlay_scoped }]"
         @click.self="onBackdropClick"
-        @mousedown.stop
+        @mousedown.stop="focus_overlay"
         role="dialog"
         aria-modal="true"
         :aria-label="title || 'Modal'"
@@ -24,7 +25,7 @@
           ]"
           :style="cardDynamicStyle"
           @click.stop
-          @mousedown.stop
+          @mousedown.stop="focus_overlay"
         >
           <!-- Indicador de arraste de celular (Drag Handle) -->
           <div
@@ -78,10 +79,12 @@
 </template>
 
 <script>
-import { registerModal } from "@/utils/modalHistory";
+import { registerModal, isTopModal } from "@/utils/modalHistory";
+import { overlayScopeMixin } from '@/utils/overlayScope';
 
 export default {
   name: "BaseModal",
+  mixins: [overlayScopeMixin],
   props: {
     modelValue: {
       type: Boolean,
@@ -206,7 +209,7 @@ export default {
       }
     },
     handleKeydown(e) {
-      if (e.key === "Escape" && this.closeOnEscape && this.modelValue) {
+      if (e.key === "Escape" && this.closeOnEscape && this.is_modal_active && isTopModal(this.modalRegistration)) {
         this.close();
       }
     },
@@ -217,13 +220,13 @@ export default {
       this.updateModalHeight(false);
     },
     updateModalHeight(animate = true) {
-      if (!this.modelValue) return;
+      if (!this.is_modal_active) return;
       const card = this.$refs.cardRef;
       const body = this.$refs.bodyRef;
       if (!card || !body) return;
 
-      const screenH = typeof window !== "undefined" ? window.innerHeight : 800;
-      const maxH = screenH - 76;
+      const screenH = this.overlay_height;
+      const maxH = Math.max(0, screenH - (this.overlay_scoped ? 24 : 76));
 
       let nonBodyHeight = 0;
       if (this.$refs.dragBarRef) nonBodyHeight += this.$refs.dragBarRef.offsetHeight;
@@ -333,7 +336,8 @@ export default {
     },
   },
   watch: {
-    modelValue: {
+    overlay_height() { this.$nextTick(() => this.updateModalHeight(false)); },
+    is_modal_active: {
       immediate: true,
       handler(val) {
         if (val) {
@@ -404,6 +408,14 @@ export default {
    aberto por cima dele (ex.: confirmar exclusão de anexo) ficava escondido atrás do painel. */
 .kadem-modal-overlay.is-mobile {
   z-index: 100000;
+}
+
+.kadem-modal-overlay.is-scoped {
+  position: absolute;
+}
+.is-scoped .kadem-modal-card {
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .kadem-modal-card {
@@ -631,5 +643,9 @@ export default {
     transform: translateY(100%) !important;
     opacity: 1 !important;
   }
+}
+.kadem-modal-overlay.is-scoped .kadem-modal-card {
+  min-height: 0 !important;
+  max-height: 100% !important;
 }
 </style>

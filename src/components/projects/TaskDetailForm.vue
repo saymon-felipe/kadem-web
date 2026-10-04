@@ -51,8 +51,8 @@
         <form :class="['tab-panel details-panel custom-scrollbar', { 'is-active': active_tab === 'details' }]"
           :aria-hidden="active_tab !== 'details'" @submit.prevent="handle_save">
           <section class="description-card">
-            <label for="task-description">Descricao</label>
-            <textarea id="task-description" v-model="editable_task.description" rows="7"
+            <label :for="`task-description-${$.uid}`">Descrição</label>
+            <textarea :id="`task-description-${$.uid}`" v-model="editable_task.description" rows="7"
               class="description-input"></textarea>
           </section>
 
@@ -327,6 +327,7 @@ import BaseModal from "@/components/BaseModal.vue";
 import CustomDropdown from "../ui/CustomDropdown.vue";
 import KademTabs from "../ui/KademTabs.vue";
 import TaskRelations from "./TaskRelations.vue";
+import { overlayScopeMixin } from '@/utils/overlayScope';
 
 import moment from "moment/min/moment-with-locales";
 
@@ -334,6 +335,7 @@ moment.locale("pt-br");
 
 export default {
   name: "TaskDetailForm",
+  mixins: [overlayScopeMixin],
   components: { BaseModal, CustomDropdown, KademTabs, TaskRelations },
   props: {
     task: { type: Object, required: true },
@@ -346,6 +348,7 @@ export default {
     "click-outside": {
       mounted(el, binding) {
         el.clickOutsideEvent = function (event) {
+          if (!binding.instance.overlay_active) return;
           if (!(el === event.target || el.contains(event.target))) {
             binding.value(event);
           }

@@ -52,7 +52,7 @@
       <span class="column-type-dot" :style="{ backgroundColor: column_type.color || 'var(--text-muted)' }"></span>
       <span class="column-type-name">{{ column_type.label }}</span>
     </button>
-    <BaseModal v-model="show_type_config" size="md" :show-close="!is_saving_type" :close-on-backdrop="!is_saving_type"
+    <BaseModal ref="typeModal" v-model="show_type_config" size="md" :show-close="!is_saving_type" :close-on-backdrop="!is_saving_type"
       :close-on-escape="!is_saving_type">
       <template #title>
         <div class="column-type-modal-title">
@@ -216,9 +216,9 @@
                 </span>
               </button>
 
-              <Teleport to="body">
+              <Teleport :to="overlay_target">
                 <transition name="fade">
-                  <div v-if="show_assignee_menu" class="assignee-dropdown glass" v-click-outside="close_assignee_menu"
+                  <div v-if="show_assignee_menu" v-show="overlay_active" ref="assigneeMenu" class="assignee-dropdown glass" v-click-outside="close_assignee_menu"
                     :style="dropdown_position_style">
                     <ul>
                       <li @click="select_assignee('all')">
@@ -277,9 +277,11 @@ import SearchableDropdown from "@/components/ui/SearchableDropdown.vue";
 import defaultAvatar from "@/assets/images/kadem-default-account.jpg";
 import { KANBAN_COLUMN_TYPES } from '@/utils/kanbanTypes';
 import BaseModal from '@/components/BaseModal.vue';
+import { overlayScopeMixin } from '@/utils/overlayScope';
 
 export default {
   name: "KanbanColumn",
+  mixins: [overlayScopeMixin],
   components: { draggable, KanbanTask, SearchableDropdown, BaseModal },
   props: {
     column: {
@@ -323,6 +325,7 @@ export default {
     "click-outside": {
       mounted(el, binding) {
         el.clickOutsideEvent = function (event) {
+          if (!binding.instance.overlay_active) return;
           if (!(el === event.target || el.contains(event.target))) {
             binding.value(event);
           }
@@ -518,6 +521,9 @@ export default {
     },
   },
   watch: {
+    overlay_active(value) { if (value && this.show_assignee_menu) this.$nextTick(this.calculate_dropdown_position); },
+    'overlayScope.width'() { if (this.show_assignee_menu) this.$nextTick(this.calculate_dropdown_position); },
+    'overlayScope.height'() { if (this.show_assignee_menu) this.$nextTick(this.calculate_dropdown_position); },
     filter_values() {
       this.animate_filter_change();
     },
@@ -558,7 +564,7 @@ export default {
       this.close_options();
       this.show_type_config = true;
       this.$nextTick(() => {
-        const activeCard = document.querySelector('.type-card.is-selected');
+        const activeCard = this.$refs.typeModal?.$refs.cardRef?.querySelector('.type-card.is-selected');
         if (activeCard) {
           activeCard.focus?.();
           activeCard.scrollIntoView?.({ block: 'nearest' });
@@ -571,7 +577,7 @@ export default {
         const nextIndex = (index + 1) % this.column_types.length;
         this.edit_column_type = this.column_types[nextIndex].value;
         this.$nextTick(() => {
-          const cards = document.querySelectorAll('.type-card');
+          const cards = this.$refs.typeModal?.$refs.cardRef?.querySelectorAll('.type-card') || [];
           cards[nextIndex]?.focus?.();
           cards[nextIndex]?.scrollIntoView?.({ block: 'nearest' });
         });
@@ -580,7 +586,7 @@ export default {
         const prevIndex = (index - 1 + this.column_types.length) % this.column_types.length;
         this.edit_column_type = this.column_types[prevIndex].value;
         this.$nextTick(() => {
-          const cards = document.querySelectorAll('.type-card');
+          const cards = this.$refs.typeModal?.$refs.cardRef?.querySelectorAll('.type-card') || [];
           cards[prevIndex]?.focus?.();
           cards[prevIndex]?.scrollIntoView?.({ block: 'nearest' });
         });
@@ -944,7 +950,8 @@ export default {
       this.show_assignee_menu = false;
     },
     handle_click_outside_creation(event) {
-      const dropdown = document.querySelector(".assignee-dropdown");
+      if (!this.overlay_active) return;
+      const dropdown = this.$refs.assigneeMenu;
       if (dropdown && dropdown.contains(event.target)) {
         return;
       }
@@ -970,7 +977,7 @@ export default {
     calculate_dropdown_position() {
       if (!this.$refs.assigneeTrigger) return;
 
-      const rect = this.$refs.assigneeTrigger.getBoundingClientRect();
+      const rect = this.overlay_rect(this.$refs.assigneeTrigger);
 
       this.dropdown_position_style = {
         position: "fixed",

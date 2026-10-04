@@ -5,7 +5,7 @@ import { watch } from "vue";
 export function selectivePersistence({ store, options }) {
   const config = options.localPersist;
   if (!config) return;
-  const storage = config.storage || window.localStorage;
+  const storage = config.storage || (typeof window !== "undefined" ? window.localStorage : globalThis.localStorage);
   const key = store.$id;
   const separate = config.separate || [];
   const fields = config.pick.filter((field) => !separate.includes(field));

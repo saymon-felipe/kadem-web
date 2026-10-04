@@ -10,9 +10,9 @@
             <font-awesome-icon icon="chevron-down" class="arrow-icon" :class="{ 'rotated': is_open }" />
         </div>
 
-        <Teleport to="body">
+        <Teleport :to="overlay_target">
             <transition name="dropdown-fade">
-                <div v-if="is_open" ref="dropdownMenu" class="dropdown-menu glass" :style="menu_style">
+                <div v-if="is_open" v-show="overlay_active" ref="dropdownMenu" class="dropdown-menu glass" :style="menu_style">
                     <ul class="dropdown-list">
                         <li v-for="(option, index) in options" :key="index" class="dropdown-item"
                             :class="{ 'is-selected': is_selected(option) }" @click.stop="select_option(option)">
@@ -28,8 +28,10 @@
 </template>
 
 <script>
+import { overlayScopeMixin } from '@/utils/overlayScope';
 export default {
     name: 'CustomDropdown',
+    mixins: [overlayScopeMixin],
     props: {
         modelValue: {
             type: [Object, String, Number, null],
@@ -83,11 +85,10 @@ export default {
         },
         update_position() {
             const trigger = this.$refs.trigger;
-            if (!trigger) return;
+            if (!trigger || !this.overlay_active) return;
 
-            const rect = trigger.getBoundingClientRect();
-            const viewport_width = window.innerWidth;
-            const viewport_height = window.innerHeight;
+            const rect = this.overlay_rect(trigger);
+            const { width: viewport_width, height: viewport_height } = this.overlay_viewport();
             const width = Math.min(rect.width, Math.max(0, viewport_width - 16));
             const left = Math.max(8, Math.min(rect.left, viewport_width - width - 8));
             const space_below = viewport_height - rect.bottom - 8;
@@ -107,6 +108,7 @@ export default {
             };
         },
         handle_outside_pointer_down(event) {
+            if (!this.overlay_active) return;
             const clicked_trigger = this.$refs.dropdownRoot?.contains(event.target);
             const clicked_menu = this.$refs.dropdownMenu?.contains(event.target);
             if (!clicked_trigger && !clicked_menu) this.close();
@@ -131,6 +133,11 @@ export default {
     },
     beforeUnmount() {
         this.close();
+    },
+    watch: {
+        overlay_active(value) { if (value && this.is_open) this.$nextTick(this.update_position); },
+        'overlayScope.width'() { if (this.is_open) this.$nextTick(this.update_position); },
+        'overlayScope.height'() { if (this.is_open) this.$nextTick(this.update_position); }
     }
 };
 </script>

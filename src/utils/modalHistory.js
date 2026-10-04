@@ -107,3 +107,7 @@ export function registerModal(closeCallback, options = { handleHistory: true }) 
 export function hasOpenModals() {
   return modalStack.length > 0;
 }
+
+export function isTopModal(registration) {
+  return Boolean(registration && modalStack.at(-1)?.id === registration.id);
+}

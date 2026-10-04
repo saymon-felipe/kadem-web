@@ -1,8 +1,8 @@
 <template>
-  <Teleport to="body" :disabled="!teleport">
+  <Teleport :to="overlay_target" :disabled="!teleport">
     <Transition :name="isMobile ? 'bottom-sheet' : transition_name">
-      <div v-if="modelValue" class="modal-wrapper-fixed" :class="{ 'is-floating': is_floating, 'is-mobile': isMobile }"
-        @mousedown.stop>
+      <div v-if="modelValue" v-show="overlay_active" class="modal-wrapper-fixed" :class="{ 'is-floating': is_floating, 'is-mobile': isMobile, 'is-scoped': overlay_scoped }"
+        @mousedown.stop="focus_overlay">
         <div class="modal-overlay" @click="close"></div>
         <div ref="modalContentRef" class="modal-content glass" :class="[
           `variant-${variant}`,
@@ -20,10 +20,12 @@
 </template>
 
 <script>
-import { registerModal } from "@/utils/modalHistory";
+import { registerModal, isTopModal } from "@/utils/modalHistory";
+import { overlayScopeMixin } from '@/utils/overlayScope';
 
 export default {
   name: "SideModal",
+  mixins: [overlayScopeMixin],
   props: {
     modelValue: {
       type: Boolean,
@@ -74,7 +76,7 @@ export default {
     if (typeof window !== "undefined") {
       window.addEventListener("resize", this.handleWindowResize);
     }
-    if (this.modelValue) {
+    if (this.is_modal_active) {
       document.addEventListener("keydown", this.handleKeydown);
       if (!this.unregisterHistory) {
         this.unregisterHistory = registerModal(() => {
@@ -100,7 +102,6 @@ export default {
       }
     },
     handleWindowResize() {
-      const wasMobile = this.isMobile;
       this.checkMobile();
       if (this.should_track_height) {
         this.updateModalHeight(true);
@@ -114,18 +115,18 @@ export default {
       this.$emit("close");
     },
     handleKeydown(e) {
-      if (e.key === "Escape" && this.modelValue) {
+      if (e.key === "Escape" && this.is_modal_active && isTopModal(this.unregisterHistory)) {
         this.close();
       }
     },
     updateModalHeight(animate = true) {
-      if (!this.modelValue || !this.should_track_height) return;
+      if (!this.is_modal_active || !this.should_track_height) return;
       const el = this.$refs.modalContentRef;
       if (!el) return;
 
-      const screenH = typeof window !== "undefined" ? window.innerHeight : 800;
-      const minH = this.isMobile ? Math.round(screenH * 0.40) : 340;
-      const maxH = this.isMobile ? Math.max(minH, screenH - 76) : Math.min(screenH - 76, 700);
+      const screenH = this.overlay_height;
+      const maxH = Math.max(0, Math.min(screenH - (this.overlay_scoped ? 24 : 76), this.isMobile ? screenH : 700));
+      const minH = Math.min(maxH, this.isMobile ? Math.round(screenH * 0.40) : 340);
 
       const bodyEl = el.querySelector(".modal-body, .modal-body-area");
       let naturalHeight = 0;
@@ -242,7 +243,8 @@ export default {
     },
   },
   watch: {
-    modelValue(val) {
+    overlay_height() { this.$nextTick(() => this.updateModalHeight(false)); },
+    is_modal_active(val) {
       if (val) {
         document.addEventListener("keydown", this.handleKeydown);
         if (!this.unregisterHistory) {
@@ -490,5 +492,20 @@ export default {
     flex-shrink: 0;
     pointer-events: none;
   }
+}
+.modal-wrapper-fixed.is-scoped {
+  position: absolute !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 12px !important;
+}
+.is-scoped .modal-content.variant-floating {
+  width: min(860px, 100%) !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+}
+.is-scoped .modal-content.variant-side {
+  min-height: 0 !important;
+  max-height: 100% !important;
 }
 </style>

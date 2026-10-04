@@ -12,6 +12,7 @@
     "test:biometrics": "node --experimental-vm-modules --test tests/biometricAuth.test.js",
     "test:finance": "node --test tests/financeSync.test.js",
     "test:kanban": "node --test tests/kanbanBoard.test.js",
+    "test:project-tabs": "node --test tests/projectWorkspaceTabs.test.js",
     "test:autoscroll": "node --test tests/dragAutoscroll.test.js",
     "test:performance": "node --test tests/uiPerformance.test.js",
     "test:radio": "node --test tests/radioNormalization*.test.js tests/radioAudioSettings.test.js",

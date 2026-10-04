@@ -125,6 +125,7 @@ export default {
   },
   emits: ["back-to-list", "switch-project"],
   beforeUnmount() {
+    this.board_load_token++;
     if (this.drag_ctx.is_dragging) this.on_column_drag_end();
     if (this._column_drag_frame) cancelAnimationFrame(this._column_drag_frame);
   },
@@ -229,6 +230,7 @@ export default {
         this.board_loading = true;
 
         await this.loadBoardFromLocal(newId);
+        if (!is_current_load()) return;
 
         const has_cached_board = this.columns.length > 0;
         if (has_cached_board && is_current_load()) this.board_loading = false;
