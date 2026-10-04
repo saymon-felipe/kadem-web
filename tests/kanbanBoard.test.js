@@ -386,7 +386,7 @@ test('excluir pai criado offline antes de reconectar envia apenas a filha indepe
   assert.equal((await queue.getPendingTasks()).length, 0);
 }));
 
-test('upgrade Dexie v22 → v24 preserva tarefa, comentários e blob offline', { timeout: 30000 }, async () => {
+test('upgrade Dexie v22 → versão atual preserva tarefa, comentários e blob offline', { timeout: 30000 }, async () => {
   const server = await createViteServer();
   let db;
   let oldDb;
@@ -404,7 +404,7 @@ test('upgrade Dexie v22 → v24 preserva tarefa, comentários e blob offline', {
     await oldDb.table('kanban_task_attachments').add({ task_local_id: 91, project_id: PROJECT_ID, blob: new Blob(['Arquivo preservado']) });
     oldDb.close();
     await db.open();
-    assert.equal(db.verno, 24);
+    assert.equal(db.verno, 25);
     const task = await db.kanban_tasks.get(91);
     assert.equal(task.description, 'Existente');
     assert.equal(task.comments[0].content, 'Preservado');

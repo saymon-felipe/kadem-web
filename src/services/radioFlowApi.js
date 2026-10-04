@@ -2,6 +2,7 @@ import { watch } from "vue";
 import { usePlayerStore } from "@/stores/player";
 import { useRadioStore } from "@/stores/radio";
 import { useWindowStore } from "@/stores/windows";
+import { useRadioInsightsStore } from '@/stores/radioInsights';
 
 const RADIO_FLOW_WINDOW = {
   id: "productivity",
@@ -19,6 +20,7 @@ const state_snapshot = () => {
 
   return {
     current_music: player.current_music,
+    current_reaction: useRadioInsightsStore().reactionFor(player.current_music),
     current_playlist: player.current_playlist,
     is_playing: player.is_playing,
     is_loading: player.is_loading,
@@ -142,6 +144,14 @@ export const radioFlowApi = {
 
   play_track(track, playlist = null, options = {}) {
     return player_store().play_track(track, playlist, options);
+  },
+
+  set_reaction(track, reaction) {
+    return useRadioInsightsStore().setReaction(track, reaction);
+  },
+
+  get_reaction(track) {
+    return useRadioInsightsStore().reactionFor(track);
   },
 
   play_playlist(playlist, tracks, start_track = null) {

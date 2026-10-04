@@ -1,6 +1,24 @@
 <template>
   <div class="player-wrapper-container">
-    <div class="player-wrapper">
+    <div
+      class="player-wrapper"
+      @dblclick="handle_player_dblclick"
+      @touchend="handle_player_touchend"
+    >
+      <div
+        v-if="floating_feedback"
+        :key="floating_feedback.id"
+        class="floating-reaction-feedback"
+        :class="`feedback-${floating_feedback.type}`"
+        aria-live="polite"
+      >
+        <div class="feedback-icon-wrapper">
+          <font-awesome-icon :icon="floating_feedback.icon" class="feedback-icon" />
+          <div v-if="floating_feedback.strike" class="feedback-strike-line"></div>
+        </div>
+        <span class="feedback-label">{{ floating_feedback.label }}</span>
+      </div>
+
       <div class="music-element">
         <img :src="current_music?.thumbnail || kadem_default_music" />
         <div class="music-info">
@@ -128,6 +146,7 @@
       </div>
 
       <div class="player-extra-actions">
+        <TrackReaction :track="current_music" />
         <button
           v-if="
             radioStore.hasTrackVideo(current_music) ||
@@ -252,9 +271,12 @@ import VideoModal from "./VideoModal.vue";
 import { radioFlowApi } from "@/services/radioFlowApi";
 import NormalizationToggle from "./NormalizationToggle.vue";
 import AudioSettingsPanel from "./AudioSettingsPanel.vue";
+import TrackReaction from './TrackReaction.vue';
+import { useRadioInsightsStore } from "@/stores/radioInsights";
 
 export default {
   components: {
+    TrackReaction,
     NormalizationToggle,
     AudioSettingsPanel,
     PipManager,
@@ -263,7 +285,8 @@ export default {
   },
   setup() {
     const radioStore = useRadioStore();
-    return { radioStore };
+    const insightsStore = useRadioInsightsStore();
+    return { radioStore, insightsStore };
   },
   data() {
     return {
@@ -282,6 +305,10 @@ export default {
       top_z_index: 2500,
       lyrics_z_index: 2500,
       video_z_index: 2500,
+      floating_feedback: null,
+      feedback_timer: null,
+      last_tap_timestamp: 0,
+      last_tap_position: { x: 0, y: 0 },
     };
   },
   computed: {
@@ -346,6 +373,89 @@ export default {
   },
   methods: {
     decode_html_entities,
+    handle_player_touchend(event) {
+      if (!this.current_music) return;
+      if (
+        event.target.closest(
+          "button, input, select, textarea, .slider, .dropdown-item, [role='button'], .progress-container, .audio-settings-panel, .volume-control"
+        )
+      ) {
+        return;
+      }
+      const touch = event.changedTouches ? event.changedTouches[0] : null;
+      const now = Date.now();
+      const timeDiff = now - this.last_tap_timestamp;
+      if (touch && timeDiff > 0 && timeDiff < 350) {
+        const dist = Math.hypot(
+          touch.clientX - this.last_tap_position.x,
+          touch.clientY - this.last_tap_position.y
+        );
+        if (dist < 30) {
+          event.preventDefault();
+          this.cycle_reaction();
+        }
+      }
+      this.last_tap_timestamp = now;
+      if (touch) {
+        this.last_tap_position = { x: touch.clientX, y: touch.clientY };
+      }
+    },
+    handle_player_dblclick(event) {
+      if (!this.current_music) return;
+      if (
+        event.target.closest(
+          "button, input, select, textarea, .slider, .dropdown-item, [role='button'], .progress-container, .audio-settings-panel, .volume-control"
+        )
+      ) {
+        return;
+      }
+      this.cycle_reaction();
+    },
+    async cycle_reaction() {
+      if (!this.current_music) return;
+      const currentVote = this.insightsStore.reactionFor(this.current_music);
+      let nextVote = 0;
+      let feedbackType = "like";
+      let feedbackIcon = "thumbs-up";
+      let feedbackLabel = "Curtida";
+
+      if (currentVote === 0) {
+        nextVote = 1;
+        feedbackType = "like";
+        feedbackIcon = "thumbs-up";
+        feedbackLabel = "Curtida";
+      } else if (currentVote === 1) {
+        nextVote = -1;
+        feedbackType = "dislike";
+        feedbackIcon = "thumbs-down";
+        feedbackLabel = "Não gostei";
+      } else {
+        nextVote = 0;
+        feedbackType = "removed";
+        feedbackIcon = "thumbs-up";
+        feedbackLabel = "Avaliação removida";
+      }
+
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try {
+          navigator.vibrate(15);
+        } catch {}
+      }
+
+      await this.insightsStore.setReaction(this.current_music, nextVote);
+
+      if (this.feedback_timer) clearTimeout(this.feedback_timer);
+      this.floating_feedback = {
+        id: Date.now(),
+        type: feedbackType,
+        icon: feedbackIcon,
+        label: feedbackLabel,
+        strike: feedbackType === "removed",
+      };
+      this.feedback_timer = setTimeout(() => {
+        this.floating_feedback = null;
+      }, 1000);
+    },
     toggle_play() {
       return radioFlowApi.toggle();
     },
@@ -554,6 +664,7 @@ export default {
   },
   beforeUnmount() {
     if (this.timer_interval) clearInterval(this.timer_interval);
+    if (this.feedback_timer) clearTimeout(this.feedback_timer);
   },
 };
 </script>
@@ -907,7 +1018,7 @@ export default {
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    padding-right: 23px;
+    padding-right: 76px;
   }
 
   .music-info {
@@ -931,6 +1042,11 @@ export default {
     margin: 0;
   }
 
+  .player-extra-actions :deep(.track-reaction),
+  .player-extra-actions .track-reaction {
+    display: none !important;
+  }
+
   .controls-center {
     width: 100%;
   }
@@ -939,6 +1055,117 @@ export default {
     justify-content: center;
     width: 100%;
     margin-top: var(--space-2);
+  }
+}
+
+@media (max-width: 1100px) {
+  .player-extra-actions :deep(.track-reaction),
+  .player-extra-actions .track-reaction {
+    display: none !important;
+  }
+}
+
+.floating-reaction-feedback {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 3000;
+  animation: instagram-pop 0.95s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.feedback-icon-wrapper {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.feedback-icon {
+  font-size: 2.2rem;
+  transition: transform 0.2s ease;
+}
+
+.feedback-like .feedback-icon-wrapper {
+  border: 2px solid rgba(56, 189, 248, 0.6);
+  box-shadow: 0 0 24px rgba(56, 189, 248, 0.5), 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+.feedback-like .feedback-icon {
+  color: #38bdf8;
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.8));
+}
+
+.feedback-dislike .feedback-icon-wrapper {
+  border: 2px solid rgba(239, 68, 68, 0.6);
+  box-shadow: 0 0 24px rgba(239, 68, 68, 0.5), 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+.feedback-dislike .feedback-icon {
+  color: #ef4444;
+  filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.8));
+}
+
+.feedback-removed .feedback-icon-wrapper {
+  border: 2px solid rgba(148, 163, 184, 0.4);
+  box-shadow: 0 0 16px rgba(148, 163, 184, 0.3), 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+.feedback-removed .feedback-icon {
+  color: #94a3b8;
+}
+
+.feedback-strike-line {
+  position: absolute;
+  width: 44px;
+  height: 3px;
+  background: #ef4444;
+  border-radius: 2px;
+  transform: rotate(-45deg);
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+}
+
+.feedback-label {
+  background: rgba(15, 23, 42, 0.9);
+  color: #ffffff;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes instagram-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(-10deg);
+  }
+  25% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.22) rotate(0deg);
+  }
+  42% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.96) rotate(0deg);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.85) translateY(-32px);
   }
 }
 </style>

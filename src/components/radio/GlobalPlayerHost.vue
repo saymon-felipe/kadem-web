@@ -19,6 +19,8 @@ export default {
       "restorePlayerConnection",
       "handle_youtube_state_change",
       "next",
+      "start_listening_tracking",
+      "stop_listening_tracking",
     ]),
     init_youtube_api() {
       if (!window.YT) {
@@ -45,17 +47,19 @@ export default {
           },
           onStateChange: (event) => {
             this.handle_youtube_state_change(event);
-            if (event.data === 0) this.next();
+            if (event.data === 0) this.next({ completed: true });
           },
         },
       });
     },
   },
   mounted() {
+    this.start_listening_tracking();
     this.init_youtube_api();
     this.restorePlayerConnection();
   },
   beforeUnmount() {
+    void this.stop_listening_tracking();
     this.yt_player?.destroy();
   },
 };

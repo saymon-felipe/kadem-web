@@ -1,6 +1,9 @@
 <template>
   <div class="playlist-hero" :style="hero_background">
-    <img :src="playlist.cover || default_avatar" class="hero-cover" />
+    <div v-if="is_liked_playlist" class="hero-cover liked-hero-cover">
+      <font-awesome-icon icon="thumbs-up" />
+    </div>
+    <img v-else :src="playlist.cover || default_avatar" class="hero-cover" />
 
     <div class="hero-details">
       <div v-if="isEditing" class="edit-title-wrapper">
@@ -12,7 +15,7 @@
           class="title-input"
         />
       </div>
-      <h1 v-else @dblclick="start_rename">{{ playlist.name }}</h1>
+      <h1 v-else @dblclick="!is_liked_playlist && start_rename()">{{ playlist.name }}</h1>
 
       <div class="meta-row">
         <span>{{
@@ -102,7 +105,16 @@
         </transition>
       </div>
 
-      <div class="menu-options-wrapper" v-click-outside="closeMenu">
+      <button
+        v-if="is_liked_playlist"
+        class="btn-options"
+        @click="$emit('show-insights')"
+        title="Ver estatísticas de reprodução"
+      >
+        <font-awesome-icon icon="chart-simple" />
+      </button>
+
+      <div class="menu-options-wrapper" v-if="!is_liked_playlist" v-click-outside="closeMenu">
         <button class="btn-options" @click.stop="toggle_options_menu">
           <font-awesome-icon icon="ellipsis-vertical" />
         </button>
@@ -185,7 +197,7 @@ export default {
     },
   },
 
-  emits: ["rename-playlist", "delete-playlist", "change-cover"],
+  emits: ["rename-playlist", "delete-playlist", "change-cover", "show-insights"],
 
   data() {
     return {
@@ -259,7 +271,18 @@ export default {
       return "Todas as legendas disponíveis já foram baixadas";
     },
 
+    is_liked_playlist() {
+      return (
+        this.playlist?.is_liked_playlist ||
+        this.playlist?.local_id === "liked" ||
+        this.playlist?.local_id === -1
+      );
+    },
+
     hero_background() {
+      if (this.is_liked_playlist) {
+        return "background: linear-gradient(135deg, rgba(37, 99, 235, 0.45) 0%, rgba(30, 58, 138, 0.2) 60%, transparent 100%);";
+      }
       const cover = this.playlist.cover || this.default_cover;
       return `background: linear-gradient(to top, var(--surface-1), transparent), url(${cover}) no-repeat right center; background-size: cover;`;
     },
@@ -476,6 +499,16 @@ export default {
   box-shadow: var(--boxshadow-lg);
   border-radius: var(--radius-sm);
   object-fit: cover;
+  flex-shrink: 0;
+}
+
+.liked-hero-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: #ffffff;
+  font-size: 3.5rem;
 }
 
 .hero-details {
@@ -637,6 +670,9 @@ h1 {
   .hero-cover {
     width: 100px;
     height: 100px;
+  }
+  .liked-hero-cover {
+    font-size: 2.5rem;
   }
   .hero-details,
   .hero-details h1 {

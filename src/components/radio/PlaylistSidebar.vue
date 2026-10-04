@@ -20,6 +20,25 @@
       class="playlist-list-container"
       :style="isMobile ? 'padding-top: var(--space-4)' : ''"
     >
+      <div
+        class="playlist-item liked-playlist-item"
+        :class="{ active: is_liked_selected }"
+        @click="$emit('select-liked-playlist')"
+        :title="collapsed ? 'Músicas Curtidas' : ''"
+      >
+        <div class="pl-cover liked-cover">
+          <font-awesome-icon icon="thumbs-up" />
+        </div>
+
+        <transition name="fade">
+          <div class="pl-info" v-if="!collapsed">
+            <strong>Músicas Curtidas</strong>
+            <span v-if="is_playing_liked" class="playing-indicator">
+              <font-awesome-icon icon="volume-high" />
+            </span>
+          </div>
+        </transition>
+      </div>
       <KademSkeletonGroup
         v-if="loading && playlists.length === 0"
         class="sk-playlists"
@@ -88,8 +107,8 @@ export default {
   props: {
     loading: { type: Boolean, default: false },
     playlists: { type: Array, required: true },
-    selected_playlist_id: { type: Number, default: null },
-    current_playing_playlist_id: { type: Number, default: null },
+    selected_playlist_id: { type: [Number, String], default: null },
+    current_playing_playlist_id: { type: [Number, String], default: null },
     is_playing: { type: Boolean, default: false },
     default_cover: { type: String, required: true },
     default_avatar: { type: String, required: true },
@@ -97,8 +116,18 @@ export default {
   },
   computed: {
     ...mapState(useAppStore, ["isMobile"]),
+    is_liked_selected() {
+      return this.selected_playlist_id === "liked" || this.selected_playlist_id === -1;
+    },
+    is_playing_liked() {
+      return (
+        (this.current_playing_playlist_id === "liked" ||
+          this.current_playing_playlist_id === -1) &&
+        this.is_playing
+      );
+    },
   },
-  emits: ["select-playlist", "create-playlist", "toggle-collapse"],
+  emits: ["select-playlist", "select-liked-playlist", "create-playlist", "toggle-collapse", "show-insights"],
   methods: {
     is_playing_this(pl) {
       return this.current_playing_playlist_id === pl.local_id && this.is_playing;
@@ -108,6 +137,23 @@ export default {
 </script>
 
 <style scoped>
+.liked-playlist-item {
+  margin-bottom: var(--space-2);
+}
+
+.liked-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: #ffffff;
+  font-size: 1.05rem;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+}
 .sidebar {
   display: flex;
   flex-direction: column;

@@ -14,6 +14,9 @@ import { VolumeNormalizer } from "../services/audio/volumeNormalizer";
 import { db_to_gain, profile_key, PROFILE_VERSION } from "../services/audio/loudness";
 import { loudnessRepository } from "../services/localData/loudnessRepository";
 import { AUDIO_PRESETS, default_audio_settings, sanitize_audio_settings } from "../services/audio/audioSettings";
+import { RadioListeningTracker } from '../services/radioListeningTracker';
+import { radioInsightsRepository } from '../services/localData/radioInsightsRepository';
+import { syncService } from '../services/syncService';
 
 function debounce(func, wait) {
   let timeout;
@@ -29,6 +32,7 @@ const PLAYER_VOLUME_STORAGE_PREFIX = "kadem_radio_player_volume";
 const NORMALIZATION_STORAGE_PREFIX = "kadem_radio_normalization_enabled";
 const AUDIO_SETTINGS_STORAGE_PREFIX = "kadem_radio_audio_settings";
 const normalization_runtimes = new WeakMap();
+const listening_runtimes = new WeakMap();
 
 function normalization_runtime(store) {
   // Pinia can wrap `this` in a distinct proxy for each action (devtools).
@@ -79,6 +83,71 @@ export const usePlayerStore = defineStore("player", {
   }),
 
   actions: {
+    start_listening_tracking() {
+      if (listening_runtimes.has(this.$state)) return;
+      const tracker = new RadioListeningTracker({
+        snapshot: () => {
+          const video = this.is_video_active ? normalization_runtime(this).video?.element : null;
+          const media = video || (this.player_mode === 'native' ? this.native_audio_instance : null);
+          const playing = media ? !media.paused && !media.ended && media.readyState >= 3
+            : this.player_mode === 'youtube' && this.yt_player_instance?.getPlayerState?.() === 1;
+          return { user_id: useAuthStore().user?.id, track: this.current_music,
+            position: media ? media.currentTime : this.get_current_time(),
+            playing: !!playing && !this.is_loading,
+            offline: !!video || !!this.current_audio_url?.startsWith('blob:') };
+        },
+        persist: async (user_id, rows) => {
+          await radioInsightsRepository.addListening(user_id, rows);
+          const runtime = listening_runtimes.get(this.$state);
+          if (runtime) runtime.needs_sync = true;
+        },
+        onError: (error) => console.warn('[Radio Flow] Falha no checkpoint de reprodução:', error),
+      });
+      let ticks = 0;
+      const checkpoint = () => {
+        tracker.sample();
+        return tracker.flush();
+      };
+      const timer = setInterval(() => {
+        tracker.sample();
+        if (++ticks % 15 === 0) void tracker.flush();
+        if (ticks % 30 === 0) void tracker.flush().then(() => {
+          const runtime = listening_runtimes.get(this.$state);
+          if (!runtime?.needs_sync) return;
+          runtime.needs_sync = false;
+          return syncService.processSyncQueue();
+        });
+      }, 1000);
+      const visibility = () => { if (document.visibilityState === 'hidden') void checkpoint(); };
+      window.addEventListener('pagehide', checkpoint);
+      document.addEventListener('visibilitychange', visibility);
+      listening_runtimes.set(this.$state, { tracker, timer, checkpoint, visibility, needs_sync: false });
+      tracker.sample();
+    },
+
+    async stop_listening_tracking() {
+      const runtime = listening_runtimes.get(this.$state);
+      if (!runtime) return;
+      clearInterval(runtime.timer);
+      window.removeEventListener('pagehide', runtime.checkpoint);
+      document.removeEventListener('visibilitychange', runtime.visibility);
+      await runtime.tracker.finish();
+      listening_runtimes.delete(this.$state);
+    },
+
+    flush_listening() {
+      const runtime = listening_runtimes.get(this.$state);
+      return runtime?.checkpoint() || Promise.resolve();
+    },
+
+    _listening_event(kind, position) {
+      return listening_runtimes.get(this.$state)?.tracker.event(kind, position);
+    },
+
+    _finish_listening(reason) {
+      return listening_runtimes.get(this.$state)?.tracker.finish(reason);
+    },
+
     _set_normalization_state({ status, gain_db = 0, estimated = false, detail = "" }) {
       this.normalization_status = status;
       this.normalization_gain_db = gain_db;
@@ -275,7 +344,7 @@ export const usePlayerStore = defineStore("player", {
       recovered.loop = element.loop;
       recovered.onloadedmetadata = () => { recovered.currentTime = Math.min(position, Math.max(0, recovered.duration - 0.25)); };
       recovered.ontimeupdate = () => { if (Math.floor(recovered.currentTime) % 5 === 0) this._update_media_session_position(); };
-      recovered.onended = () => this.next();
+      recovered.onended = () => this.next({ completed: true });
       element.pause();
       element.removeAttribute("src");
       this.native_audio_instance = recovered;
@@ -521,7 +590,7 @@ export const usePlayerStore = defineStore("player", {
             this._update_media_session_position();
         };
 
-        audio.onended = () => this.next();
+        audio.onended = () => this.next({ completed: true });
 
         if (should_play) {
           await audio.play();
@@ -645,14 +714,18 @@ export const usePlayerStore = defineStore("player", {
         return;
       }
 
+      await this._finish_listening('skipped');
+
       if (playlist) {
         const current_pl_id = this.current_playlist?.local_id;
         const new_pl_id = playlist.local_id;
 
         if (current_pl_id !== new_pl_id || this.queue.length === 0) {
           this.current_playlist = playlist;
-          const tracks = await radioRepository.getLocalTracks(playlist.local_id);
-          if (tracks && tracks.length > 0) this.queue = tracks;
+          if (!playlist.is_liked_playlist && playlist.local_id !== "liked") {
+            const tracks = await radioRepository.getLocalTracks(playlist.local_id);
+            if (tracks && tracks.length > 0) this.queue = tracks;
+          }
         } else {
           this.current_playlist = playlist;
         }
@@ -792,6 +865,7 @@ export const usePlayerStore = defineStore("player", {
       });
 
       const should_play = this.is_playing;
+      if (!should_play) void this._listening_event('pause');
 
       if (should_play && this.player_mode === "youtube") {
         try {
@@ -880,7 +954,8 @@ export const usePlayerStore = defineStore("player", {
       return { force_restart: true };
     },
 
-    async next() {
+    async next({ completed = false } = {}) {
+      await this._finish_listening(completed ? 'completed' : 'skipped');
       let force_restart = false;
 
       if (this.queue.length === 0) {
@@ -913,6 +988,7 @@ export const usePlayerStore = defineStore("player", {
 
     seek_to(seconds) {
       const position = Math.max(0, Number(seconds) || 0);
+      void this._listening_event('seek', position);
       if (this.player_mode === "native") {
         this.native_audio_instance.currentTime = position;
       } else if (this.player_mode === "youtube" && this.yt_player_instance) {
@@ -1260,6 +1336,7 @@ export const usePlayerStore = defineStore("player", {
     }, 2000),
 
     clearState() {
+      void this.stop_listening_tracking();
       this._reset_native_player();
       normalization_runtime(this).normalizer?.dispose();
       normalization_runtimes.delete(this.$state);

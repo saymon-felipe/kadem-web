@@ -15,7 +15,7 @@
     "test:project-tabs": "node --test tests/projectWorkspaceTabs.test.js",
     "test:autoscroll": "node --test tests/dragAutoscroll.test.js",
     "test:performance": "node --test tests/uiPerformance.test.js",
-    "test:radio": "node --test tests/radioNormalization*.test.js tests/radioAudioSettings.test.js",
+    "test:radio": "node --test tests/radioNormalization*.test.js tests/radioAudioSettings.test.js tests/radioInsights.test.js tests/radioLikedPlaylistAndFeedback.test.js tests/radioReactionStyles.test.js",
     "test:playlist": "node --test tests/playlistTracks.test.js",
     "test:otp": "node --test tests/otpCode.test.js",
     "preview": "vite preview",

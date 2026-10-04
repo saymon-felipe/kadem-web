@@ -12,10 +12,12 @@
           :collapsed="is_sidebar_collapsed && !is_mobile"
           :loading="is_loading_data"
           @select-playlist="handle_mobile_select_playlist"
+          @select-liked-playlist="handle_select_liked_playlist"
           @create-playlist="handle_create_playlist"
           @toggle-collapse="toggle_sidebar"
           @rename-playlist="handle_rename_playlist"
           @delete-playlist="handle_delete_playlist"
+          @show-insights="show_insights = true"
         />
       </div>
 
@@ -60,7 +62,7 @@
           </div>
 
           <div class="content-scrollable">
-            <template v-if="view_mode === 'playlist'">
+            <template v-if="view_mode === 'playlist' && selected_playlist">
               <PlaylistHeader
                 :playlist="selected_playlist"
                 :track_count="tracks.length"
@@ -72,9 +74,10 @@
                 @change-cover="handle_change_cover"
                 @rename-playlist="handle_rename_playlist"
                 @delete-playlist="handle_delete_playlist"
+                @show-insights="show_insights = true"
               />
 
-              <div class="playlist-controls">
+              <div class="playlist-controls" :class="{ 'is-filter-open': show_playlist_filter }">
                 <div class="play-actions">
                   <button class="btn-circle play" @click="handle_play_playlist_btn">
                     <font-awesome-icon :icon="play_button_icon" />
@@ -87,9 +90,44 @@
                   >
                     <font-awesome-icon icon="shuffle" />
                   </button>
+                  <div ref="playlistFilterRoot" class="playlist-filter">
+                    <button
+                      type="button"
+                      class="btn-icon playlist-filter-toggle"
+                      :class="{ active: show_playlist_filter || playlist_filter_query.trim() }"
+                      title="Filtrar músicas da playlist"
+                      aria-label="Filtrar músicas da playlist"
+                      :aria-expanded="show_playlist_filter"
+                      @click="toggle_playlist_filter"
+                    >
+                      <font-awesome-icon icon="magnifying-glass" />
+                    </button>
+                    <Transition name="playlist-filter">
+                      <div v-if="show_playlist_filter" class="playlist-filter-input">
+                        <input
+                          ref="playlistFilterInput"
+                          v-model="playlist_filter_query"
+                          type="search"
+                          aria-label="Filtrar músicas da playlist por título ou artista/canal"
+                          placeholder="Filtrar músicas"
+                          @keydown.esc.stop="close_playlist_filter"
+                        />
+                        <button
+                          v-if="playlist_filter_query"
+                          type="button"
+                          class="btn-icon clear-playlist-filter"
+                          title="Limpar filtro"
+                          aria-label="Limpar filtro"
+                          @click="playlist_filter_query = ''; $refs.playlistFilterInput?.focus()"
+                        >
+                          <font-awesome-icon icon="xmark" />
+                        </button>
+                      </div>
+                    </Transition>
+                  </div>
                 </div>
 
-                <div class="upload-actions">
+                <div class="upload-actions" v-if="!selected_playlist?.is_liked_playlist && selected_playlist?.local_id !== 'liked'">
                   <span class="upload-usage" v-if="upload_usage_label">{{ upload_usage_label }}</span>
 
                   <div class="upload-progress-indicator" v-if="active_upload_list.length > 0">
@@ -139,12 +177,14 @@
                 mode="playlist"
                 :playlist_id="selected_playlist.local_id"
                 :tracks="tracks"
+                :filter_query="playlist_filter_query"
                 :current_music_id="current_music?.youtube_id"
                 :is_mobile="is_mobile"
                 @play-track="play_specific_track"
                 @delete-track="handle_delete_track"
                 @add-to-queue="handle_manual_add_queue"
                 @add-to-playlist="handle_add_to_another_playlist"
+                @clear-filter="playlist_filter_query = ''"
               />
             </template>
 
@@ -371,6 +411,7 @@
     </Teleport>
 
     <PlayerWrapper />
+    <RadioInsightsPanel v-model="show_insights" />
   </div>
 </template>
 
@@ -381,6 +422,7 @@ import { useRadioStore } from "@/stores/radio";
 import { useUtilsStore } from "@/stores/utils";
 import { useWindowStore } from "@/stores/windows";
 import { useAppStore } from "@/stores/app";
+import { useRadioInsightsStore } from "@/stores/radioInsights";
 import { radioRepository } from "@/services/localData/radioRepository";
 import { api } from "@/plugins/api";
 import { db } from "@/db";
@@ -390,6 +432,7 @@ import PlaylistSidebar from "./PlaylistSidebar.vue";
 import PlaylistHeader from "./PlaylistHeader.vue";
 import TrackList from "./TrackList.vue";
 import PlayerWrapper from "./PlayerWrapper.vue";
+import RadioInsightsPanel from './RadioInsightsPanel.vue';
 import QueueSidebar from "./QueueSidebar.vue";
 import PlaylistSelector from "./PlaylistSelector.vue";
 import UploadTrackModal from "./UploadTrackModal.vue";
@@ -405,6 +448,7 @@ import defaultAvatar from "@/assets/images/kadem-default-playlist.jpg";
 export default {
   name: "RadioFlow",
   components: {
+    RadioInsightsPanel,
     PlaylistSidebar,
     PlaylistHeader,
     TrackList,
@@ -420,6 +464,7 @@ export default {
   data() {
     return {
       selected_playlist: null,
+      show_insights: false,
       tracks: [],
       default_cover: defaultCover,
       default_cover_dark: defaultCoverDark,
@@ -431,6 +476,8 @@ export default {
       is_queue_collapsed: false,
       view_mode: "playlist",
       search_query: "",
+      playlist_filter_query: "",
+      show_playlist_filter: false,
       last_search_term: "",
       search_results: [],
       is_searching: false,
@@ -481,6 +528,7 @@ export default {
     ...mapState(useUtilsStore, ["connection"]),
     ...mapState(useWindowStore, ["_getOrCreateCurrentUserState"]),
     ...mapState(useAppStore, ["isDark"]),
+    ...mapState(useRadioInsightsStore, ["reactions"]),
 
     play_button_icon() {
       if (this.is_current_playlist_active && this.is_playing) return "circle-pause";
@@ -560,6 +608,17 @@ export default {
         }
       },
     },
+    reactions: {
+      deep: true,
+      async handler() {
+        if (
+          this.selected_playlist?.is_liked_playlist ||
+          this.selected_playlist?.local_id === "liked"
+        ) {
+          this.tracks = await this.get_liked_tracks();
+        }
+      },
+    },
   },
   methods: {
     ...mapActions(usePlayerStore, [
@@ -589,6 +648,10 @@ export default {
       "fetchStorageUsage",
       "copyUploadToPlaylist",
     ]),
+    ...mapActions(useRadioInsightsStore, [
+      "loadLocal",
+      "setReaction",
+    ]),
     async load_data() {
       if (this.connection.connected) {
         await this.pullPlaylists();
@@ -596,7 +659,7 @@ export default {
         await this._loadFromDB();
       }
 
-      if (this.playlists.length > 0) {
+      if (this.playlists.length > 0 || this.viewed_playlist_id === "liked") {
         let target_id = null;
 
         if (this.viewed_playlist_id) {
@@ -607,8 +670,15 @@ export default {
         }
 
         let target_pl = null;
-        if (target_id) {
-          target_pl = this.playlists.find((p) => p.local_id === target_id);
+        if (target_id === "liked") {
+          target_pl = {
+            local_id: "liked",
+            name: "Músicas Curtidas",
+            is_liked_playlist: true,
+            cover: null,
+          };
+        } else if (target_id) {
+          target_pl = this.playlists.find((p) => p.local_id == target_id || String(p.local_id) === String(target_id) || (p.id && p.id == target_id));
         }
 
         if (!target_pl) {
@@ -624,15 +694,84 @@ export default {
       }
     },
 
+    handle_select_liked_playlist() {
+      const liked_pl = {
+        local_id: "liked",
+        name: "Músicas Curtidas",
+        is_liked_playlist: true,
+        cover: null,
+      };
+      this.handle_mobile_select_playlist(liked_pl);
+    },
+
+    async get_liked_tracks() {
+      await this.loadLocal();
+      const likedRows = Object.values(this.reactions || {})
+        .filter((row) => row.reaction === 1)
+        .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
+
+      const tracks = await Promise.all(
+        likedRows.map(async (row) => {
+          const local = await radioRepository.getLocalTrackByYoutubeId(row.youtube_id);
+          return {
+            local_id: local?.local_id || `liked_${row.youtube_id}`,
+            youtube_id: row.youtube_id,
+            title: local?.title || row.title,
+            channel: local?.channel || row.channel,
+            duration_seconds: local?.duration_seconds || row.duration_seconds || 0,
+            thumbnail:
+              local?.thumbnail ||
+              row.thumbnail ||
+              (row.source === "youtube" || !row.source
+                ? `https://img.youtube.com/vi/${row.youtube_id}/hqdefault.jpg`
+                : null),
+            source: row.source || local?.source || "youtube",
+            created_at: row.updated_at || local?.created_at || new Date().toISOString(),
+            playlist_local_id: "liked",
+          };
+        })
+      );
+      return tracks;
+    },
+
     async select_playlist(playlist) {
+      if (!playlist) return;
+      if (this.selected_playlist?.local_id !== playlist.local_id) this.close_playlist_filter();
       this.close_search();
       this.selected_playlist = playlist;
 
       this.setViewedPlaylistId(playlist.local_id);
 
-      const localTracks = await radioRepository.getLocalTracks(playlist.local_id);
-      this.tracks = localTracks;
+      if (playlist.is_liked_playlist || playlist.local_id === "liked") {
+        this.tracks = await this.get_liked_tracks();
+      } else {
+        const localTracks = await radioRepository.getLocalTracks(playlist.local_id);
+        this.tracks = localTracks;
+      }
       if (this.tracks.length > 0) await this.checkOfflineAvailability(this.tracks);
+    },
+
+    toggle_playlist_filter() {
+      if (this.show_playlist_filter) {
+        this.close_playlist_filter();
+        return;
+      }
+      this.show_playlist_filter = true;
+      this.$nextTick(() => this.$refs.playlistFilterInput?.focus());
+    },
+    close_playlist_filter() {
+      this.show_playlist_filter = false;
+      this.playlist_filter_query = "";
+    },
+    close_playlist_filter_on_outside_click(event) {
+      if (this.show_playlist_filter && !this.$refs.playlistFilterRoot?.contains(event.target)) {
+        this.close_playlist_filter();
+      }
+    },
+    close_playlist_filter_on_escape(event) {
+      if (this.show_playlist_filter && event.key === "Escape") {
+        this.close_playlist_filter();
+      }
     },
 
     handle_mobile_select_playlist(playlist) {
@@ -937,6 +1076,20 @@ export default {
       this.confirmationState.show = false;
     },
     handle_delete_track(track) {
+      if (
+        this.selected_playlist?.is_liked_playlist ||
+        this.selected_playlist?.local_id === "liked"
+      ) {
+        this.openConfirmation({
+          message: `Tem certeza que deseja remover <br> ${track.title} das músicas curtidas?`,
+          confirmText: "Remover",
+          action: async () => {
+            await this.setReaction(track, 0);
+            this.tracks = this.tracks.filter((t) => t.youtube_id !== track.youtube_id);
+          },
+        });
+        return;
+      }
       this.openConfirmation({
         message: `Tem certeza que deseja remover <br> ${track.title} da playlist?`,
         confirmText: "Remover",
@@ -985,10 +1138,14 @@ export default {
     this.observe_container_size();
     this.fetchStorageUsage();
     document.addEventListener("mousedown", this.close_uploads_dropdown_on_outside_click);
+    document.addEventListener("pointerdown", this.close_playlist_filter_on_outside_click);
+    document.addEventListener("keydown", this.close_playlist_filter_on_escape);
   },
   beforeUnmount() {
     this.resize_observer?.disconnect();
     document.removeEventListener("mousedown", this.close_uploads_dropdown_on_outside_click);
+    document.removeEventListener("pointerdown", this.close_playlist_filter_on_outside_click);
+    document.removeEventListener("keydown", this.close_playlist_filter_on_escape);
   },
 };
 </script>
@@ -1077,6 +1234,7 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--space-4);
   background: rgba(255, 255, 255, 0.02);
   flex-shrink: 0;
 }
@@ -1085,6 +1243,79 @@ export default {
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  flex: 1;
+  min-width: 0;
+}
+
+.playlist-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin-left: var(--space-3);
+  flex: 1;
+  max-width: 320px;
+}
+
+.playlist-filter-toggle,
+.clear-playlist-filter {
+  flex-shrink: 0;
+}
+
+.playlist-filter-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  max-width: 280px;
+  overflow: hidden;
+}
+
+.playlist-filter-enter-active,
+.playlist-filter-leave-active {
+  transition: max-width 0.22s ease, opacity 0.2s ease, transform 0.22s ease;
+}
+
+.playlist-filter-enter-from,
+.playlist-filter-leave-to {
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(-8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playlist-filter-enter-active,
+  .playlist-filter-leave-active {
+    transition: none;
+  }
+}
+
+.playlist-filter-input input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--glass-border);
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--text-primary);
+  font-size: var(--fontsize-sm);
+}
+
+.playlist-filter-input input:focus {
+  outline: none;
+  border-bottom-color: var(--color-info);
+}
+
+.playlist-filter-input input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.clear-playlist-filter {
+  font-size: 0.9rem;
 }
 
 .btn-circle {
@@ -1606,6 +1837,10 @@ export default {
 /* --- Container Queries Logic --- */
 
 @container (max-width: 1100px) {
+  .playlist-controls.is-filter-open .upload-usage {
+    display: none;
+  }
+
   .mobile-search-fab {
     position: fixed;
     bottom: 63px;

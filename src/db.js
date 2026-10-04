@@ -113,6 +113,15 @@ db.version(24).stores({
   Object.assign(column, normalizeColumn(column));
 }));
 
+db.version(25).stores({
+  ...SCHEMA_V22,
+  kanban_tasks: "++local_id, id, column_id, project_id, parent_task_local_id",
+  radio_reactions: "[user_id+youtube_id], user_id",
+  radio_listening_daily: "[user_id+event_date+youtube_id], user_id",
+  radio_clients: "&user_id",
+  radio_statistics: "[user_id+year], user_id",
+});
+
 let dbOpenPromise = null;
 
 function canUseBrowserStorage() {

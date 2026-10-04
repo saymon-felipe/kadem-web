@@ -105,8 +105,10 @@ export const syncQueueRepository = {
       userMessage: "Não foi possível limpar parte da fila de sincronização offline.",
     });
   },
-  async clearSyncQueue() {
-    return runDbOperation(() => db.syncQueue.clear(), {
+  async clearSyncQueue({ preserveRadioInsights = false } = {}) {
+    return runDbOperation(() => preserveRadioInsights
+      ? db.syncQueue.filter(task => !['RADIO_REACTION', 'RADIO_LISTENING'].includes(task.type)).delete()
+      : db.syncQueue.clear(), {
       userMessage: "Não foi possível limpar a fila de sincronização offline deste navegador.",
     });
   },

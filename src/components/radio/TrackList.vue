@@ -2,51 +2,6 @@
   <div class="tracks-table-container"
     :class="{ 'is-mobile-track-list': is_mobile, 'is-search-mode': mode === 'search' }">
     <div class="tracks-table">
-      <div v-if="mode === 'playlist'" class="playlist-list-tools">
-        <div class="playlist-filter">
-          <font-awesome-icon icon="magnifying-glass" class="filter-search-icon" aria-hidden="true" />
-          <input v-model="filter_query" type="search"
-            aria-label="Filtrar músicas da playlist por título ou artista/canal"
-            placeholder="Filtrar músicas nesta playlist" @keydown.esc.stop="filter_query = ''" />
-          <button v-if="filter_query" type="button" class="clear-filter" title="Limpar filtro"
-            aria-label="Limpar filtro" @click="filter_query = ''">
-            <font-awesome-icon icon="xmark" />
-          </button>
-          <span v-if="filter_query.trim()" class="filter-count" :class="{ 'is-zero': visible_tracks.length === 0 }"
-            role="status">
-            {{ visible_tracks.length }} de {{ tracks.length }}
-          </span>
-        </div>
-
-        <div ref="sortDropdownRoot" class="playlist-sort-container">
-          <button type="button" class="playlist-sort-trigger"
-            :class="{ 'is-open': is_sort_menu_open, 'has-active-sort': !!sort_selection }" aria-haspopup="listbox"
-            :aria-expanded="is_sort_menu_open" aria-label="Opções de ordenação e filtragem" @click="toggle_sort_menu"
-            @keydown.esc.stop="close_sort_menu">
-            <font-awesome-icon icon="filter" class="sort-filter-icon" />
-            <span class="sort-current-text">{{ current_sort_label }}</span>
-            <font-awesome-icon icon="chevron-down" class="sort-chevron-icon" :class="{ rotated: is_sort_menu_open }" />
-          </button>
-
-          <transition name="sort-dropdown-pop">
-            <div v-if="is_sort_menu_open" class="playlist-sort-dropdown" role="listbox" aria-label="Opções de ordenação"
-              @keydown.esc.stop="close_sort_menu">
-              <div class="dropdown-header-label">Ordenar por</div>
-              <ul class="sort-options-list">
-                <li v-for="opt in sort_options" :key="opt.value" role="option"
-                  :aria-selected="sort_selection === opt.value" class="sort-option-item"
-                  :class="{ 'is-selected': sort_selection === opt.value }" @click="select_sort_option(opt.value)">
-                  <span class="sort-option-left">
-                    <font-awesome-icon :icon="opt.icon" class="opt-icon" />
-                    <span class="opt-label">{{ opt.label }}</span>
-                  </span>
-                  <font-awesome-icon v-if="sort_selection === opt.value" icon="check" class="opt-check-icon" />
-                </li>
-              </ul>
-            </div>
-          </transition>
-        </div>
-      </div>
       <div v-show="visible_tracks.length > 0" class="track-row header">
         <template v-if="mode === 'playlist'">
           <button type="button" class="sort-header" title="Restaurar ordem original"
@@ -67,8 +22,8 @@
         <span></span>
       </div>
 
-      <draggable v-show="visible_tracks.length > 0" class="tracks-scroll-area" :list="visible_tracks"
-        :group="{ name: 'music', pull: 'clone', put: false }" :item-key="(t) => t.local_id || t.youtube_id"
+      <draggable v-show="visible_tracks.length > 0" class="tracks-scroll-area" :model-value="visible_tracks"
+        :group="{ name: 'music', pull: 'clone', put: false }" :item-key="(t) => t.local_id || t.youtube_id || t.id"
         :sort="false" ghost-class="track-ghost" :disabled="is_mobile" @start="beginGlobalDrag" @end="endGlobalDrag">
         <template #item="{ element: track, index }">
           <div class="track-row" :class="{
@@ -95,10 +50,11 @@
               </div>
 
               <div class="meta">
-                <div class="title-row" style="display: flex; align-items: center; gap: 6px">
+                <div class="title-row">
                   <strong :title="decode_html_entities(track.title)">{{ decode_html_entities(track.title) }}</strong>
                   <font-awesome-icon v-if="track.source === 'upload'" icon="cloud-arrow-up" class="upload-badge"
                     title="Música enviada por você" />
+                  <TrackReaction :track="track" />
                 </div>
                 <small class="mobile-only-artist">{{ decode_html_entities(track.channel) }}</small>
               </div>
@@ -170,7 +126,7 @@
           <p class="empty-state-desc">
             Nenhum resultado corresponde a "<strong>{{ filter_query }}</strong>".
           </p>
-          <button type="button" class="btn-clear-filter-action" @click="filter_query = ''">
+          <button type="button" class="btn-clear-filter-action" @click="$emit('clear-filter')">
             <font-awesome-icon icon="xmark" />
             <span>Limpar filtro</span>
           </button>
@@ -227,11 +183,13 @@ import { get_visible_playlist_tracks } from "@/utils/playlist_tracks.js";
 import { getOfflineVideoQualities, getPlanLimits } from "@/services/subscription_plans.js";
 import { db } from "@/db";
 import kadem_default_music from "@/assets/images/kadem-default-music.jpg";
+import TrackReaction from './TrackReaction.vue';
 
 export default {
   name: "TrackList",
 
   components: {
+    TrackReaction,
     TrackOptionsMenu,
     draggable,
   },
@@ -244,6 +202,10 @@ export default {
     playlist_id: {
       type: [Number, String],
       default: null,
+    },
+    filter_query: {
+      type: String,
+      default: "",
     },
     current_music_id: {
       type: String,
@@ -267,7 +229,7 @@ export default {
     },
   },
 
-  emits: ["play-track", "delete-track", "request-add", "add-to-queue", "add-to-playlist", "load-more"],
+  emits: ["play-track", "delete-track", "request-add", "add-to-queue", "add-to-playlist", "load-more", "clear-filter"],
 
   setup() {
     const radioStore = useRadioStore();
@@ -284,18 +246,7 @@ export default {
       success_feedback_map: {},
       observer: null,
       kadem_default_music,
-      filter_query: "",
       sort_selection: "",
-      is_sort_menu_open: false,
-      sort_options: [
-        { value: "", label: "Ordem original", icon: "list" },
-        { value: "title:asc", label: "Título: A–Z", icon: "arrow-down" },
-        { value: "title:desc", label: "Título: Z–A", icon: "arrow-up" },
-        { value: "created_at:desc", label: "Mais recentes", icon: "clock" },
-        { value: "created_at:asc", label: "Mais antigas", icon: "clock-rotate-left" },
-        { value: "duration_seconds:asc", label: "Menor duração", icon: "arrow-down" },
-        { value: "duration_seconds:desc", label: "Maior duração", icon: "arrow-up" },
-      ],
       sortable_columns: [
         { key: "title", label: "Título", class: "" },
         { key: "created_at", label: "Data Adição", class: "col-channel" },
@@ -309,10 +260,6 @@ export default {
     ...mapState(usePlayerStore, ["current_music", "is_playing"]),
     ...mapState(useUtilsStore, ["connection"]),
 
-    current_sort_label() {
-      const match = this.sort_options.find((opt) => opt.value === this.sort_selection);
-      return match ? match.label : "Ordem original";
-    },
     sort_key() {
       return this.sort_selection.split(":")[0];
     },
@@ -346,9 +293,7 @@ export default {
 
   watch: {
     playlist_id() {
-      this.filter_query = "";
       this.sort_selection = "";
-      this.close_sort_menu();
     },
   },
 
@@ -357,7 +302,6 @@ export default {
   },
 
   beforeUnmount() {
-    this.close_sort_menu();
     if (this.observer) this.observer.disconnect();
   },
 
@@ -377,34 +321,6 @@ export default {
       "trackLyricsUnavailable",
     ]),
     decode_html_entities,
-
-    toggle_sort_menu() {
-      if (this.is_sort_menu_open) {
-        this.close_sort_menu();
-      } else {
-        this.open_sort_menu();
-      }
-    },
-    open_sort_menu() {
-      this.is_sort_menu_open = true;
-      this.$nextTick(() => {
-        document.addEventListener("pointerdown", this.handle_sort_menu_outside);
-      });
-    },
-    close_sort_menu() {
-      if (!this.is_sort_menu_open) return;
-      this.is_sort_menu_open = false;
-      document.removeEventListener("pointerdown", this.handle_sort_menu_outside);
-    },
-    handle_sort_menu_outside(event) {
-      if (this.$refs.sortDropdownRoot && !this.$refs.sortDropdownRoot.contains(event.target)) {
-        this.close_sort_menu();
-      }
-    },
-    select_sort_option(value) {
-      this.sort_selection = value;
-      this.close_sort_menu();
-    },
 
     toggle_sort(key) {
       if (this.sort_key !== key) {
@@ -750,7 +666,16 @@ export default {
       return new Date(iso).toLocaleDateString("pt-BR");
     },
     format_duration(seconds) {
-      return this.format_seconds_to_time(seconds);
+      if (typeof this.format_seconds_to_time === "function") {
+        return this.format_seconds_to_time(seconds);
+      }
+      if (!seconds) return "0:00";
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      const m_str = h > 0 ? m.toString().padStart(2, "0") : m.toString();
+      const s_str = s.toString().padStart(2, "0");
+      return h > 0 ? `${h}:${m_str}:${s_str}` : `${m_str}:${s_str}`;
     },
   },
 };
@@ -758,9 +683,10 @@ export default {
 
 <style scoped>
 .tracks-table-container {
-  height: 100%;
+  min-height: 200px;
   display: flex;
   flex-direction: column;
+  flex-grow: 1;
 }
 
 .track-ghost {
@@ -772,337 +698,9 @@ export default {
   display: flex;
   flex-direction: column;
   padding: 0 var(--space-4);
-  height: 100%;
+  flex-grow: 1;
 }
 
-.playlist-list-tools {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-top: 18px;
-  margin-bottom: var(--space-3);
-  padding: 4px 2px;
-  position: relative;
-}
-
-/* Input de busca/filtro totalmente integrado sobre o background (sem bordas nem fundo) */
-.playlist-filter {
-  display: flex;
-  align-items: center;
-  flex: 1 1 240px;
-  max-width: 440px;
-  gap: 10px;
-  padding: 6px 0;
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0;
-  box-shadow: none !important;
-  color: var(--text-secondary);
-  position: relative;
-  transition: color 0.2s ease;
-}
-
-.playlist-filter:focus-within {
-  color: var(--text-primary);
-  border: none !important;
-  box-shadow: none !important;
-}
-
-.playlist-filter .filter-search-icon {
-  font-size: 0.9375rem;
-  color: var(--text-muted, rgba(255, 255, 255, 0.4));
-  transition: color 0.2s ease, transform 0.2s ease;
-  flex-shrink: 0;
-}
-
-.playlist-filter:focus-within .filter-search-icon {
-  color: var(--blue, #355afd);
-  transform: scale(1.05);
-}
-
-.playlist-filter input[type="search"],
-.playlist-filter input[type="search"]:focus {
-  width: 100%;
-  min-width: 0;
-  height: auto;
-  padding: 0;
-  padding-left: 5px;
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
-  background: transparent !important;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 400;
-  line-height: 1.5;
-}
-
-.playlist-filter input[type="search"]::placeholder {
-  color: var(--text-muted, rgba(255, 255, 255, 0.45));
-  font-weight: 400;
-  transition: color 0.2s ease;
-}
-
-.playlist-filter:focus-within input[type="search"]::placeholder {
-  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
-}
-
-.playlist-filter input::-webkit-search-cancel-button {
-  display: none;
-}
-
-.clear-filter {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted, rgba(255, 255, 255, 0.4));
-  border-radius: 50%;
-  cursor: pointer;
-  padding: 0;
-  font-size: 0.8125rem;
-  transition: all 0.18s ease;
-  flex-shrink: 0;
-}
-
-.clear-filter:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
-  transform: scale(1.1);
-}
-
-.filter-count {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--blue, #355afd);
-  background: rgba(53, 90, 253, 0.12);
-  border: 1px solid rgba(53, 90, 253, 0.25);
-  padding: 2px 8px;
-  border-radius: 999px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  letter-spacing: 0.02em;
-}
-
-/* Container do Dropdown de Ordenação / Filtragem */
-.playlist-sort-container {
-  position: relative;
-  display: inline-flex;
-  flex-shrink: 0;
-}
-
-/* Botão gatilho com ícone de filtragem */
-.playlist-sort-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  user-select: none;
-  outline: none;
-  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-}
-
-[data-theme="light"] .playlist-sort-trigger {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.08);
-  color: var(--text-secondary);
-}
-
-.playlist-sort-trigger:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: var(--text-primary);
-  transform: translateY(-1px);
-}
-
-[data-theme="light"] .playlist-sort-trigger:hover {
-  background: rgba(0, 0, 0, 0.06);
-  border-color: rgba(0, 0, 0, 0.14);
-  color: var(--text-primary);
-}
-
-.playlist-sort-trigger.is-open {
-  background: rgba(53, 90, 253, 0.12);
-  border-color: rgba(53, 90, 253, 0.45);
-  color: var(--blue, #355afd);
-  box-shadow: 0 0 12px rgba(53, 90, 253, 0.2);
-}
-
-.playlist-sort-trigger.has-active-sort:not(.is-open) {
-  border-color: rgba(53, 90, 253, 0.3);
-  color: var(--text-primary);
-}
-
-.sort-filter-icon {
-  font-size: 0.8125rem;
-  color: var(--blue, #355afd);
-  transition: transform 0.2s ease;
-}
-
-.playlist-sort-trigger:hover .sort-filter-icon {
-  transform: scale(1.1);
-}
-
-.sort-current-text {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.sort-chevron-icon {
-  font-size: 0.6875rem;
-  opacity: 0.7;
-  transition: transform 0.22s cubic-bezier(0.2, 0, 0, 1);
-  margin-left: 2px;
-}
-
-.sort-chevron-icon.rotated {
-  transform: rotate(180deg);
-  opacity: 1;
-}
-
-/* Menu Dropdown Personalizado */
-.playlist-sort-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 120;
-  min-width: 195px;
-  padding: 6px;
-  background: rgba(18, 22, 42, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  transform-origin: top right;
-}
-
-[data-theme="light"] .playlist-sort-dropdown {
-  background: rgba(255, 255, 255, 0.98);
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
-}
-
-.dropdown-header-label {
-  padding: 6px 10px 4px;
-  font-size: 0.625rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted, rgba(255, 255, 255, 0.45));
-}
-
-.sort-options-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sort-option-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.15s cubic-bezier(0.2, 0, 0, 1);
-}
-
-.sort-option-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-primary);
-  transform: translateX(2px);
-}
-
-[data-theme="light"] .sort-option-item:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text-primary);
-}
-
-.sort-option-item.is-selected {
-  background: rgba(53, 90, 253, 0.14);
-  color: var(--blue, #355afd);
-  font-weight: 600;
-}
-
-[data-theme="light"] .sort-option-item.is-selected {
-  background: rgba(53, 90, 253, 0.1);
-  color: var(--blue, #355afd);
-}
-
-.sort-option-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.opt-icon {
-  font-size: 0.75rem;
-  opacity: 0.7;
-  width: 14px;
-  text-align: center;
-}
-
-.sort-option-item.is-selected .opt-icon {
-  opacity: 1;
-  color: var(--blue, #355afd);
-}
-
-.opt-label {
-  white-space: nowrap;
-}
-
-.opt-check-icon {
-  font-size: 0.75rem;
-  color: var(--blue, #355afd);
-}
-
-/* Animação Suave do Dropdown */
-.sort-dropdown-pop-enter-active {
-  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.sort-dropdown-pop-leave-active {
-  transition: opacity 0.14s cubic-bezier(0.4, 0, 1, 1),
-    transform 0.14s cubic-bezier(0.4, 0, 1, 1);
-}
-
-.sort-dropdown-pop-enter-from {
-  opacity: 0;
-  transform: translateY(-6px) scale(0.96);
-}
-
-.sort-dropdown-pop-leave-to {
-  opacity: 0;
-  transform: translateY(-4px) scale(0.97);
-}
-
-.clear-filter,
 .sort-header {
   border: none;
   background: transparent;
@@ -1235,6 +833,7 @@ export default {
 
 .tracks-scroll-area {
   flex-grow: 1;
+  min-height: 50px;
   padding-bottom: var(--space-4);
 }
 
@@ -1389,6 +988,23 @@ export default {
   overflow: hidden;
   flex-grow: 1;
   min-width: 0;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.title-row strong {
+  min-width: 0;
+  max-width: fit-content;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
 }
 
 .meta strong,
@@ -1583,7 +1199,17 @@ export default {
   display: block;
 }
 
+.is-mobile-track-list :deep(.track-reaction),
+.is-mobile-track-list .track-reaction {
+  display: none !important;
+}
+
 @container (max-width: 1100px) {
+  :deep(.track-reaction),
+  .track-reaction {
+    display: none !important;
+  }
+
   .track-row {
     grid-template-columns: 30px 1fr 40px;
   }
@@ -1609,6 +1235,13 @@ export default {
 
   .tracks-scroll-area {
     padding-bottom: 100px;
+  }
+}
+
+@media (max-width: 1100px) {
+  :deep(.track-reaction),
+  .track-reaction {
+    display: none !important;
   }
 }
 

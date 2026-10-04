@@ -5,6 +5,7 @@ import { radioRepository, syncQueueRepository } from "../services/localData";
 import { usePlayerStore } from "./player";
 import { apiServices } from "../plugins/apiServices";
 import { useAuthStore } from "@/stores/auth";
+import { useRadioInsightsStore } from './radioInsights';
 import { useUtilsStore } from "@/stores/utils";
 import { db } from "../db";
 
@@ -224,6 +225,7 @@ export const useRadioStore = defineStore("radio", {
           this.lastSyncTimestamp = server_timestamp;
           localStorage.setItem("kadem_radio_last_sync", server_timestamp);
         }
+        await useRadioInsightsStore().pullReactions();
       } catch (error) {
         console.warn("[RadioStore] Pull falhou ou offline:", error.message);
       }

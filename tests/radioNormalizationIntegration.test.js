@@ -62,7 +62,7 @@ test('migração, perfis, fachada e ciclo de vida preservam mídia e estado', {t
     await old.tracks.put({id:7,title:'Download antigo',youtube_id:'abcdefghijk',audio_blob:blob});
     await old.global_video_cache.put({youtube_id:'abcdefghijk',video_blob:blob});
     old.close();await db.open();
-    assert.equal(db.verno,22);
+    assert.equal(db.verno,25);
     assert.equal((await db.global_audio_cache.get('abcdefghijk')).audio_blob.size,blob.size);
     assert.equal((await db.tracks.get({id:7})).title,'Download antigo');
     assert.equal((await db.global_video_cache.get('abcdefghijk')).video_blob.size,blob.size);

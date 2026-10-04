@@ -44,11 +44,31 @@ export const radioRepository = {
      ======================================================================== */
 
   async getLocalTracks(playlistLocalId) {
-    if (!db.tracks) return [];
-    return await db.tracks.where('playlist_local_id').equals(playlistLocalId).toArray();
+    if (!db.tracks || playlistLocalId == null) return [];
+    let tracks = await db.tracks.where('playlist_local_id').equals(playlistLocalId).toArray();
+    if (tracks && tracks.length > 0) return tracks;
+
+    const num = Number(playlistLocalId);
+    if (!Number.isNaN(num) && num !== playlistLocalId) {
+      tracks = await db.tracks.where('playlist_local_id').equals(num).toArray();
+      if (tracks && tracks.length > 0) return tracks;
+    }
+
+    const str = String(playlistLocalId);
+    if (str !== playlistLocalId) {
+      tracks = await db.tracks.where('playlist_local_id').equals(str).toArray();
+      if (tracks && tracks.length > 0) return tracks;
+    }
+
+    tracks = await db.tracks.filter(t => t.playlist_local_id == playlistLocalId || (t.playlist_id != null && t.playlist_id == playlistLocalId)).toArray();
+    return tracks || [];
   },
 
   async getLocalTrack(id) { return await db.tracks.get(id); },
+
+  async getLocalTrackByYoutubeId(youtube_id) {
+    return db.tracks.where('youtube_id').equals(youtube_id).first();
+  },
 
   async getLocalTrackByServerId(serverId) {
     if (!serverId) return null;

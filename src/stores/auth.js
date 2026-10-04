@@ -10,6 +10,7 @@ import { useAppStore } from "./app";
 import { useKanbanStore } from "./kanban";
 import { useRadioStore } from "./radio";
 import { usePlayerStore } from "./player";
+import { useRadioInsightsStore } from './radioInsights';
 import { isLocalDbUnavailableError } from "@/db";
 import { authenticateWithBiometrics } from "@/services/biometricAuth";
 import { securityService } from "@/services/securityService";
@@ -171,6 +172,8 @@ export const useAuthStore = defineStore("auth", {
       const userIdToClear = this.user?.id;
 
       try {
+        await playerStore.stop_listening_tracking();
+        if (!force) await syncService.processSyncQueue();
         if (!force) {
           await api.post("/auth/logout", null, { timeout: 8000 });
         }
@@ -187,7 +190,7 @@ export const useAuthStore = defineStore("auth", {
           userRepository.clearLocalProfile(),
           occupationRepository.clearLocalUserOccupations(),
           medalRepository.clearLocalMedals(),
-          syncQueueRepository.clearSyncQueue(),
+          syncQueueRepository.clearSyncQueue({ preserveRadioInsights: true }),
           projectRepository.clearLocalProjects(),
           accountsRepository.clearLocalAccounts(),
           kanbanRepository.clearLocalKanban(),
@@ -220,6 +223,7 @@ export const useAuthStore = defineStore("auth", {
         vaultStore.lockVault();
         vaultStore.purge_state();
         radioStore.clearState();
+        useRadioInsightsStore().$reset();
         playerStore.clearState();
         localStorage.removeItem("kadem_user_last_sync");
         localStorage.removeItem("kadem_vault_last_sync");

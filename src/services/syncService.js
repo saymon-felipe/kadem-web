@@ -19,6 +19,7 @@ import { useRadioStore } from "../stores/radio";
 import { parse_srt } from "../utils/srt_parser";
 import { apiServices } from "../plugins/apiServices";
 import { db } from "../db";
+import { radioInsightsRepository, isRadioInsightsTask, LISTENING_COUNTERS } from './localData/radioInsightsRepository';
 import { reportAttachmentUpload, finishAttachmentUpload } from "./attachmentUploadProgress";
 
 let isProcessing = false;
@@ -1327,7 +1328,17 @@ async function syncHealthDelta() {
 }
 
 async function processTaskItem(task) {
-  if (task.type === "DOWNLOAD_LYRICS") {
+  if (isRadioInsightsTask(task)) {
+    const { user_id, revision: _revision, youtube_id: _youtube_id, ...payload } = task.payload;
+    if (user_id !== useAuthStore().user?.id) throw new Error('NOT_SYNCED: aguardando a conta proprietária do Radio Flow.');
+    if (task.type === 'RADIO_REACTION') {
+      const { data } = await api.put('/radio/insights/reaction', payload);
+      await radioInsightsRepository.acknowledgeReaction(user_id, payload, data);
+    } else {
+      const item = Object.fromEntries(['song', 'client_id', 'event_date', 'last_played_at', ...LISTENING_COUNTERS].map(key => [key, payload[key]]));
+      await api.put('/radio/insights/listening', { items: [item] });
+    }
+  } else if (task.type === "DOWNLOAD_LYRICS") {
     await _handleDownloadLyricsTask(task);
   } else if (task.type.includes("FINANCE")) {
     await _handleFinanceTask(task);
@@ -1366,7 +1377,8 @@ export const syncService = {
 
     try {
       while (true) {
-        const pendingTasks = await syncQueueRepository.getPendingTasks();
+        const pendingTasks = (await syncQueueRepository.getPendingTasks()).filter(task =>
+          !isRadioInsightsTask(task) || task.payload.user_id === useAuthStore().user?.id);
         if (pendingTasks.length === 0) break;
 
         console.log(`[SyncService] Iniciando sincronização de ${pendingTasks.length} tarefas...`);
@@ -1428,7 +1440,8 @@ export const syncService = {
 
           try {
             await processTaskItem(task);
-            await syncQueueRepository.deleteTask(task.id);
+            if (isRadioInsightsTask(task)) await radioInsightsRepository.deleteAcknowledgedTask(task);
+            else await syncQueueRepository.deleteTask(task.id);
             console.log(`[SyncService] OK: ${task.type} (${task.id})`);
           } catch (error) {
             if (error.response && (error.response.status === 403 || error.response.status === 404)) {
