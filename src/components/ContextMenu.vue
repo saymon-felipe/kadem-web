@@ -1,7 +1,12 @@
 <template>
   <div class="context-menu glass" :style="menuStyle" @mousedown.stop>
     <ul>
-      <li v-for="option in options" :key="option.action" @click="onMenuClick(option.action)">
+      <li
+        v-for="option in options"
+        :key="option.action"
+        :class="{ disabled: option.disabled }"
+        @click="!option.disabled && onMenuClick(option.action)"
+      >
         <font-awesome-icon v-if="option.icon" :icon="option.icon" class="menu-icon" />
         {{ option.label }}
       </li>
@@ -66,6 +71,12 @@ export default {
 
 .context-menu li:hover {
   background-color: var(--surface-2);
+}
+
+.context-menu li.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .menu-icon {

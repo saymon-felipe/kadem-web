@@ -49,6 +49,7 @@
 
     <header
       class="window-header"
+      :class="{ 'has-tabs': isProjectsWindow }"
       @mousedown.left.stop="startDrag"
       @dblclick.stop="handleToggleMaximize"
     >
@@ -60,11 +61,24 @@
         aria-label="Voltar"
         @click.stop="navigateBack"
         @mousedown.stop
+        @dblclick.stop
       >
         <font-awesome-icon icon="arrow-left" />
       </button>
-      <span class="window-title">{{ windowData.title }}</span>
-      <div class="window-controls">
+      <span
+        class="window-title"
+        :class="{ 'projects-window-title': isProjectsWindow }"
+      >{{ windowData.title }}</span>
+
+      <!-- Container das abas no header (estilo Google Chrome) -->
+      <div
+        v-if="isProjectsWindow"
+        :id="`window-header-tabs-${windowData.id}`"
+        class="window-header-tabs-host"
+        @dblclick.stop
+      ></div>
+
+      <div class="window-controls" @mousedown.stop @dblclick.stop>
         <button
           type="button"
           class="window-control-btn minimize"
@@ -93,8 +107,14 @@
       </div>
     </header>
 
-    <main class="window-content">
-      <component :is="componentMap[windowData.componentId]" />
+    <main
+      class="window-content"
+      :class="{ 'window-content--projects': isProjectsWindow }"
+    >
+      <component
+        :is="componentMap[windowData.componentId]"
+        :window-id="windowData.id"
+      />
     </main>
   </div>
 </template>
@@ -145,6 +165,9 @@ export default {
     }),
     isActive() {
       return this.activeWindowId === this.windowData.id;
+    },
+    isProjectsWindow() {
+      return this.windowData.componentId === "ProjectsWindow";
     },
     mobile_back_active() {
       return this.isActive && !this.windowData.isMinimized;
@@ -479,6 +502,8 @@ export default {
   pointer-events: auto;
   width: 98%;
   height: 90%;
+  container-type: inline-size;
+  container-name: window-shell;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease,
     transform 0.2s ease;
 }
@@ -662,6 +687,25 @@ export default {
   cursor: nwse-resize;
 }
 
+.window-header.has-tabs {
+  padding: 4px var(--space-3) 4px var(--space-4);
+  gap: var(--space-2);
+  min-height: 44px;
+}
+
+.window-title.projects-window-title {
+  flex-shrink: 0;
+  margin-right: 6px;
+}
+
+.window-header-tabs-host {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
 @media (max-width: 1100px) {
   .window-header {
     gap: var(--space-2);
@@ -671,6 +715,9 @@ export default {
   .window-title {
     flex: 1;
     min-width: 0;
+  }
+  .window-title.projects-window-title {
+    display: none !important;
   }
   .window-control-btn {
     width: 44px;
@@ -686,6 +733,12 @@ export default {
   .window-header,
   .resize-handle {
     cursor: default !important;
+  }
+}
+
+@container window-shell (max-width: 640px) {
+  .window-title.projects-window-title {
+    display: none !important;
   }
 }
 </style>

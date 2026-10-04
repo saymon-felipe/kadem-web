@@ -1,121 +1,119 @@
 <template>
   <div class="projects-window-content">
-    <div class="workspace-tabs-bar">
-      <div
-        ref="tabsScrollArea"
-        class="tabs-scroll-area custom-scrollbar-none"
-        @wheel.passive="handle_tabs_wheel"
-      >
-        <div class="tabs-track">
-          <div
-            ref="tabsList"
-            class="workspace-tabs"
-            :class="{ 'is-committing-reorder': is_reorder_committing }"
-            role="tablist"
-            aria-label="Abas de projetos"
-          >
-            <div
-              v-for="(tab, index) in workspace_tabs"
-              :key="tab.id"
-              :ref="(el) => set_tab_el(el, tab.id)"
-              class="workspace-tab"
-              :class="{
-                'is-active': tab.id === active_workspace_tab_id,
-                'is-closing': closing_tab_ids.includes(tab.id),
-                'is-entering': entering_tab_ids.includes(tab.id),
-                'is-dragging': dragging_tab_id === tab.id,
-              }"
-              :style="get_tab_drag_style(tab.id, index)"
-              @mousedown="on_tab_mousedown($event, tab, index)"
-            >
-              <button
-                :id="`project-tab-${tab.id}`"
-                type="button"
-                class="tab-main-btn"
-                role="tab"
-                :aria-selected="tab.id === active_workspace_tab_id"
-                :aria-controls="`project-panel-${tab.id}`"
-                :tabindex="tab.id === active_workspace_tab_id ? 0 : -1"
-                :title="tab_title(tab)"
-                @click="handle_tab_click(tab.id)"
-                @keydown="handle_tab_keydown($event, tab.id)"
-              >
-                <span class="tab-leading-icon">
-                  <img
-                    v-if="tab_project(tab)?.image"
-                    :src="tab_project(tab).image"
-                    alt=""
-                    class="tab-thumb"
-                  />
-                  <font-awesome-icon
-                    v-else-if="tab.project_local_id"
-                    icon="table-cells-large"
-                    class="tab-icon"
-                  />
-                  <font-awesome-icon
-                    v-else
-                    icon="layer-group"
-                    class="tab-icon"
-                  />
-                </span>
-
-                <span class="tab-name">{{ tab_title(tab) }}</span>
-
-                <span
-                  v-if="tab_status(tab)"
-                  class="tab-status-dot"
-                  :class="tab_status(tab)"
-                  :title="tab_status_label(tab)"
-                />
-              </button>
-
-              <button
-                v-if="workspace_tabs.length > 1"
-                type="button"
-                class="close-tab"
-                :aria-label="`Fechar aba ${tab_title(tab)}`"
-                title="Fechar aba"
-                @mousedown.stop
-                @click.stop="close_tab(tab.id)"
-              >
-                <font-awesome-icon icon="xmark" />
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            class="btn-new-tab"
-            title="Nova aba"
-            aria-label="Nova aba"
-            @click="handle_open_tab"
-          >
-            <font-awesome-icon icon="plus" />
-          </button>
-        </div>
-      </div>
-
-      <div class="tabs-toolbar">
-        <button
-          type="button"
-          class="tab-tool-btn"
-          title="Duplicar aba atual"
-          aria-label="Duplicar aba atual"
-          @click="handle_duplicate_tab"
-        >
-          <font-awesome-icon icon="copy" />
-          <span class="tab-tool-label">Duplicar</span>
-        </button>
-
+    <Teleport :to="teleport_target" :disabled="!is_teleport_ready">
+      <div class="workspace-tabs-bar">
         <div
-          v-if="workspace_tabs.length > 1"
-          class="tabs-count-badge"
-          :title="`${workspace_tabs.length} abas abertas`"
+          ref="tabsScrollArea"
+          class="tabs-scroll-area custom-scrollbar-none"
+          @wheel.passive="handle_tabs_wheel"
         >
-          {{ workspace_tabs.length }}
+          <div class="tabs-track">
+            <div
+              ref="tabsList"
+              class="workspace-tabs"
+              :class="{ 'is-committing-reorder': is_reorder_committing }"
+              role="tablist"
+              aria-label="Abas de projetos"
+            >
+              <div
+                v-for="(tab, index) in workspace_tabs"
+                :key="tab.id"
+                :ref="(el) => set_tab_el(el, tab.id)"
+                class="workspace-tab"
+                :class="{
+                  'is-active': tab.id === active_workspace_tab_id,
+                  'is-closing': closing_tab_ids.includes(tab.id),
+                  'is-entering': entering_tab_ids.includes(tab.id),
+                  'is-dragging': dragging_tab_id === tab.id,
+                }"
+                :style="get_tab_drag_style(tab.id, index)"
+                @mousedown="on_tab_mousedown($event, tab, index)"
+                @contextmenu.prevent.stop="open_tab_context_menu($event, tab)"
+                @dblclick.stop
+              >
+                <button
+                  :id="`project-tab-${tab.id}`"
+                  type="button"
+                  class="tab-main-btn"
+                  role="tab"
+                  :aria-selected="tab.id === active_workspace_tab_id"
+                  :aria-controls="`project-panel-${tab.id}`"
+                  :tabindex="tab.id === active_workspace_tab_id ? 0 : -1"
+                  :title="tab_title(tab)"
+                  @click="handle_tab_click(tab.id)"
+                  @keydown="handle_tab_keydown($event, tab.id)"
+                >
+                  <span class="tab-leading-icon">
+                    <img
+                      v-if="tab_project(tab)?.image"
+                      :src="tab_project(tab).image"
+                      alt=""
+                      class="tab-thumb"
+                    />
+                    <font-awesome-icon
+                      v-else-if="tab.project_local_id"
+                      icon="table-cells-large"
+                      class="tab-icon"
+                    />
+                    <font-awesome-icon
+                      v-else
+                      icon="layer-group"
+                      class="tab-icon"
+                    />
+                  </span>
+
+                  <span class="tab-name">{{ tab_title(tab) }}</span>
+
+                  <span
+                    v-if="tab_status(tab)"
+                    class="tab-status-dot"
+                    :class="tab_status(tab)"
+                    :title="tab_status_label(tab)"
+                  />
+                </button>
+
+                <button
+                  v-if="workspace_tabs.length > 1"
+                  type="button"
+                  class="close-tab"
+                  :aria-label="`Fechar aba ${tab_title(tab)}`"
+                  title="Fechar aba"
+                  @mousedown.stop
+                  @click.stop="close_tab(tab.id)"
+                >
+                  <font-awesome-icon icon="xmark" />
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="btn-new-tab"
+              title="Nova aba"
+              aria-label="Nova aba"
+              @click.stop="handle_open_tab"
+              @mousedown.stop
+              @dblclick.stop
+            >
+              <font-awesome-icon icon="plus" />
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
+
+    <!-- Menu de Contexto para as abas (botão direito: Duplicar / Fechar) -->
+    <Teleport to="body">
+      <Transition name="popup-anim">
+        <ContextMenu
+          v-if="tab_context_menu.isOpen"
+          :options="tab_context_menu_options"
+          :x="tab_context_menu.x"
+          :y="tab_context_menu.y"
+          @menu-click="handle_tab_context_action"
+        />
+      </Transition>
+    </Teleport>
 
     <div class="workspace-panels">
       <ProjectsWindowSkeleton v-if="loading" />
@@ -150,13 +148,27 @@ import { useProjectStore } from "@/stores/projects";
 import { useWindowStore } from "@/stores/windows";
 import ProjectWorkspaceTab from "../projects/ProjectWorkspaceTab.vue";
 import ProjectsWindowSkeleton from "../projects/ProjectsWindowSkeleton.vue";
+import ContextMenu from "../ContextMenu.vue";
 
 export default {
   name: "ProjectsWindow",
-  components: { ProjectWorkspaceTab, ProjectsWindowSkeleton },
+  components: { ProjectWorkspaceTab, ProjectsWindowSkeleton, ContextMenu },
+  props: {
+    windowId: {
+      type: String,
+      default: "projects",
+    },
+  },
   data() {
     return {
       loading: true,
+      is_teleport_ready: false,
+      tab_context_menu: {
+        isOpen: false,
+        x: 0,
+        y: 0,
+      },
+      context_target_tab: null,
       closing_tab_ids: [],
       entering_tab_ids: [],
       animating_panel_tab_id: null,
@@ -179,6 +191,25 @@ export default {
     },
     stable_workspace_panels() {
       return [...this.workspace_tabs].sort((a, b) => a.id.localeCompare(b.id));
+    },
+    teleport_target() {
+      return `#window-header-tabs-${this.windowId}`;
+    },
+    tab_context_menu_options() {
+      const canClose = this.workspace_tabs.length > 1;
+      return [
+        {
+          label: "Duplicar",
+          action: "duplicate",
+          icon: "copy",
+        },
+        {
+          label: "Fechar",
+          action: "close",
+          icon: "xmark",
+          disabled: !canClose,
+        },
+      ];
     },
   },
   watch: {
@@ -205,6 +236,80 @@ export default {
       "reorderWorkspaceTabs",
     ]),
     ...mapActions(useWindowStore, ["focusWindow"]),
+    check_teleport_target() {
+      if (typeof document !== "undefined") {
+        this.is_teleport_ready = !!document.querySelector(this.teleport_target);
+        if (!this.is_teleport_ready) {
+          this.$nextTick(() => {
+            this.is_teleport_ready = !!document.querySelector(this.teleport_target);
+          });
+        }
+      }
+    },
+    open_tab_context_menu(event, tab) {
+      this.focus_workspace_window();
+      this.context_target_tab = tab;
+
+      const menuWidth = 160;
+      const menuHeight = 90;
+
+      let x = event.clientX;
+      let y = event.clientY;
+
+      if (typeof window !== "undefined") {
+        if (x + menuWidth > window.innerWidth - 8) {
+          x = Math.max(8, window.innerWidth - menuWidth - 8);
+        }
+        if (x < 8) {
+          x = 8;
+        }
+
+        if (y + menuHeight > window.innerHeight - 8) {
+          y = Math.max(8, y - menuHeight);
+        }
+      }
+
+      const newMenu = {
+        isOpen: true,
+        x: Math.round(x),
+        y: Math.round(y),
+      };
+
+      if (this.tab_context_menu.isOpen) {
+        this.tab_context_menu.isOpen = false;
+        this.$nextTick(() => {
+          this.tab_context_menu = newMenu;
+        });
+      } else {
+        this.tab_context_menu = newMenu;
+      }
+    },
+    close_tab_context_menu() {
+      if (this.tab_context_menu.isOpen) {
+        this.tab_context_menu.isOpen = false;
+        this.context_target_tab = null;
+      }
+    },
+    on_window_contextmenu(event) {
+      if (event.target.closest(".workspace-tab")) return;
+      this.close_tab_context_menu();
+    },
+    on_window_keydown(event) {
+      if (event.key === "Escape") {
+        this.close_tab_context_menu();
+      }
+    },
+    handle_tab_context_action(action) {
+      const target = this.context_target_tab;
+      this.close_tab_context_menu();
+      if (!target) return;
+
+      if (action === "duplicate") {
+        this.handle_duplicate_tab(target);
+      } else if (action === "close") {
+        this.close_tab(target.id);
+      }
+    },
     focus_workspace_window() {
       if (this.currentUserWindows.projects && !this.workspace_interactive) this.focusWindow("projects");
     },
@@ -245,6 +350,7 @@ export default {
       return label_map[proj.status] || proj.status;
     },
     handle_open_tab() {
+      this.close_tab_context_menu();
       const tab = this.openWorkspaceTab();
       if (tab?.id) {
         this.entering_tab_ids.push(tab.id);
@@ -254,8 +360,11 @@ export default {
       }
       this.focus_active_tab();
     },
-    handle_duplicate_tab() {
-      const tab = this.duplicateWorkspaceTab();
+    handle_duplicate_tab(targetTab = null) {
+      this.close_tab_context_menu();
+      const tabToDuplicate = targetTab || this.workspace_tabs.find((t) => t.id === this.active_workspace_tab_id);
+      const project_local_id = tabToDuplicate?.project_local_id ?? this.active_project_id;
+      const tab = this.openWorkspaceTab(project_local_id);
       if (tab?.id) {
         this.entering_tab_ids.push(tab.id);
         setTimeout(() => {
@@ -265,6 +374,7 @@ export default {
       this.focus_active_tab();
     },
     close_tab(id) {
+      this.close_tab_context_menu();
       if (this.workspace_tabs.length <= 1) return;
       if (this.closing_tab_ids.includes(id)) return;
       this.closing_tab_ids.push(id);
@@ -275,7 +385,9 @@ export default {
       }, 180);
     },
     handle_tab_click(id) {
+      this.close_tab_context_menu();
       if (this.dragging_tab_id || this.drag_is_settling || this.is_reorder_committing) return;
+      this.focus_workspace_window();
       if (this.active_workspace_tab_id === id) return;
       this.activateWorkspaceTab(id);
       this.focus_active_tab();
@@ -316,6 +428,10 @@ export default {
       if (event.button !== 0) return;
       if (event.target.closest(".close-tab")) return;
       if (this.drag_is_settling || this.is_reorder_committing) return;
+
+      event.stopPropagation();
+      this.close_tab_context_menu();
+      this.focus_workspace_window();
 
       const tabElements = this.workspace_tabs.map((t) => this.tab_elements[t.id]).filter(Boolean);
       if (tabElements.length !== this.workspace_tabs.length) {
@@ -513,15 +629,26 @@ export default {
   },
   beforeUnmount() {
     document.body.style.userSelect = "";
+    if (typeof window !== "undefined") {
+      window.removeEventListener("click", this.close_tab_context_menu);
+      window.removeEventListener("contextmenu", this.on_window_contextmenu);
+      window.removeEventListener("keydown", this.on_window_keydown);
+    }
   },
   async mounted() {
     this.ensureWorkspaceTabs();
+    this.check_teleport_target();
     this.entering_tab_ids = this.workspace_tabs.map((t) => t.id);
     setTimeout(() => {
       this.entering_tab_ids = [];
     }, 250);
     if (this.projects.length === 0) await this._loadProjectsFromDB();
     this.loading = false;
+    if (typeof window !== "undefined") {
+      window.addEventListener("click", this.close_tab_context_menu);
+      window.addEventListener("contextmenu", this.on_window_contextmenu);
+      window.addEventListener("keydown", this.on_window_keydown);
+    }
   },
 };
 </script>
@@ -536,26 +663,18 @@ export default {
   flex-direction: column;
 }
 
-/* Barra de Abas */
+/* Barra de Abas no Header (estilo Google Chrome) */
 .workspace-tabs-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: 6px 12px;
-  min-height: 44px;
-  background: var(--surface-0);
-  border-bottom: 1px solid var(--glass-border);
-  flex-shrink: 0;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
   box-sizing: border-box;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-[data-theme="dark"] .workspace-tabs-bar,
-:root:not([data-theme="light"]) .workspace-tabs-bar {
-  background: rgba(18, 22, 42, 0.7);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Área rolável de abas */
@@ -853,21 +972,23 @@ export default {
   border: 0;
   background: transparent;
   color: inherit;
-  opacity: 0.5;
+  opacity: 0;
   border-radius: 50%;
   cursor: pointer;
   flex-shrink: 0;
   font-size: 0.6875rem;
-  transition: all 0.15s ease;
+  transition: opacity 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
   outline: none;
+  pointer-events: none;
 }
 
 .workspace-tab:hover .close-tab {
-  opacity: 0.85;
+  opacity: 0.75;
+  pointer-events: auto;
 }
 
-.workspace-tab.is-active .close-tab {
-  opacity: 0.75;
+.workspace-tab.is-active:hover .close-tab {
+  opacity: 0.85;
 }
 
 .close-tab:hover {
@@ -880,6 +1001,7 @@ export default {
 .close-tab:focus-visible {
   outline: 2px solid var(--red);
   opacity: 1;
+  pointer-events: auto;
 }
 
 /* Botão Nova Aba (+) */
@@ -887,9 +1009,9 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: rgba(0, 0, 0, 0.03);
   color: var(--text-secondary);
@@ -927,87 +1049,11 @@ export default {
   outline: 2px solid var(--blue);
 }
 
-/* Toolbar da Direita */
-.tabs-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.tab-tool-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 7px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(0, 0, 0, 0.03);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.75rem;
-  font-weight: 500;
-  transition: all 0.18s ease;
-  outline: none;
-}
-
-[data-theme="dark"] .tab-tool-btn,
-:root:not([data-theme="light"]) .tab-tool-btn {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(220, 226, 245, 0.7);
-}
-
-.tab-tool-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
-  border-color: rgba(0, 0, 0, 0.14);
-  color: var(--text-primary);
-  transform: translateY(-1px);
-}
-
-[data-theme="dark"] .tab-tool-btn:hover,
-:root:not([data-theme="light"]) .tab-tool-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: #ffffff;
-}
-
-.tab-tool-btn:focus-visible {
-  outline: 2px solid var(--blue);
-}
-
-.tab-tool-label {
-  display: inline-block;
-  line-height: 1;
-}
-
-@media (max-width: 640px) {
-  .tab-tool-label {
-    display: none;
+@media (max-width: 1100px) {
+  .workspace-tab {
+    min-width: 80px;
+    max-width: 150px;
   }
-}
-
-.tabs-count-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 999px;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  background: rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  color: var(--text-muted);
-}
-
-[data-theme="dark"] .tabs-count-badge,
-:root:not([data-theme="light"]) .tabs-count-badge {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(220, 226, 245, 0.6);
 }
 
 /* Painéis de workspace e Animação de Troca de Conteúdo */
