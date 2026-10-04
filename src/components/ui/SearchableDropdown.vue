@@ -108,9 +108,11 @@
 
 <script>
 import { overlayScopeMixin } from '@/utils/overlayScope';
+import { mobileNavigationMixin } from '@/utils/mobileNavigation';
 export default {
   name: "SearchableDropdown",
-  mixins: [overlayScopeMixin],
+  mixins: [overlayScopeMixin, mobileNavigationMixin],
+  mobileBackPriority: 200,
   props: {
     modelValue: {
       type: [String, Number, Object, null],
@@ -164,6 +166,9 @@ export default {
     };
   },
   computed: {
+    mobile_back_active() {
+      return this.is_open && this.overlay_active && (this.overlayScope?.interactive ?? true);
+    },
     selected_option() {
       return this.options.find((opt) => opt.value === this.modelValue) || null;
     },
@@ -186,6 +191,7 @@ export default {
     },
   },
   methods: {
+    mobile_back() { this.close(); },
     toggle() {
       if (this.is_open) {
         this.close();

@@ -13,6 +13,7 @@
     "test:finance": "node --test tests/financeSync.test.js",
     "test:kanban": "node --test tests/kanbanBoard.test.js",
     "test:project-tabs": "node --test tests/projectWorkspaceTabs.test.js",
+    "test:navigation": "node --test tests/mobileNavigation.test.js",
     "test:autoscroll": "node --test tests/dragAutoscroll.test.js",
     "test:performance": "node --test tests/uiPerformance.test.js",
     "test:radio": "node --test tests/radioNormalization*.test.js tests/radioAudioSettings.test.js tests/radioInsights.test.js tests/radioLikedPlaylistAndFeedback.test.js tests/radioReactionStyles.test.js",

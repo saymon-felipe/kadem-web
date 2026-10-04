@@ -12,7 +12,7 @@
     :style="windowStyle"
     @mousedown.left="focus"
   >
-    <div v-if="!windowData.isMaximized">
+    <div v-if="!isMobile && !windowData.isMaximized">
       <div
         class="resize-handle top"
         @mousedown.left.stop="startResize($event, 'top')"
@@ -52,10 +52,24 @@
       @mousedown.left.stop="startDrag"
       @dblclick.stop="handleToggleMaximize"
     >
+      <button
+        v-if="isMobile"
+        type="button"
+        class="window-control-btn back"
+        title="Voltar"
+        aria-label="Voltar"
+        @click.stop="navigateBack"
+        @mousedown.stop
+      >
+        <font-awesome-icon icon="arrow-left" />
+      </button>
       <span class="window-title">{{ windowData.title }}</span>
       <div class="window-controls">
         <button
+          type="button"
           class="window-control-btn minimize"
+          title="Minimizar janela"
+          aria-label="Minimizar janela"
           @click.stop="minimize"
           @mousedown.stop
         >
@@ -73,7 +87,7 @@
           />
         </button>
 
-        <button class="window-control-btn close" @click.stop="close" @mousedown.stop>
+        <button type="button" class="window-control-btn close" title="Fechar janela" aria-label="Fechar janela" @click.stop="close" @mousedown.stop>
           <font-awesome-icon icon="xmark" />
         </button>
       </div>
@@ -90,6 +104,8 @@ import { mapState, mapActions } from "pinia";
 import { useWindowStore } from "@/stores/windows";
 import { useAppStore } from "@/stores/app";
 import { windowComponentMap } from "./componentMap.js";
+import { navigateBack } from "@/utils/modalHistory";
+import { createWindowNavigation, mobileNavigationMixin, windowNavigationKey } from "@/utils/mobileNavigation";
 
 const SNAP_ZONE_SIZE = 30;
 const CLICK_DRAG_THRESHOLD = 5;
@@ -97,6 +113,8 @@ const MAXIMIZED_BOTTOM_OFFSET = 0;
 const HEADER_OFFSET = 82;
 
 export default {
+  mixins: [mobileNavigationMixin],
+  mobileBackPriority: 0,
   props: {
     windowData: {
       type: Object,
@@ -112,6 +130,14 @@ export default {
       isResizing: false,
     };
   },
+  provide() {
+    return {
+      [windowNavigationKey]: createWindowNavigation(
+        () => this.isActive && !this.windowData.isMinimized,
+        () => !this.windowData.isMinimized,
+      ),
+    };
+  },
   computed: {
     ...mapState(useWindowStore, ["activeWindowId", "activeSnapTarget"]),
     ...mapState(useAppStore, {
@@ -119,6 +145,9 @@ export default {
     }),
     isActive() {
       return this.activeWindowId === this.windowData.id;
+    },
+    mobile_back_active() {
+      return this.isActive && !this.windowData.isMinimized;
     },
     windowStyle() {
       const position = this.isDragging ? this.dragPosition : this.windowData.position;
@@ -157,6 +186,10 @@ export default {
     },
   },
   methods: {
+    navigateBack,
+    mobile_back() {
+      this.minimize();
+    },
     ...mapActions(useWindowStore, [
       "closeWindow",
       "focusWindow",
@@ -630,6 +663,26 @@ export default {
 }
 
 @media (max-width: 1100px) {
+  .window-header {
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    min-height: 52px;
+  }
+  .window-title {
+    flex: 1;
+    min-width: 0;
+  }
+  .window-control-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .window-control-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  .window-content {
+    height: calc(100% - 52px);
+  }
   .window-header,
   .resize-handle {
     cursor: default !important;

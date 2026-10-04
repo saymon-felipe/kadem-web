@@ -27,8 +27,11 @@
 </template>
 
 <script>
+import { mobileNavigationMixin } from '@/utils/mobileNavigation';
 export default {
   name: "PlaylistSelector",
+  mixins: [mobileNavigationMixin],
+  mobileBackPriority: 200,
   props: {
     modelValue: { type: Boolean, required: true },
     playlists: { type: Array, required: true },
@@ -38,6 +41,7 @@ export default {
   },
   emits: ["update:modelValue", "select"],
   computed: {
+    mobile_back_active() { return this.modelValue; },
     menu_styles() {
       const MENU_WIDTH = 220;
       const ITEM_HEIGHT = 32;
@@ -71,6 +75,7 @@ export default {
     },
   },
   methods: {
+    mobile_back() { this.close(); },
     close() {
       this.$emit("update:modelValue", false);
     },

@@ -336,6 +336,12 @@ export default {
     },
   },
   watch: {
+    handleMobileBack() {
+      if (this.is_modal_active) {
+        this.unregister();
+        this.register();
+      }
+    },
     overlay_height() { this.$nextTick(() => this.updateModalHeight(false)); },
     is_modal_active: {
       immediate: true,

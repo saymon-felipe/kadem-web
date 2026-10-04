@@ -440,13 +440,24 @@ import LoadingSpinner from "@/components/loadingSpinner.vue";
 import KademLoader from "@/components/ui/KademLoader.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import BaseModal from "@/components/BaseModal.vue";
+import { createWindowNavigation, mobileNavigationMixin, windowNavigationKey } from "@/utils/mobileNavigation";
 
 import defaultCover from "@/assets/images/fundo-auth.webp";
 import defaultCoverDark from "@/assets/images/system-background-black.webp";
 import defaultAvatar from "@/assets/images/kadem-default-playlist.jpg";
 
 export default {
+  mixins: [mobileNavigationMixin],
+  mobileBackPriority: 20,
   name: "RadioFlow",
+  provide() {
+    return {
+      [windowNavigationKey]: createWindowNavigation(
+        () => (this.windowNavigation?.active ?? true) && this.active_app === "radio_flow",
+        () => (this.windowNavigation?.visible ?? true) && this.active_app === "radio_flow",
+      ),
+    };
+  },
   components: {
     RadioInsightsPanel,
     PlaylistSidebar,
@@ -466,6 +477,7 @@ export default {
       selected_playlist: null,
       show_insights: false,
       tracks: [],
+      playlist_tracks_request_id: 0,
       default_cover: defaultCover,
       default_cover_dark: defaultCoverDark,
       default_avatar: defaultAvatar,
@@ -509,6 +521,7 @@ export default {
   },
   computed: {
     ...mapState(usePlayerStore, [
+      "active_app",
       "current_music",
       "is_playing",
       "current_playlist",
@@ -529,6 +542,11 @@ export default {
     ...mapState(useWindowStore, ["_getOrCreateCurrentUserState"]),
     ...mapState(useAppStore, ["isDark"]),
     ...mapState(useRadioInsightsStore, ["reactions"]),
+
+    mobile_back_active() {
+      return this.active_app === "radio_flow" && this.is_mobile &&
+        (this.show_playlist_filter || this.mobile_tab !== "playlists");
+    },
 
     play_button_icon() {
       if (this.is_current_playlist_active && this.is_playing) return "circle-pause";
@@ -611,16 +629,23 @@ export default {
     reactions: {
       deep: true,
       async handler() {
+        const playlist = this.selected_playlist;
         if (
-          this.selected_playlist?.is_liked_playlist ||
-          this.selected_playlist?.local_id === "liked"
+          playlist?.is_liked_playlist ||
+          playlist?.local_id === "liked"
         ) {
-          this.tracks = await this.get_liked_tracks();
+          // As reações já foram atualizadas: reler a store aqui dispararia
+          // este mesmo watcher indefinidamente.
+          await this.load_playlist_tracks(playlist, { load_reactions: false });
         }
       },
     },
   },
   methods: {
+    mobile_back() {
+      if (this.show_playlist_filter) this.close_playlist_filter();
+      else this.set_mobile_tab("playlists");
+    },
     ...mapActions(usePlayerStore, [
       "play_track",
       "toggle_play",
@@ -704,8 +729,8 @@ export default {
       this.handle_mobile_select_playlist(liked_pl);
     },
 
-    async get_liked_tracks() {
-      await this.loadLocal();
+    async get_liked_tracks({ load_reactions = true } = {}) {
+      if (load_reactions) await this.loadLocal();
       const likedRows = Object.values(this.reactions || {})
         .filter((row) => row.reaction === 1)
         .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
@@ -741,14 +766,21 @@ export default {
       this.selected_playlist = playlist;
 
       this.setViewedPlaylistId(playlist.local_id);
+      await this.load_playlist_tracks(playlist);
+    },
 
-      if (playlist.is_liked_playlist || playlist.local_id === "liked") {
-        this.tracks = await this.get_liked_tracks();
-      } else {
-        const localTracks = await radioRepository.getLocalTracks(playlist.local_id);
-        this.tracks = localTracks;
-      }
-      if (this.tracks.length > 0) await this.checkOfflineAvailability(this.tracks);
+    async load_playlist_tracks(playlist, options = {}) {
+      const request_id = ++this.playlist_tracks_request_id;
+      const tracks = playlist.is_liked_playlist || playlist.local_id === "liked"
+        ? await this.get_liked_tracks(options)
+        : await radioRepository.getLocalTracks(playlist.local_id);
+
+      // Seleções e atualizações de curtidas podem concluir fora de ordem.
+      // Só a consulta mais recente pode alterar a playlist que está na tela.
+      if (request_id !== this.playlist_tracks_request_id ||
+          this.selected_playlist?.local_id !== playlist.local_id) return;
+      this.tracks = tracks;
+      if (tracks.length > 0) await this.checkOfflineAvailability(tracks);
     },
 
     toggle_playlist_filter() {
@@ -1142,6 +1174,7 @@ export default {
     document.addEventListener("keydown", this.close_playlist_filter_on_escape);
   },
   beforeUnmount() {
+    this.playlist_tracks_request_id++;
     this.resize_observer?.disconnect();
     document.removeEventListener("mousedown", this.close_uploads_dropdown_on_outside_click);
     document.removeEventListener("pointerdown", this.close_playlist_filter_on_outside_click);

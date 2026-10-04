@@ -29,9 +29,11 @@
 
 <script>
 import { overlayScopeMixin } from '@/utils/overlayScope';
+import { mobileNavigationMixin } from '@/utils/mobileNavigation';
 export default {
     name: 'CustomDropdown',
-    mixins: [overlayScopeMixin],
+    mixins: [overlayScopeMixin, mobileNavigationMixin],
+    mobileBackPriority: 200,
     props: {
         modelValue: {
             type: [Object, String, Number, null],
@@ -58,7 +60,13 @@ export default {
             menu_style: {}
         };
     },
+    computed: {
+        mobile_back_active() {
+            return this.is_open && this.overlay_active && (this.overlayScope?.interactive ?? true);
+        }
+    },
     methods: {
+        mobile_back() { this.close(); },
         toggle() {
             if (this.is_open) {
                 this.close();

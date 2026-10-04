@@ -117,9 +117,11 @@ test("Escape e voltar alcançam somente o topo visível, inclusive ao suspender 
       listeners[name] = handler;
     },
     history: {
-      pushState() {},
+      state: null,
+      pushState(state) { this.state = state; },
       back() {
         backs++;
+        this.state = null;
       },
     },
   };
@@ -133,18 +135,23 @@ test("Escape e voltar alcançam somente o topo visível, inclusive ao suspender 
     assert.equal(isTopModal(task), false);
     assert.equal(isTopModal(confirmation), true);
     confirmation();
-    listeners.popstate(); // Voltar programático não fecha o painel da tarefa.
+    await Promise.resolve();
+    assert.equal(backs, 0, "Fechar a confirmação mantém o histórico compartilhado do painel");
     assert.equal(taskClosed, 0);
     assert.equal(isTopModal(task), true);
     task(); // Aba oculta: desregistra sem fechar o rascunho.
+    await Promise.resolve();
     listeners.popstate();
+    await Promise.resolve();
     assert.equal(hasOpenModals(), false);
     const other = registerModal(() => confirmationClosed++);
+    window.history.state = null;
     listeners.popstate(); // Voltar do usuário na outra aba.
     assert.equal(confirmationClosed, 1);
     assert.equal(taskClosed, 0);
     other();
-    assert.equal(backs, 2);
+    await Promise.resolve();
+    assert.equal(backs, 1);
   } finally {
     globalThis.window = previousWindow;
     globalThis.document = previousDocument;

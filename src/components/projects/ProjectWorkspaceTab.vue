@@ -22,11 +22,13 @@
 <script>
 import { markRaw, reactive } from "vue";
 import { overlayScopeKey } from "@/utils/overlayScope";
+import { mobileNavigationMixin } from "@/utils/mobileNavigation";
 import ProjectList from "./ProjectList.vue";
 import ProjectKanban from "./ProjectKanban.vue";
 
 export default {
   name: "ProjectWorkspaceTab",
+  mixins: [mobileNavigationMixin],
   components: { ProjectList, ProjectKanban },
   props: {
     projects: { type: Array, required: true },
@@ -51,8 +53,16 @@ export default {
     return { [overlayScopeKey]: this.overlay_scope };
   },
   computed: {
+    mobile_back_active() {
+      return this.active && this.interactive && this.project_exists;
+    },
     project_exists() {
       return this.projects.some((project) => String(project.localId) === String(this.project_local_id));
+    },
+  },
+  methods: {
+    mobile_back() {
+      this.$emit("project-selected", null);
     },
   },
   watch: {

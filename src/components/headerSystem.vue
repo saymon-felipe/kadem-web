@@ -149,10 +149,13 @@ import { useAiCreditsStore } from "@/stores/aiCredits";
 import ContextMenu from "./ContextMenu.vue";
 import StartMenu from "./startMenu/StartMenu.vue";
 import SubscriptionModal from "./SubscriptionModal.vue";
+import { mobileNavigationMixin } from "@/utils/mobileNavigation";
 
 const ANIMATION_DURATION = 150;
 
 export default {
+  mixins: [mobileNavigationMixin],
+  mobileBackPriority: 40,
   components: {
     ContextMenu,
     StartMenu,
@@ -173,6 +176,9 @@ export default {
     };
   },
   computed: {
+    mobile_back_active() {
+      return this.show_credits_dropdown || this.contextMenu.isOpen;
+    },
     ...mapState(useWindowStore, ["currentUserWindows", "activeWindowId"]),
     ...mapState(useAppStore, ["isStartMenuOpen"]),
     ...mapState(useAuthStore, ["user"]),
@@ -217,6 +223,10 @@ export default {
     },
   },
   methods: {
+    mobile_back() {
+      if (this.show_credits_dropdown) this.show_credits_dropdown = false;
+      else this.closeContextMenu();
+    },
     ...mapActions(useAppStore, ["toggleStartMenu", "closeStartMenu"]),
     ...mapActions(useWindowStore, [
       "openWindow",

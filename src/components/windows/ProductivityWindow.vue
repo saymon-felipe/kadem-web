@@ -69,8 +69,10 @@ import { useWindowStore } from "@/stores/windows"; // Necessário para verificar
 import RadioFlow from "../radio/RadioFlow.vue";
 import KademNexo from "../finance/KademNexo.vue";
 import HealthWindow from "./HealthWindow.vue";
+import { mobileNavigationMixin } from "@/utils/mobileNavigation";
 
 export default {
+  mixins: [mobileNavigationMixin],
   components: { RadioFlow, KademNexo, HealthWindow },
   props: ["windowId"], // Recebe o ID da janela do BaseWindow
   data() {
@@ -81,8 +83,14 @@ export default {
   },
   computed: {
     ...mapState(usePlayerStore, ["active_app"]),
+    mobile_back_active() {
+      return Boolean(this.active_app);
+    },
   },
   methods: {
+    mobile_back() {
+      this.close_app();
+    },
     ...mapActions(usePlayerStore, ["setActiveApp"]),
 
     open_app(app_key) {

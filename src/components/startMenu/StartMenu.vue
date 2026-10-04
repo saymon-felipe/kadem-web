@@ -73,8 +73,11 @@ import AccountCenter from "./AccountCenter/AccountCenter.vue";
 import NewProject from "./NewProject.vue";
 import ConfirmationModal from "../ConfirmationModal.vue";
 import KademTabs from "@/components/ui/KademTabs.vue";
+import { mobileNavigationMixin } from "@/utils/mobileNavigation";
 
 export default {
+  mixins: [mobileNavigationMixin],
+  mobileBackPriority: 30,
   components: {
     avatarComponent,
     MainInformations,
@@ -115,6 +118,9 @@ export default {
     };
   },
   computed: {
+    mobile_back_active() {
+      return true;
+    },
     ...mapState(useAuthStore, ["user"]),
     ...mapState(useUtilsStore, ["connection"]),
     ...mapState(useAppStore, ["isDark"]),
@@ -160,6 +166,10 @@ export default {
     },
   },
   methods: {
+    mobile_back() {
+      if (this.activeTab !== "main") this.closeProjectView();
+      else useAppStore().closeStartMenu();
+    },
     ...mapActions(useAuthStore, ["checkPendingChanges", "logout"]),
     toggleTheme() {
       const appStore = useAppStore();
