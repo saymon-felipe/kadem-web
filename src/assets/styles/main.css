@@ -237,8 +237,24 @@ form {
   }
 }
 
-input {
+input:not([type='range']):not([type='radio']):not([type='checkbox']):not([type='file']):not([type='color']) {
   height: 50px;
+}
+
+/* Radio & Checkbox base reset — prevent square focus outline on rounded inputs */
+input[type='radio'],
+input[type='checkbox'] {
+  box-shadow: none !important;
+  border-radius: 50%;
+  outline: none !important;
+}
+
+input[type='radio']:focus,
+input[type='checkbox']:focus,
+input[type='radio']:focus-visible,
+input[type='checkbox']:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* Label flutuante */
@@ -270,7 +286,7 @@ textarea {
   resize: vertical;
 }
 
-input:not([type='range']),
+input:not([type='range']):not([type='radio']):not([type='checkbox']):not([type='file']):not([type='color']),
 textarea {
   font-size: 0.94rem !important;
   width: 100%;
@@ -290,7 +306,7 @@ textarea {
   }
 }
 
-[data-theme='dark'] input:not([type='range']),
+[data-theme='dark'] input:not([type='range']):not([type='radio']):not([type='checkbox']):not([type='file']):not([type='color']),
 [data-theme='dark'] textarea {
   background: var(--surface-2);
   box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.4);
@@ -308,7 +324,7 @@ textarea {
   color: var(--gray-400);
 }
 
-[data-theme='dark'] input:not([type='range']):focus,
+[data-theme='dark'] input:not([type='range']):not([type='radio']):not([type='checkbox']):not([type='file']):not([type='color']):focus,
 [data-theme='dark'] textarea:focus {
   outline-color: var(--color-info);
 }

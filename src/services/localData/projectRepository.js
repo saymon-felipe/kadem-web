@@ -1,8 +1,43 @@
 import { db } from '../../db';
+import { kanbanRepository } from './kanbanRepository';
+import { syncQueueRepository } from './syncQueueRepository';
 
 export const projectRepository = {
   async addLocalProject(projectData) {
     return await db.projects.add(projectData);
+  },
+
+  async createLocalProjectWithKanban(projectData, columns, creationPayload = null) {
+    return db.transaction('rw', db.projects, db.kanban_columns, db.syncQueue, async () => {
+      const localId = await this.addLocalProject(projectData);
+      if (creationPayload) {
+        await syncQueueRepository.addSyncQueueTask({
+          type: 'CREATE_PROJECT',
+          payload: { ...creationPayload, localId },
+          timestamp: new Date().toISOString(),
+        });
+      }
+      for (const column of columns) {
+        const saved = await kanbanRepository.add_column({ ...column, id: null, project_id: localId });
+        await syncQueueRepository.addSyncQueueTask({
+          type: 'CREATE_COLUMN', payload: saved, entity_id: saved.local_id, timestamp: Date.now(),
+        });
+      }
+      return localId;
+    });
+  },
+
+  async discardLocalProjectCreation(localId) {
+    return db.transaction('rw', db.projects, db.kanban_columns, db.syncQueue, async () => {
+      const columns = await db.kanban_columns.where('project_id').equals(localId).toArray();
+      const columnIds = new Set(columns.map(column => column.local_id));
+      await db.syncQueue.filter(task =>
+        (task.type === 'CREATE_PROJECT' && task.payload.localId === localId) ||
+        (task.type === 'CREATE_COLUMN' && columnIds.has(task.entity_id))
+      ).delete();
+      await db.kanban_columns.where('project_id').equals(localId).delete();
+      await db.projects.delete(localId);
+    });
   },
   async saveLocalProject(project) {
     return await db.projects.put(project);

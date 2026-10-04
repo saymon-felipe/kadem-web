@@ -5,6 +5,7 @@ import { syncService } from "../services/syncService";
 import { useAuthStore } from "../stores/auth";
 import { useUtilsStore } from "../stores/utils";
 import { getPlanLimits } from "../services/subscription_plans";
+import { getKanbanPresetColumns } from "../utils/kanbanPresets";
 import {
   projectRepository,
   syncQueueRepository,
@@ -339,7 +340,7 @@ export const useProjectStore = defineStore("projects", {
       return resultStatus;
     },
 
-    async createProject(projectData) {
+    async createProject(projectData, kanbanPresetId = null) {
       const authStore = useAuthStore();
       const utilsStore = useUtilsStore();
       const currentUser = authStore.user;
@@ -350,6 +351,8 @@ export const useProjectStore = defineStore("projects", {
       }
 
       const cleanProjectData = JSON.parse(JSON.stringify(projectData));
+      const presetColumns = getKanbanPresetColumns(kanbanPresetId);
+      const isOnline = utilsStore.connection.connected;
 
       // 2. Criação Otimista Local
       const localProject = {
@@ -373,7 +376,9 @@ export const useProjectStore = defineStore("projects", {
       delete localProject.id;
 
       try {
-        const localId = await projectRepository.addLocalProject(localProject);
+        const localId = await projectRepository.createLocalProjectWithKanban(
+          localProject, presetColumns, isOnline ? null : cleanProjectData
+        );
         const projectWithId = { ...localProject, localId };
 
         this.projects.push(projectWithId);
@@ -381,7 +386,7 @@ export const useProjectStore = defineStore("projects", {
 
         let resultStatus = { success: true, localId, invites_status: [] };
 
-        if (utilsStore.connection.connected) {
+        if (isOnline) {
           try {
             const response = await api.post("/projects", {
               ...cleanProjectData,
@@ -410,21 +415,16 @@ export const useProjectStore = defineStore("projects", {
               apiError.message
             );
 
-            await projectRepository.deleteLocalProject(localId);
+            await projectRepository.discardLocalProjectCreation(localId);
             this.projects = this.projects.filter((p) => p.localId !== localId);
             this.clearWorkspaceProject(localId);
             if (this.active_project_id === localId) this.active_project_id = null;
 
             throw apiError;
           }
-        } else {
-          await syncQueueRepository.addSyncQueueTask({
-            type: "CREATE_PROJECT",
-            payload: { ...cleanProjectData, localId: localId },
-            timestamp: new Date().toISOString(),
-          });
-          syncService.processSyncQueue();
         }
+
+        syncService.processSyncQueue();
 
         return resultStatus;
       } catch (error) {

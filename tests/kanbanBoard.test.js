@@ -262,6 +262,174 @@ const withHierarchyBoard = async (run) => {
   }
 };
 
+const withProjectCreation = (run) => withHierarchyBoard(async (board, server) => {
+  await board.db.projects.clear();
+  await board.kanbanRepository.clearLocalKanban();
+  const { useAuthStore } = await server.ssrLoadModule('/src/stores/auth.js');
+  const { useUtilsStore } = await server.ssrLoadModule('/src/stores/utils.js');
+  const { useProjectStore } = await server.ssrLoadModule('/src/stores/projects.js');
+  const { projectRepository } = await server.ssrLoadModule('/src/services/localData/projectRepository.js');
+  const { syncService } = await server.ssrLoadModule('/src/services/syncService.js');
+  const { api } = await server.ssrLoadModule('/src/plugins/api.js');
+  useAuthStore().user = { id: 1, name: 'Teste', plan_tier: 'enterprise' };
+  const utils = useUtilsStore();
+  utils.is_network_online = false;
+  utils.is_kadem_api_available = false;
+  await run({ ...board, projects: useProjectStore(), projectRepository, syncService, api, utils }, server);
+});
+
+const newProjectData = () => ({ name: 'Projeto com preset', description: '', image: '', members: [], invites: [] });
+
+test('presets criam colunas tipadas e ordenadas, isolando alterações entre projetos', async () => {
+  const { KANBAN_PRESETS, getKanbanPresetColumns, getKanbanPresetRules } = await import('../src/utils/kanbanPresets.js');
+  const { isColumnType } = await import('../src/utils/kanbanTypes.js');
+  for (const preset of KANBAN_PRESETS) {
+    const columns = getKanbanPresetColumns(preset.id);
+    assert.ok(columns.every((column, order) => isColumnType(column.type) && column.order === order));
+    if (columns.length) {
+      assert.ok(columns.some(column => column.type === 'TODO'));
+      assert.ok(columns.some(column => column.type === 'IN_PROGRESS'));
+      assert.ok(columns.some(column => column.type === 'DONE'));
+      columns[0].title = 'Alterado';
+      assert.notEqual(getKanbanPresetColumns(preset.id)[0].title, 'Alterado');
+      assert.ok(getKanbanPresetRules(preset.id).length);
+    }
+  }
+  assert.deepEqual(getKanbanPresetColumns('empty'), []);
+  assert.throws(() => getKanbanPresetColumns('invalid'));
+});
+
+test('criar projeto com preset offline persiste o quadro completo e protege colunas num pull', { timeout: 30000 }, () => withProjectCreation(async ({ projects, store, db, kanbanRepository: repo, syncQueueRepository: queue }) => {
+  const result = await projects.createProject(newProjectData(), 'development');
+  await store.loadBoardFromLocal(result.localId);
+  assert.deepEqual(store.getColumns(result.localId).map(column => column.type), ['BACKLOG', 'TODO', 'IN_PROGRESS', 'REVIEW', 'BLOCKED', 'DONE']);
+  assert.deepEqual(store.getColumns(result.localId).map(column => column.order), [0, 1, 2, 3, 4, 5]);
+  const operations = await queue.getPendingTasks();
+  assert.equal(operations.filter(task => task.type === 'CREATE_PROJECT').length, 1);
+  assert.equal(operations.filter(task => task.type === 'CREATE_COLUMN').length, 6);
+  assert.ok(operations.every(task => task.idempotency_key));
+  await db.syncQueue.toCollection().modify({ status: 'RETRY', next_attempt_at: Date.now() + 60000 });
+  await repo.mergeServerData(result.localId, [], []);
+  await store.loadBoardFromLocal(result.localId);
+  assert.equal(store.getColumns(result.localId).length, 6);
+  assert.equal((await db.projects.get(result.localId)).name, 'Projeto com preset');
+}));
+
+test('reconectar cria o projeto antes das colunas e preserva localId, seleção e tarefas', { timeout: 30000 }, () => withProjectCreation(async ({ projects, store, db, syncService, api, utils, syncQueueRepository: queue, kanbanRepository: repo }) => {
+  const result = await projects.createProject(newProjectData(), 'simple');
+  await store.loadBoardFromLocal(result.localId);
+  const column = store.getColumns(result.localId)[0];
+  const task = await store.createTask(column.local_id, { project_id: result.localId, description: 'Criada offline' });
+  const oldPost = api.post, oldGet = api.get;
+  const writes = [];
+  try {
+    let nextId = 100;
+    api.post = async (url, payload) => {
+      writes.push({ url, payload });
+      return { data: url === '/projects'
+        ? { project: { id: 800, name: payload.name, members: [] }, invites_status: [] }
+        : { id: nextId++ } };
+    };
+    api.get = async () => ({ data: { changes: [], next_cursor: 0, has_more: false } });
+    utils.is_network_online = true;
+    utils.is_kadem_api_available = true;
+    await syncService.processSyncQueue();
+    assert.equal(writes[0].url, '/projects');
+    const columns = writes.filter(write => write.url === '/kanban/columns');
+    assert.deepEqual(columns.map(write => write.payload.type), ['TODO', 'IN_PROGRESS', 'DONE']);
+    assert.ok(columns.every(write => write.payload.project_id === 800));
+    assert.equal(writes.find(write => write.url === '/kanban/tasks').payload.project_id, 800);
+    assert.equal((await db.projects.get(result.localId)).id, 800);
+    assert.equal(projects.active_project_id, result.localId);
+    assert.equal((await repo.get_task_by_local_id(task.local_id)).description, 'Criada offline');
+    assert.equal((await queue.getPendingTasks()).length, 0);
+    await queue.addSyncQueueTask({ type: 'CREATE_PROJECT', payload: { ...newProjectData(), localId: result.localId } });
+    await syncService.processSyncQueue();
+    assert.equal(writes.filter(write => write.url === '/projects').length, 1);
+  } finally {
+    api.post = oldPost; api.get = oldGet;
+    utils.is_network_online = false;
+    utils.is_kadem_api_available = false;
+  }
+}));
+
+test('criação online envia somente dados do projeto e sincroniza as colunas tipadas', { timeout: 30000 }, () => withProjectCreation(async ({ projects, syncService, api, utils, db }) => {
+  const oldPost = api.post, oldGet = api.get;
+  const writes = [];
+  try {
+    api.post = async (url, payload) => {
+      writes.push({ url, payload });
+      return { data: url === '/projects'
+        ? { project: { id: 800, name: payload.name }, invites_status: [] }
+        : { id: writes.length + 100 } };
+    };
+    api.get = async () => ({ data: { changes: [], next_cursor: 0, has_more: false } });
+    utils.is_network_online = true;
+    utils.is_kadem_api_available = true;
+    const result = await projects.createProject(newProjectData(), 'content');
+    assert.equal((await db.projects.get(result.localId)).id, 800);
+    // A criação inicia o envio em segundo plano; aguarda essa execução.
+    for (let attempt = 0; attempt < 100 && await db.syncQueue.count(); attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    assert.equal(await db.syncQueue.count(), 0);
+    await syncService.processSyncQueue();
+    assert.equal(writes.filter(write => write.url === '/projects').length, 1);
+    assert.equal(writes[0].payload.kanbanPresetId, undefined);
+    assert.equal(writes[0].payload.columns, undefined);
+    assert.deepEqual(writes.filter(write => write.url === '/kanban/columns').map(write => write.payload.type), ['BACKLOG', 'TODO', 'IN_PROGRESS', 'REVIEW', 'DONE']);
+  } finally {
+    api.post = oldPost; api.get = oldGet;
+    utils.is_network_online = false;
+    utils.is_kadem_api_available = false;
+  }
+}));
+
+test('falha na API reverte projeto, colunas e operações do preset sem afetar outro quadro', { timeout: 30000 }, () => withProjectCreation(async ({ projects, projectRepository, api, utils, db }) => {
+  const existing = await projectRepository.createLocalProjectWithKanban({ name: 'Preservado', id: 900 }, [{ title: 'Minha coluna', type: 'TODO', order: 0 }]);
+  const oldPost = api.post;
+  try {
+    api.post = async () => { throw new Error('Falha na criação'); };
+    utils.is_network_online = true;
+    utils.is_kadem_api_available = true;
+    await assert.rejects(projects.createProject(newProjectData(), 'support'), /Falha na criação/);
+    assert.equal(await db.projects.count(), 1);
+    assert.equal(await db.kanban_columns.count(), 1);
+    assert.equal(await db.syncQueue.count(), 1);
+    assert.equal((await db.projects.get(existing)).name, 'Preservado');
+    assert.equal(projects.projects.length, 0);
+    assert.equal(projects.active_project_id, null);
+  } finally {
+    api.post = oldPost;
+    utils.is_network_online = false;
+    utils.is_kadem_api_available = false;
+  }
+}));
+
+test('falha ao gravar a fila aborta a criação inteira; quadro vazio não gera colunas', { timeout: 30000 }, () => withProjectCreation(async ({ projects, db, syncQueueRepository: queue }) => {
+  const oldAdd = queue.addSyncQueueTask;
+  try {
+    queue.addSyncQueueTask = async task => {
+      if (task.type === 'CREATE_COLUMN') throw new Error('Armazenamento cheio');
+      return oldAdd.call(queue, task);
+    };
+    await assert.rejects(projects.createProject(newProjectData(), 'simple'), /Armazenamento cheio/);
+    assert.equal(await db.projects.count(), 0);
+    assert.equal(await db.kanban_columns.count(), 0);
+    assert.equal(await db.syncQueue.count(), 0);
+    assert.equal(projects.projects.length, 0);
+  } finally {
+    queue.addSyncQueueTask = oldAdd;
+  }
+  await assert.rejects(projects.createProject(newProjectData(), 'invalid'), /Modelo de kanban inválido/);
+  assert.equal(await db.projects.count(), 0);
+  await projects.createProject(newProjectData(), 'empty');
+  assert.equal(await db.kanban_columns.count(), 0);
+  assert.equal((await queue.getPendingTasksByType('CREATE_PROJECT')).length, 1);
+  await projects.createProject(newProjectData());
+  assert.equal(await db.kanban_columns.count(), 0);
+}));
+
 test('criar, vincular e desvincular filhas offline persiste após recarregar', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, columnB, kanbanRepository: repo, syncQueueRepository: queue }) => {
   const child = await store.createTask(columnB.local_id, { project_id: PROJECT_ID, description: 'Filha offline', parent_task_local_id: task.local_id });
   assert.equal(child.parent_task_local_id, task.local_id);

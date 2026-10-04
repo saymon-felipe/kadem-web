@@ -321,18 +321,17 @@ async function _handleProjectTask(task) {
     case "CREATE_PROJECT":
       try {
         const { localId, ...projectData } = task.payload;
+        const localProject = await projectRepository.getLocalProject(localId);
+        if (!localProject || localProject.id) break;
         const response = await api.post("/projects", projectData);
-        const serverData = response.data;
-
-        if (projectRepository.updateLocalProject) {
-          await projectRepository.updateLocalProject(localId, {
-            id: serverData.id,
-            updated_at: serverData.updated_at,
-          });
-        } else {
-          await projectRepository.deleteLocalProject(localId);
-          await projectRepository.saveLocalProject(serverData);
-        }
+        const serverProject = response.data.project;
+        if (!serverProject?.id) throw new Error('Resposta inválida ao sincronizar projeto.');
+        await projectRepository.saveLocalProject({
+          ...localProject,
+          ...serverProject,
+          localId,
+          is_synced: true,
+        });
 
         const projectStore = useProjectStore();
         await projectStore._loadProjectsFromDB();
