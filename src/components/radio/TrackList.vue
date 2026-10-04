@@ -1,40 +1,82 @@
 <template>
-  <div
-    class="tracks-table-container"
-    :class="{ 'is-mobile-track-list': is_mobile, 'is-search-mode': mode === 'search' }"
-  >
+  <div class="tracks-table-container"
+    :class="{ 'is-mobile-track-list': is_mobile, 'is-search-mode': mode === 'search' }">
     <div class="tracks-table">
-      <div class="track-row header">
-        <span>#</span>
-        <span>Título</span>
-        <span class="col-channel">{{ mode === "search" ? "Canal" : "Data Adição" }}</span>
-        <span class="text-center col-duration">Duração</span>
+      <div v-if="mode === 'playlist'" class="playlist-list-tools">
+        <div class="playlist-filter">
+          <font-awesome-icon icon="magnifying-glass" class="filter-search-icon" aria-hidden="true" />
+          <input v-model="filter_query" type="search"
+            aria-label="Filtrar músicas da playlist por título ou artista/canal"
+            placeholder="Filtrar músicas nesta playlist" @keydown.esc.stop="filter_query = ''" />
+          <button v-if="filter_query" type="button" class="clear-filter" title="Limpar filtro"
+            aria-label="Limpar filtro" @click="filter_query = ''">
+            <font-awesome-icon icon="xmark" />
+          </button>
+          <span v-if="filter_query.trim()" class="filter-count" :class="{ 'is-zero': visible_tracks.length === 0 }"
+            role="status">
+            {{ visible_tracks.length }} de {{ tracks.length }}
+          </span>
+        </div>
+
+        <div ref="sortDropdownRoot" class="playlist-sort-container">
+          <button type="button" class="playlist-sort-trigger"
+            :class="{ 'is-open': is_sort_menu_open, 'has-active-sort': !!sort_selection }" aria-haspopup="listbox"
+            :aria-expanded="is_sort_menu_open" aria-label="Opções de ordenação e filtragem" @click="toggle_sort_menu"
+            @keydown.esc.stop="close_sort_menu">
+            <font-awesome-icon icon="filter" class="sort-filter-icon" />
+            <span class="sort-current-text">{{ current_sort_label }}</span>
+            <font-awesome-icon icon="chevron-down" class="sort-chevron-icon" :class="{ rotated: is_sort_menu_open }" />
+          </button>
+
+          <transition name="sort-dropdown-pop">
+            <div v-if="is_sort_menu_open" class="playlist-sort-dropdown" role="listbox" aria-label="Opções de ordenação"
+              @keydown.esc.stop="close_sort_menu">
+              <div class="dropdown-header-label">Ordenar por</div>
+              <ul class="sort-options-list">
+                <li v-for="opt in sort_options" :key="opt.value" role="option"
+                  :aria-selected="sort_selection === opt.value" class="sort-option-item"
+                  :class="{ 'is-selected': sort_selection === opt.value }" @click="select_sort_option(opt.value)">
+                  <span class="sort-option-left">
+                    <font-awesome-icon :icon="opt.icon" class="opt-icon" />
+                    <span class="opt-label">{{ opt.label }}</span>
+                  </span>
+                  <font-awesome-icon v-if="sort_selection === opt.value" icon="check" class="opt-check-icon" />
+                </li>
+              </ul>
+            </div>
+          </transition>
+        </div>
+      </div>
+      <div v-show="visible_tracks.length > 0" class="track-row header">
+        <template v-if="mode === 'playlist'">
+          <button type="button" class="sort-header" title="Restaurar ordem original"
+            aria-label="Restaurar ordem original" @click="sort_selection = ''">#</button>
+          <button v-for="column in sortable_columns" :key="column.key" type="button" class="sort-header"
+            :class="[column.class, { 'sort-active': sort_key === column.key }]" :title="sort_header_title(column)"
+            :aria-label="sort_header_title(column)" @click="toggle_sort(column.key)">
+            {{ column.label }}
+            <span v-if="sort_key === column.key" aria-hidden="true">{{ sort_direction === 'asc' ? '↑' : '↓' }}</span>
+          </button>
+        </template>
+        <template v-else>
+          <span>#</span>
+          <span>Título</span>
+          <span class="col-channel">Canal</span>
+          <span class="text-center col-duration">Duração</span>
+        </template>
         <span></span>
       </div>
 
-      <draggable
-        class="tracks-scroll-area"
-        :list="tracks"
-        :group="{ name: 'music', pull: 'clone', put: false }"
-        :item-key="(t) => t.local_id || t.youtube_id"
-        :sort="false"
-        ghost-class="track-ghost"
-        :disabled="is_mobile"
-        @start="beginGlobalDrag"
-        @end="endGlobalDrag"
-      >
+      <draggable v-show="visible_tracks.length > 0" class="tracks-scroll-area" :list="visible_tracks"
+        :group="{ name: 'music', pull: 'clone', put: false }" :item-key="(t) => t.local_id || t.youtube_id"
+        :sort="false" ghost-class="track-ghost" :disabled="is_mobile" @start="beginGlobalDrag" @end="endGlobalDrag">
         <template #item="{ element: track, index }">
-          <div
-            class="track-row"
-            :class="{
-              'active-track': is_track_playing(track),
-              'unavailable-track': is_track_unavailable(track),
-              'row-blink-success': success_feedback_map[track.youtube_id],
-            }"
-            @click="handle_row_click(track)"
-            @dblclick="handle_desktop_dbl_click(track)"
-            @dragstart="on_drag_start($event, track)"
-          >
+          <div class="track-row" :class="{
+            'active-track': is_track_playing(track),
+            'unavailable-track': is_track_unavailable(track),
+            'row-blink-success': success_feedback_map[track.youtube_id],
+          }" @click="handle_row_click(track)" @dblclick="handle_desktop_dbl_click(track)"
+            @dragstart="on_drag_start($event, track)">
             <span v-if="is_track_playing(track)" class="playing-icon">
               <font-awesome-icon icon="volume-high" />
             </span>
@@ -42,13 +84,11 @@
 
             <div class="track-title-col">
               <div class="thumb-wrapper">
-                <img :src="track.thumbnail || kadem_default_music" class="mini-thumb" :class="{ grayscale: is_track_unavailable(track) }" loading="lazy" decoding="async" />
+                <img :src="track.thumbnail || kadem_default_music" class="mini-thumb"
+                  :class="{ grayscale: is_track_unavailable(track) }" loading="lazy" decoding="async" />
 
-                <div
-                  v-if="!is_mobile && !is_track_unavailable(track)"
-                  class="play-overlay"
-                  @click.stop="play_track(track, null)"
-                >
+                <div v-if="!is_mobile && !is_track_unavailable(track)" class="play-overlay"
+                  @click.stop="play_track(track, null)">
                   <font-awesome-icon icon="pause" v-if="is_track_playing(track) && is_playing" />
                   <font-awesome-icon icon="play" v-if="!is_track_playing(track) || !is_playing" />
                 </div>
@@ -57,93 +97,43 @@
               <div class="meta">
                 <div class="title-row" style="display: flex; align-items: center; gap: 6px">
                   <strong :title="decode_html_entities(track.title)">{{ decode_html_entities(track.title) }}</strong>
-                  <font-awesome-icon
-                    v-if="track.source === 'upload'"
-                    icon="cloud-arrow-up"
-                    class="upload-badge"
-                    title="Música enviada por você"
-                  />
+                  <font-awesome-icon v-if="track.source === 'upload'" icon="cloud-arrow-up" class="upload-badge"
+                    title="Música enviada por você" />
                 </div>
                 <small class="mobile-only-artist">{{ decode_html_entities(track.channel) }}</small>
               </div>
 
               <div class="lyrics-indicator">
-                <font-awesome-icon
-                  v-if="is_lyric_loading(track.youtube_id)"
-                  icon="spinner"
-                  spin
-                  class="status-icon loading"
-                  title="Baixando legenda..."
-                />
-                <font-awesome-icon
-                  v-else-if="track_has_lyrics(track)"
-                  icon="closed-captioning"
-                  class="status-icon success"
-                  title="Legenda disponível"
-                />
-                <font-awesome-icon
-                  v-else-if="track_lyrics_unavailable(track)"
-                  icon="closed-captioning"
-                  class="status-icon disabled"
-                  title="Nenhuma legenda encontrada"
-                />
+                <font-awesome-icon v-if="is_lyric_loading(track.youtube_id)" icon="spinner" spin
+                  class="status-icon loading" title="Baixando legenda..." />
+                <font-awesome-icon v-else-if="track_has_lyrics(track)" icon="closed-captioning"
+                  class="status-icon success" title="Legenda disponível" />
+                <font-awesome-icon v-else-if="track_lyrics_unavailable(track)" icon="closed-captioning"
+                  class="status-icon disabled" title="Nenhuma legenda encontrada" />
               </div>
 
-              <div
-                class="status-icons"
-                v-if="radioStore.isTrackOffline(track) || radioStore.hasTrackVideo(track) || active_downloads[track.local_id] !== undefined"
-              >
-                <div
-                  v-if="active_downloads[track.local_id] !== undefined"
-                  class="progress-ring-container"
-                  :title="
-                    active_downloads[track.local_id] === 0
-                      ? 'Iniciando download...'
-                      : `Baixando (${active_download_types[track.local_id] === 'video' ? 'vídeo' : 'áudio'}): ${active_downloads[track.local_id]}%`
-                  "
-                >
-                  <svg
-                    class="progress-ring"
-                    width="20"
-                    height="20"
-                    :class="{
-                      'is-indeterminate': active_downloads[track.local_id] === 0,
-                    }"
-                  >
-                    <circle
-                      class="progress-ring__circle--bg"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      fill="transparent"
-                      r="8"
-                      cx="10"
-                      cy="10"
-                    />
-                    <circle
-                      class="progress-ring__circle"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      fill="transparent"
-                      r="8"
-                      cx="10"
-                      cy="10"
-                      stroke-dasharray="50.26"
-                      :stroke-dashoffset="get_progress_offset(active_downloads[track.local_id])"
-                    />
+              <div class="status-icons"
+                v-if="radioStore.isTrackOffline(track) || radioStore.hasTrackVideo(track) || active_downloads[track.local_id] !== undefined">
+                <div v-if="active_downloads[track.local_id] !== undefined" class="progress-ring-container" :title="active_downloads[track.local_id] === 0
+                    ? 'Iniciando download...'
+                    : `Baixando (${active_download_types[track.local_id] === 'video' ? 'vídeo' : 'áudio'}): ${active_downloads[track.local_id]}%`
+                  ">
+                  <svg class="progress-ring" width="20" height="20" :class="{
+                    'is-indeterminate': active_downloads[track.local_id] === 0,
+                  }">
+                    <circle class="progress-ring__circle--bg" stroke="currentColor" stroke-width="2" fill="transparent"
+                      r="8" cx="10" cy="10" />
+                    <circle class="progress-ring__circle" stroke="currentColor" stroke-width="2" fill="transparent"
+                      r="8" cx="10" cy="10" stroke-dasharray="50.26"
+                      :stroke-dashoffset="get_progress_offset(active_downloads[track.local_id])" />
                   </svg>
                 </div>
-                <span
-                  v-if="radioStore.isTrackOffline(track)"
-                  class="status-icon offline-ready"
-                  title="Áudio baixado (Disponível Offline)"
-                >
+                <span v-if="radioStore.isTrackOffline(track)" class="status-icon offline-ready"
+                  title="Áudio baixado (Disponível Offline)">
                   <font-awesome-icon icon="circle-check" />
                 </span>
-                <span
-                  v-if="radioStore.hasTrackVideo(track)"
-                  class="status-icon video-ready"
-                  title="Vídeo baixado (Disponível Offline)"
-                >
+                <span v-if="radioStore.hasTrackVideo(track)" class="status-icon video-ready"
+                  title="Vídeo baixado (Disponível Offline)">
                   <font-awesome-icon icon="film" />
                 </span>
               </div>
@@ -157,21 +147,13 @@
             </div>
 
             <div class="col-actions">
-              <button
-                v-if="mode === 'playlist'"
-                class="btn-circle options"
-                @click.stop="open_menu($event, track)"
-                :disabled="is_track_unavailable(track)"
-              >
+              <button v-if="mode === 'playlist'" class="btn-circle options" @click.stop="open_menu($event, track)"
+                :disabled="is_track_unavailable(track)">
                 <font-awesome-icon icon="ellipsis-vertical" />
               </button>
-              <button
-                v-else
-                @click.stop="$emit('request-add', track, $event)"
-                class="btn-circle add"
+              <button v-else @click.stop="$emit('request-add', track, $event)" class="btn-circle add"
                 :class="{ 'success-state': success_feedback_map[track.youtube_id] }"
-                :title="success_feedback_map[track.youtube_id] ? 'Adicionado!' : 'Adicionar à Playlist'"
-              >
+                :title="success_feedback_map[track.youtube_id] ? 'Adicionado!' : 'Adicionar à Playlist'">
                 <font-awesome-icon :icon="success_feedback_map[track.youtube_id] ? 'check' : 'circle-plus'" />
               </button>
             </div>
@@ -179,18 +161,38 @@
         </template>
       </draggable>
 
-      <div
-        v-if="mode === 'search' && (has_more || is_loading_more)"
-        ref="infiniteScrollTrigger"
-        class="infinite-scroll-trigger"
-      >
+      <div v-if="mode === 'playlist' && visible_tracks.length === 0" class="playlist-empty-state" role="status">
+        <template v-if="filter_query.trim()">
+          <div class="empty-state-icon-circle">
+            <font-awesome-icon icon="magnifying-glass" />
+          </div>
+          <h4 class="empty-state-title">Nenhuma música encontrada</h4>
+          <p class="empty-state-desc">
+            Nenhum resultado corresponde a "<strong>{{ filter_query }}</strong>".
+          </p>
+          <button type="button" class="btn-clear-filter-action" @click="filter_query = ''">
+            <font-awesome-icon icon="xmark" />
+            <span>Limpar filtro</span>
+          </button>
+        </template>
+        <template v-else>
+          <div class="empty-state-icon-circle">
+            <font-awesome-icon icon="music" />
+          </div>
+          <h4 class="empty-state-title">Sua playlist está vazia</h4>
+          <p class="empty-state-desc">
+            Adicione músicas à playlist através da busca ou enviando seus arquivos.
+          </p>
+        </template>
+      </div>
+
+      <div v-if="mode === 'search' && (has_more || is_loading_more)" ref="infiniteScrollTrigger"
+        class="infinite-scroll-trigger">
         <font-awesome-icon v-if="is_loading_more" icon="spinner" spin class="loading-more-icon" />
       </div>
 
       <Teleport to="body">
-        <TrackOptionsMenu
-          v-model="show_options_menu"
-          :position="options_position"
+        <TrackOptionsMenu v-model="show_options_menu" :position="options_position"
           :has-audio="radioStore.hasTrackAudio(selected_track_for_menu)"
           :has-video="radioStore.hasTrackVideo(selected_track_for_menu)"
           :is-downloading-audio="is_audio_downloading(selected_track_for_menu)"
@@ -201,19 +203,12 @@
           :can-download-audio="can_download_audio_individually"
           :can-download-video="can_download_video_individually && selected_track_for_menu?.source !== 'upload'"
           :can-download-lyrics="can_download_audio_individually && selected_track_for_menu?.source !== 'upload'"
-          :is-uploaded-track="selected_track_for_menu?.source === 'upload'"
-          :video-qualities="video_quality_options"
-          :playlists="radioStore.playlists"
-          :existing-in-playlists="existing_track_playlist_ids"
-          @close="show_options_menu = false"
-          @copy-link="handle_copy_link"
-          @delete="handle_delete"
-          @download-audio="handle_download_audio"
-          @download-video="handle_download_video"
-          @download-lyrics="handle_download_lyrics"
-          @add-queue="handle_add_queue"
-          @add-to-playlist="handle_add_to_playlist"
-        />
+          :is-uploaded-track="selected_track_for_menu?.source === 'upload'" :video-qualities="video_quality_options"
+          :playlists="radioStore.playlists" :existing-in-playlists="existing_track_playlist_ids"
+          @close="show_options_menu = false" @copy-link="handle_copy_link" @delete="handle_delete"
+          @download-audio="handle_download_audio" @download-video="handle_download_video"
+          @download-lyrics="handle_download_lyrics" @add-queue="handle_add_queue"
+          @add-to-playlist="handle_add_to_playlist" />
       </Teleport>
     </div>
   </div>
@@ -228,6 +223,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useAuthStore } from "@/stores/auth";
 import TrackOptionsMenu from "./TrackOptionsMenu.vue";
 import { decode_html_entities } from "@/utils/string_helpers";
+import { get_visible_playlist_tracks } from "@/utils/playlist_tracks.js";
 import { getOfflineVideoQualities, getPlanLimits } from "@/services/subscription_plans.js";
 import { db } from "@/db";
 import kadem_default_music from "@/assets/images/kadem-default-music.jpg";
@@ -244,6 +240,10 @@ export default {
     tracks: {
       type: Array,
       required: true,
+    },
+    playlist_id: {
+      type: [Number, String],
+      default: null,
     },
     current_music_id: {
       type: String,
@@ -284,6 +284,23 @@ export default {
       success_feedback_map: {},
       observer: null,
       kadem_default_music,
+      filter_query: "",
+      sort_selection: "",
+      is_sort_menu_open: false,
+      sort_options: [
+        { value: "", label: "Ordem original", icon: "list" },
+        { value: "title:asc", label: "Título: A–Z", icon: "arrow-down" },
+        { value: "title:desc", label: "Título: Z–A", icon: "arrow-up" },
+        { value: "created_at:desc", label: "Mais recentes", icon: "clock" },
+        { value: "created_at:asc", label: "Mais antigas", icon: "clock-rotate-left" },
+        { value: "duration_seconds:asc", label: "Menor duração", icon: "arrow-down" },
+        { value: "duration_seconds:desc", label: "Maior duração", icon: "arrow-up" },
+      ],
+      sortable_columns: [
+        { key: "title", label: "Título", class: "" },
+        { key: "created_at", label: "Data Adição", class: "col-channel" },
+        { key: "duration_seconds", label: "Duração", class: "text-center col-duration" },
+      ],
     };
   },
 
@@ -291,6 +308,21 @@ export default {
     ...mapState(useRadioStore, ["active_downloads", "active_download_types", "isLyricDownloading"]),
     ...mapState(usePlayerStore, ["current_music", "is_playing"]),
     ...mapState(useUtilsStore, ["connection"]),
+
+    current_sort_label() {
+      const match = this.sort_options.find((opt) => opt.value === this.sort_selection);
+      return match ? match.label : "Ordem original";
+    },
+    sort_key() {
+      return this.sort_selection.split(":")[0];
+    },
+    sort_direction() {
+      return this.sort_selection.split(":")[1] || "asc";
+    },
+    visible_tracks() {
+      if (this.mode !== "playlist") return this.tracks;
+      return get_visible_playlist_tracks(this.tracks, this.filter_query, this.sort_key, this.sort_direction);
+    },
 
     is_offline_mode() {
       return !this.connection.connected;
@@ -312,11 +344,20 @@ export default {
     },
   },
 
+  watch: {
+    playlist_id() {
+      this.filter_query = "";
+      this.sort_selection = "";
+      this.close_sort_menu();
+    },
+  },
+
   mounted() {
     this.setupIntersectionObserver();
   },
 
   beforeUnmount() {
+    this.close_sort_menu();
     if (this.observer) this.observer.disconnect();
   },
 
@@ -336,6 +377,50 @@ export default {
       "trackLyricsUnavailable",
     ]),
     decode_html_entities,
+
+    toggle_sort_menu() {
+      if (this.is_sort_menu_open) {
+        this.close_sort_menu();
+      } else {
+        this.open_sort_menu();
+      }
+    },
+    open_sort_menu() {
+      this.is_sort_menu_open = true;
+      this.$nextTick(() => {
+        document.addEventListener("pointerdown", this.handle_sort_menu_outside);
+      });
+    },
+    close_sort_menu() {
+      if (!this.is_sort_menu_open) return;
+      this.is_sort_menu_open = false;
+      document.removeEventListener("pointerdown", this.handle_sort_menu_outside);
+    },
+    handle_sort_menu_outside(event) {
+      if (this.$refs.sortDropdownRoot && !this.$refs.sortDropdownRoot.contains(event.target)) {
+        this.close_sort_menu();
+      }
+    },
+    select_sort_option(value) {
+      this.sort_selection = value;
+      this.close_sort_menu();
+    },
+
+    toggle_sort(key) {
+      if (this.sort_key !== key) {
+        this.sort_selection = `${key}:asc`;
+      } else if (this.sort_direction === "asc") {
+        this.sort_selection = `${key}:desc`;
+      } else {
+        this.sort_selection = "";
+      }
+    },
+    sort_header_title(column) {
+      const current = this.sort_key === column.key
+        ? ` (ordem ${this.sort_direction === "asc" ? "crescente" : "decrescente"})`
+        : "";
+      return `Ordenar por ${column.label.toLocaleLowerCase("pt-BR")}${current}`;
+    },
 
     /* -------------------------------------------------------------------------- */
     /* Infinite Scroll Logic                                                      */
@@ -690,6 +775,464 @@ export default {
   height: 100%;
 }
 
+.playlist-list-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: 18px;
+  margin-bottom: var(--space-3);
+  padding: 4px 2px;
+  position: relative;
+}
+
+/* Input de busca/filtro totalmente integrado sobre o background (sem bordas nem fundo) */
+.playlist-filter {
+  display: flex;
+  align-items: center;
+  flex: 1 1 240px;
+  max-width: 440px;
+  gap: 10px;
+  padding: 6px 0;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0;
+  box-shadow: none !important;
+  color: var(--text-secondary);
+  position: relative;
+  transition: color 0.2s ease;
+}
+
+.playlist-filter:focus-within {
+  color: var(--text-primary);
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.playlist-filter .filter-search-icon {
+  font-size: 0.9375rem;
+  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  transition: color 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.playlist-filter:focus-within .filter-search-icon {
+  color: var(--blue, #355afd);
+  transform: scale(1.05);
+}
+
+.playlist-filter input[type="search"],
+.playlist-filter input[type="search"]:focus {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  padding-left: 5px;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.playlist-filter input[type="search"]::placeholder {
+  color: var(--text-muted, rgba(255, 255, 255, 0.45));
+  font-weight: 400;
+  transition: color 0.2s ease;
+}
+
+.playlist-filter:focus-within input[type="search"]::placeholder {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+}
+
+.playlist-filter input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.clear-filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.8125rem;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+
+.clear-filter:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
+}
+
+.filter-count {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--blue, #355afd);
+  background: rgba(53, 90, 253, 0.12);
+  border: 1px solid rgba(53, 90, 253, 0.25);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+/* Container do Dropdown de Ordenação / Filtragem */
+.playlist-sort-container {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* Botão gatilho com ícone de filtragem */
+.playlist-sort-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .playlist-sort-trigger {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: var(--text-secondary);
+}
+
+.playlist-sort-trigger:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+[data-theme="light"] .playlist-sort-trigger:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: var(--text-primary);
+}
+
+.playlist-sort-trigger.is-open {
+  background: rgba(53, 90, 253, 0.12);
+  border-color: rgba(53, 90, 253, 0.45);
+  color: var(--blue, #355afd);
+  box-shadow: 0 0 12px rgba(53, 90, 253, 0.2);
+}
+
+.playlist-sort-trigger.has-active-sort:not(.is-open) {
+  border-color: rgba(53, 90, 253, 0.3);
+  color: var(--text-primary);
+}
+
+.sort-filter-icon {
+  font-size: 0.8125rem;
+  color: var(--blue, #355afd);
+  transition: transform 0.2s ease;
+}
+
+.playlist-sort-trigger:hover .sort-filter-icon {
+  transform: scale(1.1);
+}
+
+.sort-current-text {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sort-chevron-icon {
+  font-size: 0.6875rem;
+  opacity: 0.7;
+  transition: transform 0.22s cubic-bezier(0.2, 0, 0, 1);
+  margin-left: 2px;
+}
+
+.sort-chevron-icon.rotated {
+  transform: rotate(180deg);
+  opacity: 1;
+}
+
+/* Menu Dropdown Personalizado */
+.playlist-sort-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 120;
+  min-width: 195px;
+  padding: 6px;
+  background: rgba(18, 22, 42, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transform-origin: top right;
+}
+
+[data-theme="light"] .playlist-sort-dropdown {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.dropdown-header-label {
+  padding: 6px 10px 4px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted, rgba(255, 255, 255, 0.45));
+}
+
+.sort-options-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sort-option-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.sort-option-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  transform: translateX(2px);
+}
+
+[data-theme="light"] .sort-option-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+.sort-option-item.is-selected {
+  background: rgba(53, 90, 253, 0.14);
+  color: var(--blue, #355afd);
+  font-weight: 600;
+}
+
+[data-theme="light"] .sort-option-item.is-selected {
+  background: rgba(53, 90, 253, 0.1);
+  color: var(--blue, #355afd);
+}
+
+.sort-option-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.opt-icon {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  width: 14px;
+  text-align: center;
+}
+
+.sort-option-item.is-selected .opt-icon {
+  opacity: 1;
+  color: var(--blue, #355afd);
+}
+
+.opt-label {
+  white-space: nowrap;
+}
+
+.opt-check-icon {
+  font-size: 0.75rem;
+  color: var(--blue, #355afd);
+}
+
+/* Animação Suave do Dropdown */
+.sort-dropdown-pop-enter-active {
+  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sort-dropdown-pop-leave-active {
+  transition: opacity 0.14s cubic-bezier(0.4, 0, 1, 1),
+    transform 0.14s cubic-bezier(0.4, 0, 1, 1);
+}
+
+.sort-dropdown-pop-enter-from {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.96);
+}
+
+.sort-dropdown-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.97);
+}
+
+.clear-filter,
+.sort-header {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sort-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+}
+
+.sort-header.text-center {
+  justify-content: center;
+}
+
+.sort-header:hover,
+.sort-header.sort-active {
+  color: var(--color-info);
+}
+
+.playlist-empty-state {
+  flex: 1;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px var(--space-4);
+  text-align: center;
+  color: var(--text-secondary);
+  animation: empty-state-fade-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes empty-state-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.empty-state-icon-circle {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  color: var(--text-muted, rgba(255, 255, 255, 0.45));
+  margin-bottom: var(--space-3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .empty-state-icon-circle {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.06);
+  color: var(--text-muted);
+}
+
+.empty-state-title {
+  margin: 0 0 6px 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.empty-state-desc {
+  margin: 0 0 var(--space-4) 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  max-width: 360px;
+  line-height: 1.5;
+}
+
+.empty-state-desc strong {
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.btn-clear-filter-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+  outline: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .btn-clear-filter-action {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: var(--text-primary);
+}
+
+.btn-clear-filter-action:hover {
+  background: rgba(53, 90, 253, 0.18);
+  border-color: rgba(53, 90, 253, 0.45);
+  color: var(--blue, #5b7fff);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(53, 90, 253, 0.25);
+}
+
+.btn-clear-filter-action:active {
+  transform: translateY(0);
+}
+
 .tracks-scroll-area {
   flex-grow: 1;
   padding-bottom: var(--space-4);
@@ -762,6 +1305,7 @@ export default {
   .track-row:hover .play-overlay {
     opacity: 1;
   }
+
   .track-row:hover .mini-thumb {
     filter: brightness(0.6);
   }
@@ -882,6 +1426,7 @@ export default {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -983,10 +1528,12 @@ export default {
 }
 
 @keyframes blink-bg {
+
   0%,
   100% {
     background-color: transparent;
   }
+
   50% {
     background-color: rgba(74, 222, 128, 0.2);
   }
@@ -1023,21 +1570,34 @@ export default {
   opacity: 0.35;
 }
 
-.is-mobile-track-list .track-row,
+.is-mobile-track-list .track-row {
+  grid-template-columns: 30px 1fr 40px;
+}
+
+.is-mobile-track-list .col-channel,
+.is-mobile-track-list .col-duration {
+  display: none !important;
+}
+
+.is-mobile-track-list .mobile-only-artist {
+  display: block;
+}
+
 @container (max-width: 1100px) {
   .track-row {
     grid-template-columns: 30px 1fr 40px;
   }
+
   .col-channel,
   .col-duration,
-  .desktop-only-artist,
-  .track-row.header span:nth-child(3),
-  .track-row.header span:nth-child(4) {
+  .desktop-only-artist {
     display: none !important;
   }
+
   .mobile-only-artist {
     display: block;
   }
+
   .tracks-table {
     padding: 0 var(--space-2);
   }

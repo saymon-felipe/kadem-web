@@ -137,6 +137,7 @@
 
               <TrackList
                 mode="playlist"
+                :playlist_id="selected_playlist.local_id"
                 :tracks="tracks"
                 :current_music_id="current_music?.youtube_id"
                 :is_mobile="is_mobile"

@@ -16,6 +16,7 @@
     "test:autoscroll": "node --test tests/dragAutoscroll.test.js",
     "test:performance": "node --test tests/uiPerformance.test.js",
     "test:radio": "node --test tests/radioNormalization*.test.js tests/radioAudioSettings.test.js",
+    "test:playlist": "node --test tests/playlistTracks.test.js",
     "test:otp": "node --test tests/otpCode.test.js",
     "preview": "vite preview",
     "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
