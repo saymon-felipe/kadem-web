@@ -31,9 +31,11 @@
         @end="on_column_drag_end"
         item-key="local_id"
         class="kanban-container scroll-custom"
+        :class="{ 'is-dragging-column': drag_ctx.is_dragging }"
         handle=".column-drag-handle"
-        animation="120"
-        force-fallback="true"
+        :animation="200"
+        :easing="'cubic-bezier(0.2, 0, 0, 1)'"
+        :force-fallback="true"
         :fallback-on-body="true"
         fallback-class="column-fallback"
         ghost-class="column-ghost"
@@ -651,8 +653,8 @@ export default {
   transition: none !important;
 }
 
-.column-list-anim-move {
-  transition: transform 0.12s ease;
+.kanban-container.is-dragging-column :deep(.kanban-column) {
+  will-change: transform;
 }
 
 @container (max-width: 1100px) {

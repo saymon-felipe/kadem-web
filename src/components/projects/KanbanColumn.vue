@@ -1452,7 +1452,11 @@ export default {
   border-radius: var(--radius-md);
   box-shadow: var(--glass-shadow);
   backdrop-filter: var(--glass-blur);
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1);
+  transition:
+    height 0.3s cubic-bezier(0.25, 0.8, 0.5, 1),
+    background-color var(--transition-fast) ease,
+    border-color var(--transition-fast) ease,
+    box-shadow var(--transition-fast) ease;
 }
 
 [data-theme="dark"] .kanban-column {
