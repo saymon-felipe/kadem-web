@@ -1,4 +1,5 @@
 import { db } from "../../db";
+import { clampToMacroTone, isToneOf } from "../../utils/colorTones";
 
 const now = () => new Date().toISOString();
 const localKey = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -120,7 +121,12 @@ const normalizeCategoryMacroReferences = async () => {
       if (category.macro_category !== macro.name) patch.macro_category = macro.name;
       if (!sameFinanceId(category.macro_category_id, macro.id)) patch.macro_category_id = macro.id;
       if (category.macro_color !== macro.color) patch.macro_color = macro.color || "#999999";
-      if (category.color !== macro.color) patch.color = macro.color || "#999999";
+      const targetMacroColor = macro.color || "#999999";
+      if (!category.color) {
+        patch.color = targetMacroColor;
+      } else if (!isToneOf(category.color, targetMacroColor)) {
+        patch.color = clampToMacroTone(category.color, targetMacroColor);
+      }
       if (macro.is_investment && category.investment_flow_type !== INVESTMENT_FLOW.OUT && category.type !== "EXPENSE") {
         patch.type = "EXPENSE";
       }
@@ -191,12 +197,15 @@ export const financeRepository = {
       if (changes.name && changes.name !== current.name) {
         const categories = await db.finance_categories.where("macro_category").equals(current.name).toArray();
         if (categories.length) {
+          const nextMacroColor = changes.color || current.color || "#999999";
           await Promise.all(
             categories.map((category) =>
               db.finance_categories.update(category.local_id, {
                 macro_category: changes.name,
-                macro_color: changes.color || category.macro_color || "#999999",
-                color: changes.color || category.color || "#999999",
+                macro_color: nextMacroColor,
+                color: changes.color
+                  ? clampToMacroTone(category.color || nextMacroColor, nextMacroColor)
+                  : category.color || nextMacroColor,
                 ...(forceExpense ? { type: "EXPENSE" } : {}),
                 pending_sync: true,
                 updated_at: now(),
@@ -211,7 +220,7 @@ export const financeRepository = {
             categories.map((category) =>
               db.finance_categories.update(category.local_id, {
                 macro_color: changes.color,
-                color: changes.color,
+                color: clampToMacroTone(category.color || changes.color, changes.color),
                 ...(forceExpense ? { type: "EXPENSE" } : {}),
                 pending_sync: true,
                 updated_at: now(),
@@ -321,6 +330,8 @@ export const financeRepository = {
 
   async createLocalCategory(data) {
     const categoryLocalKey = data.local_key || localKey("category");
+    const macro = data.macro_category ? await db.finance_macro_categories.where("name").equals(data.macro_category).first() : null;
+    const targetMacroColor = macro?.color || data.macro_color || "#999999";
     const payload = {
       ...data,
       local_id: undefined,
@@ -328,14 +339,14 @@ export const financeRepository = {
       id: data.id || categoryLocalKey,
       type: data.investment_flow_type === INVESTMENT_FLOW.OUT ? "INCOME" : (data.type || "EXPENSE"),
       icon: data.icon || "tag",
-      color: data.color || data.macro_color || "#999999",
+      macro_color: targetMacroColor,
+      color: clampToMacroTone(data.color || targetMacroColor, targetMacroColor),
       investment_flow_type: data.investment_flow_type || INVESTMENT_FLOW.STANDARD,
       linked_investment_category_id: data.linked_investment_category_id || null,
       pending_sync: true,
       created_at: now(),
       updated_at: now(),
     };
-    const macro = data.macro_category ? await db.finance_macro_categories.where("name").equals(data.macro_category).first() : null;
     if (macro?.is_investment && payload.investment_flow_type !== INVESTMENT_FLOW.OUT) {
       payload.type = "EXPENSE";
       payload.investment_flow_type = INVESTMENT_FLOW.IN;
@@ -415,16 +426,24 @@ export const financeRepository = {
     if (!current) return null;
     const payload = { ...changes, pending_sync: true, updated_at: now() };
     const targetMacroName = changes.macro_category || current.macro_category;
+    let targetMacro = null;
     if (targetMacroName) {
-      const macro = await db.finance_macro_categories.where("name").equals(targetMacroName).first();
+      targetMacro = await db.finance_macro_categories.where("name").equals(targetMacroName).first();
       const nextFlow = changes.investment_flow_type || current.investment_flow_type || INVESTMENT_FLOW.STANDARD;
-      if (macro?.is_investment && nextFlow !== INVESTMENT_FLOW.OUT) {
+      if (targetMacro?.is_investment && nextFlow !== INVESTMENT_FLOW.OUT) {
         payload.type = "EXPENSE";
         payload.investment_flow_type = INVESTMENT_FLOW.IN;
       } else if (nextFlow === INVESTMENT_FLOW.OUT) {
         payload.type = "INCOME";
         payload.investment_flow_type = INVESTMENT_FLOW.OUT;
       }
+    }
+    const macroColor = changes.macro_color || targetMacro?.color || current.macro_color || "#999999";
+    if (changes.color) {
+      payload.color = clampToMacroTone(changes.color, macroColor);
+    } else if (changes.macro_category && changes.macro_category !== current.macro_category) {
+      payload.color = clampToMacroTone(current.color || macroColor, macroColor);
+      payload.macro_color = macroColor;
     }
     await db.finance_categories.update(current.local_id, payload);
     const updated = { ...current, ...payload };

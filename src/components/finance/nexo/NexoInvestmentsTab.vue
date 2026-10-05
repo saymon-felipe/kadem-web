@@ -356,6 +356,23 @@
             <span>Valor alvo</span>
           </label>
         </div>
+        <div class="initial-amount-field">
+          <label class="floating-field">
+            <input
+              v-model="goalForm.current_amount"
+              type="number"
+              min="0"
+              :max="goalInitialAmountMax"
+              step="0.01"
+              placeholder=" "
+              :aria-invalid="goalInitialAmountExceeded"
+            />
+            <span>Saldo inicial</span>
+          </label>
+          <small class="field-hint" :class="{ negative: goalInitialAmountExceeded }">
+            {{ goalInitialAmountHint }}
+          </small>
+        </div>
         <div class="inline-grid">
           <label class="floating-field date-field">
             <input v-model="goalForm.target_date" type="date" placeholder=" " />
@@ -366,7 +383,7 @@
             <span>Cor da meta</span>
           </label>
         </div>
-        <button type="submit" class="primary-action">
+        <button type="submit" class="primary-action" :disabled="goalInitialAmountExceeded">
           {{ goalForm.id ? 'Salvar meta' : 'Criar meta' }}
         </button>
       </form>
@@ -843,6 +860,36 @@ export default {
       if (!this.nearestGoal) return 'Crie uma meta para acompanhar progresso e previsão.'
       return `${this.formatMoney(this.goalCurrentAmount(this.nearestGoal))} de ${this.formatMoney(this.nearestGoal.target_amount)}`
     },
+    // Valor investido que ainda não está em nenhuma meta: saldo estimado menos o saldo inicial e os
+    // aportes vinculados de cada meta. Na edição, o saldo inicial da própria meta volta para o livre.
+    // O backend aplica a mesma regra (ensure_goal_initial_amount_available).
+    goalInitialAmountLimit() {
+      const editingKey = this.goalForm.id ? String(this.goalForm.id) : null
+      const committed = this.goals.reduce((sum, goal) => {
+        const isEditing = editingKey && String(goal.id || goal.local_id) === editingKey
+        return sum + Number(goal.linked_amount ?? 0) + (isEditing ? 0 : Number(goal.current_amount ?? 0))
+      }, 0)
+      return Math.max(0, Number((Number(this.summary.estimated_balance || 0) - committed).toFixed(2)))
+    },
+    // Manter ou reduzir o saldo que a meta já tem nunca é bloqueado (resgates podem ter deixado as
+    // metas acima da carteira).
+    goalInitialAmountMax() {
+      if (!this.goalForm.id) return this.goalInitialAmountLimit
+      const goal = this.goals.find((item) => String(item.id || item.local_id) === String(this.goalForm.id))
+      return Math.max(this.goalInitialAmountLimit, Number(goal?.current_amount ?? 0))
+    },
+    goalInitialAmountExceeded() {
+      const value = this.goalForm.current_amount
+      if (value === '' || value === null || value === undefined) return false
+      return Math.round(Number(value) * 100) > Math.round(this.goalInitialAmountMax * 100)
+    },
+    goalInitialAmountHint() {
+      if (this.goalInitialAmountExceeded) {
+        return `Máximo de ${this.formatMoney(this.goalInitialAmountMax)}: o restante do valor investido já está em outras metas.`
+      }
+      if (this.goalInitialAmountMax <= 0) return 'Todo o valor investido já está em metas.'
+      return `Valor já investido que passa a contar para a meta. Disponível: ${this.formatMoney(this.goalInitialAmountMax)}.`
+    },
     applicableRates() {
       return this.rates.filter((rate) => ['CDI', 'SELIC', 'SELIC_TARGET', 'IPCA'].includes(rate.kind))
     },
@@ -1105,6 +1152,7 @@ export default {
         horizon: 'SHORT',
         target_amount: '',
         target_date: '',
+        current_amount: '',
         color: '#355AFD',
       }
     },
@@ -1118,16 +1166,20 @@ export default {
         horizon: goal.horizon,
         target_amount: goal.target_amount,
         target_date: goal.target_date ? String(goal.target_date).slice(0, 10) : '',
+        current_amount: goal.current_amount ?? '',
         color: goal.color || '#355AFD',
       }
     },
     submitGoal() {
+      if (this.goalInitialAmountExceeded) return
+      const currentAmount = this.goalForm.current_amount
       const payload = {
         id: this.goalForm.id,
         name: this.goalForm.name,
         horizon: this.goalForm.horizon,
         target_amount: Number(this.goalForm.target_amount || 0),
         target_date: this.goalForm.target_date || null,
+        current_amount: currentAmount === '' || currentAmount === null ? null : Number(currentAmount),
         color: this.goalForm.color,
       }
       this.$emit('save-goal', payload)
@@ -2355,6 +2407,27 @@ export default {
   transform: none;
   font-size: 0.62rem;
   color: var(--text-muted);
+}
+
+.initial-amount-field {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.field-hint {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.field-hint.negative {
+  color: var(--red);
+}
+
+.primary-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Goals */

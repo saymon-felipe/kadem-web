@@ -21,6 +21,7 @@ import { apiServices } from "../plugins/apiServices";
 import { db } from "../db";
 import { radioInsightsRepository, isRadioInsightsTask, LISTENING_COUNTERS } from './localData/radioInsightsRepository';
 import { reportAttachmentUpload, finishAttachmentUpload } from "./attachmentUploadProgress";
+import { clampToMacroTone } from "../utils/colorTones";
 
 let isProcessing = false;
 let rerunRequested = false;
@@ -948,19 +949,22 @@ const updateFinanceLocalRecord = async (table, localId, serverData) => {
     const categories = await db.finance_categories.where("macro_category").equals(current.name).toArray();
     if (categories.length) {
       await Promise.all(
-        categories.map((category) =>
-          db.finance_categories.update(category.local_id, {
+        categories.map((category) => {
+          const targetMacroColor = serverData.color || category.macro_color || "#999999";
+          return db.finance_categories.update(category.local_id, {
             macro_category: serverData.name || current.name,
             macro_category_id: serverData.id,
-            macro_color: serverData.color || category.macro_color || "#999999",
-            color: serverData.color || category.color || "#999999",
+            macro_color: targetMacroColor,
+            color: category.color
+              ? clampToMacroTone(category.color, targetMacroColor)
+              : targetMacroColor,
             ...(serverData.is_investment && category.investment_flow_type !== "INVESTMENT_OUT"
               ? { type: "EXPENSE" }
               : {}),
             pending_sync: false,
             updated_at: new Date().toISOString(),
-          }),
-        ),
+          });
+        }),
       );
     }
   }

@@ -362,21 +362,52 @@ export default {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  background: var(--surface-1);
+  background: transparent;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   padding: 0 var(--space-3);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.combo-search:hover {
+  border-color: var(--gray-300);
+}
+
+.combo-search:focus-within {
+  border-color: var(--color-info);
+  box-shadow: 0 0 0 2px rgba(53, 90, 253, 0.14);
 }
 
 .combo-search input {
+  flex: 1;
+  width: 100%;
   min-width: 0;
   height: 38px;
   border: none !important;
   box-shadow: none !important;
   outline: none !important;
   padding: 0 !important;
-  background: transparent;
+  background: transparent !important;
   color: var(--text-primary);
+  font-size: var(--fontsize-sx, 0.875rem);
+}
+
+.combo-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.combo-search svg,
+.combo-search .svg-inline--fa {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color var(--transition-fast);
+}
+
+.combo-search:focus-within svg,
+.combo-search:focus-within .svg-inline--fa {
+  color: var(--color-info);
 }
 
 .combo-list {
@@ -418,7 +449,7 @@ export default {
 
 .combo-create {
   border: 1px dashed var(--glass-border);
-  background: var(--surface-1);
+  background: transparent;
   color: var(--text-primary);
   border-radius: var(--radius-sm);
   min-height: 38px;

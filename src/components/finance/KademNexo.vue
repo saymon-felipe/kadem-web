@@ -431,6 +431,7 @@
               type="color"
               placeholder=""
               title="Cor da macro categoria"
+              @input="onCategoryMacroColorInput"
             />
           </div>
         </div>
@@ -438,6 +439,57 @@
           <font-awesome-icon icon="circle-question" class="note-icon" />
           <span>{{ categoryFormInvestmentNote }}</span>
         </small>
+
+        <div class="category-tone-section">
+          <div class="tone-section-header">
+            <div class="tone-label-group">
+              <span class="tone-label">Tom da subcategoria</span>
+              <small class="tone-sublabel">Tons da mesma cor da macro</small>
+            </div>
+            <div
+              class="current-tone-preview"
+              :style="{ backgroundColor: currentCategoryToneColor, color: tonePreviewTextColor }"
+              :title="`Tom selecionado: ${currentCategoryToneColor}`"
+            >
+              <font-awesome-icon :icon="categoryForm.icon || 'tag'" class="tone-preview-icon" />
+              <span class="tone-preview-hex">{{ currentCategoryToneColor }}</span>
+            </div>
+          </div>
+
+          <div class="tone-chips" role="radiogroup" aria-label="Tons disponíveis da macro">
+            <button
+              v-for="tone in categoryTones"
+              :key="tone.id"
+              type="button"
+              class="tone-chip"
+              :class="{ active: isCurrentCategoryTone(tone.hex) }"
+              :style="{ backgroundColor: tone.hex }"
+              :title="`${tone.label} (${tone.hex})`"
+              @click="setCategoryColor(tone.hex)"
+            >
+              <font-awesome-icon v-if="isCurrentCategoryTone(tone.hex)" icon="check" class="tone-check-icon" />
+            </button>
+          </div>
+
+          <div class="tone-slider-group">
+            <div class="tone-slider-header">
+              <span>Mais escuro</span>
+              <span class="tone-slider-title">Ajuste fino de luminosidade</span>
+              <span>Mais claro</span>
+            </div>
+            <input
+              type="range"
+              min="15"
+              max="88"
+              step="1"
+              :value="currentToneLightness"
+              class="tone-range-slider"
+              :style="toneSliderTrackStyle"
+              aria-label="Ajuste fino de luminosidade do tom da subcategoria"
+              @input="onToneSliderChange(Number($event.target.value))"
+            />
+          </div>
+        </div>
         <div class="icon-picker">
           <span>Ícone da categoria</span>
           <div>
@@ -586,6 +638,13 @@ import NexoCsvPreviewModal from "./nexo/NexoCsvPreviewModal.vue";
 import NexoConnectionsTab from "./nexo/NexoConnectionsTab.vue";
 import NexoCategoriesTab from "./nexo/NexoCategoriesTab.vue";
 import NexoAiTab from "./nexo/NexoAiTab.vue";
+import {
+  clampToMacroTone,
+  generateCategoryTones,
+  hexToHsl,
+  hslToHex,
+  normalizeHex,
+} from "@/utils/colorTones";
 
 const NEXO_TAB_STORAGE_KEY = "kadem_nexo";
 
@@ -690,6 +749,7 @@ export default {
         name: "",
         macro_category: "Geral",
         macro_color: "#999999",
+        color: "#999999",
         investment_flow_type: null,
         type: "EXPENSE",
         icon: "tag",
@@ -813,6 +873,41 @@ export default {
       return this.categoryForm.id
         ? `A categoria "${twin}" acompanha o nome e o ícone desta categoria.`
         : `Categorias de investimento são de entrada (aporte). Ao salvar, criamos também "${twin}" para os resgates.`;
+    },
+    currentCategoryToneColor() {
+      const macroColor = this.categoryForm?.macro_color || this.categoryTargetMacro?.color || "#999999";
+      if (!this.categoryForm?.color) {
+        return macroColor;
+      }
+      return clampToMacroTone(this.categoryForm.color, macroColor);
+    },
+    categoryTones() {
+      const macroColor = this.categoryForm?.macro_color || this.categoryTargetMacro?.color || "#999999";
+      return generateCategoryTones(macroColor);
+    },
+    currentToneLightness() {
+      const hex = this.currentCategoryToneColor;
+      const hsl = hexToHsl(hex);
+      return hsl.l;
+    },
+    tonePreviewTextColor() {
+      return this.currentToneLightness > 65 ? "#1e293b" : "#ffffff";
+    },
+    toneSliderTrackStyle() {
+      const macroColor = normalizeHex(this.categoryForm?.macro_color || this.categoryTargetMacro?.color || "#999999");
+      const hsl = hexToHsl(macroColor);
+      if (hsl.s < 12) {
+        return {
+          background: "linear-gradient(to right, #1e293b, #64748b, #cbd5e1, #f8fafc)",
+        };
+      }
+      const s = Math.max(25, hsl.s);
+      const dark = hslToHex(hsl.h, s, 18);
+      const mid = hslToHex(hsl.h, s, 50);
+      const light = hslToHex(hsl.h, Math.min(s, 70), 86);
+      return {
+        background: `linear-gradient(to right, ${dark}, ${mid}, ${light})`,
+      };
     },
     limits() {
       return getPlanLimits(this.user?.plan_tier || "free");
@@ -990,7 +1085,7 @@ export default {
           macro_category: macroName,
           macro_category_id: canonicalMacro?.id || category.macro_category_id,
           macro_color: canonicalMacro?.color || category.macro_color,
-          color: canonicalMacro?.color || category.color,
+          color: category.color || canonicalMacro?.color || "#999999",
           is_investment: Boolean(canonicalMacro?.is_investment ?? category.is_investment),
         });
       });
@@ -2361,7 +2456,7 @@ export default {
         macro_category: category.macro_category,
         macro_category_id: category.macro_category_id,
         category_icon: category.icon,
-        category_color: category.macro_color || category.color,
+        category_color: category.color || category.macro_color || "#999999",
       };
     },
     sortTransactionsList() {
@@ -2680,11 +2775,18 @@ export default {
     openCategoryForm(category = null, pendingSelection = null) {
       this.pendingCategorySelection = pendingSelection;
       const currentCategory = category || {};
+      const macro = this.findMacroByName(currentCategory.macro_category || "Geral");
+      const macroColor = currentCategory.macro_color || macro?.color || currentCategory.color || "#999999";
+      const initialColor = currentCategory.color
+        ? clampToMacroTone(currentCategory.color, macroColor)
+        : macroColor;
+
       this.categoryForm = {
         id: currentCategory.id || null,
         name: currentCategory.name || "",
-        macro_category: currentCategory.macro_category || "Geral",
-        macro_color: currentCategory.macro_color || currentCategory.color || "#999999",
+        macro_category: currentCategory.macro_category || (macro?.name || "Geral"),
+        macro_color: macroColor,
+        color: initialColor,
         investment_flow_type: currentCategory.investment_flow_type || null,
         type: currentCategory.type || "EXPENSE",
         icon: currentCategory.icon || "tag",
@@ -2700,11 +2802,15 @@ export default {
       return this.typeLabel(category?.type);
     },
     openCategoryFormForTransaction(transaction, suggestedName = "") {
+      const defaultMacro = this.macroCategories[0]?.name || "Geral";
+      const macro = this.findMacroByName(defaultMacro);
+      const macroColor = macro?.color || "#999999";
       this.openCategoryForm(
         {
           name: suggestedName,
-          macro_category: "Geral",
-          macro_color: "#999999",
+          macro_category: defaultMacro,
+          macro_color: macroColor,
+          color: macroColor,
           type: transaction.type || "EXPENSE",
           icon: "tag",
         },
@@ -2721,6 +2827,7 @@ export default {
           name: "",
           macro_category: group.name,
           macro_color: group.color || "#999999",
+          color: group.color || "#999999",
           type: "EXPENSE",
           icon: "tag",
         });
@@ -2737,8 +2844,42 @@ export default {
       if (macro?.color) {
         this.categoryForm.macro_color = macro?.color;
       }
+      const targetMacroColor = this.categoryForm.macro_color || macro?.color || "#999999";
+      this.categoryForm.color = clampToMacroTone(
+        this.categoryForm.color || targetMacroColor,
+        targetMacroColor,
+      );
       if (this.isCategoryFormInvestment && !this.categoryFormIsInvestmentOut) {
         this.categoryForm.type = "EXPENSE";
+      }
+    },
+    setCategoryColor(hex) {
+      const macroColor = this.categoryForm?.macro_color || "#999999";
+      this.categoryForm.color = clampToMacroTone(hex, macroColor);
+    },
+    onToneSliderChange(lightness) {
+      const macroColor = normalizeHex(this.categoryForm?.macro_color || "#999999");
+      const hsl = hexToHsl(macroColor);
+      const l = Math.max(15, Math.min(88, lightness));
+      let newHex;
+      if (hsl.s < 12) {
+        newHex = hslToHex(0, 0, l);
+      } else {
+        const s = Math.max(25, Math.min(95, hsl.s));
+        newHex = hslToHex(hsl.h, s, l);
+      }
+      this.categoryForm.color = newHex;
+    },
+    isCurrentCategoryTone(hex) {
+      const current = normalizeHex(this.currentCategoryToneColor);
+      return current === normalizeHex(hex);
+    },
+    onCategoryMacroColorInput() {
+      if (this.categoryForm.macro_color) {
+        this.categoryForm.color = clampToMacroTone(
+          this.categoryForm.color || this.categoryForm.macro_color,
+          this.categoryForm.macro_color,
+        );
       }
     },
     async saveCategoryForm() {
@@ -2754,6 +2895,8 @@ export default {
       const payload = { ...this.categoryForm };
       // null nao passa na validacao do backend; ausente significa "deixa o servidor decidir".
       if (!payload.investment_flow_type) delete payload.investment_flow_type;
+      const macroColor = payload.macro_color || "#999999";
+      payload.color = clampToMacroTone(payload.color || macroColor, macroColor);
 
       let savedCategory = null;
       if (payload.id) {
@@ -4110,10 +4253,10 @@ button:disabled {
   width: 100%;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  box-shadow: none;
+  box-shadow: none !important;
   background: var(--surface-1);
   color: var(--text-primary);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-4) !important;
   outline: none;
   transition:
     border-color var(--transition-fast),
@@ -4124,17 +4267,19 @@ button:disabled {
 .nexo-field select:focus,
 .nexo-field textarea:focus {
   border-color: var(--deep-blue);
-  box-shadow: 0 0 0 3px rgba(31, 39, 76, 0.08);
+  box-shadow: 0 0 0 3px rgba(31, 39, 76, 0.08) !important;
 }
 
 .nexo-field input,
 .nexo-field select {
-  height: 50px;
+  height: 42px !important;
+  min-height: 42px !important;
+  font-size: var(--fontsize-sx, 0.875rem);
 }
 
 .nexo-field textarea {
   min-height: 130px;
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4) !important;
   resize: vertical;
 }
 
@@ -4204,7 +4349,176 @@ button:disabled {
 }
 
 .color-field input {
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3) !important;
+}
+
+.category-tone-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-1);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.tone-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.tone-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tone-label {
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tone-sublabel {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.current-tone-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.tone-preview-icon {
+  font-size: 0.75rem;
+}
+
+.tone-preview-hex {
+  font-family: monospace;
+}
+
+.tone-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.tone-chip {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
+  padding: 0;
+}
+
+.tone-chip:hover {
+  transform: translateY(-2px) scale(1.08);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.85);
+}
+
+.tone-chip.active {
+  border-color: #ffffff;
+  transform: scale(1.15);
+  box-shadow:
+    0 0 0 2px var(--surface-1),
+    0 0 0 4px var(--color-info),
+    0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+.tone-check-icon {
+  font-size: 0.72rem;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+  color: #ffffff;
+}
+
+.tone-slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tone-slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.tone-slider-title {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.tone-range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 10px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.tone-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--color-info);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.tone-range-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.2);
+}
+
+.tone-range-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--color-info);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.tone-range-slider::-moz-range-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.2);
 }
 
 .icon-picker > div {
@@ -4215,21 +4529,43 @@ button:disabled {
 
 .icon-choice {
   height: 40px;
-  border: none;
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
-  color: var(--text-primary);
+  color: var(--text-muted);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
   transition:
     transform var(--transition-fast),
     background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
     box-shadow var(--transition-fast);
 }
 
-.icon-choice:hover,
+.icon-choice:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border-color: var(--gray-400);
+  transform: translateY(-1px);
+}
+
 .icon-choice.active {
-  background: var(--dark-yellow-2);
-  box-shadow: 0 0 0 2px rgba(31, 39, 76, 0.12);
+  background: var(--color-info);
+  border-color: var(--color-info);
+  color: #ffffff !important;
+  box-shadow: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--color-info), 0 4px 12px rgba(53, 90, 253, 0.35);
+  transform: scale(1.05);
+}
+
+.icon-choice.active:hover {
+  background: var(--color-info);
+  color: #ffffff !important;
+  border-color: var(--color-info);
+  filter: brightness(1.08);
 }
 
 .icon-choice:active {

@@ -324,7 +324,7 @@ export default {
   box-shadow: none !important;
   background: var(--surface-1);
   color: var(--text-primary);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-4) !important;
   outline: none;
   font-size: var(--fontsize-sx);
   transition:
@@ -334,12 +334,13 @@ export default {
 
 .health-field input,
 .health-field select {
-  height: 46px;
+  height: 42px !important;
+  min-height: 42px !important;
 }
 
 .health-field textarea {
   min-height: 80px;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-4) !important;
   resize: vertical;
 }
 

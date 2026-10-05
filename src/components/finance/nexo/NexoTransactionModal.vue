@@ -203,10 +203,10 @@ export default {
   width: 100%;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  box-shadow: none;
+  box-shadow: none !important;
   background: var(--surface-1);
   color: var(--text-primary);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-4) !important;
   outline: none;
   transition:
     border-color var(--transition-fast),
@@ -217,7 +217,7 @@ export default {
 .nexo-field select:focus,
 .nexo-field textarea:focus {
   border-color: var(--deep-blue);
-  box-shadow: 0 0 0 3px rgba(31, 39, 76, 0.08);
+  box-shadow: 0 0 0 3px rgba(31, 39, 76, 0.08) !important;
 }
 
 .nexo-field input,
@@ -229,7 +229,7 @@ export default {
 
 .nexo-field textarea {
   min-height: 130px;
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4) !important;
   resize: vertical;
 }
 

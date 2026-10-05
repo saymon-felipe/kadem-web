@@ -285,21 +285,52 @@ export default {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  background: var(--surface-1);
+  background: transparent;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   padding: 0 var(--space-3);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.macro-search:hover {
+  border-color: var(--gray-300);
+}
+
+.macro-search:focus-within {
+  border-color: var(--color-info);
+  box-shadow: 0 0 0 2px rgba(53, 90, 253, 0.14);
 }
 
 .macro-search input {
+  flex: 1;
+  width: 100%;
   min-width: 0;
   height: 38px;
   border: none !important;
   box-shadow: none !important;
   outline: none !important;
   padding: 0 !important;
-  background: transparent;
+  background: transparent !important;
   color: var(--text-primary);
+  font-size: var(--fontsize-sx, 0.875rem);
+}
+
+.macro-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.macro-search svg,
+.macro-search .svg-inline--fa {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color var(--transition-fast);
+}
+
+.macro-search:focus-within svg,
+.macro-search:focus-within .svg-inline--fa {
+  color: var(--color-info);
 }
 
 .macro-list {
@@ -336,7 +367,7 @@ export default {
 }
 
 .macro-create {
-  background: var(--surface-1);
+  background: transparent;
   border: 1px solid var(--glass-border);
   font-weight: 700;
 }
