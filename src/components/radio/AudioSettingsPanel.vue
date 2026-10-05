@@ -4,6 +4,7 @@
     size="xl"
     title="Ajustes de áudio"
     custom-class="audio-settings-modal"
+    backdrop-class="audio-settings-overlay"
     body-class="audio-modal-body custom-scrollbar"
     @update:model-value="$emit('update:modelValue', $event)"
   >
@@ -1119,6 +1120,12 @@ export default {
 
 .channel-end-btn:disabled {
   cursor: not-allowed;
+}
+
+/* No celular o player do Radio Flow pode estar elevado acima do modal de busca (z-index 100001); este painel abre a
+   partir dele e precisa ficar por cima. */
+:global(.audio-settings-overlay.is-mobile) {
+  z-index: 100002 !important;
 }
 
 /* Rodapé do Modal */

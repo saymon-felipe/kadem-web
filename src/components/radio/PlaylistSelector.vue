@@ -93,7 +93,8 @@ export default {
   left: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 10020;
+  /* Acima do BaseModal mobile (100000): o "+" da busca do YouTube abre este seletor por cima do modal de busca. */
+  z-index: 100010;
   background: transparent;
 }
 

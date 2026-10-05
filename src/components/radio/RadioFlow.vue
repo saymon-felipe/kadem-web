@@ -284,6 +284,7 @@
       title="Buscar Músicas"
       size="lg"
       custom-class="radio-search-modal"
+      backdrop-class="radio-search-overlay"
       body-class="radio-search-modal-body"
       @close="close_mobile_search"
     >
@@ -410,7 +411,13 @@
       />
     </Teleport>
 
-    <PlayerWrapper />
+    <!-- O modal de busca vai para o body e cobre o player da janela (outro contexto de empilhamento). No celular,
+         quando algo começa a tocar com o modal aberto, o mesmo PlayerWrapper é movido para o body, acima do modal. -->
+    <Teleport to="body" :disabled="!is_player_lifted">
+      <div ref="playerHost" class="radio-player-host" :class="{ 'is-lifted': is_player_lifted }">
+        <PlayerWrapper />
+      </div>
+    </Teleport>
     <RadioInsightsPanel v-model="show_insights" />
   </div>
 </template>
@@ -495,6 +502,8 @@ export default {
       is_searching: false,
 
       show_mobile_search_modal: false,
+      is_phone: false,
+      search_player_revealed: false,
       is_mobile_search_focused: false,
       has_searched: false,
 
@@ -616,8 +625,31 @@ export default {
       const width = this.container_width || this.containerDimensions.width;
       return width <= 1100;
     },
+
+    // O bottom-sheet do modal só existe em viewport <= 768px. O player só sobe depois que algo toca (e fica até o
+    // modal fechar, para os controles não sumirem ao pausar); com a confirmação aberta ele volta para trás,
+    // senão taparia os botões dela.
+    is_player_lifted() {
+      return (
+        this.show_mobile_search_modal &&
+        this.is_phone &&
+        this.search_player_revealed &&
+        Boolean(this.current_music) &&
+        !this.confirmationState.show
+      );
+    },
   },
   watch: {
+    show_mobile_search_modal(open) {
+      this.search_player_revealed = open && this.is_playing;
+    },
+    is_playing(playing) {
+      if (playing && this.show_mobile_search_modal) this.search_player_revealed = true;
+    },
+    is_player_lifted(lifted) {
+      if (lifted) this.$nextTick(this.observe_lifted_player);
+      else this.release_lifted_player();
+    },
     is_mobile: {
       immediate: true,
       handler(isMobile) {
@@ -1147,6 +1179,31 @@ export default {
 
       this.container_width = container.clientWidth;
     },
+    update_is_phone(event) {
+      this.is_phone = event.matches;
+    },
+    // Publica a altura que o player ocupa no rodapé para o sheet do modal (outro ramo do DOM) se encolher e não
+    // ficar escondido atrás dele.
+    observe_lifted_player() {
+      const host = this.$refs.playerHost;
+      const player = host?.firstElementChild;
+      if (!host || !player || typeof ResizeObserver === "undefined") return;
+
+      this.release_lifted_player();
+      const publish = () => {
+        const bottom_padding = parseFloat(getComputedStyle(host).paddingBottom) || 0;
+        const inset = Math.round(player.offsetHeight + bottom_padding);
+        document.documentElement.style.setProperty("--radio-lifted-player-inset", `${inset}px`);
+      };
+      this.lifted_player_observer = new ResizeObserver(publish);
+      this.lifted_player_observer.observe(player);
+      publish();
+    },
+    release_lifted_player() {
+      this.lifted_player_observer?.disconnect();
+      this.lifted_player_observer = null;
+      document.documentElement.style.removeProperty("--radio-lifted-player-inset");
+    },
     observe_container_size() {
       this.$nextTick(() => {
         const container = this.$refs.containerRef;
@@ -1168,6 +1225,11 @@ export default {
       this.is_loading_data = false;
     });
     this.observe_container_size();
+    if (window.matchMedia) {
+      this.phone_media = window.matchMedia("(max-width: 768px)");
+      this.is_phone = this.phone_media.matches;
+      this.phone_media.addEventListener("change", this.update_is_phone);
+    }
     this.fetchStorageUsage();
     document.addEventListener("mousedown", this.close_uploads_dropdown_on_outside_click);
     document.addEventListener("pointerdown", this.close_playlist_filter_on_outside_click);
@@ -1176,6 +1238,8 @@ export default {
   beforeUnmount() {
     this.playlist_tracks_request_id++;
     this.resize_observer?.disconnect();
+    this.phone_media?.removeEventListener("change", this.update_is_phone);
+    this.release_lifted_player();
     document.removeEventListener("mousedown", this.close_uploads_dropdown_on_outside_click);
     document.removeEventListener("pointerdown", this.close_playlist_filter_on_outside_click);
     document.removeEventListener("keydown", this.close_playlist_filter_on_escape);
@@ -1609,11 +1673,57 @@ export default {
   filter: brightness(0.9);
 }
 
+/* --- Player acima do modal de busca (celular) --- */
+
+/* Fora do estado elevado o wrapper não gera caixa: o player segue no fluxo da janela como antes. */
+.radio-player-host {
+  display: contents;
+}
+
+.radio-player-host.is-lifted {
+  position: fixed;
+  inset: 0;
+  z-index: 100001; /* acima do BaseModal no celular (100000) */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  padding: var(--space-3) var(--space-3) max(var(--space-3), env(safe-area-inset-bottom, 0px));
+  /* Faz o player entrar no layout compacto (@container) e prende ao viewport os overlays fixos dele (letra/vídeo).
+     O host cobre a tela inteira, então só o player recebe toque; o resto continua sendo o fundo do modal. */
+  container-type: inline-size;
+  pointer-events: none;
+}
+
+.radio-player-host.is-lifted > :deep(.player-wrapper-container) {
+  pointer-events: auto;
+  animation: radio-player-lift 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Sobe de baixo da tela para a posição final. */
+@keyframes radio-player-lift {
+  from {
+    opacity: 0;
+    transform: translateY(calc(100% + var(--space-3)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radio-player-host.is-lifted > :deep(.player-wrapper-container) {
+    animation: none;
+  }
+}
+
+/* O sheet termina acima do player elevado (altura publicada por observe_lifted_player). */
+:global(.radio-search-overlay.is-mobile) {
+  padding-bottom: var(--radio-lifted-player-inset, 0px) !important;
+}
+
 /* --- Mobile Search Modal Styles --- */
 
 :global(.radio-search-modal.is-bottom-sheet) {
-  height: min(85dvh, calc(100dvh - 76px)) !important;
-  max-height: calc(100dvh - 76px) !important;
+  height: min(85dvh, calc(100dvh - 76px - var(--radio-lifted-player-inset, 0px))) !important;
+  max-height: calc(100dvh - 76px - var(--radio-lifted-player-inset, 0px)) !important;
 }
 
 :global(.radio-search-modal:not(.is-bottom-sheet)) {
