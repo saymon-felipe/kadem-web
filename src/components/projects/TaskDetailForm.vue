@@ -1547,12 +1547,13 @@ export default {
 
 .attachment-main {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7rem;
+  gap: 3px var(--space-3);
 }
 
 .attachment-name {
+  grid-column: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1567,18 +1568,22 @@ export default {
   font-weight: 700;
 }
 
-/* O status divide a linha do tamanho do arquivo (tamanho à esquerda, status à direita) em vez de ter
-   coluna própria na grade: assim a largura do nome e a altura do cartão são as mesmas com ou sem
-   status, e o texto que muda a cada percentual não empurra nada. */
+/* A coluna do status fica reservada mesmo sem envio, mantendo a largura do nome estável.
+   O indicador ocupa as duas linhas para ficar centralizado com o ícone e os botões. */
 .attachment-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  display: contents;
+}
+
+.attachment-size {
+  grid-column: 1;
+  grid-row: 2;
 }
 
 .attachment-status {
-  flex: none;
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: center;
+  justify-self: end;
   display: inline-flex;
   align-items: center;
   gap: 6px;
