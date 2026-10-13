@@ -521,13 +521,13 @@ async function _handleKanbanTask(task) {
       serverId = task.payload.id;
       if (!serverId && task.payload.local_id) {
         const localAttachment = await kanbanRepository.get_attachment_by_local_id(task.payload.local_id);
-        serverId = localAttachment.id;
+        serverId = localAttachment?.id;
       }
       if (serverId) {
         try {
           await api.delete(`/kanban/attachments/${serverId}`);
         } catch (e) {
-          if (e.response.status !== 404) throw e;
+          if (e.response?.status !== 404) throw e;
         }
       }
       break;

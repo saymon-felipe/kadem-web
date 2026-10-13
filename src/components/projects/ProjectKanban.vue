@@ -66,6 +66,7 @@
         :task="selected_task"
         :project-name="project.name"
         :members="project_members"
+        :deleting-attachment-ids="deleting_attachment_ids"
         @close="is_modal_open = false"
         @save-task="handle_save_task"
         @open-task="open_task_modal"
@@ -150,6 +151,7 @@ export default {
       show_confirmation: false,
       item_to_delete: null,
       delete_type: null,
+      deleting_attachment_ids: [],
       board_loading: true,
       board_load_token: 0,
     };
@@ -373,14 +375,26 @@ export default {
         }
       } else if (this.delete_type === "attachment") {
         const { task, attachment } = this.item_to_delete;
-        await this.deleteTaskAttachment(task, attachment);
-
         const form = this.$refs.taskDetailForm;
-        if (form?.editable_task) {
-          form.editable_task.attachments = (form.editable_task.attachments || []).filter(
-            (item) => item.local_id !== attachment.local_id
-          );
+        if (this.deleting_attachment_ids.includes(attachment.local_id)) return;
+        this.deleting_attachment_ids.push(attachment.local_id);
+        if (form) form.attachment_error = "";
+        this.close_confirmation();
+        try {
+          await this.deleteTaskAttachment(task, attachment);
+          if (form?.editable_task?.local_id === task.local_id) {
+            form.editable_task.attachments = (form.editable_task.attachments || []).filter(
+              (item) => item.local_id !== attachment.local_id
+            );
+          }
+        } catch {
+          const message = "Não foi possível excluir este anexo. Tente novamente.";
+          if (form?.editable_task?.local_id === task.local_id) form.attachment_error = message;
+          useAppStore().showToast({ message, type: "error" });
+        } finally {
+          this.deleting_attachment_ids = this.deleting_attachment_ids.filter(id => id !== attachment.local_id);
         }
+        return;
       }
       this.close_confirmation();
     },

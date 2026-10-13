@@ -139,7 +139,10 @@
 
           <div v-if="editable_task.attachments?.length || attaching_file" class="attachment-list custom-scrollbar">
             <div v-for="attachment in editable_task.attachments" :key="attachment.local_id || attachment.id"
-              class="attachment-item" role="button" tabindex="0" @click="open_attachment(attachment)"
+              class="attachment-item" :class="{ 'is-deleting': is_attachment_deleting(attachment) }"
+              role="button" :tabindex="is_attachment_deleting(attachment) ? -1 : 0"
+              :aria-busy="is_attachment_deleting(attachment)" :aria-disabled="is_attachment_deleting(attachment)"
+              @click="open_attachment(attachment)"
               @keydown.enter.prevent="open_attachment(attachment)">
               <div class="attachment-icon">
                 <font-awesome-icon :icon="attachment_icon(attachment)" />
@@ -148,7 +151,8 @@
                 <span class="attachment-name">{{ attachment.name }}</span>
                 <div class="attachment-meta">
                   <span class="attachment-size">{{ format_file_size(attachment.size_bytes) }}</span>
-                  <span v-if="attachment.upload_status !== 'synced'" class="attachment-status">
+                  <span v-if="is_attachment_deleting(attachment) || attachment.upload_status !== 'synced'"
+                    class="attachment-status" role="status">
                     <font-awesome-icon icon="spinner" spin />
                     {{ attachment_status_label(attachment) }}
                   </span>
@@ -161,10 +165,15 @@
               </div>
               <div class="attachment-actions">
                 <button type="button" class="btn-attachment-action" @click.stop="download_attachment(attachment)"
-                  title="Baixar anexo">
-                  <font-awesome-icon icon="download" />
+                  :disabled="is_attachment_deleting(attachment) || is_attachment_downloading(attachment)"
+                  :aria-busy="is_attachment_downloading(attachment)"
+                  :aria-label="is_attachment_downloading(attachment) ? 'Baixando anexo' : 'Baixar anexo'"
+                  :title="is_attachment_downloading(attachment) ? 'Baixando anexo…' : 'Baixar anexo'">
+                  <font-awesome-icon v-if="is_attachment_downloading(attachment)" icon="spinner" spin />
+                  <font-awesome-icon v-else icon="download" />
                 </button>
                 <button type="button" class="btn-attachment-action btn-attachment-delete"
+                  :disabled="is_attachment_deleting(attachment)"
                   @click.stop="remove_attachment(attachment)" title="Excluir anexo">
                   <font-awesome-icon icon="trash-can" />
                 </button>
@@ -292,8 +301,13 @@
               <font-awesome-icon :icon="attachment_copied ? 'check' : 'copy'" />
             </button>
             <button v-if="preview_attachment" type="button" class="preview-action"
-              @click="download_attachment(preview_attachment)" title="Baixar">
-              <font-awesome-icon icon="download" />
+              @click="download_attachment(preview_attachment)"
+              :disabled="is_attachment_deleting(preview_attachment) || is_attachment_downloading(preview_attachment)"
+              :aria-busy="is_attachment_downloading(preview_attachment)"
+              :aria-label="is_attachment_downloading(preview_attachment) ? 'Baixando anexo' : 'Baixar anexo'"
+              :title="is_attachment_downloading(preview_attachment) ? 'Baixando anexo…' : 'Baixar'">
+              <font-awesome-icon v-if="is_attachment_downloading(preview_attachment)" icon="spinner" spin />
+              <font-awesome-icon v-else icon="download" />
             </button>
             <button type="button" class="preview-action" @click="close_attachment_preview" title="Fechar">
               <font-awesome-icon icon="xmark" />
@@ -342,6 +356,7 @@ export default {
     task: { type: Object, required: true },
     projectName: { type: String, default: "Projeto" },
     members: { type: Array, default: () => [] },
+    deletingAttachmentIds: { type: Array, default: () => [] },
   },
   emits: ["close", "save-task", "delete", "delete-comment", "delete-attachment", "open-task"],
 
@@ -373,6 +388,7 @@ export default {
       size_options: ["P - Pequeno", "M - M\u00e9dio", "G - Grande"],
       selected_responsible_wrapper: null,
       attachment_error: "",
+      downloading_attachment_ids: [],
       // Arquivo recém escolhido que ainda não foi gravado localmente (vira linha real em seguida).
       attaching_file: null,
       preview_attachment: null,
@@ -523,6 +539,7 @@ export default {
       "deleteTaskComment",
       "addTaskAttachment",
       "refreshTaskAttachment",
+      "getTaskAttachmentBlob",
     ]),
 
     get_clean_task_data(task) {
@@ -535,7 +552,8 @@ export default {
     },
 
     snapshot_task() {
-      this.editable_task = JSON.parse(JSON.stringify(this.task));
+      this.editable_task = JSON.parse(JSON.stringify({ ...this.task, attachments: undefined }));
+      this.editable_task.attachments = (this.task.attachments || []).map(attachment => ({ ...attachment }));
 
       if (!this.editable_task.comments) {
         this.editable_task.comments = [];
@@ -744,6 +762,7 @@ export default {
     },
 
     attachment_status_label(attachment) {
+      if (this.is_attachment_deleting(attachment)) return "Excluindo…";
       const upload = this.attachment_uploads[attachment.local_id];
       if (!upload) return "Sincronizando";
       return upload.processing ? "Finalizando" : `Enviando ${upload.percent}%`;
@@ -763,7 +782,16 @@ export default {
 
     // A confirmação e a exclusão ficam no ProjectKanban (mesmo caminho de comentário e tarefa).
     remove_attachment(attachment) {
+      if (this.is_attachment_deleting(attachment)) return;
       this.$emit("delete-attachment", { task: this.editable_task, attachment });
+    },
+
+    is_attachment_deleting(attachment) {
+      return this.deletingAttachmentIds.includes(attachment.local_id);
+    },
+
+    is_attachment_downloading(attachment) {
+      return this.downloading_attachment_ids.includes(attachment.local_id ?? attachment.id);
     },
 
     get_attachment_download_name(attachment) {
@@ -782,29 +810,19 @@ export default {
     },
 
     async download_attachment(attachment) {
-      if (!attachment) return;
+      if (!attachment || this.is_attachment_deleting(attachment) || this.is_attachment_downloading(attachment)) return;
 
       this.attachment_error = "";
+      const attachment_id = attachment.local_id ?? attachment.id;
+      this.downloading_attachment_ids.push(attachment_id);
 
       let download_url = "";
       let should_revoke_url = false;
 
       try {
-        if (attachment.blob) {
-          download_url = URL.createObjectURL(attachment.blob);
-          should_revoke_url = true;
-        } else if (attachment.url) {
-          const response = await fetch(attachment.url);
-          if (!response.ok) {
-            throw new Error("Falha ao baixar o arquivo.");
-          }
-
-          const blob = await response.blob();
-          download_url = URL.createObjectURL(blob);
-          should_revoke_url = true;
-        } else {
-          throw new Error("Arquivo indisponivel para download.");
-        }
+        const blob = await this.getTaskAttachmentBlob(attachment);
+        download_url = URL.createObjectURL(blob);
+        should_revoke_url = true;
 
         this.trigger_browser_download(
           download_url,
@@ -813,8 +831,9 @@ export default {
       } catch (error) {
         console.error("Erro ao baixar anexo:", error);
         this.attachment_error =
-          error?.message || "Nao foi possivel baixar este arquivo.";
+          "Não foi possível baixar este arquivo. Verifique sua conexão e tente novamente.";
       } finally {
+        this.downloading_attachment_ids = this.downloading_attachment_ids.filter(id => id !== attachment_id);
         if (should_revoke_url && download_url) {
           window.setTimeout(() => URL.revokeObjectURL(download_url), 1000);
         }
@@ -847,6 +866,7 @@ export default {
     },
 
     async open_attachment(attachment) {
+      if (this.is_attachment_deleting(attachment)) return;
       this.close_attachment_preview();
       this.preview_attachment = attachment;
       this.preview_kind = this.get_attachment_kind(attachment);
@@ -1533,6 +1553,23 @@ export default {
 .attachment-item:hover {
   border-color: var(--color-info);
   background: var(--surface-3);
+}
+
+.attachment-item.is-deleting {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.btn-attachment-action:disabled,
+.preview-action:disabled {
+  cursor: progress;
+  opacity: 0.5;
+}
+
+.btn-attachment-action[aria-busy="true"],
+.preview-action[aria-busy="true"] {
+  color: var(--color-info);
+  opacity: 1;
 }
 
 .attachment-icon {

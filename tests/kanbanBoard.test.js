@@ -44,6 +44,136 @@ const createViteServer = () =>
 
 const PROJECT_ID = 1;
 
+test('download indica carregamento por anexo, ignora duplicatas e libera o botão após sucesso ou erro', { timeout: 30000 }, () => withHierarchyBoard(async (_board, server) => {
+  const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
+  const previousWindow = globalThis.window;
+  const pending = new Map();
+  const downloads = [];
+  const context = {
+    downloading_attachment_ids: [], deletingAttachmentIds: [], attachment_error: '',
+    is_attachment_downloading: Form.methods.is_attachment_downloading,
+    is_attachment_deleting: Form.methods.is_attachment_deleting,
+    get_attachment_download_name: Form.methods.get_attachment_download_name,
+    getTaskAttachmentBlob: attachment => new Promise((resolve, reject) => pending.set(attachment.local_id, { resolve, reject })),
+    trigger_browser_download: (_url, name) => downloads.push(name),
+  };
+  globalThis.window = { setTimeout: callback => callback() };
+  const first = { local_id: 501, name: 'primeiro.txt' };
+  const second = { local_id: 502, name: 'segundo.txt' };
+  try {
+    const firstDownload = Form.methods.download_attachment.call(context, first);
+    assert.equal(context.is_attachment_downloading(first), true);
+    assert.equal(context.is_attachment_downloading(second), false);
+    const firstRequest = pending.get(501);
+    await Form.methods.download_attachment.call(context, first);
+    assert.equal(pending.get(501), firstRequest, 'Um segundo clique não inicia outro pedido.');
+    const secondDownload = Form.methods.download_attachment.call(context, second);
+    firstRequest.resolve(new Blob(['primeiro']));
+    await firstDownload;
+    assert.deepEqual(downloads, ['primeiro.txt']);
+    assert.equal(context.is_attachment_downloading(first), false);
+    assert.equal(context.is_attachment_downloading(second), true);
+    pending.get(502).reject(new Error('Falha simulada de rede'));
+    await secondDownload;
+    assert.equal(context.is_attachment_downloading(second), false);
+    assert.match(context.attachment_error, /Não foi possível baixar/);
+    assert.deepEqual(context.downloading_attachment_ids, []);
+  } finally { globalThis.window = previousWindow; }
+}));
+
+test('excluir um anexo preserva o outro e um pull não restaura a exclusão pendente', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, kanbanRepository: repo, db }) => {
+  const first = await repo.add_attachment({ id: 501, task_local_id: task.local_id, project_id: PROJECT_ID, name: 'primeiro.txt', blob: new Blob(['primeiro']), upload_status: 'synced' });
+  const second = await repo.add_attachment({ id: 502, task_local_id: task.local_id, project_id: PROJECT_ID, name: 'segundo.txt', blob: new Blob(['segundo']), upload_status: 'synced' });
+  await store.loadBoardFromLocal(PROJECT_ID);
+  await store.deleteTaskAttachment(task, first);
+  await db.syncQueue.toCollection().modify({ status: 'RETRY', next_attempt_at: Date.now() + 60000 });
+  await repo.mergeServerData(PROJECT_ID, [{ id: 11, title: 'Coluna', type: 'TODO' }], [{ id: task.id, column_id: 11, attachments: [first, second] }]);
+  const remaining = await db.kanban_task_attachments.toArray();
+  assert.equal(remaining.length, 1);
+  assert.equal(remaining[0].id, 502);
+  assert.equal(await (await store.getTaskAttachmentBlob(remaining[0])).text(), 'segundo');
+}));
+
+test('falha ao persistir a exclusão mantém os anexos e a fila intactos', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, kanbanRepository: repo, syncQueueRepository: queue, db }) => {
+  const attachment = await repo.add_attachment({ id: 501, task_local_id: task.local_id, project_id: PROJECT_ID, blob: new Blob(['preservado']) });
+  await store.loadBoardFromLocal(PROJECT_ID);
+  const oldAdd = queue.addSyncQueueTask;
+  try {
+    queue.addSyncQueueTask = async () => { throw new Error('Armazenamento cheio'); };
+    await assert.rejects(store.deleteTaskAttachment(task, attachment), /Armazenamento cheio/);
+    assert.ok(await repo.get_attachment_by_local_id(attachment.local_id));
+    assert.equal(store.getTasks(task.column_id)[0].attachments.length, 1);
+    assert.equal(await db.syncQueue.count(), 0);
+  } finally { queue.addSyncQueueTask = oldAdd; }
+}));
+
+test('confirmação mostra exclusão imediatamente, bloqueia duplicata e preserva o outro item', { timeout: 30000 }, () => withHierarchyBoard(async (_board, server) => {
+  const { default: Board } = await server.ssrLoadModule('/src/components/projects/ProjectKanban.vue');
+  const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
+  let finish;
+  let calls = 0;
+  const attachment = { local_id: 501, upload_status: 'synced' };
+  const task = { local_id: 101, attachments: [attachment, { local_id: 502 }] };
+  const form = { editable_task: task, attachment_error: 'Erro anterior' };
+  const context = {
+    item_to_delete: { task, attachment }, delete_type: 'attachment', show_confirmation: true,
+    deleting_attachment_ids: [], $refs: { taskDetailForm: form },
+    close_confirmation: Board.methods.close_confirmation,
+    deleteTaskAttachment: () => { calls++; return new Promise(resolve => { finish = resolve; }); },
+  };
+  const deletion = Board.methods.handle_confirm_delete.call(context);
+  assert.deepEqual(context.deleting_attachment_ids, [501]);
+  assert.equal(context.show_confirmation, false);
+  assert.equal(form.attachment_error, '');
+  const status = { deletingAttachmentIds: context.deleting_attachment_ids, attachment_uploads: {}, is_attachment_deleting: Form.methods.is_attachment_deleting };
+  assert.equal(Form.methods.attachment_status_label.call(status, attachment), 'Excluindo…');
+  await Board.methods.handle_confirm_delete.call(context);
+  assert.equal(calls, 1);
+  finish();
+  await deletion;
+  assert.deepEqual(context.deleting_attachment_ids, []);
+  assert.deepEqual(form.editable_task.attachments, [{ local_id: 502 }]);
+}));
+
+test('download remoto usa a API do anexo restante; upload e snapshot preservam Blob offline', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, kanbanRepository: repo }, server) => {
+  const { api } = await server.ssrLoadModule('/src/plugins/api.js');
+  const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
+  const attachment = await repo.add_attachment({ task_local_id: task.local_id, project_id: PROJECT_ID, name: 'arquivo.txt', blob: new Blob(['offline']) });
+  await repo.setServerDataForAttachment(attachment.local_id, { id: 502, task_id: task.id, url: 'https://storage.invalid/arquivo.txt' });
+  const saved = await repo.get_attachment_by_local_id(attachment.local_id);
+  const form = { task: { ...task, attachments: [saved] }, sync_responsible_wrapper() {}, apply_responsible_change() {}, get_clean_task_data: Form.methods.get_clean_task_data };
+  Form.methods.snapshot_task.call(form);
+  assert.equal(await form.editable_task.attachments[0].blob.text(), 'offline');
+  assert.equal(await (await store.getTaskAttachmentBlob(saved)).text(), 'offline');
+  await repo.update_attachment(saved.local_id, { blob: null });
+  const oldGet = api.get;
+  try {
+    api.get = async (url, options) => {
+      assert.equal(url, '/kanban/attachments/502/download');
+      assert.equal(options.responseType, 'blob');
+      return { data: new Blob(['remoto']) };
+    };
+    assert.equal(await (await store.getTaskAttachmentBlob(saved)).text(), 'remoto');
+  } finally { api.get = oldGet; }
+}));
+
+test('excluir anexo criado offline e reconectar não tenta enviar ou baixar o arquivo removido', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, db }, server) => {
+  const attachment = await store.addTaskAttachment(task, new Blob(['temporário']));
+  await store.deleteTaskAttachment(task, attachment);
+  const { api } = await server.ssrLoadModule('/src/plugins/api.js');
+  const { syncService } = await server.ssrLoadModule('/src/services/syncService.js');
+  const { useUtilsStore } = await server.ssrLoadModule('/src/stores/utils.js');
+  const utils = useUtilsStore();
+  api.post = async () => { throw new Error('Não deveria enviar um anexo excluído'); };
+  api.delete = async () => { throw new Error('Não há ID remoto para excluir'); };
+  api.get = async () => ({ data: { changes: [], next_cursor: 0, has_more: false } });
+  utils.is_network_online = true;
+  utils.is_kadem_api_available = true;
+  await syncService.processSyncQueue();
+  assert.equal(await db.kanban_task_attachments.count(), 0);
+  assert.equal(await db.syncQueue.count(), 0);
+}));
+
 test('TODO → Em andamento atribui Qualquer ao usuário conectado por arrasto e ação de mover', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB, kanbanRepository: repo, syncQueueRepository: queue, db }, server) => {
   await store.updateColumn({ local_id: columnB.local_id, type: 'IN_PROGRESS' });
   for (const move of [
