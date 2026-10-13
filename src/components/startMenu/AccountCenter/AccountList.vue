@@ -275,7 +275,7 @@ export default {
 
 .credential-field input {
   border: none;
-  background: none;
+  background: transparent;
   box-shadow: none;
   padding: 0;
   height: auto;
@@ -286,6 +286,16 @@ export default {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+[data-theme="dark"] .credential-field input {
+  background: transparent;
+  box-shadow: none;
+}
+
+.credential-field input:focus,
+.credential-field input:focus-visible {
+  outline: none;
 }
 
 .account-actions {
