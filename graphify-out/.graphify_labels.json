@@ -155,6 +155,7 @@
   "153": "TrackReaction.vue",
   "154": "release_lifted_player",
   "155": "fetch_search_results",
+  "156": "baseModalHeight.test.js",
   "158": "ContextMenu.vue",
   "159": "fake-indexeddb",
   "160": "lodash.isequal",

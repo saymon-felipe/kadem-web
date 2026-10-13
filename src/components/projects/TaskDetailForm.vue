@@ -302,7 +302,8 @@
         </header>
       </template>
 
-      <div class="attachment-preview-body">
+      <div class="attachment-preview-body"
+        :style="{ height: `${Math.min(600, Math.max(120, overlay_height - 180))}px` }">
         <img v-if="preview_kind === 'image'" :src="preview_url" :alt="preview_attachment?.name" />
         <video v-else-if="preview_kind === 'video'" :src="preview_url" controls></video>
         <iframe v-else-if="preview_kind === 'html'" :src="preview_url" sandbox></iframe>
@@ -1935,6 +1936,7 @@ export default {
 
 .attachment-preview-header {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -1966,7 +1968,10 @@ export default {
 
 .attachment-preview-body {
   min-height: 0;
+  flex-shrink: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   place-items: center;
   background: var(--surface-2);
 }

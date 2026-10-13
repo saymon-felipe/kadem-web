@@ -228,10 +228,10 @@ export default {
       const screenH = this.overlay_height;
       const maxH = Math.max(0, screenH - (this.overlay_scoped ? 24 : 76));
 
-      let nonBodyHeight = 0;
-      if (this.$refs.dragBarRef) nonBodyHeight += this.$refs.dragBarRef.offsetHeight;
-      if (this.$refs.headerRef) nonBodyHeight += this.$refs.headerRef.offsetHeight;
-      if (this.$refs.footerRef) nonBodyHeight += this.$refs.footerRef.offsetHeight;
+      // Include custom header slots, which do not have the default headerRef.
+      const nonBodyHeight = Array.from(card.children)
+        .filter((child) => child !== body)
+        .reduce((total, child) => total + child.offsetHeight, 0);
 
       const activeTabPanel = body.querySelector(".tab-panel:not([style*='display: none'])");
       let bodyContentHeight = 0;
