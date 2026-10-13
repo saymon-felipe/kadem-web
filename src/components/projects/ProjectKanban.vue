@@ -59,7 +59,7 @@
       </button>
     </div>
 
-    <SideModal v-model="is_modal_open" variant="floating" @close="is_modal_open = false">
+    <SideModal ref="taskSideModal" v-model="is_modal_open" variant="floating" @close="is_modal_open = false">
       <TaskDetailForm
         v-if="selected_task"
         :key="selected_task.local_id"
@@ -67,6 +67,7 @@
         :project-name="project.name"
         :members="project_members"
         :deleting-attachment-ids="deleting_attachment_ids"
+        :can-paste-attachment="can_paste_attachment"
         @close="is_modal_open = false"
         @save-task="handle_save_task"
         @open-task="open_task_modal"
@@ -95,6 +96,7 @@ import { useKanbanStore } from "@/stores/kanban";
 import { useWindowStore } from "@/stores/windows";
 import { useAuthStore } from "@/stores/auth";
 import { useAppStore } from "@/stores/app";
+import { isTopModal } from "@/utils/modalHistory";
 
 import KanbanColumn from "./KanbanColumn.vue";
 import KanbanBoardSkeleton from "./KanbanBoardSkeleton.vue";
@@ -261,6 +263,9 @@ export default {
     },
   },
   methods: {
+    can_paste_attachment() {
+      return this.is_modal_open && isTopModal(this.$refs.taskSideModal?.unregisterHistory);
+    },
     ...mapActions(useKanbanStore, [
       "loadBoardFromLocal",
       "createColumn",

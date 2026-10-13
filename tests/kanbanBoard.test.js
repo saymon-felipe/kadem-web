@@ -44,6 +44,108 @@ const createViteServer = () =>
 
 const PROJECT_ID = 1;
 
+const clipboardFormContext = (Form, overrides = {}) => ({
+  ...Form.data(), active_tab: 'attachments', overlay_active: true, canPasteAttachment: () => true,
+  clear_pasted_attachment: Form.methods.clear_pasted_attachment,
+  upload_attachment_file: Form.methods.upload_attachment_file,
+  upsert_attachment_row: Form.methods.upsert_attachment_row,
+  ...overrides,
+});
+
+test('clipboard: colar imagem abre prévia sem enviar e cancelar libera a URL', { timeout: 30000 }, () => withHierarchyBoard(async (_board, server) => {
+  const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
+  const file = new File(['imagem'], 'captura.png', { type: 'image/png' });
+  let prevented = false;
+  let uploads = 0;
+  const context = clipboardFormContext(Form, { addTaskAttachment: () => { uploads++; } });
+  const event = {
+    clipboardData: { items: [{ kind: 'string', type: 'text/plain' }, { kind: 'file', type: 'image/png', getAsFile: () => file }] },
+    preventDefault() { prevented = true; },
+  };
+  Form.methods.handle_attachment_paste.call(context, event);
+  assert.equal(prevented, true);
+  assert.equal(context.pasted_attachment_file.name, 'captura.png');
+  assert.equal(context.pasted_attachment_file.type, 'image/png');
+  const previewUrl = context.pasted_attachment_url;
+  assert.ok(previewUrl.startsWith('blob:'));
+  assert.equal(await (await fetch(previewUrl)).text(), 'imagem');
+  assert.equal(uploads, 0);
+  Form.methods.handle_attachment_paste.call(context, event);
+  assert.equal(context.pasted_attachment_url, previewUrl, 'Uma segunda colagem não substitui a confirmação aberta.');
+  context.clear_pasted_attachment();
+  assert.equal(context.pasted_attachment_file, null);
+  assert.equal(context.pasted_attachment_url, '');
+  await assert.rejects(fetch(previewUrl));
+  assert.equal(uploads, 0);
+}));
+
+test('clipboard: outras abas, janelas sem foco, campos editáveis e texto não são interceptados', { timeout: 30000 }, () => withHierarchyBoard(async (_board, server) => {
+  const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
+  const file = new File(['imagem'], 'captura.png', { type: 'image/png' });
+  for (const overrides of [
+    { active_tab: 'details' }, { active_tab: 'comments' }, { overlay_active: false },
+    { overlayScope: { interactive: false } }, { windowNavigation: { active: false } },
+    { canPasteAttachment: () => false }, { attaching_file: {} }, { preview_attachment: {} },
+  ]) {
+    const context = clipboardFormContext(Form, overrides);
+    Form.methods.handle_attachment_paste.call(context, {
+      clipboardData: { files: [file] }, preventDefault() { assert.fail('Não deveria interceptar a colagem'); },
+    });
+    assert.equal(context.pasted_attachment_file, null);
+  }
+  for (const event of [
+    { target: { closest: () => ({ tagName: 'TEXTAREA' }) }, clipboardData: { files: [file] } },
+    { clipboardData: { items: [{ kind: 'string', type: 'text/plain' }] } },
+    { clipboardData: { files: [new File(['pdf'], 'documento.pdf', { type: 'application/pdf' })] } },
+    { defaultPrevented: true, clipboardData: { files: [file] } },
+  ]) {
+    const context = clipboardFormContext(Form);
+    Form.methods.handle_attachment_paste.call(context, { ...event, preventDefault() { assert.fail('Não deveria interceptar a colagem'); } });
+    assert.equal(context.pasted_attachment_file, null);
+  }
+}));
+
+test('clipboard: confirmar usa o upload existente e grava a imagem offline somente uma vez', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, db }, server) => {
+  const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
+  const context = clipboardFormContext(Form, { editable_task: { ...task, attachments: [] }, addTaskAttachment: store.addTaskAttachment.bind(store) });
+  Form.methods.handle_attachment_paste.call(context, {
+    clipboardData: { files: [new Blob(['imagem offline'], { type: 'image/jpeg' })] }, preventDefault() {},
+  });
+  assert.match(context.pasted_attachment_file.name, /^imagem-colada-\d+\.jpg$/);
+  assert.equal(await db.kanban_task_attachments.count(), 0);
+  await Form.methods.confirm_pasted_attachment.call(context);
+  await Form.methods.confirm_pasted_attachment.call(context);
+  assert.equal(context.pasted_attachment_file, null);
+  assert.equal(context.attaching_file, null);
+  const [saved] = await db.kanban_task_attachments.toArray();
+  assert.equal(saved.task_local_id, task.local_id);
+  assert.equal(saved.mime_type, 'image/jpeg');
+  assert.equal(await saved.blob.text(), 'imagem offline');
+  assert.equal(context.editable_task.attachments.length, 1);
+  assert.equal((await db.syncQueue.toArray()).filter(operation => operation.type === 'ADD_TASK_ATTACHMENT').length, 1);
+  const input = { files: [new File(['arquivo escolhido'], 'selecionado.png', { type: 'image/png' })], value: 'selecionado.png' };
+  await Form.methods.handle_attachment_selected.call(context, { target: input });
+  assert.equal(input.value, '');
+  assert.equal(context.editable_task.attachments.length, 2, 'O seletor de arquivos continua usando o mesmo fluxo.');
+  assert.equal((await db.kanban_task_attachments.toArray())[1].name, 'selecionado.png');
+}));
+
+test('clipboard: só a tarefa cujo modal está no topo aceita a colagem', { timeout: 30000 }, () => withHierarchyBoard(async (_board, server) => {
+  const { default: Board } = await server.ssrLoadModule('/src/components/projects/ProjectKanban.vue');
+  const { registerModal } = await server.ssrLoadModule('/src/utils/modalHistory.js');
+  const taskModal = registerModal(() => {}, { handleHistory: false });
+  let confirmation;
+  try {
+    const context = { is_modal_open: true, $refs: { taskSideModal: { unregisterHistory: taskModal } } };
+    assert.equal(Board.methods.can_paste_attachment.call(context), true);
+    confirmation = registerModal(() => {}, { handleHistory: false });
+    assert.equal(Board.methods.can_paste_attachment.call(context), false);
+    confirmation();
+    context.is_modal_open = false;
+    assert.equal(Board.methods.can_paste_attachment.call(context), false);
+  } finally { confirmation?.(); taskModal(); }
+}));
+
 test('download indica carregamento por anexo, ignora duplicatas e libera o botão após sucesso ou erro', { timeout: 30000 }, () => withHierarchyBoard(async (_board, server) => {
   const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
   const previousWindow = globalThis.window;

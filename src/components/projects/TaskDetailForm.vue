@@ -7,15 +7,12 @@
             <span class="project-name">{{ projectName }}</span>
             <template v-if="parent_task">
               <font-awesome-icon icon="chevron-right" class="breadcrumb-sep" />
-              <button
-                type="button"
-                class="breadcrumb-parent-btn"
-                @click="open_related_task(parent_task)"
-                :title="`Voltar para tarefa pai #${parent_task.id || parent_task.local_id}`"
-              >
+              <button type="button" class="breadcrumb-parent-btn" @click="open_related_task(parent_task)"
+                :title="`Voltar para tarefa pai #${parent_task.id || parent_task.local_id}`">
                 <font-awesome-icon icon="arrow-left" class="breadcrumb-back-icon" />
                 <span class="breadcrumb-parent-id">#{{ parent_task.id || parent_task.local_id }}</span>
-                <span class="breadcrumb-parent-desc">{{ parent_task.description || parent_task.title || 'Tarefa pai' }}</span>
+                <span class="breadcrumb-parent-desc">{{ parent_task.description || parent_task.title || 'Tarefa pai'
+                  }}</span>
               </button>
             </template>
           </div>
@@ -113,8 +110,7 @@
           </footer>
         </form>
 
-        <section
-          :class="['tab-panel subtasks-panel custom-scrollbar', { 'is-active': active_tab === 'subtasks' }]"
+        <section :class="['tab-panel subtasks-panel custom-scrollbar', { 'is-active': active_tab === 'subtasks' }]"
           :aria-hidden="active_tab !== 'subtasks'">
           <TaskRelations :task="task" :members="members" @open-task="open_related_task" />
         </section>
@@ -139,10 +135,9 @@
 
           <div v-if="editable_task.attachments?.length || attaching_file" class="attachment-list custom-scrollbar">
             <div v-for="attachment in editable_task.attachments" :key="attachment.local_id || attachment.id"
-              class="attachment-item" :class="{ 'is-deleting': is_attachment_deleting(attachment) }"
-              role="button" :tabindex="is_attachment_deleting(attachment) ? -1 : 0"
-              :aria-busy="is_attachment_deleting(attachment)" :aria-disabled="is_attachment_deleting(attachment)"
-              @click="open_attachment(attachment)"
+              class="attachment-item" :class="{ 'is-deleting': is_attachment_deleting(attachment) }" role="button"
+              :tabindex="is_attachment_deleting(attachment) ? -1 : 0" :aria-busy="is_attachment_deleting(attachment)"
+              :aria-disabled="is_attachment_deleting(attachment)" @click="open_attachment(attachment)"
               @keydown.enter.prevent="open_attachment(attachment)">
               <div class="attachment-icon">
                 <font-awesome-icon :icon="attachment_icon(attachment)" />
@@ -173,8 +168,8 @@
                   <font-awesome-icon v-else icon="download" />
                 </button>
                 <button type="button" class="btn-attachment-action btn-attachment-delete"
-                  :disabled="is_attachment_deleting(attachment)"
-                  @click.stop="remove_attachment(attachment)" title="Excluir anexo">
+                  :disabled="is_attachment_deleting(attachment)" @click.stop="remove_attachment(attachment)"
+                  title="Excluir anexo">
                   <font-awesome-icon icon="trash-can" />
                 </button>
               </div>
@@ -291,6 +286,26 @@
       </div>
     </main>
 
+    <BaseModal :model-value="Boolean(pasted_attachment_file)" title="Anexar imagem" size="lg"
+      @close="clear_pasted_attachment">
+      <div class="pasted-attachment-content">
+        <p class="pasted-attachment-question">Deseja anexar esta imagem à tarefa?</p>
+        <img v-if="pasted_attachment_url" class="pasted-attachment-image" :src="pasted_attachment_url"
+          alt="Prévia da imagem colada" />
+        <p class="pasted-attachment-meta">
+          <strong>{{ pasted_attachment_file?.name }}</strong>
+          <span>{{ format_file_size(pasted_attachment_file?.size) }}</span>
+        </p>
+        <div class="pasted-attachment-actions">
+          <button type="button" class="pasted-attachment-action" @click="clear_pasted_attachment">Cancelar</button>
+          <button type="button" class="pasted-attachment-action pasted-attachment-confirm"
+            :disabled="Boolean(attaching_file)" @click="confirm_pasted_attachment">
+            <font-awesome-icon icon="cloud-arrow-up" /> Anexar imagem
+          </button>
+        </div>
+      </div>
+    </BaseModal>
+
     <BaseModal :model-value="Boolean(preview_attachment)" size="xl" @close="close_attachment_preview">
       <template #header>
         <header class="attachment-preview-header">
@@ -357,6 +372,7 @@ export default {
     projectName: { type: String, default: "Projeto" },
     members: { type: Array, default: () => [] },
     deletingAttachmentIds: { type: Array, default: () => [] },
+    canPasteAttachment: { type: Function, default: () => true },
   },
   emits: ["close", "save-task", "delete", "delete-comment", "delete-attachment", "open-task"],
 
@@ -391,6 +407,8 @@ export default {
       downloading_attachment_ids: [],
       // Arquivo recém escolhido que ainda não foi gravado localmente (vira linha real em seguida).
       attaching_file: null,
+      pasted_attachment_file: null,
+      pasted_attachment_url: "",
       preview_attachment: null,
       preview_url: "",
       preview_kind: "",
@@ -519,6 +537,9 @@ export default {
   },
   created() {
     moment.locale("pt-br");
+  },
+  mounted() {
+    document.addEventListener("paste", this.handle_attachment_paste);
   },
   methods: {
     async open_related_task(task) {
@@ -720,11 +741,48 @@ export default {
       }
     },
 
+    handle_attachment_paste(event) {
+      if (event.defaultPrevented || this.active_tab !== "attachments" || !this.overlay_active ||
+        !(this.overlayScope?.interactive ?? true) || !(this.windowNavigation?.active ?? true) ||
+        !this.canPasteAttachment() || this.attaching_file || this.pasted_attachment_file || this.preview_attachment) return;
+      if (event.target?.closest?.('input, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+
+      const image_item = Array.from(event.clipboardData?.items || [])
+        .find(item => item.kind === "file" && item.type.startsWith("image/"));
+      const image = image_item?.getAsFile() || Array.from(event.clipboardData?.files || [])
+        .find(file => file.type.startsWith("image/"));
+      if (!image || !image.type.startsWith("image/")) return;
+
+      const extension = image.type === "image/jpeg" ? "jpg" : image.type.split("/")[1].split("+")[0];
+      const file = new File([image], image.name || `imagem-colada-${Date.now()}.${extension}`, { type: image.type });
+      this.pasted_attachment_url = URL.createObjectURL(file);
+      this.pasted_attachment_file = file;
+      this.attachment_error = "";
+      event.preventDefault();
+    },
+
+    clear_pasted_attachment() {
+      if (this.pasted_attachment_url) URL.revokeObjectURL(this.pasted_attachment_url);
+      this.pasted_attachment_url = "";
+      this.pasted_attachment_file = null;
+    },
+
+    async confirm_pasted_attachment() {
+      if (!this.pasted_attachment_file || this.attaching_file) return;
+      const file = this.pasted_attachment_file;
+      this.clear_pasted_attachment();
+      await this.upload_attachment_file(file);
+    },
+
     async handle_attachment_selected(event) {
       const file = event.target.files?.[0];
       event.target.value = "";
+      await this.upload_attachment_file(file);
+    },
+
+    async upload_attachment_file(file) {
+      if (!file || this.attaching_file) return;
       this.attachment_error = "";
-      if (!file) return;
 
       // Feedback imediato: gravar o arquivo no Dexie e enviá-lo leva tempo e, sem isso, a lista só
       // mudaria no fim de tudo.
@@ -957,12 +1015,14 @@ export default {
   },
   watch: {
     active_tab() {
+      if (this.active_tab !== "attachments") this.clear_pasted_attachment();
       this.$nextTick(() => {
         window.dispatchEvent(new Event("resize"));
       });
     },
     "task.local_id": {
       handler() {
+        this.clear_pasted_attachment();
         this.active_tab = "details";
         this.snapshot_task();
       },
@@ -1031,6 +1091,8 @@ export default {
     },
   },
   beforeUnmount() {
+    document.removeEventListener("paste", this.handle_attachment_paste);
+    this.clear_pasted_attachment();
     this.close_attachment_preview();
   },
 };
@@ -1047,8 +1109,8 @@ export default {
   display: flex;
   flex-direction: column;
 
-  & > .modal-header,
-  & > .task-detail-tabs {
+  &>.modal-header,
+  &>.task-detail-tabs {
     flex: 0 0 auto;
   }
 
@@ -1522,6 +1584,75 @@ export default {
   margin: 0;
 }
 
+.attachment-paste-hint {
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--fontsize-xs);
+}
+
+.pasted-attachment-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.pasted-attachment-question {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.pasted-attachment-image {
+  display: block;
+  width: 100%;
+  height: clamp(140px, 40dvh, 360px);
+  object-fit: contain;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.pasted-attachment-meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-size: var(--fontsize-xs);
+}
+
+.pasted-attachment-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.pasted-attachment-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pasted-attachment-action:hover {
+  background: var(--surface-3);
+}
+
+.pasted-attachment-confirm,
+.pasted-attachment-confirm:hover {
+  background: var(--color-info);
+  color: #ffffff;
+}
+
 .attachment-list {
   min-height: 0;
   flex: 1;
@@ -1661,6 +1792,7 @@ export default {
   from {
     transform: translateX(-100%);
   }
+
   to {
     transform: translateX(250%);
   }
