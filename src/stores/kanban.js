@@ -751,8 +751,28 @@ export const useKanbanStore = defineStore('kanban', {
       return refreshedAttachment;
     },
 
+    async getTaskAttachmentBlob(attachment) {
+      const current = attachment.local_id
+        ? await kanbanRepository.get_attachment_by_local_id(attachment.local_id)
+        : null;
+      const file = current || attachment;
+      if (file.blob instanceof Blob) return file.blob;
+      if (!file.id) throw new Error('Arquivo indisponível para download.');
+      const response = await api.get(`/kanban/attachments/${file.id}/download`, { responseType: 'blob' });
+      return response.data;
+    },
+
     async deleteTaskAttachment(task, attachment) {
-      await kanbanRepository.delete_attachment(attachment.local_id);
+      await db.transaction('rw', db.kanban_task_attachments, db.syncQueue, async () => {
+        const current = await kanbanRepository.get_attachment_by_local_id(attachment.local_id);
+        await syncQueueRepository.addSyncQueueTask({
+          type: 'DELETE_TASK_ATTACHMENT',
+          payload: { id: current?.id || attachment.id, local_id: attachment.local_id },
+          entity_id: attachment.local_id,
+          timestamp: Date.now()
+        });
+        await kanbanRepository.delete_attachment(attachment.local_id);
+      });
 
       const columnTasks = this.tasks[task.column_id];
       if (columnTasks) {
@@ -761,16 +781,6 @@ export const useKanbanStore = defineStore('kanban', {
           target.attachments = target.attachments.filter(a => a.local_id !== attachment.local_id);
         }
       }
-
-      await syncQueueRepository.addSyncQueueTask({
-        type: 'DELETE_TASK_ATTACHMENT',
-        payload: {
-          id: attachment.id,
-          local_id: attachment.local_id
-        },
-        entity_id: attachment.local_id,
-        timestamp: Date.now()
-      });
 
       await syncService.processSyncQueue();
     }

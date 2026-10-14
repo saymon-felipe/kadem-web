@@ -420,7 +420,6 @@ export default {
   position: absolute;
 }
 .is-scoped .kadem-modal-card {
-  max-width: 100%;
   max-height: 100%;
 }
 

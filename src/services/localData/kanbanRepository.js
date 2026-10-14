@@ -120,7 +120,6 @@ export const kanbanRepository = {
             task_id: serverData.task_id,
             url: serverData.url,
             upload_status: 'synced',
-            blob: null,
             updated_at: serverData.updated_at || new Date().toISOString()
         });
     },
@@ -178,6 +177,7 @@ export const kanbanRepository = {
             ).map(t => t.entity_id));
             const deletedTasks = new Set(queue.filter(t => t.type === 'DELETE_TASK').map(t => t.payload.id));
             const deletedColumns = new Set(queue.filter(t => t.type === 'DELETE_COLUMN').map(t => t.payload.id));
+            const deletedAttachments = new Set(queue.filter(t => t.type === 'DELETE_TASK_ATTACHMENT').map(t => t.payload.id));
             const pendingTasks = new Set(queue.filter(t => t.type === 'UPDATE_TASK').map(t => t.entity_id));
             for (const operation of queue.filter(t => t.type === 'MOVE_TASK_LIST')) {
                 for (const task of operation.payload.tasks) pendingTasks.add(task.local_id);
@@ -291,6 +291,7 @@ export const kanbanRepository = {
                         .delete();
 
                     for (const attachment of task.attachments) {
+                        if (deletedAttachments.has(attachment.id)) continue;
                         const existingAttachment = await db.kanban_task_attachments
                             .where({ project_id: localProjectId })
                             .filter(a => a.id === attachment.id)
@@ -308,7 +309,7 @@ export const kanbanRepository = {
                             created_at: attachment.created_at,
                             updated_at: attachment.updated_at,
                             upload_status: 'synced',
-                            blob: null
+                            blob: existingAttachment?.blob || null
                         };
 
                         if (existingAttachment) {

@@ -44,6 +44,238 @@ const createViteServer = () =>
 
 const PROJECT_ID = 1;
 
+const clipboardFormContext = (Form, overrides = {}) => ({
+  ...Form.data(), active_tab: 'attachments', overlay_active: true, canPasteAttachment: () => true,
+  clear_pasted_attachment: Form.methods.clear_pasted_attachment,
+  upload_attachment_file: Form.methods.upload_attachment_file,
+  upsert_attachment_row: Form.methods.upsert_attachment_row,
+  ...overrides,
+});
+
+test('clipboard: colar imagem abre prévia sem enviar e cancelar libera a URL', { timeout: 30000 }, () => withHierarchyBoard(async (_board, server) => {
+  const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
+  const file = new File(['imagem'], 'captura.png', { type: 'image/png' });
+  let prevented = false;
+  let uploads = 0;
+  const context = clipboardFormContext(Form, { addTaskAttachment: () => { uploads++; } });
+  const event = {
+    clipboardData: { items: [{ kind: 'string', type: 'text/plain' }, { kind: 'file', type: 'image/png', getAsFile: () => file }] },
+    preventDefault() { prevented = true; },
+  };
+  Form.methods.handle_attachment_paste.call(context, event);
+  assert.equal(prevented, true);
+  assert.equal(context.pasted_attachment_file.name, 'captura.png');
+  assert.equal(context.pasted_attachment_file.type, 'image/png');
+  const previewUrl = context.pasted_attachment_url;
+  assert.ok(previewUrl.startsWith('blob:'));
+  assert.equal(await (await fetch(previewUrl)).text(), 'imagem');
+  assert.equal(uploads, 0);
+  Form.methods.handle_attachment_paste.call(context, event);
+  assert.equal(context.pasted_attachment_url, previewUrl, 'Uma segunda colagem não substitui a confirmação aberta.');
+  context.clear_pasted_attachment();
+  assert.equal(context.pasted_attachment_file, null);
+  assert.equal(context.pasted_attachment_url, '');
+  await assert.rejects(fetch(previewUrl));
+  assert.equal(uploads, 0);
+}));
+
+test('clipboard: outras abas, janelas sem foco, campos editáveis e texto não são interceptados', { timeout: 30000 }, () => withHierarchyBoard(async (_board, server) => {
+  const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
+  const file = new File(['imagem'], 'captura.png', { type: 'image/png' });
+  for (const overrides of [
+    { active_tab: 'details' }, { active_tab: 'comments' }, { overlay_active: false },
+    { overlayScope: { interactive: false } }, { windowNavigation: { active: false } },
+    { canPasteAttachment: () => false }, { attaching_file: {} }, { preview_attachment: {} },
+  ]) {
+    const context = clipboardFormContext(Form, overrides);
+    Form.methods.handle_attachment_paste.call(context, {
+      clipboardData: { files: [file] }, preventDefault() { assert.fail('Não deveria interceptar a colagem'); },
+    });
+    assert.equal(context.pasted_attachment_file, null);
+  }
+  for (const event of [
+    { target: { closest: () => ({ tagName: 'TEXTAREA' }) }, clipboardData: { files: [file] } },
+    { clipboardData: { items: [{ kind: 'string', type: 'text/plain' }] } },
+    { clipboardData: { files: [new File(['pdf'], 'documento.pdf', { type: 'application/pdf' })] } },
+    { defaultPrevented: true, clipboardData: { files: [file] } },
+  ]) {
+    const context = clipboardFormContext(Form);
+    Form.methods.handle_attachment_paste.call(context, { ...event, preventDefault() { assert.fail('Não deveria interceptar a colagem'); } });
+    assert.equal(context.pasted_attachment_file, null);
+  }
+}));
+
+test('clipboard: confirmar usa o upload existente e grava a imagem offline somente uma vez', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, db }, server) => {
+  const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
+  const context = clipboardFormContext(Form, { editable_task: { ...task, attachments: [] }, addTaskAttachment: store.addTaskAttachment.bind(store) });
+  Form.methods.handle_attachment_paste.call(context, {
+    clipboardData: { files: [new Blob(['imagem offline'], { type: 'image/jpeg' })] }, preventDefault() {},
+  });
+  assert.match(context.pasted_attachment_file.name, /^imagem-colada-\d+\.jpg$/);
+  assert.equal(await db.kanban_task_attachments.count(), 0);
+  await Form.methods.confirm_pasted_attachment.call(context);
+  await Form.methods.confirm_pasted_attachment.call(context);
+  assert.equal(context.pasted_attachment_file, null);
+  assert.equal(context.attaching_file, null);
+  const [saved] = await db.kanban_task_attachments.toArray();
+  assert.equal(saved.task_local_id, task.local_id);
+  assert.equal(saved.mime_type, 'image/jpeg');
+  assert.equal(await saved.blob.text(), 'imagem offline');
+  assert.equal(context.editable_task.attachments.length, 1);
+  assert.equal((await db.syncQueue.toArray()).filter(operation => operation.type === 'ADD_TASK_ATTACHMENT').length, 1);
+  const input = { files: [new File(['arquivo escolhido'], 'selecionado.png', { type: 'image/png' })], value: 'selecionado.png' };
+  await Form.methods.handle_attachment_selected.call(context, { target: input });
+  assert.equal(input.value, '');
+  assert.equal(context.editable_task.attachments.length, 2, 'O seletor de arquivos continua usando o mesmo fluxo.');
+  assert.equal((await db.kanban_task_attachments.toArray())[1].name, 'selecionado.png');
+}));
+
+test('clipboard: só a tarefa cujo modal está no topo aceita a colagem', { timeout: 30000 }, () => withHierarchyBoard(async (_board, server) => {
+  const { default: Board } = await server.ssrLoadModule('/src/components/projects/ProjectKanban.vue');
+  const { registerModal } = await server.ssrLoadModule('/src/utils/modalHistory.js');
+  const taskModal = registerModal(() => {}, { handleHistory: false });
+  let confirmation;
+  try {
+    const context = { is_modal_open: true, $refs: { taskSideModal: { unregisterHistory: taskModal } } };
+    assert.equal(Board.methods.can_paste_attachment.call(context), true);
+    confirmation = registerModal(() => {}, { handleHistory: false });
+    assert.equal(Board.methods.can_paste_attachment.call(context), false);
+    confirmation();
+    context.is_modal_open = false;
+    assert.equal(Board.methods.can_paste_attachment.call(context), false);
+  } finally { confirmation?.(); taskModal(); }
+}));
+
+test('download indica carregamento por anexo, ignora duplicatas e libera o botão após sucesso ou erro', { timeout: 30000 }, () => withHierarchyBoard(async (_board, server) => {
+  const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
+  const previousWindow = globalThis.window;
+  const pending = new Map();
+  const downloads = [];
+  const context = {
+    downloading_attachment_ids: [], deletingAttachmentIds: [], attachment_error: '',
+    is_attachment_downloading: Form.methods.is_attachment_downloading,
+    is_attachment_deleting: Form.methods.is_attachment_deleting,
+    get_attachment_download_name: Form.methods.get_attachment_download_name,
+    getTaskAttachmentBlob: attachment => new Promise((resolve, reject) => pending.set(attachment.local_id, { resolve, reject })),
+    trigger_browser_download: (_url, name) => downloads.push(name),
+  };
+  globalThis.window = { setTimeout: callback => callback() };
+  const first = { local_id: 501, name: 'primeiro.txt' };
+  const second = { local_id: 502, name: 'segundo.txt' };
+  try {
+    const firstDownload = Form.methods.download_attachment.call(context, first);
+    assert.equal(context.is_attachment_downloading(first), true);
+    assert.equal(context.is_attachment_downloading(second), false);
+    const firstRequest = pending.get(501);
+    await Form.methods.download_attachment.call(context, first);
+    assert.equal(pending.get(501), firstRequest, 'Um segundo clique não inicia outro pedido.');
+    const secondDownload = Form.methods.download_attachment.call(context, second);
+    firstRequest.resolve(new Blob(['primeiro']));
+    await firstDownload;
+    assert.deepEqual(downloads, ['primeiro.txt']);
+    assert.equal(context.is_attachment_downloading(first), false);
+    assert.equal(context.is_attachment_downloading(second), true);
+    pending.get(502).reject(new Error('Falha simulada de rede'));
+    await secondDownload;
+    assert.equal(context.is_attachment_downloading(second), false);
+    assert.match(context.attachment_error, /Não foi possível baixar/);
+    assert.deepEqual(context.downloading_attachment_ids, []);
+  } finally { globalThis.window = previousWindow; }
+}));
+
+test('excluir um anexo preserva o outro e um pull não restaura a exclusão pendente', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, kanbanRepository: repo, db }) => {
+  const first = await repo.add_attachment({ id: 501, task_local_id: task.local_id, project_id: PROJECT_ID, name: 'primeiro.txt', blob: new Blob(['primeiro']), upload_status: 'synced' });
+  const second = await repo.add_attachment({ id: 502, task_local_id: task.local_id, project_id: PROJECT_ID, name: 'segundo.txt', blob: new Blob(['segundo']), upload_status: 'synced' });
+  await store.loadBoardFromLocal(PROJECT_ID);
+  await store.deleteTaskAttachment(task, first);
+  await db.syncQueue.toCollection().modify({ status: 'RETRY', next_attempt_at: Date.now() + 60000 });
+  await repo.mergeServerData(PROJECT_ID, [{ id: 11, title: 'Coluna', type: 'TODO' }], [{ id: task.id, column_id: 11, attachments: [first, second] }]);
+  const remaining = await db.kanban_task_attachments.toArray();
+  assert.equal(remaining.length, 1);
+  assert.equal(remaining[0].id, 502);
+  assert.equal(await (await store.getTaskAttachmentBlob(remaining[0])).text(), 'segundo');
+}));
+
+test('falha ao persistir a exclusão mantém os anexos e a fila intactos', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, kanbanRepository: repo, syncQueueRepository: queue, db }) => {
+  const attachment = await repo.add_attachment({ id: 501, task_local_id: task.local_id, project_id: PROJECT_ID, blob: new Blob(['preservado']) });
+  await store.loadBoardFromLocal(PROJECT_ID);
+  const oldAdd = queue.addSyncQueueTask;
+  try {
+    queue.addSyncQueueTask = async () => { throw new Error('Armazenamento cheio'); };
+    await assert.rejects(store.deleteTaskAttachment(task, attachment), /Armazenamento cheio/);
+    assert.ok(await repo.get_attachment_by_local_id(attachment.local_id));
+    assert.equal(store.getTasks(task.column_id)[0].attachments.length, 1);
+    assert.equal(await db.syncQueue.count(), 0);
+  } finally { queue.addSyncQueueTask = oldAdd; }
+}));
+
+test('confirmação mostra exclusão imediatamente, bloqueia duplicata e preserva o outro item', { timeout: 30000 }, () => withHierarchyBoard(async (_board, server) => {
+  const { default: Board } = await server.ssrLoadModule('/src/components/projects/ProjectKanban.vue');
+  const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
+  let finish;
+  let calls = 0;
+  const attachment = { local_id: 501, upload_status: 'synced' };
+  const task = { local_id: 101, attachments: [attachment, { local_id: 502 }] };
+  const form = { editable_task: task, attachment_error: 'Erro anterior' };
+  const context = {
+    item_to_delete: { task, attachment }, delete_type: 'attachment', show_confirmation: true,
+    deleting_attachment_ids: [], $refs: { taskDetailForm: form },
+    close_confirmation: Board.methods.close_confirmation,
+    deleteTaskAttachment: () => { calls++; return new Promise(resolve => { finish = resolve; }); },
+  };
+  const deletion = Board.methods.handle_confirm_delete.call(context);
+  assert.deepEqual(context.deleting_attachment_ids, [501]);
+  assert.equal(context.show_confirmation, false);
+  assert.equal(form.attachment_error, '');
+  const status = { deletingAttachmentIds: context.deleting_attachment_ids, attachment_uploads: {}, is_attachment_deleting: Form.methods.is_attachment_deleting };
+  assert.equal(Form.methods.attachment_status_label.call(status, attachment), 'Excluindo…');
+  await Board.methods.handle_confirm_delete.call(context);
+  assert.equal(calls, 1);
+  finish();
+  await deletion;
+  assert.deepEqual(context.deleting_attachment_ids, []);
+  assert.deepEqual(form.editable_task.attachments, [{ local_id: 502 }]);
+}));
+
+test('download remoto usa a API do anexo restante; upload e snapshot preservam Blob offline', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, kanbanRepository: repo }, server) => {
+  const { api } = await server.ssrLoadModule('/src/plugins/api.js');
+  const { default: Form } = await server.ssrLoadModule('/src/components/projects/TaskDetailForm.vue');
+  const attachment = await repo.add_attachment({ task_local_id: task.local_id, project_id: PROJECT_ID, name: 'arquivo.txt', blob: new Blob(['offline']) });
+  await repo.setServerDataForAttachment(attachment.local_id, { id: 502, task_id: task.id, url: 'https://storage.invalid/arquivo.txt' });
+  const saved = await repo.get_attachment_by_local_id(attachment.local_id);
+  const form = { task: { ...task, attachments: [saved] }, sync_responsible_wrapper() {}, apply_responsible_change() {}, get_clean_task_data: Form.methods.get_clean_task_data };
+  Form.methods.snapshot_task.call(form);
+  assert.equal(await form.editable_task.attachments[0].blob.text(), 'offline');
+  assert.equal(await (await store.getTaskAttachmentBlob(saved)).text(), 'offline');
+  await repo.update_attachment(saved.local_id, { blob: null });
+  const oldGet = api.get;
+  try {
+    api.get = async (url, options) => {
+      assert.equal(url, '/kanban/attachments/502/download');
+      assert.equal(options.responseType, 'blob');
+      return { data: new Blob(['remoto']) };
+    };
+    assert.equal(await (await store.getTaskAttachmentBlob(saved)).text(), 'remoto');
+  } finally { api.get = oldGet; }
+}));
+
+test('excluir anexo criado offline e reconectar não tenta enviar ou baixar o arquivo removido', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, task, db }, server) => {
+  const attachment = await store.addTaskAttachment(task, new Blob(['temporário']));
+  await store.deleteTaskAttachment(task, attachment);
+  const { api } = await server.ssrLoadModule('/src/plugins/api.js');
+  const { syncService } = await server.ssrLoadModule('/src/services/syncService.js');
+  const { useUtilsStore } = await server.ssrLoadModule('/src/stores/utils.js');
+  const utils = useUtilsStore();
+  api.post = async () => { throw new Error('Não deveria enviar um anexo excluído'); };
+  api.delete = async () => { throw new Error('Não há ID remoto para excluir'); };
+  api.get = async () => ({ data: { changes: [], next_cursor: 0, has_more: false } });
+  utils.is_network_online = true;
+  utils.is_kadem_api_available = true;
+  await syncService.processSyncQueue();
+  assert.equal(await db.kanban_task_attachments.count(), 0);
+  assert.equal(await db.syncQueue.count(), 0);
+}));
+
 test('TODO → Em andamento atribui Qualquer ao usuário conectado por arrasto e ação de mover', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB, kanbanRepository: repo, syncQueueRepository: queue, db }, server) => {
   await store.updateColumn({ local_id: columnB.local_id, type: 'IN_PROGRESS' });
   for (const move of [
