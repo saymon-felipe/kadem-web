@@ -65,7 +65,7 @@
 
         <div class="card-body">
           <!-- Detalhes de SCHEDULE -->
-          <template v-if="object.object_type === 'SCHEDULE'">
+          <template v-if="isHealthScheduled(object)">
             <div class="info-row">
               <span class="info-label">Recorrência</span>
               <strong>{{ frequencyLabel(object) }}</strong>
@@ -74,12 +74,12 @@
             <div class="info-row">
               <span class="info-label">Próxima prevista</span>
               <span class="due-tag" :class="scheduleDueClass(object)">
-                {{ formatDate(nextDueAt(object)) }} ({{ dueLabel(nextDueAt(object)) }})
+                {{ nextDueAt(object) ? formatDate(nextDueAt(object)) + ' (' + dueLabel(nextDueAt(object)) + ')' : object.anchor_date ? 'Concluído' : 'Defina uma data em Editar' }}
               </span>
             </div>
 
             <div class="info-block">
-              <span class="info-label">Insumos consumidos por rotina:</span>
+              <span class="info-label">Insumos consumidos por conclusão:</span>
               <div v-if="getConsumptionRelations(object).length" class="relations-chips">
                 <span v-for="rel in getConsumptionRelations(object)" :key="rel.local_key" class="rel-chip">
                   <font-awesome-icon icon="link" />
@@ -92,7 +92,7 @@
           </template>
 
           <!-- Detalhes de SUPPLY -->
-          <template v-else-if="object.object_type === 'SUPPLY'">
+          <template v-if="isHealthStockObject(object)">
             <div class="balance-metric">
               <div class="balance-number-wrap">
                 <strong class="balance-val">{{ formatNumber(supplyBalance(object.local_key)) }}</strong>
@@ -117,28 +117,35 @@
           </template>
 
           <!-- Outros tipos -->
-          <template v-else>
+          <template v-else-if="!isHealthScheduled(object)">
             <p v-if="object.notes" class="object-notes">{{ object.notes }}</p>
             <p v-else class="no-notes-caption">Sem anotações complementares.</p>
           </template>
         </div>
 
         <div class="card-footer">
-          <template v-if="object.object_type === 'SCHEDULE'">
+          <button v-if="viewMode === 'entities' || viewMode === 'schedules'"
+            class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
+            type="button" :aria-label="'Editar ' + object.name" @click="$emit('edit-object', object)">
+            <font-awesome-icon icon="pen" />
+            <span>Editar</span>
+          </button>
+          <template v-if="isHealthScheduled(object)">
             <button v-if="supplies.length"
               class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" type="button"
-              title="Vincular insumo a esta agenda" @click="$emit('link-supply', object.local_key)">
+              title="Vincular insumo a este agendamento" @click="$emit('link-supply', object.local_key)">
               <font-awesome-icon icon="link" />
               <span>Vincular Insumo</span>
             </button>
             <button class="kadem-health-button kadem-health-button--success kadem-health-button--compact" type="button"
+              :disabled="!nextDueAt(object)"
               @click="$emit('complete-schedule', object.local_key)">
               <font-awesome-icon icon="check" />
               <span>Concluir</span>
             </button>
           </template>
 
-          <template v-else-if="object.object_type === 'SUPPLY'">
+          <template v-if="isHealthStockObject(object)">
             <button class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
               type="button" @click="$emit('quick-consume', object.local_key)">
               <font-awesome-icon icon="arrow-down" />
@@ -151,7 +158,7 @@
             </button>
           </template>
 
-          <template v-else>
+          <template v-else-if="!isHealthScheduled(object)">
             <button class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
               type="button" @click="$emit('record-event', object.local_key)">
               <font-awesome-icon icon="clipboard" />
@@ -166,6 +173,7 @@
 
 <script>
 import HealthEmptyState from "./HealthEmptyState.vue";
+import { isHealthStockObject, isHealthScheduled } from "@/utils/healthObjectTypes";
 
 export default {
   name: "HealthObjectsTab",
@@ -176,7 +184,7 @@ export default {
     viewMode: {
       type: String,
       default: "all",
-      validator: (value) => ["all", "schedules", "supplies"].includes(value),
+      validator: (value) => ["all", "schedules", "entities"].includes(value),
     },
     objects: {
       type: Array,
@@ -237,6 +245,7 @@ export default {
   },
   emits: [
     "new-object",
+    "edit-object",
     "link-supply",
     "complete-schedule",
     "quick-consume",
@@ -256,41 +265,41 @@ export default {
         return {
           eyebrow: "ROTINAS & AGENDAS",
           title: "Rotinas & Agendas",
-          actionLabel: "Nova rotina",
+          actionLabel: "Novo agendamento",
           icon: "calendar-check",
-          emptyTitle: "Nenhuma rotina configurada",
-          emptyText: "Crie uma rotina recorrente para acompanhar aplicações, exames, treinos e próximas datas.",
-          emptyAction: "Criar primeira rotina",
+          emptyTitle: "Nenhum agendamento configurado",
+          emptyText: "Agende consultas, exames e tratamentos ou crie rotinas com repetição.",
+          emptyAction: "Criar primeiro agendamento",
         };
       }
 
-      if (this.viewMode === "supplies") {
+      if (this.viewMode === "entities") {
         return {
-          eyebrow: "INSUMOS & ESTOQUE",
-          title: "Insumos & Estoque",
-          actionLabel: "Novo insumo",
-          icon: "box-archive",
-          emptyTitle: "Nenhum insumo cadastrado",
-          emptyText: "Cadastre medicamentos ou materiais para acompanhar saldo, consumo e alertas de reposição.",
-          emptyAction: "Cadastrar primeiro insumo",
+          eyebrow: "ENTIDADES DE SAÚDE",
+          title: "Entidades de saúde",
+          actionLabel: "Nova",
+          icon: "layer-group",
+          emptyTitle: "Nenhuma entidade de saúde cadastrada",
+          emptyText: "Cadastre insumos, medicações, sintomas, dispositivos e entidades livres. Ative o agendamento quando precisar acompanhar datas.",
+          emptyAction: "+ Nova",
         };
       }
 
       return {
         eyebrow: "CONFIGURAÇÃO & ESTRUTURA",
-        title: "Objetos de Saúde & Relações",
-        actionLabel: "Novo Objeto",
+        title: "Entidades de saúde & Relações",
+        actionLabel: "Nova",
         icon: "layer-group",
-        emptyTitle: "Comece criando seus objetos",
+        emptyTitle: "Comece criando suas entidades de saúde",
         emptyText: "Cadastre rotinas periódicas (aplicação, treino, exames) ou insumos/medicamentos para acompanhar o saldo dinâmico.",
-        emptyAction: "Criar Primeiro Objeto",
+        emptyAction: "+ Nova",
       };
     },
     otherObjects() {
       return this.objects.filter((o) => !["SCHEDULE", "SUPPLY"].includes(o.object_type));
     },
     filteredObjects() {
-      if (this.viewMode === "schedules" || this.viewMode === "supplies") return this.objects;
+      if (this.viewMode === "schedules" || this.viewMode === "entities") return this.objects;
       if (this.currentFilter === "SCHEDULE") return this.schedules;
       if (this.currentFilter === "SUPPLY") return this.supplies;
       if (this.currentFilter === "OTHER") return this.otherObjects;
@@ -298,6 +307,8 @@ export default {
     },
   },
   methods: {
+    isHealthStockObject,
+    isHealthScheduled,
     typeLabel(type) {
       const map = {
         SCHEDULE: "Agenda / Rotina",
@@ -308,7 +319,7 @@ export default {
         EXAM: "Exame",
         APPOINTMENT: "Consulta",
         DEVICE: "Dispositivo",
-        CUSTOM: "Objeto Livre",
+        CUSTOM: "Entidade livre",
       };
       return map[type] || type;
     },
@@ -327,13 +338,13 @@ export default {
       return map[object.object_type] || "heart-pulse";
     },
     objectCardClass(object) {
-      if (object.object_type === "SCHEDULE") return "card-schedule";
-      if (object.object_type === "SUPPLY") return "card-supply";
+      if (isHealthScheduled(object)) return "card-schedule";
+      if (isHealthStockObject(object)) return "card-supply";
       return "card-generic";
     },
     objectBadgeClass(object) {
-      if (object.object_type === "SCHEDULE") return "badge-schedule";
-      if (object.object_type === "SUPPLY") return "badge-supply";
+      if (isHealthScheduled(object)) return "badge-schedule";
+      if (isHealthStockObject(object)) return "badge-supply";
       return "badge-generic";
     },
     isPinned(object) {
@@ -727,6 +738,7 @@ export default {
 
 .card-footer {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin-top: auto;
   padding-top: var(--space-3);

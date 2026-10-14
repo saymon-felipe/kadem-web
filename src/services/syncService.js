@@ -22,6 +22,7 @@ import { db } from "../db";
 import { radioInsightsRepository, isRadioInsightsTask, LISTENING_COUNTERS } from './localData/radioInsightsRepository';
 import { reportAttachmentUpload, finishAttachmentUpload } from "./attachmentUploadProgress";
 import { clampToMacroTone } from "../utils/colorTones";
+import { captureSyncSession, requireSyncArray } from "../utils/syncState";
 
 let isProcessing = false;
 let rerunRequested = false;
@@ -1314,17 +1315,26 @@ async function _handleHealthTask(task) {
 }
 
 async function syncHealthDelta() {
+  const isCurrent = captureSyncSession();
   const authStore = useAuthStore();
   const userId = authStore.user?.id;
   if (!userId) return;
 
   let cursor = await healthRepository.getSyncCursor(String(userId));
+  if (!isCurrent()) return;
   let hasMore = true;
   while (hasMore) {
-    const response = await api.get("/health/sync", { params: { cursor, limit: 250 } });
-    const payload = response.data || {};
+    const response = await api.get("/health/sync", { params: { cursor, limit: 250 }, timeout: 15000 });
+    if (!isCurrent() || authStore.user?.id !== userId) return;
+    const payload = response.data;
+    if (!payload || typeof payload !== 'object') throw new Error('Resposta de sincronização do Health inválida.');
+    requireSyncArray(payload.changes);
     const nextCursor = Number(payload.next_cursor ?? cursor);
-    await healthRepository.applyServerChanges(String(userId), payload.changes || [], nextCursor);
+    if (!Number.isSafeInteger(nextCursor) || nextCursor < cursor || (payload.has_more && nextCursor <= cursor)) {
+      throw new Error('Cursor de sincronização do Health inválido.');
+    }
+    await healthRepository.applyServerChanges(String(userId), payload.changes, nextCursor);
+    if (!isCurrent()) return;
     cursor = nextCursor;
     hasMore = Boolean(payload.has_more);
   }

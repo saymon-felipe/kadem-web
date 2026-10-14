@@ -1,4 +1,5 @@
 import { db, runDbOperation } from "@/db";
+import { captureSyncSession, assertSyncSession, normalizeSyncCursor, requireSyncArray } from "@/utils/syncState";
 
 const now = () => new Date().toISOString();
 const active = (record) => !record.deleted_at;
@@ -12,7 +13,7 @@ export const healthRepository = {
   },
 
   getSyncCursor(userId) {
-    return runDbOperation(async () => Number((await db.health_sync_state.get(userId))?.cursor || 0), {
+    return runDbOperation(async () => normalizeSyncCursor((await db.health_sync_state.get(userId))?.cursor), {
       userMessage: "Não foi possível ler o estado de sincronização do Health.",
     });
   },
@@ -86,9 +87,12 @@ export const healthRepository = {
   },
 
   applyServerChanges(userId, changes = [], cursor = 0) {
+    const isCurrent = captureSyncSession();
+    requireSyncArray(changes);
     return runDbOperation(
       () =>
         db.transaction("rw", db.health_records, db.health_sync_state, async () => {
+          assertSyncSession(isCurrent);
           for (const change of changes) {
             const current = await db.health_records.where("local_key").equals(change.local_key).first();
             if (current?.pending_sync) continue;
@@ -110,6 +114,7 @@ export const healthRepository = {
           }
 
           await db.health_sync_state.put({ user_id: userId, cursor: Number(cursor || 0), updated_at: now() });
+          assertSyncSession(isCurrent);
         }),
       { userMessage: "Não foi possível aplicar a atualização remota do Health." },
     );

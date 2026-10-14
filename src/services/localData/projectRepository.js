@@ -1,6 +1,7 @@
 import { db } from '../../db';
 import { kanbanRepository } from './kanbanRepository';
 import { syncQueueRepository } from './syncQueueRepository';
+import { captureSyncSession, assertSyncSession, requireSyncArray } from '../../utils/syncState';
 
 export const projectRepository = {
   async addLocalProject(projectData) {
@@ -57,6 +58,8 @@ export const projectRepository = {
   },
 
   async mergeApiProjects(apiProjects) {
+    const isCurrent = captureSyncSession();
+    requireSyncArray(apiProjects);
     if (!db.projects) return;
 
     if (!Array.isArray(apiProjects) || apiProjects.length === 0) {
@@ -66,6 +69,7 @@ export const projectRepository = {
     console.log(`[projectRepository] Processando Delta Sync de ${apiProjects.length} projetos.`);
 
     return db.transaction('rw', db.projects, async () => {
+      assertSyncSession(isCurrent);
       const changes_to_sync = [];
 
       for (const apiProj of apiProjects) {
@@ -88,6 +92,7 @@ export const projectRepository = {
       if (changes_to_sync.length > 0) {
         await db.projects.bulkPut(changes_to_sync);
       }
+      assertSyncSession(isCurrent);
     });
   },
 

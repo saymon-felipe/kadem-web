@@ -18,10 +18,16 @@ export function selectivePersistence({ store, options }) {
   };
   const hydrate = () => safely(() => {
     const saved = storage.getItem(key);
-    const restored = saved ? deserialize(saved) : {};
+    const parsed = saved ? deserialize(saved) : {};
+    const restored = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
     const patch = {};
     config.pick.forEach((field) => {
-      if (Object.hasOwn(restored, field)) patch[field] = restored[field];
+      if (!Object.hasOwn(restored, field)) return;
+      const current = store[field];
+      const value = restored[field];
+      if (Array.isArray(current) && !Array.isArray(value)) return;
+      if (current && typeof current === 'object' && !Array.isArray(current) && (!value || typeof value !== 'object' || Array.isArray(value))) return;
+      patch[field] = value;
     });
     separate.forEach((field) => {
       const value = storage.getItem(`${key}:${field}`);

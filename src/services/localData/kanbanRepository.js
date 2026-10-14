@@ -3,7 +3,8 @@ import { normalizeColumn, DEFAULT_COLUMN_TYPE } from '../../utils/kanbanTypes';
 
 const strip_task_relations = (task) => {
     if (!task) return task;
-    const { attachments, ...taskRecord } = task;
+    const taskRecord = { ...task };
+    delete taskRecord.attachments;
     return taskRecord;
 };
 
@@ -164,12 +165,13 @@ export const kanbanRepository = {
         });
     },
 
-    async mergeServerData(localProjectId, apiColumns, apiTasks, isDelta = false) {
+    async mergeServerData(localProjectId, apiColumns, apiTasks, isDelta = false, isCurrent = () => true) {
         if (isDelta && (!apiColumns?.length && !apiTasks?.length)) {
             return;
         }
 
         await db.transaction('rw', db.kanban_columns, db.kanban_tasks, db.kanban_task_attachments, db.syncQueue, async () => {
+            if (!isCurrent()) throw new Error('Sincronização do Kanban invalidada pela troca de sessão.');
             // Includes retries scheduled in the future and failed operations: no silent loss.
             const queue = await db.syncQueue.toArray();
             const pendingParents = new Set(queue.filter(t =>
@@ -335,6 +337,8 @@ export const kanbanRepository = {
             await db.kanban_tasks.where('project_id').equals(localProjectId)
                 .filter(t => t.parent_task_local_id != null && !survivingIds.has(t.parent_task_local_id))
                 .modify({ parent_task_local_id: null });
+            // Uma troca de sessão durante as leituras/escritas reverte todo o merge.
+            if (!isCurrent()) throw new Error('Sincronização do Kanban invalidada pela troca de sessão.');
         });
     },
 

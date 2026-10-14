@@ -1,5 +1,6 @@
 import { db } from "../../db";
 import { clampToMacroTone, isToneOf } from "../../utils/colorTones";
+import { captureSyncSession, assertSyncSession, requireSyncArray } from "../../utils/syncState";
 
 const now = () => new Date().toISOString();
 const localKey = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -43,10 +44,13 @@ const withUpdatedAt = (items = []) => items.map((item) => ({ ...item, updated_at
 // segundo pull le a tabela entre o clear e o bulkPut do primeiro e apaga as linhas
 // locais pendentes (meta criada some da tela ate o proximo F5).
 const replaceServerItemsPreservingPending = async (table, items = [], options = {}) => {
+  const isCurrent = captureSyncSession();
+  requireSyncArray(items);
   const { preserveFields = [] } = options;
   const serverItems = withUpdatedAt(items);
 
   await table.db.transaction("rw", table, async () => {
+    assertSyncSession(isCurrent);
     const existing = await table.toArray();
     const pendingItems = existing.filter((item) =>
       item.pending_sync || (item.local_key && !isServerId(item.id) && item.pending_sync !== false),
@@ -87,6 +91,7 @@ const replaceServerItemsPreservingPending = async (table, items = [], options = 
     if (merged.length) {
       await table.bulkPut(merged);
     }
+    assertSyncSession(isCurrent);
   });
 };
 
@@ -729,8 +734,14 @@ export const financeRepository = {
   },
 
   async setConnections(items = []) {
-    await db.finance_connections.clear();
-    if (items.length) await db.finance_connections.bulkPut(items);
+    const isCurrent = captureSyncSession();
+    requireSyncArray(items);
+    await db.transaction('rw', db.finance_connections, async () => {
+      assertSyncSession(isCurrent);
+      await db.finance_connections.clear();
+      if (items.length) await db.finance_connections.bulkPut(items);
+      assertSyncSession(isCurrent);
+    });
   },
 
   async getConnections() {
@@ -738,10 +749,14 @@ export const financeRepository = {
   },
 
   async setBudgetGroups(month, groups = []) {
+    const isCurrent = captureSyncSession();
+    requireSyncArray(groups);
+    for (const group of groups) { if (group.items !== undefined) requireSyncArray(group.items); }
     const selected = normalizeMonth(month);
     const oldGroups = await db.finance_budget_groups.where("month").equals(selected).toArray();
     const oldGroupIds = oldGroups.map((group) => group.local_id);
     await db.transaction("rw", db.finance_budget_groups, db.finance_budgets, async () => {
+      assertSyncSession(isCurrent);
       if (oldGroupIds.length) await db.finance_budget_groups.bulkDelete(oldGroupIds);
       const oldItems = await db.finance_budgets.where("month").equals(selected).toArray();
       if (oldItems.length) await db.finance_budgets.bulkDelete(oldItems.map((item) => item.local_id));
@@ -764,6 +779,7 @@ export const financeRepository = {
           );
         }
       }
+      assertSyncSession(isCurrent);
     });
   },
 

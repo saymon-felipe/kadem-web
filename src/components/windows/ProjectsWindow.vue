@@ -1,6 +1,7 @@
 <template>
   <div class="projects-window-content">
-    <Teleport :to="teleport_target" :disabled="!is_teleport_ready">
+    <div v-show="!is_teleport_ready" ref="tabsFallback" class="workspace-tabs-fallback"></div>
+    <Teleport v-if="tabs_target" :to="tabs_target">
       <div class="workspace-tabs-bar">
         <div
           ref="tabsScrollArea"
@@ -144,6 +145,7 @@
 
 <script>
 import { mapState, mapActions } from "pinia";
+import { markRaw } from "vue";
 import { useProjectStore } from "@/stores/projects";
 import { useWindowStore } from "@/stores/windows";
 import ProjectWorkspaceTab from "../projects/ProjectWorkspaceTab.vue";
@@ -163,6 +165,7 @@ export default {
     return {
       loading: true,
       is_teleport_ready: false,
+      tabs_target: null,
       tab_context_menu: {
         isOpen: false,
         x: 0,
@@ -184,7 +187,11 @@ export default {
     };
   },
   computed: {
-    ...mapState(useProjectStore, ["projects", "workspace_tabs", "active_workspace_tab_id"]),
+    ...mapState(useProjectStore, {
+      projects: "projects",
+      active_workspace_tab_id: "active_workspace_tab_id",
+      workspace_tabs: (state) => (Array.isArray(state.workspace_tabs) ? state.workspace_tabs : []).filter(tab => tab && typeof tab.id === "string"),
+    }),
     ...mapState(useWindowStore, ["currentUserWindows", "activeWindowId"]),
     workspace_interactive() {
       return !this.currentUserWindows.projects || this.activeWindowId === "projects";
@@ -238,10 +245,17 @@ export default {
     ...mapActions(useWindowStore, ["focusWindow"]),
     check_teleport_target() {
       if (typeof document !== "undefined") {
-        this.is_teleport_ready = !!document.querySelector(this.teleport_target);
+        const host = document.querySelector(this.teleport_target);
+        this.is_teleport_ready = Boolean(host);
+        const target = host || this.$refs.tabsFallback;
+        if (target) this.tabs_target = markRaw(target);
         if (!this.is_teleport_ready) {
           this.$nextTick(() => {
-            this.is_teleport_ready = !!document.querySelector(this.teleport_target);
+            const header = document.querySelector(this.teleport_target);
+            if (header) {
+              this.tabs_target = markRaw(header);
+              this.is_teleport_ready = true;
+            }
           });
         }
       }
@@ -589,7 +603,7 @@ export default {
       window.addEventListener("keydown", onKeyDown);
     },
 
-    get_tab_drag_style(tabId, index) {
+    get_tab_drag_style(tabId) {
       if (this.is_reorder_committing) {
         return {
           transform: "none",
@@ -662,6 +676,8 @@ export default {
   display: flex;
   flex-direction: column;
 }
+
+.workspace-tabs-fallback { flex: 0 0 40px; min-height: 40px; }
 
 /* Barra de Abas no Header (estilo Google Chrome) */
 .workspace-tabs-bar {

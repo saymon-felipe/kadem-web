@@ -22,9 +22,20 @@
       </div>
     </div>
 
-    <KanbanBoardSkeleton v-if="board_loading" />
+    <div v-if="board_notice" class="board-notice" role="status">
+      <font-awesome-icon icon="triangle-exclamation" />
+      <span>{{ board_notice }}</span>
+      <button type="button" :disabled="board_loading" @click="load_board(project_local_id)">Tentar novamente</button>
+    </div>
 
-    <div v-show="!board_loading" class="kanban-columns-container">
+    <KanbanBoardSkeleton v-if="board_loading" />
+    <div v-else-if="board_notice && !columns.length" class="board-unavailable">
+      <font-awesome-icon icon="table-cells-large" />
+      <h3>O quadro ainda não pôde ser carregado</h3>
+      <p>Tente novamente ou use o botão de voltar para abrir outro projeto.</p>
+    </div>
+
+    <div v-show="!board_loading && (!board_notice || columns.length)" class="kanban-columns-container">
       <draggable
         v-model="columns"
         @start="on_column_drag_start"
@@ -155,6 +166,7 @@ export default {
       delete_type: null,
       deleting_attachment_ids: [],
       board_loading: true,
+      board_error: "",
       board_load_token: 0,
     };
   },
@@ -171,7 +183,10 @@ export default {
       projects: "projects",
     }),
 
-    ...mapState(useKanbanStore, ["getColumns"]),
+    ...mapState(useKanbanStore, ["getColumns", "syncErrors"]),
+    board_notice() {
+      return this.board_error || this.syncErrors[this.project_local_id] || "";
+    },
     ...mapState(useWindowStore, ["_getOrCreateCurrentUserState"]),
     ...mapState(useAuthStore, ["user"]),
 
@@ -227,42 +242,47 @@ export default {
   watch: {
     project_local_id: {
       immediate: true,
-      async handler(newId) {
-        if (!newId) return;
-
-        // Trocar de projeto rapido nao pode deixar uma carga antiga mexer no estado da nova.
-        const load_token = ++this.board_load_token;
-        const is_current_load = () => load_token === this.board_load_token;
-        this.board_loading = true;
-
-        await this.loadBoardFromLocal(newId);
-        if (!is_current_load()) return;
-
-        const has_cached_board = this.columns.length > 0;
-        if (has_cached_board && is_current_load()) this.board_loading = false;
-
-        if (this.project && this.project.id) {
-          const pull = this.pullProjectKanban(this.project.id, newId).catch((err) => {
-            console.warn("Falha ao atualizar kanban em segundo plano:", err);
-          });
-
-          // Com cache o quadro ja esta na tela e o pull atualiza por baixo; sem cache nao
-          // ha o que mostrar, entao o esqueleto fica ate o servidor responder (ou o teto).
-          if (!has_cached_board) {
-            let timeout_id;
-            const max_wait = new Promise((resolve) => {
-              timeout_id = setTimeout(resolve, BOARD_FIRST_SYNC_MAX_WAIT_MS);
-            });
-            await Promise.race([pull, max_wait]);
-            clearTimeout(timeout_id);
-          }
-        }
-
-        if (is_current_load()) this.board_loading = false;
-      },
+      handler(newId) { return this.load_board(newId); },
     },
   },
   methods: {
+    async load_board(projectId) {
+      const loadToken = ++this.board_load_token;
+      const isCurrent = () => loadToken === this.board_load_token;
+      let timeoutId;
+      this.board_error = "";
+      this.board_loading = true;
+      try {
+        if (!projectId) return;
+        await this.loadBoardFromLocal(projectId);
+        if (!isCurrent()) return;
+        const hasCache = this.columns.length > 0;
+        if (hasCache) this.board_loading = false;
+        if (this.project?.id) {
+          const pull = this.pullProjectKanban(this.project.id, projectId)
+            .then((result) => {
+              if (isCurrent() && result?.status === "synced") this.board_error = "";
+            })
+            .catch(() => {
+              if (isCurrent()) this.board_error = "Não foi possível atualizar o quadro. Os dados já carregados foram mantidos.";
+            });
+          if (!hasCache) {
+            const maxWait = new Promise((resolve) => {
+              timeoutId = setTimeout(() => {
+                if (isCurrent()) this.board_error = "A sincronização está demorando. Você pode tentar novamente.";
+                resolve();
+              }, BOARD_FIRST_SYNC_MAX_WAIT_MS);
+            });
+            await Promise.race([pull, maxWait]);
+          }
+        }
+      } catch {
+        if (isCurrent()) this.board_error = "Não foi possível carregar o quadro deste dispositivo. Tente novamente.";
+      } finally {
+        clearTimeout(timeoutId);
+        if (isCurrent()) this.board_loading = false;
+      }
+    },
     can_paste_attachment() {
       return this.is_modal_open && isTopModal(this.$refs.taskSideModal?.unregisterHistory);
     },
@@ -530,6 +550,12 @@ export default {
 </script>
 
 <style scoped>
+.board-notice { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin: var(--space-3) var(--space-5); padding: var(--space-3); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--text-secondary); }
+.board-notice span { flex: 1; min-width: 180px; }
+.board-notice button { border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); color: var(--text-primary); background: var(--surface-2); cursor: pointer; }
+.board-unavailable { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); text-align: center; padding: var(--space-5); color: var(--text-secondary); }
+.board-unavailable > svg { font-size: 2rem; }
+
 .btn-icon {
   background: none;
   border: none;

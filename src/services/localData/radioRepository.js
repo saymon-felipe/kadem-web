@@ -1,4 +1,5 @@
 import { db } from '../../db';
+import { captureSyncSession, assertSyncSession, requireSyncArray } from '../../utils/syncState';
 
 export const radioRepository = {
 
@@ -270,21 +271,26 @@ export const radioRepository = {
   /* ========================================================================
      SECTION 4: SYNC HELPERS (SMART MERGE IMPLEMENTADO)
      ======================================================================== */
-  async mergeApiPlaylists(apiData) {
+  async mergeApiPlaylists(apiData, { isDelta = false } = {}) {
+    const isCurrent = captureSyncSession();
     if (!db.playlists) return;
 
-    const playlistsFromServer = Array.isArray(apiData) ? apiData : [];
+    const playlistsFromServer = requireSyncArray(apiData);
+    for (const playlist of playlistsFromServer) {
+      if (playlist.tracks !== undefined) requireSyncArray(playlist.tracks);
+    }
 
     console.log(`[RadioRepo] Processando Sync de ${playlistsFromServer.length} playlists.`);
 
     return db.transaction('rw', db.playlists, db.tracks, db.lyrics, db.global_audio_cache, db.global_video_cache, async () => {
+      assertSyncSession(isCurrent);
 
       const serverIdsSet = new Set(playlistsFromServer.map(p => p.id));
       const allLocalPlaylists = await db.playlists.toArray();
 
       // 1. Limpeza de Playlists Obsoletas
       for (const localPl of allLocalPlaylists) {
-        if (localPl.id && !serverIdsSet.has(localPl.id)) {
+        if (!isDelta && localPl.id && !serverIdsSet.has(localPl.id)) {
           console.log(`[RadioRepo] Excluindo playlist obsoleta localmente: ${localPl.name}`);
           await db.tracks.where('playlist_local_id').equals(localPl.local_id).delete();
           await db.playlists.delete(localPl.local_id);
@@ -369,6 +375,7 @@ export const radioRepository = {
           }
         }
       }
+      assertSyncSession(isCurrent);
     });
   },
 

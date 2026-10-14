@@ -4,6 +4,7 @@ import { accountsRepository } from '../services/localData/accountsRepository';
 import { syncQueueRepository } from '../services/localData/syncQueueRepository';
 import { syncService } from '../services/syncService';
 import { api } from "../plugins/api";
+import { captureSyncSession, normalizeSyncTimestamp, readSyncTimestamp, writeSyncTimestamp, requireSyncArray } from "../utils/syncState";
 import {
   authenticateVaultWithLocalBiometrics,
   prepareVaultBiometricUnlock,
@@ -43,7 +44,7 @@ export const useVaultStore = defineStore('vault', () => {
   let _inactivityTimer = null;
   let _revealTimers = {};
 
-  const last_sync_timestamp = ref(localStorage.getItem('kadem_vault_last_sync') || null);
+  const last_sync_timestamp = ref(readSyncTimestamp('kadem_vault_last_sync'));
 
   // --- CRIPTOGRAFIA (Web Crypto API) ---
   const _getWebCrypto = () => {
@@ -191,6 +192,8 @@ export const useVaultStore = defineStore('vault', () => {
   };
 
   const loadAccountsFromDB = async () => {
+    const isCurrent = captureSyncSession();
+    const key = _mek.value;
     if (!isUnlocked.value) return;
 
     const encrypted_accounts = await accountsRepository.getAllLocalAccounts();
@@ -213,31 +216,33 @@ export const useVaultStore = defineStore('vault', () => {
       };
     };
 
-    accounts.value = decrypted_list;
+    if (isCurrent() && isUnlocked.value && _mek.value === key) accounts.value = decrypted_list;
   };
 
   const pullAccounts = async () => {
+    const isCurrent = captureSyncSession();
     console.log("[VaultStore] Verificando atualizações...");
     try {
       const params = {};
-      if (last_sync_timestamp.value) {
-        params.since = last_sync_timestamp.value;
+      if (normalizeSyncTimestamp(last_sync_timestamp.value)) {
+        params.since = normalizeSyncTimestamp(last_sync_timestamp.value);
       }
 
-      const { data } = await api.get('/accounts', { params });
-      const remote_accounts = data.items || [];
+      const { data } = await api.get('/accounts', { params, timeout: 15000 });
+      if (!isCurrent()) return;
+      const remote_accounts = requireSyncArray(data.items);
       const server_time = data.server_timestamp;
 
       if (remote_accounts.length > 0) {
         await accountsRepository.mergeApiAccounts(remote_accounts);
+        if (!isCurrent()) return;
         await loadAccountsFromDB();
       } else {
         console.log("[VaultStore] Cofre sincronizado.");
       }
 
-      if (server_time) {
-        last_sync_timestamp.value = server_time;
-        localStorage.setItem('kadem_vault_last_sync', server_time);
+      if (isCurrent() && normalizeSyncTimestamp(server_time)) {
+        last_sync_timestamp.value = writeSyncTimestamp('kadem_vault_last_sync', server_time);
       }
 
     } catch (error) {

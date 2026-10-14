@@ -6,6 +6,7 @@ import { useAuthStore } from "../stores/auth";
 import { useUtilsStore } from "../stores/utils";
 import { getPlanLimits } from "../services/subscription_plans";
 import { getKanbanPresetColumns } from "../utils/kanbanPresets";
+import { captureSyncSession, normalizeSyncTimestamp, readSyncTimestamp, writeSyncTimestamp, requireSyncArray } from "../utils/syncState";
 import {
   projectRepository,
   syncQueueRepository,
@@ -19,7 +20,7 @@ export const useProjectStore = defineStore("projects", {
     workspace_tabs: [],
     active_workspace_tab_id: null,
     is_populating_offline_cache: false,
-    lastSyncTimestamp: localStorage.getItem("kadem_projects_last_sync") || null,
+    lastSyncTimestamp: readSyncTimestamp("kadem_projects_last_sync"),
   }),
 
   getters: {
@@ -69,8 +70,11 @@ export const useProjectStore = defineStore("projects", {
       }
     },
     async _loadProjectsFromDB() {
+      const isCurrent = captureSyncSession();
       try {
-        this.projects = await projectRepository.getLocalProjects();
+        const projects = await projectRepository.getLocalProjects();
+        if (!isCurrent()) return;
+        this.projects = projects;
         for (const tab of this.workspace_tabs) {
           if (tab.project_local_id != null && !this.projects.some(project => String(project.localId) === String(tab.project_local_id))) {
             this.clearWorkspaceProject(tab.project_local_id);
@@ -94,6 +98,15 @@ export const useProjectStore = defineStore("projects", {
     },
 
     ensureWorkspaceTabs() {
+      const seenIds = new Set();
+      const restoredTabs = (Array.isArray(this.workspace_tabs) ? this.workspace_tabs : []).filter(tab => {
+        if (!tab || typeof tab.id !== 'string' || !tab.id.trim() || seenIds.has(tab.id)) return false;
+        seenIds.add(tab.id);
+        return true;
+      });
+      if (!Array.isArray(this.workspace_tabs) || restoredTabs.length !== this.workspace_tabs.length) {
+        this.workspace_tabs = restoredTabs;
+      }
       if (this.workspace_tabs.length === 0) {
         this.workspace_tabs.push({ id: crypto.randomUUID(), project_local_id: this.active_project_id });
       }
@@ -173,20 +186,24 @@ export const useProjectStore = defineStore("projects", {
     },
 
     async pullProjects() {
+      const isCurrent = captureSyncSession();
       await this._loadProjectsFromDB();
+      if (!isCurrent()) return;
 
       try {
         const params = {};
-        if (this.lastSyncTimestamp) {
-          params.since = this.lastSyncTimestamp;
+        if (normalizeSyncTimestamp(this.lastSyncTimestamp)) {
+          params.since = normalizeSyncTimestamp(this.lastSyncTimestamp);
         }
 
-        const response = await api.get("/projects", { params });
+        const response = await api.get("/projects", { params, timeout: 15000 });
+        if (!isCurrent()) return;
 
         const isDeltaFormat =
           response.data && !Array.isArray(response.data) && "items" in response.data;
         const remoteProjects = isDeltaFormat ? response.data.items : response.data;
         const serverTime = isDeltaFormat ? response.data.server_timestamp : null;
+        requireSyncArray(remoteProjects);
 
         if (Array.isArray(remoteProjects) && remoteProjects.length > 0) {
           console.log(
@@ -194,15 +211,15 @@ export const useProjectStore = defineStore("projects", {
           );
 
           await projectRepository.mergeApiProjects(remoteProjects);
+          if (!isCurrent()) return;
 
           await this._loadProjectsFromDB();
         } else {
           console.log("[Projects] Sincronizado (Nenhuma alteração remota).");
         }
 
-        if (serverTime) {
-          this.lastSyncTimestamp = serverTime;
-          localStorage.setItem("kadem_projects_last_sync", serverTime);
+        if (isCurrent() && normalizeSyncTimestamp(serverTime)) {
+          this.lastSyncTimestamp = writeSyncTimestamp("kadem_projects_last_sync", serverTime);
         }
       } catch (error) {
         console.warn("[Projects] Pull falhou ou offline:", error);
@@ -564,5 +581,6 @@ export const useProjectStore = defineStore("projects", {
 
   persist: {
     pick: ["active_project_id", "workspace_tabs", "active_workspace_tab_id"],
+    afterHydrate: (ctx) => { ctx.store.ensureWorkspaceTabs(); },
   },
 });

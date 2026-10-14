@@ -1,15 +1,15 @@
 <template>
   <BaseModal
     :model-value="visible"
-    title="Novo Objeto de Saúde"
+    :title="modalTitle"
     size="lg"
     @update:model-value="val => { if (!val) $emit('close'); }"
     @close="$emit('close')"
   >
     <form class="health-modal-body" @submit.prevent="handleSubmit">
-        <!-- Seletor do Tipo de Objeto -->
-        <div class="health-field static-label">
-          <label>Tipo de Objeto</label>
+        <!-- O tipo é definido na criação e preservado na edição. -->
+        <div v-if="!object" class="health-field static-label">
+          <label>Tipo de entidade</label>
           <SearchableDropdown
             v-model="form.object_type"
             :options="objectTypeOptions"
@@ -20,19 +20,47 @@
         </div>
 
         <div class="health-field static-label">
-          <label for="obj-name">Nome do objeto</label>
+          <label for="obj-name">Nome da entidade</label>
           <input
             id="obj-name"
             v-model.trim="form.name"
-            placeholder="Ex.: Aplicação mensal, Vitamina D, Treino A, etc."
+            :placeholder="scope === 'schedules' ? 'Ex.: Consulta, exame de sangue, fisioterapia' : 'Ex.: Vitamina D, Bolsa de ileostomia'"
             required
             autofocus
           />
         </div>
 
-        <!-- Campos de SCHEDULE (Agenda / Rotina) -->
-        <template v-if="form.object_type === 'SCHEDULE'">
+        <label class="schedule-switch">
+          <span class="switch-copy">
+            <strong>Agendamento / recorrência</strong>
+            <small>{{ form.schedule_enabled ? 'Aparecerá em Rotinas & Agendas.' : 'Aparecerá em Entidades de saúde.' }}</small>
+          </span>
+          <input v-model="form.schedule_enabled" type="checkbox" role="switch" aria-label="Agendamento / recorrência" />
+          <span class="switch-track" aria-hidden="true"></span>
+        </label>
+
+        <template v-if="form.schedule_enabled">
           <div class="form-row">
+            <div class="health-field static-label">
+              <label for="obj-anchor">{{ form.recurrence_enabled ? 'Primeira ocorrência' : 'Data e hora do agendamento' }}</label>
+              <input id="obj-anchor" v-model="form.anchor_date" type="datetime-local" required />
+            </div>
+            <div class="health-field static-label">
+              <label for="obj-warning">Aviso prévio (dias)</label>
+              <input id="obj-warning" v-model.number="form.warning_before" type="number" min="0" step="1" />
+            </div>
+          </div>
+
+          <label class="schedule-switch">
+            <span class="switch-copy">
+              <strong>Repetir agendamento</strong>
+              <small>{{ form.recurrence_enabled ? 'Uma nova ocorrência será prevista após concluir.' : 'Ocorrência única, sem repetição.' }}</small>
+            </span>
+            <input v-model="form.recurrence_enabled" type="checkbox" role="switch" aria-label="Repetir agendamento" />
+            <span class="switch-track" aria-hidden="true"></span>
+          </label>
+
+          <div v-if="form.recurrence_enabled" class="form-row">
             <div class="health-field static-label">
               <label for="obj-freq-val">Repetir a cada</label>
               <input
@@ -40,6 +68,7 @@
                 v-model.number="form.frequency_value"
                 type="number"
                 min="1"
+                step="1"
                 required
               />
             </div>
@@ -55,20 +84,10 @@
             </div>
           </div>
 
-          <div class="form-row">
-            <div class="health-field static-label">
-              <label for="obj-anchor">Data de início ou referência</label>
-              <input id="obj-anchor" v-model="form.anchor_date" type="date" required />
-            </div>
-            <div class="health-field static-label">
-              <label for="obj-warning">Aviso prévio (dias)</label>
-              <input id="obj-warning" v-model.number="form.warning_before" type="number" min="0" />
-            </div>
-          </div>
         </template>
 
         <!-- Campos de SUPPLY ou MEDICATION (Insumo / Estoque) -->
-        <template v-else-if="form.object_type === 'SUPPLY' || form.object_type === 'MEDICATION'">
+        <template v-if="form.object_type === 'SUPPLY' || form.object_type === 'MEDICATION'">
           <div class="form-row">
             <div class="health-field static-label">
               <label>Unidade de medida</label>
@@ -82,13 +101,14 @@
               />
             </div>
             <div class="health-field static-label">
-              <label for="obj-initial-stock">Estoque inicial</label>
+              <label for="obj-initial-stock">{{ object ? 'Estoque atual' : 'Estoque inicial' }}</label>
               <input
                 id="obj-initial-stock"
-                v-model.number="form.initial_stock"
+                v-model.number="form.stock_quantity"
                 type="number"
-                min="0"
+                :min="object ? undefined : 0"
                 step="any"
+                required
               />
             </div>
           </div>
@@ -125,7 +145,7 @@
           <button type="button" class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" @click="$emit('close')">Cancelar</button>
           <button type="submit" class="kadem-health-button kadem-health-button--primary" :disabled="loading">
             <font-awesome-icon v-if="loading" icon="spinner" spin />
-            <span>{{ loading ? "Salvando…" : "Criar Objeto" }}</span>
+            <span>{{ loading ? "Salvando…" : object ? "Salvar alterações" : form.schedule_enabled ? "Criar agendamento" : "Criar entidade" }}</span>
           </button>
         </div>
       </form>
@@ -137,6 +157,7 @@ import { mapState } from "pinia";
 import { useHealthStore } from "@/stores/health";
 import BaseModal from "@/components/BaseModal.vue";
 import SearchableDropdown from "@/components/ui/SearchableDropdown.vue";
+import { HEALTH_ENTITY_TYPE_OPTIONS, HEALTH_SCHEDULE_TYPE_OPTIONS, HEALTH_OBJECT_TYPE_OPTIONS, isHealthScheduled, isHealthRecurring } from "@/utils/healthObjectTypes";
 
 export default {
   name: "HealthObjectModal",
@@ -145,6 +166,10 @@ export default {
     SearchableDropdown,
   },
   props: {
+    object: { type: Object, default: null },
+    scope: { type: String, default: "entities", validator: (value) => ["entities", "schedules"].includes(value) },
+    currentStock: { type: Number, default: 0 },
+    currentDueAt: { type: String, default: null },
     visible: {
       type: Boolean,
       default: false,
@@ -165,15 +190,18 @@ export default {
   emits: ["close", "submit"],
   data() {
     return {
+      originalStock: 0,
       form: {
         name: "",
         object_type: "SCHEDULE",
+        schedule_enabled: false,
+        recurrence_enabled: false,
         frequency_unit: "months",
         frequency_value: 1,
         anchor_date: "",
         warning_before: 7,
         unit: "comprimidos",
-        initial_stock: 0,
+        stock_quantity: 0,
         minimum_quantity: 0,
         notes: "",
       },
@@ -181,28 +209,28 @@ export default {
   },
   computed: {
     ...mapState(useHealthStore, ["units"]),
+    modalTitle() {
+      if (this.scope === "schedules") return this.object ? "Editar agendamento" : "Novo agendamento";
+      return this.object ? "Editar entidade de saúde" : "Nova entidade de saúde";
+    },
     objectTypeOptions() {
-      return [
-        { value: "SCHEDULE", label: "Agenda Recorrente / Rotina" },
-        { value: "SUPPLY", label: "Insumo / Estoque" },
-        { value: "MEDICATION", label: "Medicação" },
-        { value: "TREATMENT", label: "Tratamento" },
-        { value: "EXAM", label: "Exame Periódico" },
-        { value: "APPOINTMENT", label: "Consulta Médica" },
-        { value: "SYMPTOM", label: "Rastreio de Sintoma" },
-        { value: "DEVICE", label: "Dispositivo de Saúde" },
-        { value: "CUSTOM", label: "Objeto Livre" },
-      ];
+      if (this.object) return HEALTH_OBJECT_TYPE_OPTIONS;
+      return this.scope === "schedules" ? HEALTH_SCHEDULE_TYPE_OPTIONS : HEALTH_ENTITY_TYPE_OPTIONS;
     },
     unitOptions() {
-      return (this.units || []).map((u) => ({
+      const options = (this.units || []).map((u) => ({
         value: u.value,
         label: u.label || u.value,
         subtitle: u.category ? `Categoria: ${u.category}` : undefined,
       }));
+      if (this.object?.unit && !options.some((option) => option.value === this.object.unit)) {
+        options.push({ value: this.object.unit, label: this.object.unit });
+      }
+      return options;
     },
     frequencyOptions() {
       return [
+        { value: "hours", label: "Horas" },
         { value: "days", label: "Dias" },
         { value: "weeks", label: "Semanas" },
         { value: "months", label: "Meses" },
@@ -210,6 +238,11 @@ export default {
     },
   },
   watch: {
+    "form.object_type"(type) {
+      if (this.object) return;
+      this.form.schedule_enabled = isHealthScheduled({ object_type: type });
+      this.form.recurrence_enabled = type === "SCHEDULE";
+    },
     visible(val) {
       if (val) {
         this.resetForm();
@@ -217,27 +250,41 @@ export default {
     },
   },
   methods: {
-    localDate() {
-      const d = new Date();
+    localDateTime(value) {
+      if (value && value.length === 10) return value + "T09:00";
+      const d = value ? new Date(value) : new Date();
       d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-      return d.toISOString().slice(0, 10);
+      return d.toISOString().slice(0, 16);
     },
     resetForm() {
+      const object = this.object;
+      this.originalStock = this.currentStock;
+      const initialType = this.objectTypeOptions.some((option) => option.value === this.initialType)
+        ? this.initialType : this.objectTypeOptions[0].value;
       this.form = {
-        name: "",
-        object_type: this.initialType || "SCHEDULE",
-        frequency_unit: "months",
-        frequency_value: 1,
-        anchor_date: this.localDate(),
-        warning_before: 7,
-        unit: this.unitOptions[0]?.value || "comprimidos",
-        initial_stock: 0,
-        minimum_quantity: 0,
-        notes: "",
+        name: object?.name || "",
+        object_type: object?.object_type || initialType,
+        schedule_enabled: isHealthScheduled(object || { object_type: initialType }),
+        recurrence_enabled: isHealthRecurring(object || { object_type: initialType }),
+        frequency_unit: object?.frequency_unit || "months",
+        frequency_value: object?.frequency_value ?? 1,
+        anchor_date: this.localDateTime(object?.object_type === "SCHEDULE" && object.schedule_enabled === undefined ? this.currentDueAt || object.anchor_date : object?.anchor_date),
+        warning_before: object?.warning_before ?? 7,
+        unit: object?.unit || this.unitOptions[0]?.value || "comprimidos",
+        stock_quantity: object ? this.currentStock : 0,
+        minimum_quantity: object?.minimum_quantity ?? 0,
+        notes: object?.notes || "",
       };
     },
     handleSubmit() {
-      this.$emit("submit", { ...this.form });
+      if (this.loading || !this.objectTypeOptions.some((option) => option.value === this.form.object_type)) return;
+      const payload = { ...this.form };
+      if (this.object) {
+        if (payload.stock_quantity === this.originalStock) delete payload.stock_quantity;
+      } else {
+        payload.initial_stock = payload.stock_quantity;
+      }
+      this.$emit("submit", payload);
     },
   },
 };
@@ -249,6 +296,29 @@ export default {
   flex-direction: column;
   gap: var(--space-4);
 }
+
+.schedule-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  cursor: pointer;
+}
+
+.switch-copy { display: grid; gap: var(--space-1); }
+.switch-copy strong { font-size: var(--fontsize-xs); color: var(--text-primary); }
+.switch-copy small { font-size: 0.74rem; color: var(--text-secondary); }
+.schedule-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch-track { width: 40px; height: 24px; flex-shrink: 0; border-radius: 12px; background: var(--surface-3); transition: background var(--transition-fast); }
+.switch-track::after { content: ""; display: block; width: 18px; height: 18px; margin: 3px; border-radius: 50%; background: var(--text-secondary); transition: transform var(--transition-fast); }
+.schedule-switch input:checked + .switch-track { background: #e25373; }
+.schedule-switch input:checked + .switch-track::after { transform: translateX(16px); background: white; }
+.schedule-switch input:focus-visible + .switch-track { outline: 2px solid var(--text-primary); outline-offset: 3px; }
 
 .form-row {
   display: grid;

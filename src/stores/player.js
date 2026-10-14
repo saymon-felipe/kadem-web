@@ -17,6 +17,7 @@ import { AUDIO_PRESETS, default_audio_settings, sanitize_audio_settings } from "
 import { RadioListeningTracker } from '../services/radioListeningTracker';
 import { radioInsightsRepository } from '../services/localData/radioInsightsRepository';
 import { syncService } from '../services/syncService';
+import { captureSyncSession } from '../utils/syncState';
 
 function debounce(func, wait) {
   let timeout;
@@ -1222,16 +1223,18 @@ export const usePlayerStore = defineStore("player", {
     },
 
     async pullPlayerState() {
+      const isCurrent = captureSyncSession();
       this.restore_local_volume();
 
       try {
-        const response = await api.get("/radio/preferences");
+        const response = await api.get("/radio/preferences", { timeout: 15000 });
+        if (!isCurrent()) return;
         const prefs = response.data;
 
         if (prefs && Object.keys(prefs).length > 0) {
           if (prefs.is_shuffle !== undefined) this.is_shuffle = !!prefs.is_shuffle;
-          if (prefs.active_app) this.active_app = prefs.active_app;
-          if (prefs.queue) this.queue = prefs.queue;
+          if (["radio_flow", "kadem_nexo", "kadem_health"].includes(prefs.active_app)) this.active_app = prefs.active_app;
+          if (Array.isArray(prefs.queue) && prefs.queue.every(track => track && typeof track === "object")) this.queue = prefs.queue;
           if (prefs.playback_position !== undefined) {
             this.playback_position = Math.max(0, Number(prefs.playback_position) || 0);
           }
@@ -1243,6 +1246,7 @@ export const usePlayerStore = defineStore("player", {
             );
             if (!pl)
               pl = await radioRepository.getLocalPlaylist(prefs.current_playlist_id);
+            if (!isCurrent()) return;
             if (pl) this.current_playlist = pl;
           }
 
@@ -1258,6 +1262,7 @@ export const usePlayerStore = defineStore("player", {
               track = this.queue.find((t) => t.id === prefs.current_track_id);
             }
 
+            if (!isCurrent()) return;
             if (track) {
               this.current_music = track;
               this.queue = this.queue.filter((t) => t.youtube_id !== track.youtube_id);
@@ -1269,6 +1274,7 @@ export const usePlayerStore = defineStore("player", {
                 this.player_mode = "native";
               } else {
                 const hasBlob = await radioRepository.hasGlobalPlayableMedia(track.youtube_id);
+                if (!isCurrent()) return;
                 this.player_mode = hasBlob ? "native" : "youtube";
               }
               this.is_playing = false;
@@ -1278,8 +1284,8 @@ export const usePlayerStore = defineStore("player", {
       } catch (error) {
         console.warn("[PlayerStore] Falha ao carregar preferências:", error.message);
       } finally {
-        this.is_initialized = true;
-        if (this.current_music && !this.is_playing) {
+        if (isCurrent()) this.is_initialized = true;
+        if (isCurrent() && this.current_music && !this.is_playing) {
           await this.restorePlayerConnection();
         }
       }
@@ -1379,6 +1385,10 @@ export const usePlayerStore = defineStore("player", {
       deserialize: (value) => JSON.parse(value),
     },
     afterHydrate: (ctx) => {
+      ctx.store.queue = Array.isArray(ctx.store.queue) ? ctx.store.queue.filter(track => track && typeof track === 'object' && !Array.isArray(track)) : [];
+      ctx.store.played_history = Array.isArray(ctx.store.played_history) ? ctx.store.played_history.filter(track => track && typeof track === 'object' && !Array.isArray(track)) : [];
+      if (![null, 'radio_flow', 'kadem_nexo', 'kadem_health'].includes(ctx.store.active_app)) ctx.store.active_app = null;
+      if (!ctx.store.active_app_tabs || typeof ctx.store.active_app_tabs !== 'object' || Array.isArray(ctx.store.active_app_tabs)) ctx.store.active_app_tabs = {};
       ctx.store.is_playing = false;
       ctx.store.is_loading = false;
       ctx.store.current_audio_url = null;

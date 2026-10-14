@@ -11,7 +11,7 @@
       </div>
       <button class="kadem-health-button kadem-health-button--quiet kadem-health-button--compact" type="button"
         @click="$emit('view-objects')">
-        Ver todos
+        Ver entidades de saúde
       </button>
     </div>
 
@@ -21,7 +21,7 @@
       <button class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" type="button"
         @click="$emit('new-supply')">
         <font-awesome-icon icon="plus" />
-        <span>Cadastrar primeiro insumo</span>
+        <span>Nova</span>
       </button>
     </div>
 

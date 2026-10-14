@@ -44,6 +44,93 @@ const createViteServer = () =>
 
 const PROJECT_ID = 1;
 
+test('pull recupera cursor nulo e compartilha a requisição entre abertura e sincronização', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB, task }, server) => {
+  const { api } = await server.ssrLoadModule('/src/plugins/api.js');
+  const { useUtilsStore } = await server.ssrLoadModule('/src/stores/utils.js');
+  useUtilsStore().is_network_online = true;
+  useUtilsStore().is_kadem_api_available = true;
+  store.lastSyncs = null; // Reproduz exatamente o estado deixado pelo logout antigo.
+  const calls = [];
+  api.get = async (_url, { params }) => {
+    calls.push(params);
+    return { data: { server_timestamp: '2026-10-14T15:00:00.000Z', data: {
+      columns: [columnA, columnB], tasks: [{ ...task, column_id: columnA.id }],
+    } } };
+  };
+  const results = await Promise.all([store.pullProjectKanban(908, PROJECT_ID), store.pullProjectKanban(908, PROJECT_ID)]);
+  assert.ok(results.every(result => result.status === 'synced'));
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], {});
+  assert.equal(store.lastSyncs[PROJECT_ID], '2026-10-14T15:00:00.000Z');
+  await store.pullProjectKanban(908, PROJECT_ID);
+  assert.equal(calls[1].since, '2026-10-14T15:00:00.000Z');
+  store.clearState();
+  assert.deepEqual(store.lastSyncs, {});
+  await store.pullProjectKanban(908, PROJECT_ID);
+  assert.deepEqual(calls[2], {}, 'O primeiro pull após limpar a sessão deve ser completo');
+  assert.equal(store.getTasks(columnA.local_id)[0].local_id, task.local_id);
+}));
+
+test('resposta inválida não apaga o quadro nem avança o cursor; repetir recupera o erro', { timeout: 30000 }, (context) => withHierarchyBoard(async ({ store, columnA, columnB, task }, server) => {
+  context.mock.method(console, 'warn', () => {});
+  const { api } = await server.ssrLoadModule('/src/plugins/api.js');
+  const { useUtilsStore } = await server.ssrLoadModule('/src/stores/utils.js');
+  useUtilsStore().is_network_online = true;
+  useUtilsStore().is_kadem_api_available = true;
+  store.lastSyncs = { [PROJECT_ID]: '2026-10-14T14:00:00.000Z' };
+  api.get = async () => ({ data: null });
+  assert.equal((await store.pullProjectKanban(908, PROJECT_ID)).status, 'error');
+  assert.equal(store.getColumns(PROJECT_ID).length, 2);
+  assert.equal(store.getTasks(columnA.local_id)[0].local_id, task.local_id);
+  assert.equal(store.lastSyncs[PROJECT_ID], '2026-10-14T14:00:00.000Z');
+  assert.ok(store.syncErrors[PROJECT_ID]);
+  api.get = async () => ({ data: { server_timestamp: '2026-10-14T15:00:00.000Z', data: { columns: [columnA, columnB], tasks: [{ ...task, column_id: columnA.id }] } } });
+  assert.equal((await store.pullProjectKanban(908, PROJECT_ID)).status, 'synced');
+  assert.equal(store.syncErrors[PROJECT_ID], undefined);
+}));
+
+test('resposta antiga após logout não mescla registros nem restaura cursores da sessão anterior', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, db }, server) => {
+  const { api } = await server.ssrLoadModule('/src/plugins/api.js');
+  const { useUtilsStore } = await server.ssrLoadModule('/src/stores/utils.js');
+  const { useAuthStore } = await server.ssrLoadModule('/src/stores/auth.js');
+  useUtilsStore().is_network_online = true;
+  useUtilsStore().is_kadem_api_available = true;
+  let release;
+  let started;
+  const requestStarted = new Promise(resolve => { started = resolve; });
+  api.get = () => new Promise(resolve => { release = resolve; started(); });
+  const pull = store.pullProjectKanban(908, PROJECT_ID);
+  await requestStarted;
+  store.clearState();
+  useAuthStore().user = { id: 2 };
+  release({ data: { server_timestamp: '2026-10-14T15:00:00.000Z', data: { columns: [{ id: columnA.id, title: 'Resposta antiga' }], tasks: [] } } });
+  assert.equal((await pull).status, 'stale');
+  assert.deepEqual(store.lastSyncs, {});
+  assert.deepEqual(store.columns, {});
+  assert.equal((await db.kanban_columns.get(columnA.local_id)).title, columnA.title);
+}));
+
+test('troca de sessão durante o merge reverte toda a transação', { timeout: 30000 }, () => withHierarchyBoard(async ({ kanbanRepository: repo, columnA, task, db }) => {
+  let checks = 0;
+  await assert.rejects(repo.mergeServerData(PROJECT_ID, [{ id: columnA.id, title: 'Não deve entrar' }], [], false, () => ++checks === 1), /troca de sessão/);
+  assert.equal((await db.kanban_columns.get(columnA.local_id)).title, columnA.title);
+  assert.ok(await db.kanban_tasks.get(task.local_id));
+}));
+
+test('falha na leitura local conserva o snapshot e libera o carregamento com recuperação', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, kanbanRepository: repo }, server) => {
+  const previousColumns = store.getColumns(PROJECT_ID);
+  const previousTasks = store.getTasks(columnA.local_id);
+  repo.get_tasks_by_project = async () => { throw new Error('IndexedDB indisponível'); };
+  await assert.rejects(store.loadBoardFromLocal(PROJECT_ID), /IndexedDB/);
+  assert.equal(store.getColumns(PROJECT_ID), previousColumns);
+  assert.equal(store.getTasks(columnA.local_id), previousTasks);
+  const { default: Board } = await server.ssrLoadModule('/src/components/projects/ProjectKanban.vue');
+  const context = { board_load_token: 0, board_loading: true, board_error: '', loadBoardFromLocal: store.loadBoardFromLocal, columns: previousColumns };
+  await Board.methods.load_board.call(context, PROJECT_ID);
+  assert.equal(context.board_loading, false);
+  assert.match(context.board_error, /carregar o quadro/);
+}));
+
 const clipboardFormContext = (Form, overrides = {}) => ({
   ...Form.data(), active_tab: 'attachments', overlay_active: true, canPasteAttachment: () => true,
   clear_pasted_attachment: Form.methods.clear_pasted_attachment,

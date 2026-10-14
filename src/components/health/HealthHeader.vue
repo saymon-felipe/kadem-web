@@ -17,15 +17,6 @@
       </button>
 
       <button
-        class="kadem-health-button kadem-health-button--secondary"
-        type="button"
-        @click="$emit('new-object')"
-      >
-        <font-awesome-icon icon="layer-group" />
-        <span>Novo Objeto</span>
-      </button>
-
-      <button
         class="kadem-health-button kadem-health-button--primary"
         type="button"
         @click="$emit('new-action')"
@@ -46,7 +37,7 @@ export default {
       default: false,
     },
   },
-  emits: ["reload", "new-object", "new-action"],
+  emits: ["reload", "new-action"],
 };
 </script>
 

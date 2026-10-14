@@ -10,14 +10,9 @@ import { getPlanLimits } from '../services/subscription_plans';
 import { canSetTaskParent } from '../utils/taskHierarchy';
 import { db } from '../db';
 import { DEFAULT_COLUMN_TYPE, isColumnType, normalizeColumn } from '../utils/kanbanTypes';
+import { loadKanbanSyncs, normalizeKanbanSyncs } from '../utils/kanbanSyncState';
 
-const loadKanbanSyncs = () => {
-  if (localStorage.getItem('kadem_kanban_semantics_version') !== '1') {
-    localStorage.removeItem('kadem_kanban_syncs');
-    localStorage.setItem('kadem_kanban_semantics_version', '1');
-  }
-  return JSON.parse(localStorage.getItem('kadem_kanban_syncs') || '{}');
-};
+const pendingPulls = new WeakMap();
 
 const formatBytes = (bytes) => {
   if (!bytes) return '0 B';
@@ -31,7 +26,9 @@ export const useKanbanStore = defineStore('kanban', {
   state: () => ({
     columns: {},
     tasks: {},
-    lastSyncs: loadKanbanSyncs()
+    lastSyncs: loadKanbanSyncs(),
+    syncErrors: {},
+    syncGeneration: 0,
   }),
 
   getters: {
@@ -61,6 +58,13 @@ export const useKanbanStore = defineStore('kanban', {
   },
 
   actions: {
+    clearState() {
+      this.syncGeneration++;
+      this.columns = {};
+      this.tasks = {};
+      this.lastSyncs = {};
+      this.syncErrors = {};
+    },
     async setTaskParent(task, parentLocalId) {
       const localTask = await kanbanRepository.get_task_by_local_id(task.local_id);
       if (!localTask) throw new Error('Tarefa não encontrada.');
@@ -94,10 +98,9 @@ export const useKanbanStore = defineStore('kanban', {
     },
     async loadBoardFromLocal(projectId) {
       if (!projectId) return;
-
+      const generation = this.syncGeneration;
+      const userId = useAuthStore().user?.id;
       const localColumns = await kanbanRepository.get_columns_by_project(projectId);
-
-      this.columns[projectId] = localColumns;
 
       // Cada leitura hidrata também os anexos: fazê-la por coluna multiplica
       // consultas, cópias e blobs em memória pelo número de colunas.
@@ -109,6 +112,9 @@ export const useKanbanStore = defineStore('kanban', {
         if (!tasksByColumn.has(task.column_id)) tasksByColumn.set(task.column_id, []);
         tasksByColumn.get(task.column_id).push(task);
       }
+      if (generation !== this.syncGeneration || userId !== useAuthStore().user?.id) return;
+      // Publica o snapshot somente depois de todas as leituras; uma falha não esvazia o cache visível.
+      this.columns[projectId] = localColumns;
       for (const col of localColumns) {
         const columnTasks = (tasksByColumn.get(col.local_id) || [])
           .sort((a, b) => a.order - b.order);
@@ -267,21 +273,30 @@ export const useKanbanStore = defineStore('kanban', {
         await projectStore._loadProjectsFromDB();
       }
 
-      for (const proj of projectStore.projects) {
-        if (proj.id && proj.localId) {
-          this.pullProjectKanban(proj.id, proj.localId);
-        }
-      }
+      await Promise.allSettled(projectStore.projects
+        .filter(proj => proj.id && proj.localId)
+        .map(proj => this.pullProjectKanban(proj.id, proj.localId)));
     },
 
-    async pullProjectKanban(serverProjectId, localProjectId) {
-      await this.loadBoardFromLocal(localProjectId);
+    pullProjectKanban(serverProjectId, localProjectId) {
+      let pulls = pendingPulls.get(this);
+      if (!pulls) pendingPulls.set(this, pulls = new Map());
+      const key = JSON.stringify([serverProjectId, localProjectId, this.syncGeneration, useAuthStore().user?.id]);
+      if (pulls.has(key)) return pulls.get(key);
+      const pull = this._pullProjectKanban(serverProjectId, localProjectId).finally(() => pulls.delete(key));
+      pulls.set(key, pull);
+      return pull;
+    },
 
-      const utilsStore = useUtilsStore();
-
-      if (!utilsStore.connection.connected) return;
-
+    async _pullProjectKanban(serverProjectId, localProjectId) {
+      const generation = this.syncGeneration;
+      const userId = useAuthStore().user?.id;
+      const isCurrent = () => generation === this.syncGeneration && userId === useAuthStore().user?.id;
       try {
+        await this.loadBoardFromLocal(localProjectId);
+        if (!isCurrent()) return { status: 'stale' };
+        if (!useUtilsStore().connection.connected) return { status: 'offline' };
+        this.lastSyncs = normalizeKanbanSyncs(this.lastSyncs);
         const params = {};
         const lastSync = this.lastSyncs[localProjectId];
 
@@ -291,7 +306,8 @@ export const useKanbanStore = defineStore('kanban', {
           params.since = lastSync;
         }
 
-        const response = await api.get(`/kanban/projects/${serverProjectId}`, { params });
+        const response = await api.get(`/kanban/projects/${serverProjectId}`, { params, timeout: 15000 });
+        if (!isCurrent()) return { status: 'stale' };
 
         let apiData = response.data;
         let serverTimestamp = null;
@@ -301,15 +317,21 @@ export const useKanbanStore = defineStore('kanban', {
           apiData = apiData.data || apiData;
         }
 
+        if (!apiData || typeof apiData !== 'object' || Array.isArray(apiData) ||
+          !Array.isArray(apiData.columns) || !Array.isArray(apiData.tasks)) {
+          throw new Error('Resposta de sincronização do Kanban inválida.');
+        }
         const { project, columns, tasks, members } = apiData;
 
         const shouldMerge = !isDelta || (columns && columns.length > 0) || (tasks && tasks.length > 0);
 
         if (shouldMerge) {
-          await kanbanRepository.mergeServerData(localProjectId, columns || [], tasks || [], isDelta);
+          await kanbanRepository.mergeServerData(localProjectId, columns || [], tasks || [], isDelta, isCurrent);
+          if (!isCurrent()) return { status: 'stale' };
 
           if (project) {
             const localProject = await projectRepository.getLocalProject(localProjectId);
+            if (!isCurrent()) return { status: 'stale' };
 
             if (localProject) {
               const updatedProject = {
@@ -319,9 +341,11 @@ export const useKanbanStore = defineStore('kanban', {
               };
 
               await projectRepository.saveLocalProject(updatedProject);
+              if (!isCurrent()) return { status: 'stale' };
 
               const { useProjectStore } = await import('./projects');
               const projectStore = useProjectStore();
+              if (!isCurrent()) return { status: 'stale' };
 
               if (projectStore.projects.length > 0) {
                 const idx = projectStore.projects.findIndex(p => p.localId === localProjectId);
@@ -334,14 +358,21 @@ export const useKanbanStore = defineStore('kanban', {
 
           await this.loadBoardFromLocal(localProjectId);
         }
+        if (!isCurrent()) return { status: 'stale' };
 
         if (serverTimestamp) {
-          this.lastSyncs[localProjectId] = serverTimestamp;
-          localStorage.setItem('kadem_kanban_syncs', JSON.stringify(this.lastSyncs));
+          this.lastSyncs = normalizeKanbanSyncs({ ...this.lastSyncs, [localProjectId]: serverTimestamp });
+          try {
+            localStorage.setItem('kadem_kanban_syncs', JSON.stringify(this.lastSyncs));
+          } catch { /* O quadro já foi aplicado; indisponibilidade deste cache não desfaz o pull. */ }
         }
-
+        delete this.syncErrors[localProjectId];
+        return { status: 'synced' };
       } catch (error) {
-        console.error("[KanbanStore] Erro pull:", error);
+        if (!isCurrent()) return { status: 'stale' };
+        this.syncErrors[localProjectId] = 'Não foi possível sincronizar o quadro. Os dados disponíveis neste dispositivo foram mantidos.';
+        console.warn('[KanbanStore] Falha na sincronização:', error);
+        return { status: 'error' };
       }
     },
 

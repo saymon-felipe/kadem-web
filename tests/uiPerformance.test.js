@@ -23,6 +23,15 @@ function makeStore(storage) {
   return { store: useStore(pinia), pinia };
 }
 
+test('hidratação ignora raiz nula e filas com tipo inválido', () => {
+  for (const saved of ['null', '[]', '{"queue":null}', '{"queue":{}}']) {
+    const storage = { getItem: key => key === 'player' ? saved : null, setItem() {} };
+    const { store, pinia } = makeStore(storage);
+    assert.deepEqual(store.queue, []);
+    disposePinia(pinia);
+  }
+});
+
 test("ticks e estado transitório não serializam uma fila de mil faixas", async () => {
   const items = new Map();
   const writes = [];
