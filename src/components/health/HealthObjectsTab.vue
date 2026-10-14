@@ -9,67 +9,41 @@
       <div class="header-actions">
         <!-- Filtros -->
         <div class="filter-pills" v-if="viewMode === 'all' && objects.length">
-          <button
-            class="filter-pill"
-            :class="{ active: currentFilter === 'ALL' }"
-            type="button"
-            @click="currentFilter = 'ALL'"
-          >
+          <button class="filter-pill" :class="{ active: currentFilter === 'ALL' }" type="button"
+            @click="currentFilter = 'ALL'">
             Todos ({{ objects.length }})
           </button>
-          <button
-            class="filter-pill"
-            :class="{ active: currentFilter === 'SCHEDULE' }"
-            type="button"
-            @click="currentFilter = 'SCHEDULE'"
-          >
+          <button class="filter-pill" :class="{ active: currentFilter === 'SCHEDULE' }" type="button"
+            @click="currentFilter = 'SCHEDULE'">
             <font-awesome-icon icon="calendar" />
             <span>Rotinas ({{ schedules.length }})</span>
           </button>
-          <button
-            class="filter-pill"
-            :class="{ active: currentFilter === 'SUPPLY' }"
-            type="button"
-            @click="currentFilter = 'SUPPLY'"
-          >
+          <button class="filter-pill" :class="{ active: currentFilter === 'SUPPLY' }" type="button"
+            @click="currentFilter = 'SUPPLY'">
             <font-awesome-icon icon="box-archive" />
             <span>Insumos ({{ supplies.length }})</span>
           </button>
-          <button
-            v-if="otherObjects.length"
-            class="filter-pill"
-            :class="{ active: currentFilter === 'OTHER' }"
-            type="button"
-            @click="currentFilter = 'OTHER'"
-          >
+          <button v-if="otherObjects.length" class="filter-pill" :class="{ active: currentFilter === 'OTHER' }"
+            type="button" @click="currentFilter = 'OTHER'">
             <font-awesome-icon icon="layer-group" />
             <span>Outros ({{ otherObjects.length }})</span>
           </button>
         </div>
 
-        <button class="kadem-health-button kadem-health-button--primary kadem-health-button--compact" type="button" @click="$emit('new-object')">
+        <button class="kadem-health-button kadem-health-button--primary kadem-health-button--compact" type="button"
+          @click="$emit('new-object')">
           <font-awesome-icon icon="plus" />
           <span>{{ viewCopy.actionLabel }}</span>
         </button>
       </div>
     </div>
 
-    <HealthEmptyState
-      v-if="!objects.length"
-      :icon="viewCopy.icon"
-      :title="viewCopy.emptyTitle"
-      :text="viewCopy.emptyText"
-      :action-label="viewCopy.emptyAction"
-      @action="$emit('new-object')"
-    />
+    <HealthEmptyState v-if="!objects.length" :icon="viewCopy.icon" :title="viewCopy.emptyTitle"
+      :text="viewCopy.emptyText" :action-label="viewCopy.emptyAction" @action="$emit('new-object')" />
 
     <div v-else class="object-grid">
-      <article
-        v-for="object in filteredObjects"
-        :key="object.local_key"
-        class="object-card"
-        :class="objectCardClass(object)"
-      >
+      <article v-for="object in filteredObjects" :key="object.local_key" class="object-card"
+        :class="objectCardClass(object)">
         <div class="card-top">
           <div class="type-badge" :class="objectBadgeClass(object)">
             <font-awesome-icon :icon="objectIcon(object)" />
@@ -78,13 +52,9 @@
 
           <!-- Status / Pin -->
           <div class="top-meta">
-            <button
-              class="pin-badge-btn"
-              :class="{ 'is-pinned': isPinned(object) }"
-              :title="isPinned(object) ? 'Fixado no Overview (clique para remover)' : 'Fixar no Overview'"
-              type="button"
-              @click="togglePin(object)"
-            >
+            <button class="pin-badge-btn" :class="{ 'is-pinned': isPinned(object) }"
+              :title="isPinned(object) ? 'Fixado no Overview (clique para remover)' : 'Fixar no Overview'" type="button"
+              @click="togglePin(object)">
               <font-awesome-icon :icon="isPinned(object) ? 'star' : 'star'" />
               <span>{{ isPinned(object) ? 'No Overview' : 'Fixar' }}</span>
             </button>
@@ -111,13 +81,10 @@
             <div class="info-block">
               <span class="info-label">Insumos consumidos por rotina:</span>
               <div v-if="getConsumptionRelations(object).length" class="relations-chips">
-                <span
-                  v-for="rel in getConsumptionRelations(object)"
-                  :key="rel.local_key"
-                  class="rel-chip"
-                >
+                <span v-for="rel in getConsumptionRelations(object)" :key="rel.local_key" class="rel-chip">
                   <font-awesome-icon icon="link" />
-                  {{ getSupplyName(rel.target_key) }}: <strong>{{ rel.quantity }} {{ getSupplyUnit(rel.target_key) }}</strong>
+                  {{ getSupplyName(rel.target_key) }}: <strong>{{ rel.quantity }} {{ getSupplyUnit(rel.target_key)
+                    }}</strong>
                 </span>
               </div>
               <span v-else class="no-rel-caption">Nenhum consumo vinculado</span>
@@ -139,11 +106,8 @@
 
             <div class="gauge-container">
               <div class="gauge-track">
-                <div
-                  class="gauge-fill"
-                  :class="{ 'is-low': isLowStock(object) }"
-                  :style="{ width: stockPercentage(object) + '%' }"
-                ></div>
+                <div class="gauge-fill" :class="{ 'is-low': isLowStock(object) }"
+                  :style="{ width: stockPercentage(object) + '%' }"></div>
               </div>
               <div class="gauge-caption">
                 <span>Mínimo: {{ formatNumber(object.minimum_quantity || 0) }} {{ object.unit }}</span>
@@ -161,51 +125,35 @@
 
         <div class="card-footer">
           <template v-if="object.object_type === 'SCHEDULE'">
-            <button
-              v-if="supplies.length"
-              class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
-              type="button"
-              title="Vincular insumo a esta agenda"
-              @click="$emit('link-supply', object.local_key)"
-            >
+            <button v-if="supplies.length"
+              class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" type="button"
+              title="Vincular insumo a esta agenda" @click="$emit('link-supply', object.local_key)">
               <font-awesome-icon icon="link" />
               <span>Vincular Insumo</span>
             </button>
-            <button
-              class="kadem-health-button kadem-health-button--success kadem-health-button--compact"
-              type="button"
-              @click="$emit('complete-schedule', object.local_key)"
-            >
+            <button class="kadem-health-button kadem-health-button--success kadem-health-button--compact" type="button"
+              @click="$emit('complete-schedule', object.local_key)">
               <font-awesome-icon icon="check" />
               <span>Concluir</span>
             </button>
           </template>
 
           <template v-else-if="object.object_type === 'SUPPLY'">
-            <button
-              class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
-              type="button"
-              @click="$emit('quick-consume', object.local_key)"
-            >
+            <button class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
+              type="button" @click="$emit('quick-consume', object.local_key)">
               <font-awesome-icon icon="arrow-down" />
               <span>Baixa</span>
             </button>
-            <button
-              class="kadem-health-button kadem-health-button--primary kadem-health-button--compact"
-              type="button"
-              @click="$emit('quick-receive', object.local_key)"
-            >
+            <button class="kadem-health-button kadem-health-button--primary kadem-health-button--compact" type="button"
+              @click="$emit('quick-receive', object.local_key)">
               <font-awesome-icon icon="plus" />
               <span>Repor</span>
             </button>
           </template>
 
           <template v-else>
-            <button
-              class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
-              type="button"
-              @click="$emit('record-event', object.local_key)"
-            >
+            <button class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact"
+              type="button" @click="$emit('record-event', object.local_key)">
               <font-awesome-icon icon="clipboard" />
               <span>Registrar Evento</span>
             </button>
@@ -747,7 +695,7 @@ export default {
 
 .gauge-track {
   height: 6px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-lg);
   background: var(--surface-2);
   overflow: hidden;
 }

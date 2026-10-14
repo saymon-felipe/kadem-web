@@ -1,6 +1,7 @@
 <template>
   <transition name="lyrics-fade">
-    <div class="lyrics-modal-overlay" v-if="modelValue" :style="{ zIndex: z_index }" @click.self="close_modal" @mousedown.stop>
+    <div class="lyrics-modal-overlay" v-if="modelValue" :style="{ zIndex: z_index }" @click.self="close_modal"
+      @mousedown.stop>
       <div class="lyrics-modal-content glass" :class="{ 'is-closing': is_closing }">
         <div class="modal-drag-indicator"></div>
 
@@ -15,32 +16,19 @@
           </button>
         </div>
 
-        <div
-          class="lyrics-scroll-area custom-scrollbar"
-          :class="{
-            'is-at-top': is_at_top,
-            'is-at-bottom': is_at_bottom,
-          }"
-          ref="scrollContainer"
-          @scroll="handle_scroll"
-        >
+        <div class="lyrics-scroll-area custom-scrollbar" :class="{
+          'is-at-top': is_at_top,
+          'is-at-bottom': is_at_bottom,
+        }" ref="scrollContainer" @scroll="handle_scroll">
           <template v-if="lyrics && lyrics.length > 0">
-            <div
-              v-for="(line, index) in lyrics"
-              :key="index"
-              :ref="
-                (el) => {
-                  if (index === active_index) active_lyric_el = el;
-                }
-              "
-              :data-lyric-index="index"
-              class="lyric-item"
-              :class="{
+            <div v-for="(line, index) in lyrics" :key="index" :ref="(el) => {
+                if (index === active_index) active_lyric_el = el;
+              }
+              " :data-lyric-index="index" class="lyric-item" :class="{
                 'is-past': index < active_index,
                 'is-active': index === active_index,
                 'is-future': index > active_index,
-              }"
-            >
+              }">
               <span class="lyric-text">{{ line.text }}</span>
             </div>
           </template>
@@ -146,9 +134,9 @@ export default {
       const current_time = Number(time);
       const index = Number.isFinite(current_time)
         ? this.lyrics.findIndex((line, i) => {
-            const next = this.lyrics[i + 1];
-            return current_time >= line.start && (!next || current_time < next.start);
-          })
+          const next = this.lyrics[i + 1];
+          return current_time >= line.start && (!next || current_time < next.start);
+        })
         : -1;
 
       if (index !== this.active_index) {
@@ -277,7 +265,7 @@ export default {
   width: 40px;
   height: 5px;
   background: var(--gray-600);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-lg);
   margin: 0 auto var(--space-6);
 }
 
@@ -345,6 +333,7 @@ export default {
 .lyrics-scroll-area.is-at-top {
   --mask-top: black;
 }
+
 .lyrics-scroll-area.is-at-bottom {
   --mask-bottom: black;
 }
@@ -375,6 +364,7 @@ export default {
 .lyric-item.is-past {
   opacity: 1;
 }
+
 .lyric-item.is-future {
   opacity: 0.3;
 }
@@ -405,6 +395,7 @@ export default {
 .lyrics-fade-enter-active {
   animation: overlayFadeIn 0.4s ease;
 }
+
 .lyrics-fade-leave-active {
   animation: overlayFadeIn 0.4s ease reverse;
 }
@@ -412,6 +403,7 @@ export default {
 .lyrics-fade-enter-active .lyrics-modal-content {
   animation: slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .lyrics-fade-leave-active .lyrics-modal-content {
   animation: slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) reverse;
 }
@@ -420,14 +412,17 @@ export default {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
 }
+
 @keyframes slideInUp {
   from {
     transform: translateY(100%);
   }
+
   to {
     transform: translateY(0);
   }
