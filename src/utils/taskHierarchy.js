@@ -1,3 +1,10 @@
+export const isSubtaskComplete = (task, parent, columnTypes) => {
+  if (!task) return false;
+  const type = columnTypes.get(task.column_id);
+  if (type === 'DONE') return true;
+  return ['REVIEW', 'CANCELED'].includes(type) && type === columnTypes.get(parent?.column_id);
+};
+
 export const canSetTaskParent = (tasks, taskId, parentId) => {
   if (parentId == null) return true;
   const byId = tasks instanceof Map ? tasks : new Map(tasks.map(task => [task.local_id, task]));

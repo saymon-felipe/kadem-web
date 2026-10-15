@@ -581,6 +581,53 @@ const withHierarchyBoard = async (run) => {
   }
 };
 
+test('progresso conta filhas no mesmo status a partir de revisão no card e na aba Subtarefas', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB, task, db }, server) => {
+  const { default: Card } = await server.ssrLoadModule('/src/components/projects/KanbanTask.vue');
+  const { default: Relations } = await server.ssrLoadModule('/src/components/projects/TaskRelations.vue');
+  const child = await store.createTask(columnB.local_id, { project_id: PROJECT_ID, description: 'Filha', parent_task_local_id: task.local_id });
+  const snapshot = { ...task }; // O modal pode manter uma cópia anterior do pai.
+  const readProgress = () => {
+    const columns = store.getColumns(PROJECT_ID);
+    const parent = store.taskHierarchy.byId.get(task.local_id);
+    const children = store.taskHierarchy.children.get(task.local_id);
+    const columnTypes = new Map(columns.map(column => [column.local_id, column.type]));
+    const relations = { current: Relations.computed.current.call({ task: snapshot, taskHierarchy: store.taskHierarchy }), columnTypes };
+    relations.children = children;
+    relations.isTaskDone = candidate => Relations.methods.isTaskDone.call(relations, candidate);
+    const cardCount = Card.computed.completed_child_count.call({ task: parent, children, column_types: columnTypes });
+    const relationsCount = Relations.computed.completedChildrenCount.call(relations);
+    assert.equal(cardCount, relationsCount);
+    assert.equal(Card.computed.progress_percent.call({ child_count: children.length, completed_child_count: cardCount }), relationsCount * 100);
+    assert.equal(Relations.computed.progressPercent.call({ children, completedChildrenCount: relationsCount }), relationsCount * 100);
+    return cardCount;
+  };
+  for (const type of ['BACKLOG', 'TODO', 'IN_PROGRESS', 'WAITING', 'BLOCKED', 'REVIEW', 'DONE', 'CANCELED']) {
+    await store.updateColumn({ local_id: columnA.local_id, type, title: 'Etapa do pai' });
+    await store.updateColumn({ local_id: columnB.local_id, type, title: 'Outra coluna com o mesmo status' });
+    const beforeQueue = await db.syncQueue.toArray();
+    assert.equal(readProgress(), ['REVIEW', 'DONE', 'CANCELED'].includes(type) ? 1 : 0, type);
+    assert.deepEqual(await db.syncQueue.toArray(), beforeQueue, 'Calcular progresso não move tarefas nem enfileira alterações.');
+  }
+  await store.updateColumn({ local_id: columnA.local_id, type: 'REVIEW' });
+  await store.updateColumn({ local_id: columnB.local_id, type: 'TODO', title: 'Concluído' });
+  child.status = 'DONE'; // Status antigo no snapshot não prevalece sobre o tipo da coluna.
+  assert.equal(readProgress(), 0);
+  await store.updateColumn({ local_id: columnB.local_id, type: 'DONE', title: 'Publicado' });
+  assert.equal(readProgress(), 1);
+  const doneColumn = Relations.computed.doneColumn.call({ columns: store.getColumns(PROJECT_ID) });
+  assert.equal(doneColumn.local_id, columnB.local_id);
+  await store.moveTaskToColumn(store.taskHierarchy.byId.get(child.local_id), columnA.local_id);
+  assert.equal(readProgress(), 1, 'Pai e filha na mesma coluna de revisão.');
+  await store.updateColumn({ local_id: columnB.local_id, type: 'TODO' });
+  await store.moveTaskToColumn(store.taskHierarchy.byId.get(task.local_id), columnB.local_id);
+  assert.equal(snapshot.column_id, columnA.local_id);
+  assert.equal(readProgress(), 0, 'O progresso acompanha o pai atual, mesmo com modal usando snapshot antigo.');
+  await store.moveTaskToColumn(store.taskHierarchy.byId.get(child.local_id), columnB.local_id);
+  assert.equal(readProgress(), 0);
+  await store.updateColumn({ local_id: columnB.local_id, type: 'DONE' });
+  assert.equal(readProgress(), 1);
+}));
+
 test('revisão bloqueia pai com descendentes pendentes sem alterar quadro, Dexie ou fila', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB, task, kanbanRepository: repo, db }, server) => {
   await store.updateColumn({ local_id: columnB.local_id, type: 'REVIEW' });
   const child = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Filha pendente', parent_task_local_id: task.local_id });

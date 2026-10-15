@@ -48,6 +48,7 @@
 import defaultAccountImage from "@/assets/images/kadem-default-account.jpg";
 import { mapState } from 'pinia';
 import { useKanbanStore } from '@/stores/kanban';
+import { isSubtaskComplete } from '@/utils/taskHierarchy';
 
 export default {
   name: "KanbanTask",
@@ -68,17 +69,12 @@ export default {
     columns() {
       return this.getColumns(this.task.project_id) || [];
     },
-    done_column() {
-      if (!this.columns.length) return null;
-      const found = this.columns.find(c => /conclu[ií]d|done|finaliz/i.test(c.title || ''));
-      return found || this.columns[this.columns.length - 1];
-    },
+    column_types() { return new Map(this.columns.map(column => [column.local_id, column.type])); },
     parent_task() { return this.taskHierarchy.byId.get(this.task.parent_task_local_id); },
     children() { return this.taskHierarchy.children.get(this.task.local_id) || []; },
     child_count() { return this.children.length; },
     completed_child_count() {
-      if (!this.done_column) return 0;
-      return this.children.filter(c => c.column_id === this.done_column.local_id).length;
+      return this.children.filter(child => isSubtaskComplete(child, this.task, this.column_types)).length;
     },
     progress_percent() {
       if (!this.child_count) return 0;

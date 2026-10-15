@@ -359,7 +359,7 @@
 import { mapState, mapActions } from 'pinia';
 import { useKanbanStore } from '@/stores/kanban';
 import { useAuthStore } from '@/stores/auth';
-import { canSetTaskParent } from '@/utils/taskHierarchy';
+import { canSetTaskParent, isSubtaskComplete } from '@/utils/taskHierarchy';
 
 export default {
   name: 'TaskRelations',
@@ -384,13 +384,12 @@ export default {
     children() { return this.taskHierarchy.children.get(this.task.local_id) || []; },
     tasks() { return this.getProjectTasks(this.task.project_id); },
     columns() { return this.getColumns(this.task.project_id) || []; },
+    columnTypes() { return new Map(this.columns.map(column => [column.local_id, column.type])); },
     firstColumn() {
       return this.columns.length ? this.columns[0] : null;
     },
     doneColumn() {
-      if (!this.columns.length) return null;
-      const found = this.columns.find(c => /conclu[ií]d|done|finaliz/i.test(c.title || ''));
-      return found || this.columns[this.columns.length - 1];
+      return this.columns.find(column => column.type === 'DONE') || null;
     },
     completedChildrenCount() {
       return this.children.filter(c => this.isTaskDone(c)).length;
@@ -417,8 +416,7 @@ export default {
     ...mapActions(useKanbanStore, ['setTaskParent', 'createTask', 'moveTaskToColumn']),
     columnName(id) { return this.columns.find(column => column.local_id === id)?.title || ''; },
     isTaskDone(task) {
-      if (!task || !this.doneColumn) return false;
-      return task.column_id === this.doneColumn.local_id;
+      return isSubtaskComplete(task, this.current, this.columnTypes);
     },
     toggleMode(mode) {
       this.mode = this.mode === mode ? '' : mode;

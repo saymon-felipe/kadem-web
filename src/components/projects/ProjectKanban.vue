@@ -103,7 +103,10 @@
       <ul class="task-move-blockers">
         <li v-for="task in task_move_blockers" :key="task.local_id"
           :title="`#${task.id || task.local_id} - ${task.description || task.title || 'Sem descrição'}`">
-          #{{ task.id || task.local_id }} - {{ task.description || task.title || 'Sem descrição' }}
+          <div class="task-move-blocker">
+            <span class="task-move-blocker-id">#{{ task.id || task.local_id }} -</span>
+            <span class="task-move-blocker-description">{{ task.description || task.title || 'Sem descrição' }}</span>
+          </div>
         </li>
       </ul>
       <template #footer>
@@ -598,6 +601,26 @@ export default {
   overflow-wrap: anywhere;
   padding-left: 20px;
   margin-top: 12px;
+}
+
+.task-move-blocker {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.task-move-blocker-id {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.task-move-blocker-description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .board-notice { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin: var(--space-3) var(--space-5); padding: var(--space-3); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--text-secondary); }
