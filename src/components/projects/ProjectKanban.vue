@@ -61,6 +61,7 @@
             :members="project_members"
             @task-selected="open_task_modal"
             @delete-column="ask_delete_column"
+            @task-move-blocked="show_task_move_warning"
           />
         </template>
       </draggable>
@@ -96,6 +97,21 @@
       @confirmed="handle_confirm_delete"
       @cancelled="close_confirmation"
     />
+    <BaseModal v-model="show_task_move_blocked" title="Tarefas filhas pendentes" size="sm">
+      <p v-if="task_move_target_type === 'DONE'">A tarefa pai não pode ser concluída enquanto houver tarefas filhas pendentes. Conclua as tarefas abaixo primeiro:</p>
+      <p v-else>A tarefa pai não pode ser movida para Em revisão enquanto houver tarefas filhas pendentes. Envie as tarefas abaixo para revisão primeiro:</p>
+      <ul class="task-move-blockers">
+        <li v-for="task in task_move_blockers" :key="task.local_id"
+          :title="`#${task.id || task.local_id} - ${task.description || task.title || 'Sem descrição'}`">
+          #{{ task.id || task.local_id }} - {{ task.description || task.title || 'Sem descrição' }}
+        </li>
+      </ul>
+      <template #footer>
+        <div class="task-move-warning-footer">
+          <button type="button" class="btn btn-primary" @click="show_task_move_blocked = false">Entendi</button>
+        </div>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -114,6 +130,7 @@ import KanbanBoardSkeleton from "./KanbanBoardSkeleton.vue";
 import SideModal from "@/components/SideModal.vue";
 import TaskDetailForm from "./TaskDetailForm.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
+import BaseModal from "@/components/BaseModal.vue";
 import ProjectDropdown from "./ProjectDropdown.vue";
 import ProjectStatusDropdown from "./ProjectStatusDropdown.vue";
 
@@ -130,6 +147,7 @@ export default {
     SideModal,
     TaskDetailForm,
     ConfirmationModal,
+    BaseModal,
     ProjectDropdown,
     ProjectStatusDropdown,
   },
@@ -162,6 +180,9 @@ export default {
         initial_height: 0,
       },
       show_confirmation: false,
+      show_task_move_blocked: false,
+      task_move_blockers: [],
+      task_move_target_type: 'REVIEW',
       item_to_delete: null,
       delete_type: null,
       deleting_attachment_ids: [],
@@ -246,6 +267,11 @@ export default {
     },
   },
   methods: {
+    show_task_move_warning(tasks, targetType) {
+      this.task_move_blockers = tasks;
+      this.task_move_target_type = targetType;
+      this.show_task_move_blocked = true;
+    },
     async load_board(projectId) {
       const loadToken = ++this.board_load_token;
       const isCurrent = () => loadToken === this.board_load_token;
@@ -550,6 +576,30 @@ export default {
 </script>
 
 <style scoped>
+.task-move-warning-footer {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  padding: 14px 20px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.task-move-warning-footer .btn {
+  width: auto;
+  min-width: 100px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 18px;
+}
+
+.task-move-blockers {
+  max-height: 240px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  padding-left: 20px;
+  margin-top: 12px;
+}
+
 .board-notice { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin: var(--space-3) var(--space-5); padding: var(--space-3); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--text-secondary); }
 .board-notice span { flex: 1; min-width: 180px; }
 .board-notice button { border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); color: var(--text-primary); background: var(--surface-2); cursor: pointer; }

@@ -11,7 +11,7 @@
                 :title="`Voltar para tarefa pai #${parent_task.id || parent_task.local_id}`">
                 <font-awesome-icon icon="arrow-left" class="breadcrumb-back-icon" />
                 <span class="breadcrumb-parent-id">#{{ parent_task.id || parent_task.local_id }}</span>
-                <span class="breadcrumb-parent-desc">{{ parent_task.description || parent_task.title || 'Tarefa pai'
+                <span class="breadcrumb-parent-desc" :title="parent_task.description || parent_task.title || 'Tarefa pai'">{{ parent_task.description || parent_task.title || 'Tarefa pai'
                   }}</span>
               </button>
             </template>

@@ -249,6 +249,7 @@
     </transition>
 
     <draggable ref="taskList" :list="filtered_tasks" @change="on_task_change" item-key="local_id" group="tasks"
+      :move="can_move_task" :data-column-id="column.local_id" :data-column-type="column.type"
       class="task-list custom-scrollbar" animation="300" force-fallback="true" :fallback-on-body="true"
       :scroll-sensitivity="100" fallback-class="task-fallback" ghost-class="task-ghost" drag-class="task-drag"
       @start="on_task_drag_start" @end="on_task_drag_end" :delay="0" :delay-on-touch-only="true"
@@ -293,10 +294,11 @@ export default {
       default: () => [],
     },
   },
-  emits: ["task-selected", "delete-column"],
+  emits: ["task-selected", "delete-column", "task-move-blocked"],
 
   created() {
     this._task_drag_preview = null;
+    this._dragged_task = null;
     this._task_drag_pointer = null;
     this._task_drag_pointer_frame = 0;
     this._task_drag_preview_cleanups = new Map();
@@ -368,7 +370,7 @@ export default {
     column_types() { return KANBAN_COLUMN_TYPES; },
     column_type() { return KANBAN_COLUMN_TYPES.find(option => option.value === this.column.type) || KANBAN_COLUMN_TYPES[1]; },
     selected_column_type() { return KANBAN_COLUMN_TYPES.find(option => option.value === this.edit_column_type) || KANBAN_COLUMN_TYPES[1]; },
-    ...mapState(useKanbanStore, { getTasks: "getTasks" }),
+    ...mapState(useKanbanStore, { getTasks: "getTasks", getTaskMoveBlockers: "getTaskMoveBlockers" }),
     ...mapState(useWindowStore, ["_getOrCreateCurrentUserState"]),
     ...mapState(useAuthStore, ["user"]),
 
@@ -718,7 +720,12 @@ export default {
         }
       }, () => { });
     },
+    can_move_task(evt) {
+      const targetColumnId = evt.to?.dataset.columnId;
+      return this.getTaskMoveBlockers(evt.draggedContext.element, targetColumnId).length === 0;
+    },
     on_task_drag_start(evt) {
+      this._dragged_task = this.raw_column_tasks.find(task => String(task.local_id) === evt.item.dataset.taskId);
       this.cancel_filter_task_animations();
       this.beginGlobalDrag();
       const item_rect = evt.item.getBoundingClientRect();
@@ -828,6 +835,12 @@ export default {
       if (preview.initialized) preview.column.style.height = `${next_height}px`;
     },
     on_task_drag_end(evt) {
+      const point = evt?.originalEvent?.changedTouches?.[0] || evt?.originalEvent || this._task_drag_pointer;
+      const targetList = point?.clientX != null
+        ? document.elementFromPoint(point.clientX, point.clientY)?.closest('[data-column-id]')
+        : this._task_drag_pointer && document.elementFromPoint(this._task_drag_pointer.x, this._task_drag_pointer.y)?.closest('[data-column-id]');
+      const blockers = this.getTaskMoveBlockers(this._dragged_task, targetList?.dataset.columnId);
+      this._dragged_task = null;
       this.stop_tracking_task_drag();
       const preview = this._task_drag_preview;
       this._task_drag_preview = null;
@@ -842,6 +855,7 @@ export default {
       }
 
       this.endGlobalDrag();
+      if (blockers.length) this.$emit("task-move-blocked", blockers, targetList.dataset.columnType);
     },
     measure_natural_column_height(column) {
       const previous_height = column.style.height;

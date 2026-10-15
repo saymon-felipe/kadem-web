@@ -32,6 +32,31 @@ export const useKanbanStore = defineStore('kanban', {
   }),
 
   getters: {
+    getTaskMoveBlockers: (state) => (task, targetColumnId) => {
+      const columns = state.columns[task?.project_id] || [];
+      const target = columns.find(column => String(column.local_id) === String(targetColumnId));
+      if (!task || !['REVIEW', 'DONE'].includes(target?.type) || String(task.column_id) === String(targetColumnId)) return [];
+      const allowedTypes = target.type === 'DONE' ? ['DONE', 'CANCELED'] : ['REVIEW', 'DONE', 'CANCELED'];
+      const children = new Map();
+      for (const column of columns) {
+        for (const child of state.tasks[column.local_id] || []) {
+          if (child.parent_task_local_id == null) continue;
+          if (!children.has(child.parent_task_local_id)) children.set(child.parent_task_local_id, []);
+          children.get(child.parent_task_local_id).push({ task: child, type: column.type });
+        }
+      }
+      const blockers = [];
+      const visited = new Set([task.local_id]);
+      const pending = [...(children.get(task.local_id) || [])];
+      while (pending.length) {
+        const child = pending.pop();
+        if (visited.has(child.task.local_id)) continue;
+        visited.add(child.task.local_id);
+        if (!allowedTypes.includes(child.type)) blockers.push(child.task);
+        pending.push(...(children.get(child.task.local_id) || []));
+      }
+      return blockers;
+    },
     taskHierarchy: (state) => {
       const byId = new Map();
       const children = new Map();
@@ -690,6 +715,11 @@ export const useKanbanStore = defineStore('kanban', {
 
     async moveTaskToColumn(task, targetColumnId) {
       if (!task || !targetColumnId || task.column_id === targetColumnId) return;
+      if (this.getTaskMoveBlockers(task, targetColumnId).length) {
+        const target = (this.columns[task.project_id] || []).find(column => String(column.local_id) === String(targetColumnId));
+        if (target?.type === 'DONE') throw new Error('Conclua as tarefas filhas pendentes antes de concluir a tarefa pai.');
+        throw new Error('Mova as tarefas filhas pendentes para Em revisão antes de mover a tarefa pai.');
+      }
       const fromColumnId = task.column_id;
       const source = this.tasks[fromColumnId];
       if (!source) return;

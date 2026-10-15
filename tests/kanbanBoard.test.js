@@ -581,6 +581,141 @@ const withHierarchyBoard = async (run) => {
   }
 };
 
+test('revisão bloqueia pai com descendentes pendentes sem alterar quadro, Dexie ou fila', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB, task, kanbanRepository: repo, db }, server) => {
+  await store.updateColumn({ local_id: columnB.local_id, type: 'REVIEW' });
+  const child = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Filha pendente', parent_task_local_id: task.local_id });
+  child.status = 'REVIEW'; // O tipo da coluna prevalece sobre snapshots antigos.
+  const beforeTask = await repo.get_task_by_local_id(task.local_id);
+  const beforeQueue = await db.syncQueue.toArray();
+  const { default: Column } = await server.ssrLoadModule('/src/components/projects/KanbanColumn.vue');
+  const context = { getTaskMoveBlockers: store.getTaskMoveBlockers };
+  const event = { to: { dataset: { columnId: String(columnB.local_id) } }, draggedContext: { element: task } };
+  assert.equal(Column.methods.can_move_task.call(context, event), false);
+  assert.deepEqual(store.getTaskMoveBlockers(task, columnB.local_id).map(t => t.local_id), [child.local_id]);
+  await assert.rejects(store.moveTaskToColumn(task, columnB.local_id), /tarefas filhas pendentes/);
+  assert.equal(store.getTasks(columnA.local_id).some(t => t.local_id === task.local_id), true);
+  assert.equal(store.getTasks(columnB.local_id).length, 0);
+  assert.deepEqual(await repo.get_task_by_local_id(task.local_id), beforeTask);
+  assert.deepEqual(await db.syncQueue.toArray(), beforeQueue);
+  await store.moveTaskToColumn(child, columnB.local_id);
+  const grandchild = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Neta pendente', parent_task_local_id: child.local_id });
+  assert.deepEqual(store.getTaskMoveBlockers(task, columnB.local_id).map(t => t.local_id), [grandchild.local_id]);
+  await store.moveTaskToColumn(grandchild, columnB.local_id);
+  assert.equal(Column.methods.can_move_task.call(context, event), true);
+  await store.moveTaskToColumn(task, columnB.local_id);
+  assert.equal((await repo.get_task_by_local_id(task.local_id)).column_id, columnB.local_id);
+  await store.moveTaskToColumn(grandchild, columnA.local_id);
+  event.draggedContext.element = store.getTasks(columnB.local_id).find(t => t.local_id === task.local_id);
+  assert.equal(Column.methods.can_move_task.call(context, event), true, 'Reordenar na própria revisão não é uma nova entrada.');
+}));
+
+test('revisão aceita filhas encerradas, tarefas sem filhas e reordenação na própria coluna', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB, task }) => {
+  await store.updateColumn({ local_id: columnB.local_id, type: 'REVIEW' });
+  const child = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Filha', parent_task_local_id: task.local_id });
+  for (const type of ['BACKLOG', 'TODO', 'IN_PROGRESS', 'WAITING', 'BLOCKED']) {
+    await store.updateColumn({ local_id: columnA.local_id, type });
+    assert.equal(store.getTaskMoveBlockers(task, columnB.local_id).length, 1, type);
+  }
+  for (const type of ['REVIEW', 'DONE', 'CANCELED']) {
+    await store.updateColumn({ local_id: columnA.local_id, type });
+    assert.equal(store.getTaskMoveBlockers(task, columnB.local_id).length, 0, type);
+  }
+  await store.updateColumn({ local_id: columnA.local_id, type: 'TODO' });
+  assert.equal(store.getTaskMoveBlockers(child, columnB.local_id).length, 0);
+  assert.equal(store.getTaskMoveBlockers(task, columnA.local_id).length, 0);
+  await store.updateColumn({ local_id: columnB.local_id, type: 'TODO', title: 'Em revisão' });
+  assert.equal(store.getTaskMoveBlockers(task, columnB.local_id).length, 0);
+}));
+
+test('drop bloqueado abre aviso após soltar e não deixa aviso ao desistir do destino', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB, task }, server) => {
+  await store.updateColumn({ local_id: columnB.local_id, type: 'REVIEW' });
+  const child = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: '<b>Filha pendente</b>', parent_task_local_id: task.local_id });
+  const { default: Column } = await server.ssrLoadModule('/src/components/projects/KanbanColumn.vue');
+  const { default: Board } = await server.ssrLoadModule('/src/components/projects/ProjectKanban.vue');
+  const previousDocument = globalThis.document;
+  let targetColumnId = columnB.local_id;
+  const emitted = [];
+  globalThis.document = { elementFromPoint: () => ({ closest: () => ({ dataset: {
+    columnId: String(targetColumnId),
+    columnType: store.getColumns(PROJECT_ID).find(column => column.local_id === targetColumnId)?.type,
+  } }) }) };
+  try {
+    const context = {
+      _dragged_task: task, _task_drag_pointer: { x: 10, y: 20 },
+      getTaskMoveBlockers: store.getTaskMoveBlockers,
+      stop_tracking_task_drag() {}, endGlobalDrag() {},
+      $emit: (...args) => emitted.push(args),
+    };
+    Column.methods.on_task_drag_end.call(context, { originalEvent: { clientX: 10, clientY: 20 } });
+    assert.equal(emitted.length, 1);
+    assert.equal(emitted[0][0], 'task-move-blocked');
+    assert.equal(emitted[0][1][0].local_id, child.local_id);
+    const board = { show_task_move_blocked: false };
+    Board.methods.show_task_move_warning.call(board, emitted[0][1], emitted[0][2]);
+    assert.equal(board.show_task_move_blocked, true);
+    assert.equal(board.task_move_target_type, 'REVIEW');
+    assert.equal(board.task_move_blockers[0].description, child.description);
+    targetColumnId = columnA.local_id;
+    context._dragged_task = task;
+    Column.methods.on_task_drag_end.call(context, { originalEvent: { changedTouches: [{ clientX: 10, clientY: 20 }] } });
+    assert.equal(emitted.length, 1);
+    await store.updateColumn({ local_id: columnB.local_id, type: 'DONE' });
+    targetColumnId = columnB.local_id;
+    context._dragged_task = task;
+    Column.methods.on_task_drag_end.call(context, { originalEvent: { clientX: 10, clientY: 20 } });
+    assert.equal(emitted.length, 2);
+    Board.methods.show_task_move_warning.call(board, emitted[1][1], emitted[1][2]);
+    assert.equal(board.task_move_target_type, 'DONE');
+    assert.equal(board.task_move_blockers[0].local_id, child.local_id);
+  } finally { globalThis.document = previousDocument; }
+}));
+
+test('conclusão bloqueia filhas pendentes inclusive em revisão e preserva quadro, Dexie e fila', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB, task, kanbanRepository: repo, db }, server) => {
+  await store.updateColumn({ local_id: columnB.local_id, type: 'DONE' });
+  const child = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Filha pendente', parent_task_local_id: task.local_id });
+  const { default: Column } = await server.ssrLoadModule('/src/components/projects/KanbanColumn.vue');
+  const context = { getTaskMoveBlockers: store.getTaskMoveBlockers };
+  const event = { to: { dataset: { columnId: String(columnB.local_id) } }, draggedContext: { element: task } };
+  for (const type of ['BACKLOG', 'TODO', 'IN_PROGRESS', 'WAITING', 'BLOCKED', 'REVIEW']) {
+    await store.updateColumn({ local_id: columnA.local_id, type });
+    const beforeTask = await repo.get_task_by_local_id(task.local_id);
+    const beforeQueue = await db.syncQueue.toArray();
+    assert.deepEqual(store.getTaskMoveBlockers(task, columnB.local_id).map(t => t.local_id), [child.local_id], type);
+    assert.equal(Column.methods.can_move_task.call(context, event), false, type);
+    await assert.rejects(store.moveTaskToColumn(task, columnB.local_id), /antes de concluir a tarefa pai/);
+    assert.equal(store.getTasks(columnA.local_id).some(t => t.local_id === task.local_id), true);
+    assert.equal(store.getTasks(columnB.local_id).length, 0);
+    assert.deepEqual(await repo.get_task_by_local_id(task.local_id), beforeTask);
+    assert.deepEqual(await db.syncQueue.toArray(), beforeQueue);
+  }
+  await store.moveTaskToColumn(child, columnB.local_id);
+  const grandchild = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Neta em revisão', parent_task_local_id: child.local_id });
+  assert.deepEqual(store.getTaskMoveBlockers(task, columnB.local_id).map(t => t.local_id), [grandchild.local_id]);
+  await store.moveTaskToColumn(grandchild, columnB.local_id);
+  assert.equal(Column.methods.can_move_task.call(context, event), true);
+  await store.moveTaskToColumn(task, columnB.local_id);
+  assert.equal((await repo.get_task_by_local_id(task.local_id)).column_id, columnB.local_id);
+  await store.moveTaskToColumn(grandchild, columnA.local_id);
+  event.draggedContext.element = store.getTasks(columnB.local_id).find(t => t.local_id === task.local_id);
+  assert.equal(Column.methods.can_move_task.call(context, event), true, 'Reordenar em Concluído continua permitido.');
+}));
+
+test('conclusão aceita tarefas sem filhas e filhas canceladas e usa tipo independente do nome', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB, task, kanbanRepository: repo }) => {
+  await store.updateColumn({ local_id: columnB.local_id, type: 'DONE', title: 'Publicado' });
+  assert.equal(store.getTaskMoveBlockers(task, columnB.local_id).length, 0);
+  await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: 'Filha cancelada', parent_task_local_id: task.local_id });
+  await store.updateColumn({ local_id: columnA.local_id, type: 'CANCELED' });
+  assert.equal(store.getTaskMoveBlockers(task, columnB.local_id).length, 0);
+  await store.moveTaskToColumn(task, columnB.local_id);
+  assert.equal((await repo.get_task_by_local_id(task.local_id)).column_id, columnB.local_id);
+  await store.updateColumn({ local_id: columnB.local_id, type: 'TODO', title: 'Concluído' });
+  const parent = store.getTasks(columnB.local_id).find(t => t.local_id === task.local_id);
+  await store.moveTaskToColumn(parent, columnA.local_id);
+  await store.updateColumn({ local_id: columnA.local_id, type: 'TODO' });
+  assert.equal(store.getTaskMoveBlockers(parent, columnB.local_id).length, 0);
+  await store.moveTaskToColumn(parent, columnB.local_id);
+}));
+
 const withProjectCreation = (run) => withHierarchyBoard(async (board, server) => {
   await board.db.projects.clear();
   await board.kanbanRepository.clearLocalKanban();
