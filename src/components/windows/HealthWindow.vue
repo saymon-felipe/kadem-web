@@ -1,10 +1,9 @@
 <template>
   <div class="health-shell custom-scrollbar">
-    <!-- Cabeçalho idêntico ao padrão Nexo (título, recarregar, novo objeto, lançamento) -->
+    <!-- Cabeçalho com título, recarregar e lançamento -->
     <HealthHeader
       :loading="isLoading"
       @reload="loadRecords"
-      @new-object="openNewObjectModal('SCHEDULE')"
       @new-action="openNewActionModal('SCHEDULE')"
     />
 
@@ -93,6 +92,10 @@
             :format-number="formatNumber"
             :format-date="formatDate"
             @new-object="openNewObjectModal('SCHEDULE')"
+            @edit-object="openEditObjectModal"
+            @quick-consume="handleQuickConsume"
+            @quick-receive="handleQuickReceive"
+            @record-event="openNewActionModal('OBSERVATION', $event)"
             @link-supply="openRelationModal"
             @complete-schedule="handleDirectCompleteSchedule"
             @add-widget="addWidget"
@@ -100,11 +103,11 @@
           />
         </section>
 
-        <!-- Aba 2: Insumos & Estoque -->
+        <!-- Aba 2: Entidades de saúde -->
         <section class="tab-pane custom-scrollbar" :style="paneStyle">
           <HealthObjectsTab
-            view-mode="supplies"
-            :objects="supplies"
+            view-mode="entities"
+            :objects="entities"
             :schedules="schedules"
             :supplies="supplies"
             :relations="relations"
@@ -119,6 +122,8 @@
             :format-number="formatNumber"
             :format-date="formatDate"
             @new-object="openNewObjectModal('SUPPLY')"
+            @edit-object="openEditObjectModal"
+            @record-event="openNewActionModal('OBSERVATION', $event)"
             @quick-consume="handleQuickConsume"
             @quick-receive="handleQuickReceive"
             @add-widget="addWidget"
@@ -197,10 +202,14 @@
       @submit="submitAction"
     />
 
-    <!-- Modal de Criação de Objeto -->
+    <!-- Modal de criação e edição de entidade ou rotina -->
     <HealthObjectModal
       :visible="showObjectModal"
       :initial-type="objectModalType"
+      :object="objectBeingEdited"
+      :scope="objectModalScope"
+      :current-due-at="objectBeingEdited ? nextDueAt(objectBeingEdited) : null"
+      :current-stock="objectBeingEdited ? supplyBalance(objectBeingEdited.local_key) : 0"
       :loading="isSubmittingObject"
       :error="objectError"
       @close="showObjectModal = false"
@@ -271,7 +280,6 @@ import { mapState, mapActions } from "pinia";
 import { useHealthStore } from "@/stores/health";
 import { useAuthStore } from "@/stores/auth";
 import { getPlanLimits } from "@/services/subscription_plans";
-import { healthAiService } from "@/services/healthAiService";
 
 import HealthHeader from "@/components/health/HealthHeader.vue";
 import HealthTabs from "@/components/health/HealthTabs.vue";
@@ -292,6 +300,7 @@ import SubscriptionModal from "@/components/SubscriptionModal.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import { useAiCreditsStore } from "@/stores/aiCredits";
 import { usePlayerStore } from "@/stores/player";
+import { isHealthScheduled, isHealthRecurring } from "@/utils/healthObjectTypes";
 
 const HEALTH_TAB_STORAGE_KEY = "kadem_health";
 const HEALTH_TAB_IDS = ["overview", "schedules", "supplies", "tracking", "timeline", "ai", "public-card"];
@@ -334,6 +343,8 @@ export default {
 
       showObjectModal: false,
       objectModalType: "SCHEDULE",
+      objectModalScope: "schedules",
+      objectBeingEdited: null,
       isSubmittingObject: false,
       objectError: "",
 
@@ -374,6 +385,7 @@ export default {
       "widgets",
       "schedules",
       "supplies",
+      "entities",
       "trackers",
       "activeTrackers",
       "trackerGroups",
@@ -392,9 +404,9 @@ export default {
         },
         {
           id: "supplies",
-          label: "Insumos & Estoque",
+          label: "Entidades de saúde",
           icon: "boxes-stacked",
-          badge: this.supplies.length || undefined,
+          badge: this.entities.length || undefined,
         },
         {
           id: "tracking",
@@ -439,7 +451,7 @@ export default {
     },
     nextDueSchedule() {
       if (!this.schedules.length) return null;
-      const sorted = [...this.schedules].sort((a, b) => {
+      const sorted = this.schedules.filter((schedule) => this.nextDueAt(schedule)).sort((a, b) => {
         return new Date(this.nextDueAt(a)) - new Date(this.nextDueAt(b));
       });
       return sorted[0] || null;
@@ -505,6 +517,7 @@ export default {
       "supplyBalance",
       "nextDueAt",
       "createObject",
+      "updateObject",
       "linkConsumption",
       "addWidget",
       "removeWidget",
@@ -522,17 +535,19 @@ export default {
       "completeSchedule",
     ]),
     dueDays(schedule) {
-      if (!schedule) return null;
+      if (!schedule || !this.nextDueAt(schedule)) return null;
       const due = new Date(this.nextDueAt(schedule));
       const now = new Date();
-      return Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      return (due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
     },
     dueLabel(dateStr) {
       if (!dateStr) return "Sem previsão";
       const due = new Date(dateStr);
       const now = new Date();
-      const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays < 0) return `Atrasado há ${Math.abs(diffDays)}d`;
+      const dueDay = Date.UTC(due.getFullYear(), due.getMonth(), due.getDate());
+      const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+      const diffDays = Math.round((dueDay - today) / (1000 * 60 * 60 * 24));
+      if (due < now) return diffDays === 0 ? "Atrasado" : `Atrasado há ${Math.abs(diffDays)}d`;
       if (diffDays === 0) return "Hoje";
       if (diffDays === 1) return "Amanhã";
       return `Em ${diffDays} dias`;
@@ -541,7 +556,7 @@ export default {
       const days = this.dueDays(schedule);
       if (days === null) return "status-healthy";
       if (days < 0) return "status-urgent";
-      if (days === 0) return "status-today";
+      if (days < 1) return "status-today";
       if (days <= 3) return "status-soon";
       return "status-healthy";
     },
@@ -549,7 +564,7 @@ export default {
       const days = this.dueDays(schedule);
       if (days === null) return "circle-check";
       if (days < 0) return "triangle-exclamation";
-      if (days === 0) return "clock";
+      if (days < 1) return "clock";
       if (days <= 3) return "bell";
       return "circle-check";
     },
@@ -567,8 +582,10 @@ export default {
     },
     frequencyLabel(schedule) {
       if (!schedule) return "";
+      if (!isHealthRecurring(schedule)) return "Agendamento único";
       const val = schedule.frequency_value || 1;
       const unitMap = {
+        hours: val === 1 ? "hora" : "horas",
         days: val === 1 ? "dia" : "dias",
         weeks: val === 1 ? "semana" : "semanas",
         months: val === 1 ? "mês" : "meses",
@@ -628,13 +645,22 @@ export default {
       this.showRelationModal = true;
     },
     openNewObjectModal(type = "SCHEDULE") {
+      this.objectBeingEdited = null;
       this.objectModalType = type;
+      this.objectModalScope = isHealthScheduled({ object_type: type }) ? "schedules" : "entities";
       this.objectError = "";
       this.showObjectModal = true;
     },
-    openNewActionModal(type = "SCHEDULE") {
+    openEditObjectModal(object) {
+      this.objectBeingEdited = object;
+      this.objectModalType = object.object_type;
+      this.objectModalScope = isHealthScheduled(object) ? "schedules" : "entities";
+      this.objectError = "";
+      this.showObjectModal = true;
+    },
+    openNewActionModal(type = "SCHEDULE", objectKey = "") {
       this.actionModalType = type;
-      this.actionModalKey = "";
+      this.actionModalKey = objectKey;
       this.actionError = "";
       this.showActionModal = true;
     },
@@ -794,7 +820,14 @@ export default {
       this.isSubmittingObject = true;
       this.objectError = "";
       try {
+        if (this.objectBeingEdited) {
+          const updated = await this.updateObject(this.objectBeingEdited, formData);
+          this.activeTab = isHealthScheduled(updated) ? "schedules" : "supplies";
+          this.showObjectModal = false;
+          return;
+        }
         const created = await this.createObject(formData);
+        this.activeTab = isHealthScheduled(created) ? "schedules" : "supplies";
         if (
           ["SUPPLY", "MEDICATION"].includes(formData.object_type) &&
           Number(formData.initial_stock) > 0 &&
@@ -809,7 +842,7 @@ export default {
         }
         this.showObjectModal = false;
       } catch (err) {
-        this.objectError = err.message || "Não foi possível criar o objeto.";
+        this.objectError = err.message || "Não foi possível salvar a entidade de saúde.";
       } finally {
         this.isSubmittingObject = false;
       }

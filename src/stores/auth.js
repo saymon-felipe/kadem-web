@@ -2,7 +2,6 @@ import { defineStore } from "pinia";
 import { api } from "../plugins/api";
 import router from "../router/index";
 import { useWindowStore } from "./windows";
-import { useUtilsStore } from "./utils";
 import { syncService } from "../services/syncService";
 import { useProjectStore } from "./projects";
 import { useVaultStore } from "./vault";
@@ -11,9 +10,11 @@ import { useKanbanStore } from "./kanban";
 import { useRadioStore } from "./radio";
 import { usePlayerStore } from "./player";
 import { useRadioInsightsStore } from './radioInsights';
+import { useHealthStore } from './health';
 import { isLocalDbUnavailableError } from "@/db";
 import { authenticateWithBiometrics } from "@/services/biometricAuth";
 import { securityService } from "@/services/securityService";
+import { captureSyncSession, invalidateSyncSession, normalizeSyncTimestamp, readSyncTimestamp, writeSyncTimestamp } from "@/utils/syncState";
 import {
   clearSessionRefresh,
   getSessionRefreshRemainingMs,
@@ -41,7 +42,7 @@ export const useAuthStore = defineStore("auth", {
     user: {},
     isAuthenticated: null,
     token: null,
-    lastSyncTimestamp: localStorage.getItem("kadem_user_last_sync") || null,
+    lastSyncTimestamp: readSyncTimestamp("kadem_user_last_sync"),
   }),
   getters: {
     isLoggedIn: (state) => state.isAuthenticated === true,
@@ -89,6 +90,7 @@ export const useAuthStore = defineStore("auth", {
     },
 
     async _acceptLoginResponse(response) {
+      invalidateSyncSession();
       const { token, user } = response.data;
 
       if (token) {
@@ -99,6 +101,7 @@ export const useAuthStore = defineStore("auth", {
     },
 
     async _abortLogin(error, compensationWarning) {
+      invalidateSyncSession();
       if (isLocalDbUnavailableError(error)) {
         try {
           await api.post("/auth/logout");
@@ -113,37 +116,16 @@ export const useAuthStore = defineStore("auth", {
     },
 
     async register(userData) {
-      try {
-        let response = await api.post("/auth/register", userData);
-        return response;
-      } catch (error) {
-        throw error;
-      }
+      return api.post("/auth/register", userData);
     },
 
     async loginWithBiometrics(email) {
       try {
         const response = await authenticateWithBiometrics(email);
-        const { token, user } = response.data;
-
-        if (token) {
-          this.token = token;
-        }
-
-        await this._saveUserData(user);
+        await this._acceptLoginResponse(response);
         return response;
       } catch (error) {
-        if (isLocalDbUnavailableError(error)) {
-          try {
-            await api.post("/auth/logout");
-          } catch (logoutError) {
-            console.warn("Login biométrico aceito, mas o logout de compensação falhou.", logoutError);
-          }
-        }
-
-        this.user = {};
-        this.isAuthenticated = false;
-        this.token = null;
+        await this._abortLogin(error, "Login biométrico aceito, mas o logout de compensação falhou.");
         throw error;
       }
     },
@@ -162,6 +144,7 @@ export const useAuthStore = defineStore("auth", {
     },
 
     async logout(force = false, not_redirect = false) {
+      invalidateSyncSession();
       const windowStore = useWindowStore();
       const appStore = useAppStore();
       const projectStore = useProjectStore();
@@ -170,6 +153,9 @@ export const useAuthStore = defineStore("auth", {
       const radioStore = useRadioStore();
       const playerStore = usePlayerStore();
       const userIdToClear = this.user?.id;
+      // Invalida pulls em andamento antes de qualquer limpeza assíncrona do banco.
+      kanbanStore.clearState();
+      useHealthStore().clearState();
 
       try {
         await playerStore.stop_listening_tracking();
@@ -217,9 +203,7 @@ export const useAuthStore = defineStore("auth", {
         projectStore.active_workspace_tab_id = null;
         projectStore.is_populating_offline_cache = false;
         projectStore.lastSyncTimestamp = null;
-        kanbanStore.columns = {};
-        kanbanStore.tasks = {};
-        kanbanStore.lastSyncs = null;
+        kanbanStore.clearState();
         vaultStore.lockVault();
         vaultStore.purge_state();
         radioStore.clearState();
@@ -276,7 +260,7 @@ export const useAuthStore = defineStore("auth", {
 
         await this.syncProfile(recursive);
         return this.isLoggedIn;
-      } catch (error) {
+      } catch {
         this.user = {};
         this.isAuthenticated = false;
         return false;
@@ -343,12 +327,14 @@ export const useAuthStore = defineStore("auth", {
       }, remainingMs);
     },
     async _loadLocalUserToState() {
+      const isCurrent = captureSyncSession();
       try {
         const localUser = await userRepository.getLocalUserProfile();
         if (localUser) {
           const appStore = useAppStore();
           const localOccupations = await occupationRepository.getLocalUserOccupations();
           const localMedals = await medalRepository.getLocalMedals();
+          if (!isCurrent()) return false;
 
           this.user = {
             ...localUser,
@@ -365,15 +351,18 @@ export const useAuthStore = defineStore("auth", {
       return false;
     },
     async syncProfile(recursive = false) {
+      const isCurrent = captureSyncSession();
       const hasLocalData = await this._loadLocalUserToState();
+      if (!isCurrent()) return;
 
       try {
         const params = {};
-        if (this.lastSyncTimestamp) {
-          params.since = this.lastSyncTimestamp;
+        if (normalizeSyncTimestamp(this.lastSyncTimestamp)) {
+          params.since = normalizeSyncTimestamp(this.lastSyncTimestamp);
         }
 
         const response = await api.get("/users/profile", { params, timeout: 8000 });
+        if (!isCurrent()) return;
         const { user: remoteUser, server_timestamp, token } = response.data;
 
         this.token = token;
@@ -386,11 +375,11 @@ export const useAuthStore = defineStore("auth", {
           await this._loadLocalUserToState();
         }
 
-        if (server_timestamp) {
-          this.lastSyncTimestamp = server_timestamp;
-          localStorage.setItem("kadem_user_last_sync", server_timestamp);
+        if (isCurrent() && normalizeSyncTimestamp(server_timestamp)) {
+          this.lastSyncTimestamp = writeSyncTimestamp("kadem_user_last_sync", server_timestamp);
         }
       } catch (error) {
+        if (!isCurrent()) return;
         if (error.response && error.response.status === 401) {
           this.logout(true);
         } else {
@@ -399,16 +388,17 @@ export const useAuthStore = defineStore("auth", {
         }
       }
 
-      if (recursive) {
+      if (recursive && isCurrent()) {
         setTimeout(
           () => {
-            this.syncProfile(recursive);
+            if (isCurrent()) this.syncProfile(recursive);
           },
           10 * 60 * 1000,
         ); // 10 minutos
       }
     },
     async _saveUserData(apiUserData) {
+      const isCurrent = captureSyncSession();
       const appStore = useAppStore();
       const { occupations, medals, ...profileData } = apiUserData;
 
@@ -418,6 +408,7 @@ export const useAuthStore = defineStore("auth", {
 
       const mergedOccupations = await occupationRepository.getLocalUserOccupations();
       const mergedMedals = await medalRepository.getLocalMedals();
+      if (!isCurrent()) return;
 
       this.user = {
         ...profileData,

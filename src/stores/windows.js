@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { useAuthStore } from './auth';
+import { isStateMap, normalizeWindowStates } from '../utils/windowState';
 
 const HEADER_OFFSET = 82;
 
@@ -30,19 +31,8 @@ export const useWindowStore = defineStore('windows', {
 
       return activeWindow.id;
     },
-    currentUserWindows(state) {
-      const authStore = useAuthStore();
-      const userId = authStore.user?.id;
-
-      if (!userId) {
-        return {};
-      }
-
-      if (!state.windowStatesByUser[userId]) {
-        state.windowStatesByUser[userId] = { openWindows: {} };
-      }
-
-      return state.windowStatesByUser[userId].openWindows;
+    currentUserWindows() {
+      return this._getOrCreateCurrentUserState()?.openWindows || {};
     },
     activeSnapTarget(state) {
       return state.snapTarget;
@@ -339,15 +329,16 @@ export const useWindowStore = defineStore('windows', {
       const userId = authStore.user?.id;
       if (!userId) return null;
 
-      if (!this.windowStatesByUser[userId]) {
+      if (!isStateMap(this.windowStatesByUser)) this.windowStatesByUser = {};
+      if (!isStateMap(this.windowStatesByUser[userId])) {
         this.windowStatesByUser[userId] = { openWindows: {}, windowPrefs: {} };
       }
 
-      if (!this.windowStatesByUser[userId].openWindows) {
+      if (!isStateMap(this.windowStatesByUser[userId].openWindows)) {
         this.windowStatesByUser[userId].openWindows = {};
       }
 
-      if (!this.windowStatesByUser[userId].windowPrefs) {
+      if (!isStateMap(this.windowStatesByUser[userId].windowPrefs)) {
         this.windowStatesByUser[userId].windowPrefs = {};
       }
 
@@ -360,6 +351,8 @@ export const useWindowStore = defineStore('windows', {
       "_zIndexCounter"
     ],
     afterHydrate: (ctx) => {
+      ctx.store.windowStatesByUser = normalizeWindowStates(ctx.store.windowStatesByUser);
+      if (!Number.isFinite(ctx.store._zIndexCounter)) ctx.store._zIndexCounter = 0;
       ctx.store.snapTarget = null;
     },
   }

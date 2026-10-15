@@ -8,11 +8,12 @@ import { useAuthStore } from "@/stores/auth";
 import { useRadioInsightsStore } from './radioInsights';
 import { useUtilsStore } from "@/stores/utils";
 import { db } from "../db";
+import { captureSyncSession, normalizeSyncTimestamp, readSyncTimestamp, writeSyncTimestamp, requireSyncArray } from "../utils/syncState";
 
 export const useRadioStore = defineStore("radio", {
   state: () => ({
     playlists: [],
-    lastSyncTimestamp: localStorage.getItem("kadem_radio_last_sync") || null,
+    lastSyncTimestamp: readSyncTimestamp("kadem_radio_last_sync"),
     loading: false,
     active_downloads: {},
     active_download_types: {},
@@ -104,15 +105,18 @@ export const useRadioStore = defineStore("radio", {
     },
 
     async _loadFromDB() {
+      const isCurrent = captureSyncSession();
       try {
         await this.migrateOldOfflineTracks();
 
-        this.playlists = await radioRepository.getLocalPlaylists();
+        const playlists = await radioRepository.getLocalPlaylists();
 
         const [audioIds, videoIds] = await Promise.all([
           radioRepository.getAllDownloadedVideoIds(),
           radioRepository.getAllDownloadedVideoMediaIds(),
         ]);
+        if (!isCurrent()) return;
+        this.playlists = playlists;
 
         this.downloaded_youtube_ids = {};
         this.downloaded_video_youtube_ids = {};
@@ -204,26 +208,30 @@ export const useRadioStore = defineStore("radio", {
        ========================================================================== */
 
     async pullPlaylists() {
+      const isCurrent = captureSyncSession();
       await this._loadFromDB();
+      if (!isCurrent()) return;
 
       try {
         const params = {};
-        if (this.lastSyncTimestamp) {
-          params.since = this.lastSyncTimestamp;
+        if (normalizeSyncTimestamp(this.lastSyncTimestamp)) {
+          params.since = normalizeSyncTimestamp(this.lastSyncTimestamp);
         }
 
-        const response = await api.get("/radio/state", { params });
+        const response = await api.get("/radio/state", { params, timeout: 15000 });
+        if (!isCurrent()) return;
         const { items, server_timestamp } = response.data;
+        requireSyncArray(items);
 
         if (Array.isArray(items) && items.length > 0) {
           console.log(`[RadioStore] Recebidos ${items.length} itens do servidor.`);
-          await radioRepository.mergeApiPlaylists(items);
+          await radioRepository.mergeApiPlaylists(items, { isDelta: Boolean(params.since) });
+          if (!isCurrent()) return;
           await this._loadFromDB();
         }
 
-        if (server_timestamp) {
-          this.lastSyncTimestamp = server_timestamp;
-          localStorage.setItem("kadem_radio_last_sync", server_timestamp);
+        if (isCurrent() && normalizeSyncTimestamp(server_timestamp)) {
+          this.lastSyncTimestamp = writeSyncTimestamp("kadem_radio_last_sync", server_timestamp);
         }
         await useRadioInsightsStore().pullReactions();
       } catch (error) {

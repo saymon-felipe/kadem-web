@@ -1,89 +1,54 @@
 <template>
   <div class="header-wrapper">
     <header class="glass">
-      <button
-        class="plan-pill"
-        @click="open_plan_modal"
-        :class="{ 'is-pro': is_pro }"
-        title="Gerenciar Plano"
-      >
+      <button class="plan-pill" @click="open_plan_modal" :class="{ 'is-pro': is_pro }" title="Gerenciar Plano">
         <span class="status-dot"></span>
         {{ plan_label }}
       </button>
-      <button
-        class="header-button home"
-        @click="openSystem"
-        :class="{ opened: isStartMenuOpen }"
-      >
+      <button class="header-button home" @click="openSystem" :class="{ opened: isStartMenuOpen }">
         <img src="../assets/images/icons/system.png" alt="Iniciar" />
       </button>
-      <button
-        class="header-button"
-        @click="handleWindowClick('projects', 'Meus Projetos', 'ProjectsWindow')"
+      <button class="header-button" @click="handleWindowClick('projects', 'Meus Projetos', 'ProjectsWindow')"
         @contextmenu.prevent="
           handleRightClick($event, 'projects', 'Meus Projetos', 'ProjectsWindow')
-        "
-        :class="{
+          " :class="{
           opened: currentUserWindows['projects'],
           active:
             activeWindowId === 'projects' && !currentUserWindows['projects'].isMinimized,
-        }"
-      >
+        }">
         <img src="../assets/images/icons/projects-icon.png" alt="Projetos" />
       </button>
 
-      <button
-        class="header-button"
-        @click="handleWindowClick('productivity', 'Produtividade', 'ProductivityWindow')"
+      <button class="header-button" @click="handleWindowClick('productivity', 'Produtividade', 'ProductivityWindow')"
         @contextmenu.prevent="
           handleRightClick($event, 'productivity', 'Produtividade', 'ProductivityWindow')
-        "
-        :class="{
+          " :class="{
           opened: currentUserWindows['productivity'],
           active:
             activeWindowId === 'productivity' &&
             !currentUserWindows['productivity'].isMinimized,
-        }"
-      >
+        }">
         <img src="../assets/images/icons/productivity-icon.png" alt="Produtividade" />
       </button>
       <div class="ai-credits-anchor">
-        <button
-          type="button"
-          class="ai-credits-badge"
-          :class="{ 'zero-credits': ai_credits_remaining === 0 }"
-          :aria-label="ai_credits_tooltip"
-          aria-haspopup="dialog"
-          :aria-expanded="show_credits_dropdown"
-          aria-controls="ai-credits-popover"
-          :title="ai_credits_tooltip"
-          @click="toggle_credits_dropdown"
-          @keydown.esc.stop.prevent="show_credits_dropdown = false"
-        >
+        <button type="button" class="ai-credits-badge" :class="{ 'zero-credits': ai_credits_remaining === 0 }"
+          :aria-label="ai_credits_tooltip" aria-haspopup="dialog" :aria-expanded="show_credits_dropdown"
+          aria-controls="ai-credits-popover" :title="ai_credits_tooltip" @click="toggle_credits_dropdown"
+          @keydown.esc.stop.prevent="show_credits_dropdown = false">
           <font-awesome-icon icon="wand-magic-sparkles" class="ai-pill-icon" />
           <span>{{ ai_credits_label }}</span>
           <font-awesome-icon icon="chevron-down" class="ai-credits-chevron" />
         </button>
         <Transition name="popup-anim">
-          <section
-            v-if="show_credits_dropdown"
-            id="ai-credits-popover"
-            class="ai-credits-popover"
-            role="dialog"
-            aria-label="Uso dos créditos de IA"
-            @keydown.esc.stop.prevent="show_credits_dropdown = false"
-          >
+          <section v-if="show_credits_dropdown" id="ai-credits-popover" class="ai-credits-popover" role="dialog"
+            aria-label="Uso dos créditos de IA" @keydown.esc.stop.prevent="show_credits_dropdown = false">
             <div class="credits-popover-heading">
               <div>
                 <span class="credits-eyebrow">CONTA DE IA</span>
                 <h2>Uso de créditos</h2>
               </div>
-              <button
-                type="button"
-                class="credits-close"
-                aria-label="Fechar detalhes de créditos"
-                @click="show_credits_dropdown = false"
-              >
+              <button type="button" class="credits-close" aria-label="Fechar detalhes de créditos"
+                @click="show_credits_dropdown = false">
                 <font-awesome-icon icon="xmark" />
               </button>
             </div>
@@ -97,14 +62,8 @@
               <span>Créditos usados</span>
               <strong>{{ format_credits(ai_credits_used) }} / {{ format_credits(ai_credits_total) }}</strong>
             </div>
-            <div
-              class="credits-progress-track"
-              role="progressbar"
-              aria-label="Uso de créditos de IA"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              :aria-valuenow="Math.round(ai_usage_percent)"
-            >
+            <div class="credits-progress-track" role="progressbar" aria-label="Uso de créditos de IA" aria-valuemin="0"
+              aria-valuemax="100" :aria-valuenow="Math.round(ai_usage_percent)">
               <span :style="{ width: `${ai_usage_percent}%` }"></span>
             </div>
             <div class="credits-progress-caption">
@@ -128,13 +87,8 @@
       <StartMenu v-if="isStartMenuOpen" />
     </Transition>
     <Transition name="popup-anim">
-      <ContextMenu
-        v-if="contextMenu.isOpen"
-        :options="contextMenu.options"
-        :x="contextMenu.x"
-        :y="contextMenu.y"
-        @menu-click="handleMenuClick"
-      />
+      <ContextMenu v-if="contextMenu.isOpen" :options="contextMenu.options" :x="contextMenu.x" :y="contextMenu.y"
+        @menu-click="handleMenuClick" />
     </Transition>
     <SubscriptionModal v-model="show_plan_modal" @close="show_plan_modal = false" />
   </div>
@@ -386,7 +340,7 @@ export default {
   padding: 5px 12px;
   background: var(--plan-pill-bg);
   border: 1px solid var(--plan-pill-border);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-lg);
   cursor: pointer;
   font-size: var(--fontsize-sx);
   font-weight: 600;

@@ -1,4 +1,5 @@
 import { db } from '../../db';
+import { captureSyncSession, assertSyncSession, requireSyncArray } from '../../utils/syncState';
 
 export const accountsRepository = {
     addLocalAccount: async (encryptedBlob) => {
@@ -34,11 +35,14 @@ export const accountsRepository = {
         return await db.accounts.clear();
     },
     async mergeApiAccounts(api_accounts) {
+        const isCurrent = captureSyncSession();
+        requireSyncArray(api_accounts);
         if (!Array.isArray(api_accounts) || api_accounts.length === 0) {
             return;
         }
 
         return db.transaction('rw', db.accounts, async () => {
+            assertSyncSession(isCurrent);
             const changes_to_sync = [];
 
             for (const api_acc of api_accounts) {
@@ -61,6 +65,7 @@ export const accountsRepository = {
                 await db.accounts.bulkPut(changes_to_sync);
                 console.log(`[AccountsRepo] Delta Sync: ${changes_to_sync.length} contas atualizadas/criadas.`);
             }
+            assertSyncSession(isCurrent);
         });
     },
     async getLastUpdateTimestamp() {

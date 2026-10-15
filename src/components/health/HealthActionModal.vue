@@ -17,7 +17,7 @@
             @click="setType('SCHEDULE')"
           >
             <font-awesome-icon icon="check" />
-            <span>Rotina</span>
+            <span>Agendamento</span>
           </button>
           <button
             type="button"
@@ -52,21 +52,21 @@
         </div>
 
         <div v-if="!schedules.length || !supplies.length" class="action-prerequisites">
-          <p v-if="!schedules.length">Cadastre uma rotina para habilitar o registro de conclusões.</p>
+          <p v-if="!schedules.length">Cadastre um agendamento para habilitar o registro de conclusões.</p>
           <p v-if="!supplies.length">Cadastre um insumo para habilitar entradas e baixas de estoque.</p>
         </div>
 
         <!-- Campos de AGENDA / ROTINA -->
         <template v-if="currentType === 'SCHEDULE'">
           <div class="health-field static-label">
-            <label>Selecione a rotina</label>
+            <label>Selecione o agendamento</label>
             <SearchableDropdown
               v-model="localForm.object_key"
               :options="scheduleOptions"
               :searchable="true"
               size="md"
-              search-placeholder="Buscar rotina..."
-              placeholder="Selecione uma rotina..."
+              search-placeholder="Buscar agendamento..."
+              placeholder="Selecione um agendamento..."
             />
           </div>
 
@@ -154,14 +154,14 @@
         <!-- Campos de ANOTAÇÃO / EVENTO -->
         <template v-else>
           <div class="health-field static-label">
-            <label>Objeto relacionado</label>
+            <label>Entidade de saúde ou rotina relacionada</label>
             <SearchableDropdown
               v-model="localForm.object_key"
               :options="allObjectOptions"
               :searchable="true"
               size="md"
-              search-placeholder="Buscar objeto..."
-              placeholder="Selecione o objeto..."
+              search-placeholder="Buscar entidade ou rotina..."
+              placeholder="Selecione a entidade ou rotina..."
             />
           </div>
 

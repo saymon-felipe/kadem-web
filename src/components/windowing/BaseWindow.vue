@@ -111,10 +111,15 @@
       class="window-content"
       :class="{ 'window-content--projects': isProjectsWindow }"
     >
-      <component
-        :is="componentMap[windowData.componentId]"
-        :window-id="windowData.id"
-      />
+      <ContentErrorBoundary
+        :reset-key="windowData.componentId"
+        title="Não foi possível exibir esta janela"
+        action-label="Fechar janela"
+        @retry="reload_content"
+        @action="close"
+      >
+        <component :is="componentMap[windowData.componentId]" :window-id="windowData.id" />
+      </ContentErrorBoundary>
     </main>
   </div>
 </template>
@@ -123,7 +128,8 @@
 import { mapState, mapActions } from "pinia";
 import { useWindowStore } from "@/stores/windows";
 import { useAppStore } from "@/stores/app";
-import { windowComponentMap } from "./componentMap.js";
+import { createWindowComponentMap } from "./componentMap.js";
+import ContentErrorBoundary from "@/components/ui/ContentErrorBoundary.vue";
 import { navigateBack } from "@/utils/modalHistory";
 import { createWindowNavigation, mobileNavigationMixin, windowNavigationKey } from "@/utils/mobileNavigation";
 
@@ -133,6 +139,7 @@ const MAXIMIZED_BOTTOM_OFFSET = 0;
 const HEADER_OFFSET = 82;
 
 export default {
+  components: { ContentErrorBoundary },
   mixins: [mobileNavigationMixin],
   mobileBackPriority: 0,
   props: {
@@ -143,7 +150,7 @@ export default {
   },
   data() {
     return {
-      componentMap: windowComponentMap,
+      componentMap: createWindowComponentMap(),
       isDragging: false,
       dragPosition: null,
       isRestoring: false,
@@ -173,7 +180,7 @@ export default {
       return this.isActive && !this.windowData.isMinimized;
     },
     windowStyle() {
-      const position = this.isDragging ? this.dragPosition : this.windowData.position;
+      const position = (this.isDragging ? this.dragPosition : this.windowData.position) || { x: 50, y: 100 };
       const size = this.windowData.size || { width: 500, height: 400 };
 
       if (this.isMobile) {
@@ -209,6 +216,10 @@ export default {
     },
   },
   methods: {
+    reload_content() {
+      // Um loader assíncrono rejeitado precisa de uma nova instância para poder tentar de novo.
+      this.componentMap = createWindowComponentMap();
+    },
     navigateBack,
     mobile_back() {
       this.minimize();

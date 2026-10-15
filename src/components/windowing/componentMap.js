@@ -8,25 +8,12 @@ const importWithRetry = (importFn, loadingComponent) => {
   return defineAsyncComponent({
     loadingComponent,
     delay: 0,
-    loader: () => {
-      return importFn().catch(error => {
-        const isChunkError =
-          error.message.includes('dynamically imported module') ||
-          error.message.includes('Loading chunk') ||
-          error.message.includes('not found');
-
-        if (isChunkError) {
-          console.warn('[ComponentMap] Chunk missing, reloading app...', error);
-          window.location.reload(true);
-          return new Promise(() => { });
-        }
-        throw error;
-      });
-    },
+    loader: importFn,
+    timeout: 15000,
   });
 };
 
-export const windowComponentMap = {
+export const createWindowComponentMap = () => ({
   'ProjectsWindow': importWithRetry(
     () => import('@/components/windows/ProjectsWindow.vue'),
     ProjectsWindowSkeleton
@@ -35,4 +22,6 @@ export const windowComponentMap = {
     () => import('@/components/windows/ProductivityWindow.vue'),
     ProductivityWindowSkeleton
   )
-};
+});
+
+export const windowComponentMap = createWindowComponentMap();

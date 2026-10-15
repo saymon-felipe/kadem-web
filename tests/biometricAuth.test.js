@@ -74,6 +74,9 @@ async function harness({ registered = true, prfEnabled = true } = {}) {
     return module;
   }
   const apiModule = await synthetic({ api });
+  const syncState = new SourceTextModule(await readFile(new URL('../src/utils/syncState.js', import.meta.url), 'utf8'), { context });
+  await syncState.link(() => {});
+  await syncState.evaluate();
   const webauthnModule = await synthetic(webauthn);
   const service = new SourceTextModule(
     await readFile(new URL('../src/services/biometricAuth.js', import.meta.url), 'utf8'),
@@ -92,6 +95,7 @@ async function harness({ registered = true, prfEnabled = true } = {}) {
     } }),
     '../services/localData/syncQueueRepository': await synthetic({ syncQueueRepository: { addSyncQueueTask: async () => {} } }),
     '../services/syncService': await synthetic({ syncService: { processSyncQueue() {} } }),
+    '../utils/syncState': syncState,
   };
   const store = new SourceTextModule(
     await readFile(new URL('../src/stores/vault.js', import.meta.url), 'utf8'), { context },

@@ -1,6 +1,7 @@
 import { api } from "@/plugins/api";
 import { financeRepository, syncQueueRepository } from "@/services/localData";
 import { syncService } from "@/services/syncService";
+import { captureSyncSession, assertSyncSession, requireSyncArray } from "@/utils/syncState";
 
 const response = (data) => ({ data });
 const FINANCE_BATCH_LIMIT = 100;
@@ -279,8 +280,10 @@ const localDashboard = async (month) => {
 
 export const financeService = {
   async getDashboard(params = {}) {
+    const isCurrent = captureSyncSession();
     try {
       const result = await api.get("/finance/dashboard", { params });
+      assertSyncSession(isCurrent);
       const recentTransactions = Array.isArray(result.data.transactions)
         ? result.data.transactions
         : Array.isArray(result.data.recent_transactions)
@@ -298,10 +301,15 @@ export const financeService = {
   },
 
   async getInvestments(params = {}) {
+    const isCurrent = captureSyncSession();
     try {
       const result = await api.get("/finance/investments", { params });
-      await financeRepository.setInvestmentGoals(result.data.goals || []);
-      await financeRepository.setInvestmentEvents(result.data.events || []);
+      assertSyncSession(isCurrent);
+      requireSyncArray(result.data.goals);
+      requireSyncArray(result.data.events);
+      await financeRepository.setInvestmentGoals(result.data.goals);
+      assertSyncSession(isCurrent);
+      await financeRepository.setInvestmentEvents(result.data.events);
       const [goals, events] = await Promise.all([
         financeRepository.getInvestmentGoals(),
         financeRepository.getInvestmentEvents(),
@@ -313,6 +321,7 @@ export const financeService = {
   },
 
   async listTransactions(params = {}) {
+    const isCurrent = captureSyncSession();
     try {
       const requestedLimit = Number(params.limit || 0);
       const requestedOffset = Number(params.offset || 0);
@@ -333,7 +342,8 @@ export const financeService = {
               offset,
             },
           });
-          const chunkItems = Array.isArray(result.data) ? result.data : [];
+          assertSyncSession(isCurrent);
+          const chunkItems = requireSyncArray(result.data);
           items = items.concat(chunkItems);
 
           if (chunkItems.length < currentLimit) {
@@ -345,7 +355,8 @@ export const financeService = {
         }
       } else {
         const result = await api.get("/finance/transactions", { params });
-        items = Array.isArray(result.data) ? result.data : [];
+        assertSyncSession(isCurrent);
+        items = requireSyncArray(result.data);
       }
 
       await financeRepository.setTransactions(items);
@@ -423,10 +434,14 @@ export const financeService = {
   },
 
   async getCategories() {
+    const isCurrent = captureSyncSession();
     try {
       const result = await api.get("/finance/categories");
+      assertSyncSession(isCurrent);
+      requireSyncArray(result.data);
       const deletedIds = await pendingDeleteServerIds("DELETE_FINANCE_CATEGORY");
-      await financeRepository.setCategories(withoutPendingDeletes(result.data || [], deletedIds));
+      assertSyncSession(isCurrent);
+      await financeRepository.setCategories(withoutPendingDeletes(result.data, deletedIds));
       return response(await financeRepository.getCategories());
     } catch {
       return response(await financeRepository.getCategories());
@@ -434,10 +449,14 @@ export const financeService = {
   },
 
   async getMacroCategories() {
+    const isCurrent = captureSyncSession();
     try {
       const result = await api.get("/finance/macro-categories");
+      assertSyncSession(isCurrent);
+      requireSyncArray(result.data);
       const deletedIds = await pendingDeleteServerIds("DELETE_FINANCE_MACRO_CATEGORY");
-      await financeRepository.setMacroCategories(withoutPendingDeletes(result.data || [], deletedIds));
+      assertSyncSession(isCurrent);
+      await financeRepository.setMacroCategories(withoutPendingDeletes(result.data, deletedIds));
       return response(await financeRepository.getMacroCategories());
     } catch {
       return response(await financeRepository.getMacroCategories());
@@ -623,9 +642,11 @@ export const financeService = {
   },
 
   async getBudgets(params = {}) {
+    const isCurrent = captureSyncSession();
     try {
       const result = await api.get("/finance/budgets", { params });
-      await financeRepository.setBudgetGroups(params.month, result.data || []);
+      assertSyncSession(isCurrent);
+      await financeRepository.setBudgetGroups(params.month, requireSyncArray(result.data));
       return result;
     } catch {
       return response(await financeRepository.getBudgetGroups(params.month));
@@ -646,9 +667,11 @@ export const financeService = {
     return api.post("/finance/open-finance/connect-token");
   },
   async getConnections() {
+    const isCurrent = captureSyncSession();
     try {
       const result = await api.get("/finance/open-finance/connections");
-      await financeRepository.setConnections(result.data || []);
+      assertSyncSession(isCurrent);
+      await financeRepository.setConnections(requireSyncArray(result.data));
       return result;
     } catch {
       return response(await financeRepository.getConnections());

@@ -6,6 +6,8 @@ import { healthRepository } from "@/services/localData/healthRepository";
 import { syncQueueRepository } from "@/services/localData/syncQueueRepository";
 import { syncService } from "@/services/syncService";
 import { DIGESTIVE_WELLBEING_TEMPLATE } from "@/services/healthTrackerTemplates";
+import { isHealthEntity, isHealthObject, isHealthScheduled, isHealthRecurring, isHealthStockObject } from "@/utils/healthObjectTypes";
+import { captureSyncSession, assertSyncSession } from "@/utils/syncState";
 
 export const DEFAULT_HEALTH_UNITS = [
   { value: "comprimidos", label: "Comprimidos (comp)", symbol: "comp", category: "sólido" },
@@ -45,6 +47,7 @@ function syncPayload(record) {
 function addInterval(dateValue, unit, value) {
   const date = new Date(dateValue);
   if (unit === "months") date.setMonth(date.getMonth() + Number(value || 1));
+  else if (unit === "hours") date.setHours(date.getHours() + Number(value || 1));
   else if (unit === "weeks") date.setDate(date.getDate() + Number(value || 1) * 7);
   else date.setDate(date.getDate() + Number(value || 1));
   return date.toISOString();
@@ -55,6 +58,15 @@ export const useHealthStore = defineStore("health", () => {
   const units = ref([...DEFAULT_HEALTH_UNITS]);
   const isLoading = ref(false);
   const error = ref("");
+  let loadGeneration = 0;
+
+  function clearState() {
+    loadGeneration++;
+    records.value = [];
+    error.value = "";
+    isLoading.value = false;
+    units.value = [...DEFAULT_HEALTH_UNITS];
+  }
 
   const objects = computed(() => records.value.filter((record) => record.record_type === "HEALTH_OBJECT"));
   const relations = computed(() => records.value.filter((record) => record.record_type === "OBJECT_RELATION"));
@@ -72,8 +84,9 @@ export const useHealthStore = defineStore("health", () => {
       .filter((record) => record.record_type === "OVERVIEW_WIDGET")
       .sort((left, right) => Number(left.order || 0) - Number(right.order || 0)),
   );
-  const schedules = computed(() => objects.value.filter((object) => object.object_type === "SCHEDULE"));
-  const supplies = computed(() => objects.value.filter((object) => object.object_type === "SUPPLY"));
+  const schedules = computed(() => objects.value.filter(isHealthScheduled));
+  const supplies = computed(() => objects.value.filter(isHealthStockObject));
+  const entities = computed(() => objects.value.filter(isHealthEntity));
   const trackers = computed(() => objects.value.filter((object) => object.object_type === "TRACKER"));
   const activeTrackers = computed(() => trackers.value.filter((tracker) => !tracker.archived));
   const trackerGroups = computed(() => {
@@ -114,14 +127,17 @@ export const useHealthStore = defineStore("health", () => {
   }
 
   async function migrateLegacyRecords(localRecords) {
+    const isCurrent = captureSyncSession();
     const migrated = [];
     for (const record of localRecords) {
+      assertSyncSession(isCurrent);
       if (record.id || record.pending_sync || record.deleted_at) {
         migrated.push(record);
         continue;
       }
       const saved = { ...record, pending_sync: true, updated_at: record.updated_at || now() };
       const localId = await healthRepository.saveRecord(saved);
+      assertSyncSession(isCurrent);
       const normalized = { ...saved, local_id: localId };
       await enqueueUpsert(normalized, false);
       migrated.push(normalized);
@@ -164,24 +180,34 @@ export const useHealthStore = defineStore("health", () => {
   }
 
   async function loadRecords() {
+    const sessionIsCurrent = captureSyncSession();
+    const generation = ++loadGeneration;
+    const isCurrent = () => sessionIsCurrent() && generation === loadGeneration;
     isLoading.value = true;
     error.value = "";
     try {
       loadUnits();
       const localRecords = (await healthRepository.getRecords(currentUserId())).filter((record) => record.record_type);
-      records.value = await migrateLegacyRecords(localRecords);
+      if (!isCurrent()) return;
+      const migrated = await migrateLegacyRecords(localRecords);
+      if (!isCurrent()) return;
+      records.value = migrated;
       await syncQueueRepository.reviveFailedTasks(
         "UPSERT_HEALTH_RECORD",
         (task) => !HEALTH_RECORD_TYPES.has(task.payload?.record_type),
       );
       await syncService.processSyncQueue();
-      records.value = (await healthRepository.getRecords(currentUserId())).filter((record) => record.record_type);
+      if (!isCurrent()) return;
+      const refreshed = (await healthRepository.getRecords(currentUserId())).filter((record) => record.record_type);
+      if (!isCurrent()) return;
+      records.value = refreshed;
       await ensureDefaultTrackerGroups();
     } catch (loadError) {
+      if (!isCurrent()) return;
       error.value = loadError.message || "Não foi possível abrir os dados de saúde.";
       throw loadError;
     } finally {
-      isLoading.value = false;
+      if (isCurrent()) isLoading.value = false;
     }
   }
 
@@ -213,7 +239,14 @@ export const useHealthStore = defineStore("health", () => {
   }
 
   function nextDueAt(schedule) {
+    if (!isHealthScheduled(schedule) || !schedule.anchor_date || Number.isNaN(new Date(schedule.anchor_date).getTime())) return null;
     const lastEvent = lastScheduleCompletion(schedule.local_key);
+    const completedCurrentDate = lastEvent && (lastEvent.metadata?.scheduled_for === schedule.anchor_date || new Date(lastEvent.occurred_at) >= new Date(schedule.anchor_date));
+    if (!isHealthRecurring(schedule)) {
+      // Uma nova data posterior à conclusão reabre o agendamento pontual.
+      return completedCurrentDate ? null : schedule.anchor_date;
+    }
+    if (!completedCurrentDate && schedule.schedule_enabled !== undefined) return schedule.anchor_date;
     return addInterval(
       lastEvent?.occurred_at || schedule.anchor_date,
       schedule.frequency_unit,
@@ -221,29 +254,90 @@ export const useHealthStore = defineStore("health", () => {
     );
   }
 
-  async function createObject(data) {
-    const object = { name: data.name, object_type: data.object_type, tags: data.tags || [], notes: data.notes || "" };
-    if (data.object_type === "SCHEDULE") {
-      return createRecord("HEALTH_OBJECT", {
-        ...object,
-        frequency_unit: data.frequency_unit || "months",
-        frequency_value: Number(data.frequency_value || 1),
-        anchor_date: data.anchor_date || now(),
-        warning_before: Number(data.warning_before || 7),
-      });
+  function schedulingFields(data, current = null) {
+    const object = { ...current, ...data, object_type: current?.object_type || data.object_type };
+    const fields = {
+      schedule_enabled: isHealthScheduled(object),
+      recurrence_enabled: isHealthRecurring(object),
+    };
+    // Cadastros antigos sem data continuam legíveis até o usuário agendá-los.
+    const configuring = data.schedule_enabled !== undefined || data.anchor_date !== undefined || data.recurrence_enabled !== undefined;
+    if (fields.schedule_enabled) {
+      fields.anchor_date = data.anchor_date ?? current?.anchor_date ?? (object.object_type === "SCHEDULE" ? now() : null);
+      if (fields.anchor_date && Number.isNaN(new Date(fields.anchor_date).getTime())) throw new Error("Informe uma data de agendamento válida.");
+      if (configuring && !fields.anchor_date) throw new Error("Informe a data do agendamento.");
+      if (fields.anchor_date) fields.anchor_date = new Date(fields.anchor_date).toISOString();
+      fields.warning_before = Number(data.warning_before ?? current?.warning_before ?? 7);
+      if (!Number.isInteger(fields.warning_before) || fields.warning_before < 0) throw new Error("Informe um aviso prévio válido.");
+      if (fields.recurrence_enabled) {
+        fields.frequency_unit = data.frequency_unit ?? current?.frequency_unit ?? "months";
+        fields.frequency_value = Number(data.frequency_value ?? current?.frequency_value ?? 1);
+        if (!["hours", "days", "weeks", "months"].includes(fields.frequency_unit) || !Number.isInteger(fields.frequency_value) || fields.frequency_value < 1) {
+          throw new Error("Informe um intervalo de recorrência válido.");
+        }
+      }
     }
+    return fields;
+  }
+
+  async function createObject(data) {
+    if (!isHealthObject(data)) throw new Error("Selecione um tipo de entidade válido.");
+    const name = String(data.name || "").trim();
+    if (!name) throw new Error("Informe o nome da entidade.");
+    const object = { name, object_type: data.object_type, tags: data.tags || [], notes: data.notes || "" };
     return createRecord("HEALTH_OBJECT", {
       ...object,
+      ...schedulingFields(data),
       unit: data.unit || "unidades",
       minimum_quantity: Number(data.minimum_quantity || 0),
     });
   }
 
+  async function updateObject(object, data) {
+    const current = findObject(object?.local_key);
+    if (!isHealthObject(current)) throw new Error("Selecione uma entidade de saúde válida.");
+    const name = String(data.name || "").trim();
+    if (!name) throw new Error("Informe o nome da entidade.");
+    const changes = { name, notes: String(data.notes || "").trim() };
+    if (["schedule_enabled", "recurrence_enabled", "anchor_date", "frequency_unit", "frequency_value", "warning_before"].some((field) => data[field] !== undefined)) {
+      Object.assign(changes, schedulingFields(data, current));
+    }
+    let stockQuantity;
+    if (isHealthStockObject(current)) {
+      changes.unit = String(data.unit || "").trim();
+      changes.minimum_quantity = Number(data.minimum_quantity ?? 0);
+      if (!changes.unit) throw new Error("Selecione a unidade de medida.");
+      if (!Number.isFinite(changes.minimum_quantity) || changes.minimum_quantity < 0) {
+        throw new Error("Informe um estoque mínimo válido.");
+      }
+      if (data.stock_quantity !== undefined) {
+        if (data.stock_quantity === "" || data.stock_quantity === null) throw new Error("Informe o estoque atual.");
+        stockQuantity = Number(data.stock_quantity);
+        if (!Number.isFinite(stockQuantity)) throw new Error("Informe um estoque atual válido.");
+      }
+    }
+    const updated = await persist({ ...current, ...changes });
+    if (stockQuantity !== undefined) {
+      const adjustment = stockQuantity - supplyBalance(current.local_key);
+      if (adjustment !== 0) {
+        await createEvent({
+          object_key: current.local_key,
+          event_type: "SUPPLY_ADJUSTED",
+          title: "Ajuste de estoque: " + name,
+          quantity: adjustment,
+          notes: "Estoque ajustado na edição da entidade",
+          metadata: { unit: changes.unit },
+        });
+      }
+    }
+    return updated;
+  }
+
   async function linkConsumption(data) {
     const schedule = findObject(data.schedule_key);
     const supply = findObject(data.supply_key);
-    if (!schedule || schedule.object_type !== "SCHEDULE") throw new Error("Selecione uma agenda válida.");
-    if (!supply || supply.object_type !== "SUPPLY") throw new Error("Selecione um insumo válido.");
+    if (!isHealthScheduled(schedule)) throw new Error("Selecione uma agenda válida.");
+    if (!isHealthStockObject(supply)) throw new Error("Selecione um insumo válido.");
     const quantity = Number(data.quantity || 0);
     if (!quantity) throw new Error("Informe a quantidade consumida.");
     return createRecord("OBJECT_RELATION", {
@@ -488,7 +582,7 @@ export const useHealthStore = defineStore("health", () => {
 
   async function createEvent(data) {
     const object = findObject(data.object_key);
-    if (!object) throw new Error("Selecione um objeto do Health.");
+    if (!object) throw new Error("Selecione uma entidade de saúde ou rotina.");
     return createRecord("HEALTH_EVENT", {
       object_key: object.local_key,
       event_type: data.event_type || "OBSERVATION",
@@ -502,7 +596,7 @@ export const useHealthStore = defineStore("health", () => {
 
   async function recordSupplyMovement(data) {
     const supply = findObject(data.object_key);
-    if (!supply || supply.object_type !== "SUPPLY") throw new Error("Selecione um insumo.");
+    if (!isHealthStockObject(supply)) throw new Error("Selecione um insumo.");
     const quantity = Number(data.quantity || 0);
     if (!quantity) throw new Error("Informe uma quantidade maior que zero.");
     return createEvent({
@@ -518,7 +612,8 @@ export const useHealthStore = defineStore("health", () => {
 
   async function completeSchedule(data) {
     const schedule = findObject(data.object_key);
-    if (!schedule || schedule.object_type !== "SCHEDULE") throw new Error("Selecione uma agenda.");
+    if (!isHealthScheduled(schedule)) throw new Error("Selecione uma agenda.");
+    if (!nextDueAt(schedule)) throw new Error("Este agendamento está sem data ou já foi concluído. Edite-o para definir uma nova data.");
     const occurredAt = data.occurred_at || now();
     const completion = await createEvent({
       object_key: schedule.local_key,
@@ -526,6 +621,7 @@ export const useHealthStore = defineStore("health", () => {
       title: "Concluído: " + schedule.name,
       notes: data.notes,
       occurred_at: occurredAt,
+      metadata: { scheduled_for: schedule.anchor_date },
     });
     const consumptionRelations = objectRelations(schedule.local_key, "CONSUMES");
     for (const relation of consumptionRelations) {
@@ -551,11 +647,13 @@ export const useHealthStore = defineStore("health", () => {
     widgets,
     schedules,
     supplies,
+    entities,
     trackers,
     activeTrackers,
     trackerGroups,
     checkins,
     isLoading,
+    clearState,
     error,
     loadRecords,
     findObject,
@@ -563,6 +661,7 @@ export const useHealthStore = defineStore("health", () => {
     supplyBalance,
     nextDueAt,
     createObject,
+    updateObject,
     linkConsumption,
     addWidget,
     createTracker,

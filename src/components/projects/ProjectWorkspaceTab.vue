@@ -1,6 +1,6 @@
 <template>
   <div ref="panel" class="project-workspace-tab">
-    <template v-if="overlay_scope.target">
+    <ProjectContentBoundary v-if="overlay_scope.target" :reset-key="project_local_id" @back-to-list="$emit('project-selected', null)">
       <transition name="fade-kanban" mode="out-in">
         <ProjectList
           v-if="!project_exists"
@@ -15,7 +15,7 @@
           @switch-project="$emit('project-selected', $event)"
         />
       </transition>
-    </template>
+    </ProjectContentBoundary>
   </div>
 </template>
 
@@ -25,11 +25,12 @@ import { overlayScopeKey } from "@/utils/overlayScope";
 import { mobileNavigationMixin } from "@/utils/mobileNavigation";
 import ProjectList from "./ProjectList.vue";
 import ProjectKanban from "./ProjectKanban.vue";
+import ProjectContentBoundary from "./ProjectContentBoundary.vue";
 
 export default {
   name: "ProjectWorkspaceTab",
   mixins: [mobileNavigationMixin],
-  components: { ProjectList, ProjectKanban },
+  components: { ProjectList, ProjectKanban, ProjectContentBoundary },
   props: {
     projects: { type: Array, required: true },
     project_local_id: { type: [String, Number], default: null },

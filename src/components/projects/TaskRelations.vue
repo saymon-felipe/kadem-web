@@ -32,7 +32,7 @@
         >
           <span class="parent-tag">PAI</span>
           <span class="parent-id">#{{ parent.id || parent.local_id }}</span>
-          <span class="parent-desc">{{ parent.description || parent.title || 'Sem descrição' }}</span>
+          <span class="parent-desc" :title="parent.description || parent.title || 'Sem descrição'">{{ parent.description || parent.title || 'Sem descrição' }}</span>
           <span v-if="columnName(parent.column_id)" class="status-pill">
             {{ columnName(parent.column_id) }}
           </span>
@@ -102,7 +102,7 @@
             >
               <div class="candidate-left">
                 <span class="candidate-id">#{{ candidate.id || candidate.local_id }}</span>
-                <span class="candidate-title">{{ candidate.description || candidate.title || 'Sem descrição' }}</span>
+                <span class="candidate-title" :title="candidate.description || candidate.title || 'Sem descrição'">{{ candidate.description || candidate.title || 'Sem descrição' }}</span>
               </div>
               <div class="candidate-right">
                 <span v-if="columnName(candidate.column_id)" class="status-pill">
@@ -193,7 +193,8 @@
             :title="`Abrir detalhes de #${child.id || child.local_id}`"
           >
             <span class="subtask-id">#{{ child.id || child.local_id }}</span>
-            <span class="subtask-text" :class="{ strike: isTaskDone(child) }">
+            <span class="subtask-text" :class="{ strike: isTaskDone(child) }"
+              :title="child.description || child.title || 'Sem descrição'">
               {{ child.description || child.title || 'Sem descrição' }}
             </span>
           </div>
@@ -323,7 +324,7 @@
             >
               <div class="candidate-left">
                 <span class="candidate-id">#{{ candidate.id || candidate.local_id }}</span>
-                <span class="candidate-title">{{ candidate.description || candidate.title || 'Sem descrição' }}</span>
+                <span class="candidate-title" :title="candidate.description || candidate.title || 'Sem descrição'">{{ candidate.description || candidate.title || 'Sem descrição' }}</span>
               </div>
               <div class="candidate-right">
                 <span v-if="columnName(candidate.column_id)" class="status-pill">

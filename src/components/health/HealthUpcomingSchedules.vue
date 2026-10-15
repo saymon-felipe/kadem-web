@@ -12,10 +12,10 @@
 
     <div v-if="!sortedSchedules.length" class="empty-panel">
       <font-awesome-icon icon="calendar-check" class="empty-icon" />
-      <p>Nenhuma rotina agendada no momento.</p>
+      <p>Nenhum agendamento pendente com data definida.</p>
       <button class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" type="button" @click="$emit('new-schedule')">
         <font-awesome-icon icon="plus" />
-        <span>Criar primeira rotina</span>
+        <span>Novo agendamento</span>
       </button>
     </div>
 
@@ -102,7 +102,7 @@ export default {
   emits: ["complete-schedule", "view-objects", "new-schedule"],
   computed: {
     sortedSchedules() {
-      return [...this.schedules].sort((a, b) => {
+      return this.schedules.filter((schedule) => this.nextDueAt(schedule)).sort((a, b) => {
         return new Date(this.nextDueAt(a)) - new Date(this.nextDueAt(b));
       });
     },

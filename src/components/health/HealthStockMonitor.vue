@@ -3,36 +3,31 @@
     <div class="panel-title">
       <div class="title-group">
         <h3>Monitor de Insumos & Estoque</h3>
-        <span
-          v-if="lowStockCount > 0"
-          class="alert-badge"
-          :title="lowStockCount + ' insumo(s) abaixo do estoque mínimo'"
-        >
+        <span v-if="lowStockCount > 0" class="alert-badge"
+          :title="lowStockCount + ' insumo(s) abaixo do estoque mínimo'">
           {{ lowStockCount }} alerta{{ lowStockCount === 1 ? "" : "s" }}
         </span>
         <span v-else class="ok-badge">Estoque em dia</span>
       </div>
-      <button class="kadem-health-button kadem-health-button--quiet kadem-health-button--compact" type="button" @click="$emit('view-objects')">
-        Ver todos
+      <button class="kadem-health-button kadem-health-button--quiet kadem-health-button--compact" type="button"
+        @click="$emit('view-objects')">
+        Ver entidades de saúde
       </button>
     </div>
 
     <div v-if="!supplies.length" class="empty-panel">
       <font-awesome-icon icon="boxes-stacked" class="empty-icon" />
       <p>Nenhum insumo ou medicação cadastrada.</p>
-      <button class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" type="button" @click="$emit('new-supply')">
+      <button class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" type="button"
+        @click="$emit('new-supply')">
         <font-awesome-icon icon="plus" />
-        <span>Cadastrar primeiro insumo</span>
+        <span>Nova</span>
       </button>
     </div>
 
     <div v-else class="supplies-list custom-scrollbar">
-      <article
-        v-for="supply in sortedSupplies"
-        :key="supply.local_key"
-        class="supply-row"
-        :class="{ 'is-low': isLowStock(supply) }"
-      >
+      <article v-for="supply in sortedSupplies" :key="supply.local_key" class="supply-row"
+        :class="{ 'is-low': isLowStock(supply) }">
         <div class="supply-icon-wrap" :class="{ 'is-low': isLowStock(supply) }">
           <font-awesome-icon :icon="isLowStock(supply) ? 'triangle-exclamation' : 'box-archive'" />
         </div>
@@ -48,11 +43,8 @@
 
           <div class="gauge-container">
             <div class="gauge-track">
-              <div
-                class="gauge-fill"
-                :class="{ 'is-low': isLowStock(supply) }"
-                :style="{ width: stockPercentage(supply) + '%' }"
-              ></div>
+              <div class="gauge-fill" :class="{ 'is-low': isLowStock(supply) }"
+                :style="{ width: stockPercentage(supply) + '%' }"></div>
             </div>
             <div class="gauge-caption">
               <span>Mínimo: {{ formatNumber(supply.minimum_quantity || 0) }} {{ supply.unit }}</span>
@@ -63,21 +55,13 @@
         </div>
 
         <div class="supply-actions">
-          <button
-            class="kadem-health-button kadem-health-button--danger kadem-health-button--compact"
-            type="button"
-            title="Registrar consumo deste insumo"
-            @click="$emit('quick-consume', supply.local_key)"
-          >
+          <button class="kadem-health-button kadem-health-button--danger kadem-health-button--compact" type="button"
+            title="Registrar consumo deste insumo" @click="$emit('quick-consume', supply.local_key)">
             <font-awesome-icon icon="arrow-down" />
             <span>Baixa</span>
           </button>
-          <button
-            class="kadem-health-button kadem-health-button--success kadem-health-button--compact"
-            type="button"
-            title="Registrar entrada no estoque"
-            @click="$emit('quick-receive', supply.local_key)"
-          >
+          <button class="kadem-health-button kadem-health-button--success kadem-health-button--compact" type="button"
+            title="Registrar entrada no estoque" @click="$emit('quick-receive', supply.local_key)">
             <font-awesome-icon icon="plus" />
             <span>Repor</span>
           </button>
@@ -346,7 +330,7 @@ export default {
 
 .gauge-track {
   height: 5px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-lg);
   background: var(--surface-2);
   overflow: hidden;
 }

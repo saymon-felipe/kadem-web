@@ -52,12 +52,19 @@
         <font-awesome-icon icon="arrow-left" /> Voltar
       </button>
 
-      <RadioFlow
+      <ContentErrorBoundary
         v-if="has_opened_radio"
         v-show="active_app === 'radio_flow'"
-      />
-      <KademNexo v-if="active_app === 'kadem_nexo'" />
-      <HealthWindow v-if="active_app === 'kadem_health'" />
+        title="Não foi possível exibir o Radio Flow"
+        action-label="Voltar aos aplicativos"
+        @action="close_app"
+      ><RadioFlow /></ContentErrorBoundary>
+      <ContentErrorBoundary v-if="active_app === 'kadem_nexo'" title="Não foi possível exibir o Nexo" action-label="Voltar aos aplicativos" @action="close_app">
+        <KademNexo />
+      </ContentErrorBoundary>
+      <ContentErrorBoundary v-if="active_app === 'kadem_health'" title="Não foi possível exibir o Health" action-label="Voltar aos aplicativos" @action="close_app">
+        <HealthWindow />
+      </ContentErrorBoundary>
     </div>
   </div>
 </template>
@@ -70,10 +77,11 @@ import RadioFlow from "../radio/RadioFlow.vue";
 import KademNexo from "../finance/KademNexo.vue";
 import HealthWindow from "./HealthWindow.vue";
 import { mobileNavigationMixin } from "@/utils/mobileNavigation";
+import ContentErrorBoundary from "@/components/ui/ContentErrorBoundary.vue";
 
 export default {
   mixins: [mobileNavigationMixin],
-  components: { RadioFlow, KademNexo, HealthWindow },
+  components: { RadioFlow, KademNexo, HealthWindow, ContentErrorBoundary },
   props: ["windowId"], // Recebe o ID da janela do BaseWindow
   data() {
     return {

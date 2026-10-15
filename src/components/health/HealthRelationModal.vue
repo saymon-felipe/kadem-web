@@ -1,24 +1,24 @@
 <template>
   <BaseModal
     :model-value="visible"
-    title="Vincular Insumo a Rotina"
+    title="Vincular insumo ao agendamento"
     size="md"
     @update:model-value="val => { if (!val) $emit('close'); }"
     @close="$emit('close')"
   >
     <form class="health-modal-body" @submit.prevent="handleSubmit">
         <p class="modal-description">
-          Conecte um insumo a esta rotina. Toda vez que a rotina for concluída, o sistema registrará a baixa automática no estoque.
+          Conecte um insumo a este agendamento. Toda vez que ele for concluído, o sistema registrará a baixa automática no estoque.
         </p>
 
         <div class="health-field static-label">
-          <label>Rotina / Agenda</label>
+          <label>Agendamento</label>
           <SearchableDropdown
             v-model="form.schedule_key"
             :options="scheduleOptions"
             :searchable="true"
             size="md"
-            placeholder="Selecione a rotina..."
+            placeholder="Selecione o agendamento..."
           />
         </div>
 
