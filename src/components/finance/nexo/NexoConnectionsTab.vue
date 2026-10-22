@@ -1,5 +1,6 @@
 <template>
   <div>
+    <NexoGenosPairing :active="active" />
     <div class="panel connections-soon">
       <div class="soon-icon">
         <font-awesome-icon icon="link" />
@@ -72,14 +73,17 @@
 
 <script>
 import ProGate from './ProGate.vue'
+import NexoGenosPairing from './NexoGenosPairing.vue'
 
 export default {
   name: 'NexoConnectionsTab',
   components: {
     ProGate,
+    NexoGenosPairing,
   },
   emits: ['connect', 'delete', 'sync', 'upgrade', 'view-transactions'],
   props: {
+    active: { type: Boolean, default: false },
     isPaidPlan: {
       type: Boolean,
       default: false,

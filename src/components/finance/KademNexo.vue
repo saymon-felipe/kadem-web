@@ -337,6 +337,7 @@
 
           <template v-else-if="tab.id === 'connections'">
             <NexoConnectionsTab
+              :active="activeTab === 'connections'"
               :is-paid-plan="isPaidPlan"
               :syncing-banks="syncingBanks"
               :connections="connections"

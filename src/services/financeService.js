@@ -281,6 +281,18 @@ const localDashboard = async (month) => {
 };
 
 export const financeService = {
+  async getGenosPairingAccess() {
+    const isCurrent = captureSyncSession();
+    const result = await api.get('/finance/genos/access');
+    assertSyncSession(isCurrent);
+    return result;
+  },
+  async createGenosPairing() {
+    const isCurrent = captureSyncSession();
+    const result = await api.post('/finance/genos/pair', {});
+    assertSyncSession(isCurrent);
+    return result;
+  },
   async listPaymentReviews(params) {
     const isCurrent = captureSyncSession();
     const local = await financeRepository.getTransactions(params);
