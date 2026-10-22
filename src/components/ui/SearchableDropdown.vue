@@ -6,30 +6,35 @@
       class="dropdown-trigger"
       :class="{ 'is-open': is_open, 'has-active-value': modelValue && modelValue !== 'all', 'size-md': size === 'md' }"
       @click.stop="toggle"
-      :title="selected_label"
+      :title="triggerTitle || selected_label"
+      :disabled="disabled"
+      :aria-expanded="is_open"
+      @keydown.esc.stop="close"
     >
-      <div class="trigger-content">
-        <div v-if="selected_option?.icon" class="item-icon-box">
-          <font-awesome-icon :icon="selected_option.icon" />
+      <slot name="trigger" :is-open="is_open" :selected="selected_option">
+        <div class="trigger-content">
+          <div v-if="selected_option?.icon" class="item-icon-box">
+            <font-awesome-icon :icon="selected_option.icon" />
+          </div>
+          <img
+            v-else-if="selected_option?.avatar"
+            :src="selected_option.avatar"
+            class="item-avatar"
+            alt=""
+          />
+          <span
+            v-else-if="selected_option?.color"
+            class="item-color-dot"
+            :style="{ backgroundColor: selected_option.color }"
+          ></span>
+          <span class="trigger-text" :class="{ 'is-placeholder': !selected_option }">{{ selected_label }}</span>
         </div>
-        <img
-          v-else-if="selected_option?.avatar"
-          :src="selected_option.avatar"
-          class="item-avatar"
-          alt=""
+        <font-awesome-icon
+          icon="chevron-down"
+          class="trigger-arrow"
+          :class="{ rotated: is_open }"
         />
-        <span
-          v-else-if="selected_option?.color"
-          class="item-color-dot"
-          :style="{ backgroundColor: selected_option.color }"
-        ></span>
-        <span class="trigger-text" :class="{ 'is-placeholder': !selected_option }">{{ selected_label }}</span>
-      </div>
-      <font-awesome-icon
-        icon="chevron-down"
-        class="trigger-arrow"
-        :class="{ rotated: is_open }"
-      />
+      </slot>
     </button>
 
     <Teleport :to="overlay_target">
@@ -114,6 +119,8 @@ export default {
   mixins: [overlayScopeMixin, mobileNavigationMixin],
   mobileBackPriority: 200,
   props: {
+    disabled: { type: Boolean, default: false },
+    triggerTitle: { type: String, default: "" },
     modelValue: {
       type: [String, Number, Object, null],
       default: null,
@@ -200,6 +207,7 @@ export default {
       }
     },
     open() {
+      if (this.disabled) return;
       this.is_open = true;
       this.search_term = "";
       this.calculate_position();

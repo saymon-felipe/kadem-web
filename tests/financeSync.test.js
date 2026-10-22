@@ -46,6 +46,56 @@ test('cartão criado offline sobrevive ao pull e sincroniza antes da compra, rem
   } finally{db?.close();await server.close()}
 });
 
+test("revisão direta salva offline e preserva data, categoria e escolha manual", { timeout: 30000 }, async () => {
+  const server = await createViteServer();
+  let db;
+  try {
+    const m = await loadOfflineFinance(server);
+    db = m.db;
+    m.setOnline(false);
+    const { default: Nexo } = await server.ssrLoadModule("/src/components/finance/KademNexo.vue");
+    await m.addCategory({ id: 7, name: "Mercado", type: "EXPENSE" });
+    const { data: transaction } = await m.financeService.createTransaction({
+      description: "Mercado", amount: 20, type: "EXPENSE", payment_method: "UNKNOWN",
+      category_id: 7,
+      transaction_date: "2026-10-22T00:00:25.909Z", observation: "Descrição original",
+    });
+    let saved;
+    let refreshes = 0;
+    const context = {
+      savingPaymentOriginIds: [], paymentOriginError: "",
+      transactionKey: Nexo.methods.transactionKey,
+      upsertTransactionInList(value) { saved = value; },
+      async refreshTransactionDrivenViews() { refreshes++; },
+    };
+    const { data: card } = await m.financeService.saveCreditCard(null, {
+      name: "Pessoal", bank: "Banco", last_four: "0042", brand: "Visa", credit_limit: 1000,
+    });
+    await Nexo.methods.selectTransactionPaymentOrigin.call(context, transaction, {
+      payment_method: "CREDIT_CARD", credit_card_id: card.id,
+    });
+    assert.equal(saved.credit_card_id, card.id);
+    assert.equal(saved.payment_review_reason, null);
+    assert.equal(saved.payment_source_locked, 1);
+    await Nexo.methods.selectTransactionPaymentOrigin.call(context, saved, {
+      payment_method: "PIX", credit_card_id: null,
+    });
+    const persisted = await m.financeRepository.findTransaction(saved.id || saved.local_id);
+    assert.equal(persisted.payment_method, "PIX");
+    assert.equal(persisted.credit_card_id, null);
+    assert.equal(persisted.payment_review_reason, null);
+    assert.equal(persisted.payment_source_locked, 1);
+    assert.equal(persisted.transaction_date, transaction.transaction_date);
+    assert.equal(persisted.observation, transaction.observation);
+    assert.equal(persisted.amount, transaction.amount);
+    assert.equal(persisted.category_id, transaction.category_id);
+    assert.equal(refreshes, 2);
+    assert.deepEqual(context.savingPaymentOriginIds, []);
+    assert.equal(context.paymentOriginError, "");
+    assert.equal(m.posts.length, 0);
+  } finally { db?.close(); await server.close(); }
+});
+
 test("Genos apresenta o instante no fuso bancário sem alterar datas de CSV nem os dados persistidos", () => {
   const notification = {
     provider: "GENOS_NOTIFICATION", source: "IMPORT", transaction_date: "2026-10-22T00:00:25.909Z",

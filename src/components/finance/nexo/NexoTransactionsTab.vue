@@ -84,7 +84,9 @@
         </div>
       </div>
     </div>
+    <p v-if="paymentOriginError" class="payment-origin-error" role="alert">{{ paymentOriginError }}</p>
     <NexoTransactionsTable
+      :saving-payment-origin-ids="savingPaymentOriginIds"
       :credit-cards="creditCards"
       :transactions="transactions"
       :categories="categories"
@@ -97,6 +99,7 @@
       @toggle-ignored="$emit('toggle-ignored', $event)"
       @delete="$emit('delete-transaction', $event)"
       @select-category="emitSelectCategory"
+      @select-payment-origin="emitSelectPaymentOrigin"
       @create-category-for-transaction="emitCreateCategoryForTransaction"
       @clear-filters="clearAllFilters"
     />
@@ -125,12 +128,15 @@ export default {
     "open-csv-preview",
     "reset-csv",
     "select-category",
+    "select-payment-origin",
     "toggle-ignored",
     "update:transactionCategoryFilter",
     "update:transactionSearch",
     "upgrade",
   ],
   props: {
+    savingPaymentOriginIds: { type: Array, default: () => [] },
+    paymentOriginError: { type: String, default: "" },
     creditCards: {type:Array,default:()=>[]},
     isPaidPlan: {
       type: Boolean,
@@ -237,6 +243,9 @@ export default {
     },
   },
   methods: {
+    emitSelectPaymentOrigin(transaction, origin) {
+      this.$emit("select-payment-origin", transaction, origin);
+    },
     clearAllFilters() {
       this.$emit("update:transactionSearch", "");
       this.$emit("update:transactionCategoryFilter", "");
@@ -258,6 +267,12 @@ export default {
 </script>
 
 <style scoped>
+.payment-origin-error {
+  color: var(--color-expense);
+  font-size: var(--fontsize-xs);
+  margin-bottom: var(--space-3);
+}
+
 .panel {
   background: var(--surface-0);
   border: 1px solid var(--glass-border);
