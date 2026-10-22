@@ -122,6 +122,15 @@ db.version(25).stores({
   radio_statistics: "[user_id+year], user_id",
 });
 
+db.version(26).stores({
+  finance_credit_cards: '++local_id, local_key, id, name, is_archived',
+  finance_transactions: '++local_id, local_key, id, transaction_date, type, category_id, payment_method, credit_card_id',
+}).upgrade(tx => tx.table('finance_transactions').toCollection().modify(item => {
+  item.payment_method ??= 'UNKNOWN';
+  item.credit_card_id ??= null;
+  item.payment_review_reason ??= item.type === 'EXPENSE' ? 'Confirme o meio de pagamento.' : null;
+}));
+
 let dbOpenPromise = null;
 
 function canUseBrowserStorage() {

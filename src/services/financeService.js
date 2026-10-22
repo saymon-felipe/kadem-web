@@ -2,6 +2,7 @@ import { api } from "@/plugins/api";
 import { financeRepository, syncQueueRepository } from "@/services/localData";
 import { syncService } from "@/services/syncService";
 import { captureSyncSession, assertSyncSession, requireSyncArray } from "@/utils/syncState";
+import { creditSummary } from '@/utils/financeCredit';
 
 const response = (data) => ({ data });
 const FINANCE_BATCH_LIMIT = 100;
@@ -218,10 +219,10 @@ const localDashboard = async (month) => {
   const macros = await financeRepository.getMacroCategories();
   const categoryMap = new Map(categories.map((category) => [String(category.id || category.local_id), category]));
   const macroMap = new Map(macros.map((macro) => [macro?.name, macro]));
-  const visible = transactions.filter((item) => !item.is_ignored);
+  const visible = transactions.filter((item) => !item.is_ignored && item.status !== 'CANCELED');
   const accountingVisible = visible.filter((item) => {
     const category = categoryMap.get(String(item.category_id || ""));
-    return category?.investment_flow_type !== "INVESTMENT_OUT";
+    return category?.investment_flow_type !== "INVESTMENT_OUT" && item.payment_method !== 'CREDIT_CARD';
   });
   const totals = accountingVisible.reduce(
     (acc, item) => {
@@ -266,6 +267,7 @@ const localDashboard = async (month) => {
     })
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
   return {
+    credit: creditSummary(transactions,categories),
     totals,
     transactions: transactions.slice(0, 20),
     recent_transactions: transactions.slice(0, 20),
@@ -279,9 +281,38 @@ const localDashboard = async (month) => {
 };
 
 export const financeService = {
+  async listPaymentReviews(params) {
+    const isCurrent = captureSyncSession();
+    const local = await financeRepository.getTransactions(params);
+    const pending = local.filter((t) => t.pending_sync);
+    try {
+      const {data} = await api.get('/finance/transactions',{params:{...params,payment_review:true,limit:100}});
+      assertSyncSession(isCurrent);
+      const ids = new Set(pending.map((t)=>String(t.id)));
+      return response([...pending.filter((t)=>t.payment_review_reason && !t.is_ignored && t.status !== 'CANCELED'),...requireSyncArray(data).filter((t)=>!ids.has(String(t.id)) && !t.is_ignored && t.status !== 'CANCELED')].slice(0,100));
+    } catch { return response(local.filter((t)=>t.payment_review_reason && !t.is_ignored && t.status !== 'CANCELED').slice(0,100)); }
+  },
+  async getCreditCards() {
+    const isCurrent = captureSyncSession();
+    try {
+      const {data} = await api.get('/finance/credit-cards');
+      assertSyncSession(isCurrent);
+      await financeRepository.setCreditCards(requireSyncArray(data));
+    } catch { /* Local registry remains available offline. */ }
+    return response(await financeRepository.getCreditCards());
+  },
+  async saveCreditCard(id, data) {
+    const local = await financeRepository.saveLocalCreditCard(id,toPlain(data));
+    const clean = toPlain(data);
+    if (!id) clean.client_id = local.client_id;
+    const {synced} = await enqueue(id ? 'UPDATE_FINANCE_CREDIT_CARD' : 'CREATE_FINANCE_CREDIT_CARD', {id,local_id:local.local_id,data:clean}, {waitForSync:false});
+    return {...response(local),synced};
+  },
+  async reviewPaymentOrigins(transaction_ids) { return api.post('/finance/ai/payment-origins',{transaction_ids}); },
   async getDashboard(params = {}) {
     const isCurrent = captureSyncSession();
     try {
+      if ((await financeRepository.getTransactions(params)).some((t) => t.pending_sync)) return response(await localDashboard(params.month));
       const result = await api.get("/finance/dashboard", { params });
       assertSyncSession(isCurrent);
       const recentTransactions = Array.isArray(result.data.transactions)

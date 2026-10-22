@@ -33,19 +33,10 @@
           <input
             id="transaction-description"
             :value="form.description"
-            placeholder=""
+            placeholder="Ex.: Supermercado, salário, aluguel..."
             required
             @input="updateField('description', $event.target.value)"
           />
-        </div>
-        <div class="nexo-field static-label textarea">
-          <label for="transaction-observation">Observação</label>
-          <textarea
-            id="transaction-observation"
-            :value="form.observation"
-            placeholder="Detalhe opcional para diferenciar este movimento"
-            @input="updateField('observation', $event.target.value.trim())"
-          ></textarea>
         </div>
         <div class="form-grid">
           <div class="nexo-field static-label">
@@ -55,7 +46,7 @@
               :value="form.amount_display"
               type="text"
               inputmode="numeric"
-              placeholder=""
+              placeholder="R$ 0,00"
               required
               @input="$emit('update-amount', $event)"
             />
@@ -72,12 +63,49 @@
             />
           </div>
         </div>
-        <CategoryCombo
-          :model-value="form.category_id"
-          :categories="categories"
-          placeholder="Sem categoria"
-          @update:modelValue="updateField('category_id', $event)"
-        />
+        <div
+          class="form-grid"
+          :class="{ 'single-col': !(form.type === 'EXPENSE' && form.payment_method === 'CREDIT_CARD') }"
+        >
+          <div class="nexo-field static-label">
+            <label for="transaction-payment-method">Meio de pagamento</label>
+            <select
+              id="transaction-payment-method"
+              :value="form.payment_method || 'UNKNOWN'"
+              @change="updateField('payment_method', $event.target.value)"
+            >
+              <option v-for="method in paymentMethods" :key="method.value" :value="method.value">
+                {{ method.label }}
+              </option>
+            </select>
+          </div>
+          <div
+            v-if="form.type === 'EXPENSE' && form.payment_method === 'CREDIT_CARD'"
+            class="nexo-field static-label"
+          >
+            <label for="transaction-credit-card">Cartão de origem</label>
+            <select
+              id="transaction-credit-card"
+              :value="form.credit_card_id || ''"
+              @change="updateField('credit_card_id', $event.target.value || null)"
+            >
+              <option value="">A identificar / revisar depois</option>
+              <option v-for="card in availableCards" :key="card.id" :value="card.id">
+                {{ cardLabel(card) }}{{ Number(card.is_archived) ? ' (arquivado)' : '' }}
+              </option>
+            </select>
+            <small v-if="!creditCards.length" class="field-helper">Cadastre seus cartões na aba Crédito.</small>
+          </div>
+        </div>
+        <div class="nexo-field static-label">
+          <label>Categoria</label>
+          <CategoryCombo
+            :model-value="form.category_id"
+            :categories="categories"
+            placeholder="Sem categoria"
+            @update:modelValue="updateField('category_id', $event)"
+          />
+        </div>
         <div v-if="showGoalSelect" class="nexo-field static-label">
           <label>Meta (opcional)</label>
           <CategoryCombo
@@ -88,6 +116,16 @@
             empty-label="Nenhuma meta encontrada."
             @update:modelValue="updateField('goal_id', $event)"
           />
+        </div>
+        <div class="nexo-field static-label textarea">
+          <label for="transaction-observation">Observação (opcional)</label>
+          <textarea
+            id="transaction-observation"
+            rows="2"
+            :value="form.observation"
+            placeholder="Detalhe opcional para diferenciar este movimento"
+            @input="updateField('observation', $event.target.value.trim())"
+          ></textarea>
         </div>
         <div class="modal-actions">
           <button type="button" class="text-btn" :disabled="saving" @click="$emit('close')">Cancelar</button>
@@ -103,6 +141,7 @@
 <script>
 import BaseModal from '@/components/BaseModal.vue'
 import CategoryCombo from '../CategoryCombo.vue'
+import { PAYMENT_METHODS, cardLabel } from '@/utils/financeCredit'
 
 export default {
   name: 'NexoTransactionModal',
@@ -112,6 +151,7 @@ export default {
   },
   emits: ['close', 'save', 'update-amount', 'update-field'],
   props: {
+    creditCards: { type: Array, default: () => [] },
     visible: {
       type: Boolean,
       default: false,
@@ -135,6 +175,8 @@ export default {
     },
   },
   computed: {
+    paymentMethods() { return PAYMENT_METHODS },
+    availableCards() { return this.creditCards.filter((c) => !Number(c.is_archived) || String(c.id) === String(this.form.credit_card_id)) },
     selectedCategory() {
       const id = this.form.category_id
       if (id === null || id === undefined || id === '') return null
@@ -154,6 +196,7 @@ export default {
     },
   },
   methods: {
+    cardLabel,
     updateField(field, value) {
       this.$emit('update-field', { field, value })
     },
@@ -228,9 +271,18 @@ export default {
 }
 
 .nexo-field textarea {
-  min-height: 130px;
+  height: 72px !important;
+  min-height: 72px !important;
   padding: var(--space-3) var(--space-4) !important;
   resize: vertical;
+  font-family: inherit;
+  font-size: var(--fontsize-sx, 0.875rem);
+}
+
+.field-helper {
+  color: var(--text-secondary);
+  font-size: var(--fontsize-xs);
+  padding-left: var(--space-1);
 }
 
 .nexo-field label {
@@ -365,13 +417,15 @@ export default {
   gap: var(--space-3);
 }
 
-@container (max-width: 760px) {
+.form-grid.single-col {
+  grid-template-columns: 1fr;
+}
+
+@container (max-width: 380px) {
   .form-grid {
     grid-template-columns: 1fr;
   }
-}
 
-@container (max-width: 480px) {
   .modal-actions {
     flex-direction: column-reverse;
     width: 100%;
@@ -384,13 +438,11 @@ export default {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 480px) {
   .form-grid {
     grid-template-columns: 1fr;
   }
-}
 
-@media (max-width: 480px) {
   .modal-actions {
     flex-direction: column-reverse;
     width: 100%;

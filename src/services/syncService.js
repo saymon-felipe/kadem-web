@@ -120,6 +120,7 @@ const buildChangesArray = (payload, timestamp) => {
 const sanitizeTransactionPayload = (data) => {
   if (!data) return {};
   const allowedKeys = [
+    'payment_method', 'credit_card_id',
     "description",
     "observation",
     "amount",
@@ -891,6 +892,20 @@ const updateFinanceLocalRecord = async (table, localId, serverData) => {
     updated_at: serverData.updated_at || new Date().toISOString(),
   });
 
+  if (table === 'finance_credit_cards' && current && serverData.id) {
+    const refs = new Set([current.id,current.local_key].filter(Boolean).map(String));
+    const rows = await db.finance_transactions.filter((t) => refs.has(String(t.credit_card_id))).toArray();
+    await Promise.all(rows.map((t) => db.finance_transactions.update(t.local_id,{credit_card_id:serverData.id})));
+    const tasks = await syncQueueRepository.getPendingTasks();
+    for (const task of tasks) {
+      let changed = false;
+      for (const data of [task.payload?.data,...(task.payload?.transactions || [])].filter(Boolean)) {
+        if (refs.has(String(data.credit_card_id))) { data.credit_card_id = serverData.id; changed = true; }
+      }
+      if (changed) await syncQueueRepository.updateTask(task.id,{payload:task.payload});
+    }
+  }
+
   if (table === "finance_categories" && current.id && serverData.id) {
     const transactions = await db.finance_transactions.where("category_id").equals(current.id).toArray();
     if (transactions.length) {
@@ -1055,6 +1070,7 @@ const resolveGoalReferenceForServer = async (goalId) => {
 
 const resolveTransactionPayloadForServer = async (data) => {
   const cleanData = sanitizeTransactionPayload(data);
+  if (cleanData.credit_card_id) cleanData.credit_card_id = await resolveFinanceEntityId('finance_credit_cards',cleanData.credit_card_id);
   if (cleanData.category_id) {
     cleanData.category_id = await resolveFinanceEntityId("finance_categories", cleanData.category_id);
   }
@@ -1098,6 +1114,19 @@ async function _handleFinanceTask(task) {
   const { payload } = task;
 
   switch (task.type) {
+    case 'CREATE_FINANCE_CREDIT_CARD':
+    case 'UPDATE_FINANCE_CREDIT_CARD': {
+      const creating = task.type === 'CREATE_FINANCE_CREDIT_CARD';
+      const id = creating ? null : await resolveFinanceServerId('finance_credit_cards',payload);
+      const keys = ['client_id','name','bank','last_four','brand','credit_limit','is_archived'];
+      const data = Object.fromEntries(keys.filter((k) => payload.data[k] !== undefined && (!creating || k !== 'is_archived')).map((k) => [k,payload.data[k]]));
+      const result = creating ? await api.post('/finance/credit-cards',data) : await api.put(`/finance/credit-cards/${id}`,data);
+      await updateFinanceLocalRecord('finance_credit_cards',payload.local_id,result.data);
+      // Preserve edits queued while this request was in flight.
+      const remaining = (await syncQueueRepository.getPendingTasks()).filter((t) => t.id !== task.id && t.type === 'UPDATE_FINANCE_CREDIT_CARD' && t.payload.local_id === payload.local_id);
+      for (const next of remaining) await db.finance_credit_cards.update(payload.local_id,{...next.payload.data,pending_sync:true});
+      break;
+    }
     case "CREATE_FINANCE_TRANSACTION": {
       const cleanData = await resolveTransactionPayloadForServer(payload.data);
       const response = await api.post("/finance/transactions", cleanData);
@@ -1417,6 +1446,7 @@ export const syncService = {
           ADD_TRACK: 6,
           CREATE_FINANCE_MACRO_CATEGORY: 7,
           CREATE_FINANCE_CATEGORY: 8,
+          CREATE_FINANCE_CREDIT_CARD: 8,
           // a meta precisa existir antes do aporte que aponta para ela
           CREATE_FINANCE_INVESTMENT_GOAL: 8,
           CREATE_FINANCE_TRANSACTION: 9,

@@ -24,6 +24,18 @@ export function transactionDescription(transaction) {
   return isGenosNotification(transaction) ? value.replace(/^([^:]+:\s*)UNKNOWN\b/, "$1Transação") : value;
 }
 
+export function editedTransactionDate(transaction, calendarDay) {
+  const original = String(transaction?.transaction_date || '');
+  if (!original) return calendarDay;
+  const calendar = transactionCalendarDate(transaction);
+  if (calendar.slice(0,10) === calendarDay) return original;
+  if (isGenosNotification(transaction)) {
+    const fraction = /[T ]\d{2}:\d{2}:\d{2}(\.\d+)/.exec(original)?.[1] || '';
+    return `${calendarDay}T${calendar.slice(11,19) || '00:00:00'}${fraction}-03:00`;
+  }
+  return calendarDay + original.slice(10);
+}
+
 export function transactionObservation(transaction) {
   const value = transaction?.observation || "";
   if (!isGenosNotification(transaction)) return value;

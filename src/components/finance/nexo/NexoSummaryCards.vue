@@ -5,12 +5,16 @@
       <strong>{{ formatMoney(totals.income) }}</strong>
     </div>
     <div class="metric expense">
-      <span>Saídas</span>
+      <span>Gastos da conta</span>
       <strong>{{ formatMoney(totals.expense) }}</strong>
     </div>
     <div class="metric balance">
-      <span>Saldo</span>
+      <span>Saldo da conta</span>
       <strong :class="{ negative: totals.balance < 0 }">{{ formatMoney(totals.balance) }}</strong>
+    </div>
+    <div class="metric credit">
+      <span>Gastos no crédito</span>
+      <strong>{{ formatMoney(creditExpense) }}</strong>
     </div>
     <div v-if="investmentSummary" class="metric investment">
       <span>Investido no mês</span>
@@ -27,6 +31,7 @@
 export default {
   name: 'NexoSummaryCards',
   props: {
+    creditExpense: { type:Number, default:0 },
     totals: {
       type: Object,
       required: true,
@@ -72,6 +77,7 @@ export default {
 
 .metric strong {
   font-size: var(--fontsize-md);
+  font-variant-numeric: tabular-nums;
 }
 
 .metric.income strong {
@@ -83,12 +89,28 @@ export default {
   color: var(--color-expense);
 }
 
+.metric.credit strong {
+  color: #4f46e5;
+}
+
 .metric.investment strong {
   color: #0d8f6f;
 }
 
 .metric.investment-out strong {
   color: #b77900;
+}
+
+[data-theme='dark'] .metric.credit strong {
+  color: #818cf8;
+}
+
+[data-theme='dark'] .metric.investment strong {
+  color: #34d399;
+}
+
+[data-theme='dark'] .metric.investment-out strong {
+  color: #fbbf24;
 }
 
 @container (max-width: 640px) {

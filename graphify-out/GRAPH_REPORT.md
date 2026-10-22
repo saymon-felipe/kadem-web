@@ -1,16 +1,16 @@
-# Graph Report - kadem-web  (2026-10-21)
+# Graph Report - kadem-web  (2026-10-22)
 
 ## Corpus Check
-- 250 files · ~290,445 words
+- 253 files · ~294,652 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2645 nodes · 4769 edges · 157 communities (144 shown, 13 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 39 edges (avg confidence: 0.78)
+- 2669 nodes · 4838 edges · 164 communities (150 shown, 14 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 42 edges (avg confidence: 0.79)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `373916bc`
+- Built from commit: `cb1b11ce`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -55,13 +55,13 @@
 - ProductivityWindow.vue
 - updateTransaction
 - MacroCategoryCombo.vue
-- useAuthStore
+- main.js
 - health.js
 - biometricAuth.js
 - SearchableDropdown.vue
 - ReauthModal.vue
 - findCategory
-- mobileNavigation.test.js
+- mobileNavigation.js
 - AudioSettingsPanel.vue
 - HealthActionModal.vue
 - BaseWindow.vue
@@ -70,11 +70,11 @@
 - healthGroups.test.js
 - RadioInsightsPanel.vue
 - kanbanBoard.test.js
-- MfaChallenge.vue
+- OtpInput.vue
 - player.js
 - scripts
 - kanban.js
-- api.js
+- MfaChallenge.vue
 - switchComponent.vue
 - CustomDropdown.vue
 - radioNormalizationIntegration.test.js
@@ -90,7 +90,7 @@
 - exclude
 - NexoCsvPreviewModal.vue
 - .prettierrc.json
-- mobileNavigation.js
+- PasskeysSection.vue
 - HealthObjectModal.vue
 - README.md
 - snapshot_task
@@ -120,17 +120,21 @@
 - select_playlist
 - Configuration.vue
 - close_assignee_menu
+- alexaAuthView.vue
 - deleteInvestmentGoal
 - close_options
-- ProjectWorkspaceTab.vue
+- securityService.js
+- ProjectContentBoundary.vue
 - authSession.js
 - ProjectsWindow.vue
 - finish_task_drag_preview
 - .event
 - close_comment_menu
 - financeSync.test.js
-- expandWrappedCsvRow
+- RecoveryEmailModal.vue
+- NexoCreditTab.vue
 - upload_attachment_file
+- App.vue
 - findMacroByName
 - healthInsights.js
 - animate_filter_change
@@ -146,6 +150,9 @@
 - ImageCropperModal.vue
 - TrackReaction.vue
 - windows.js
+- goalCurrentAmount
+- fetch_search_results
+- activeInvestmentTab
 - fake-indexeddb
 - lodash.isequal
 - usePlayerStore
@@ -169,33 +176,33 @@
   tests/uiPerformance.test.js → src/plugins/selectivePersistence.js
 - `"form.object_type"()` --calls--> `isHealthScheduled()`  [EXTRACTED]
   src/components/health/HealthObjectModal.vue → src/utils/healthObjectTypes.js
-- `patterns()` --calls--> `findPatterns()`  [EXTRACTED]
-  src/components/health/HealthTrackingInsights.vue → src/services/healthInsights.js
 - `runComparison()` --calls--> `comparePattern()`  [EXTRACTED]
   src/components/health/HealthTrackingInsights.vue → src/services/healthInsights.js
+- `usePlayerStore` --indirect_call--> `track()`  [INFERRED]
+  src/stores/player.js → src/components/radio/LyricsModal.vue
 
 ## Import Cycles
+- 3-file cycle: `src/router/index.js -> src/views/resetPasswordView.vue -> src/stores/auth.js -> src/router/index.js`
+- 3-file cycle: `src/router/index.js -> src/views/InviteLanding.vue -> src/stores/auth.js -> src/router/index.js`
 - 3-file cycle: `src/router/index.js -> src/views/logoutView.vue -> src/stores/auth.js -> src/router/index.js`
 - 3-file cycle: `src/router/index.js -> src/views/authView.vue -> src/stores/auth.js -> src/router/index.js`
+- 3-file cycle: `src/router/index.js -> src/views/homeView.vue -> src/stores/auth.js -> src/router/index.js`
+- 3-file cycle: `src/services/syncService.js -> src/stores/auth.js -> src/stores/health.js -> src/services/syncService.js`
 - 3-file cycle: `src/services/syncService.js -> src/stores/auth.js -> src/stores/player.js -> src/services/syncService.js`
 - 3-file cycle: `src/services/syncService.js -> src/stores/auth.js -> src/stores/radioInsights.js -> src/services/syncService.js`
-- 3-file cycle: `src/services/syncService.js -> src/stores/radio.js -> src/stores/radioInsights.js -> src/services/syncService.js`
-- 3-file cycle: `src/router/index.js -> src/views/homeView.vue -> src/stores/auth.js -> src/router/index.js`
-- 3-file cycle: `src/router/index.js -> src/views/InviteLanding.vue -> src/stores/auth.js -> src/router/index.js`
-- 3-file cycle: `src/router/index.js -> src/views/resetPasswordView.vue -> src/stores/auth.js -> src/router/index.js`
-- 3-file cycle: `src/services/syncService.js -> src/stores/auth.js -> src/stores/health.js -> src/services/syncService.js`
 - 3-file cycle: `src/services/syncService.js -> src/stores/auth.js -> src/stores/vault.js -> src/services/syncService.js`
+- 3-file cycle: `src/services/syncService.js -> src/stores/radio.js -> src/stores/radioInsights.js -> src/services/syncService.js`
 - 3-file cycle: `src/plugins/api.js -> src/stores/projects.js -> src/stores/utils.js -> src/plugins/api.js`
-- 4-file cycle: `src/services/syncService.js -> src/stores/auth.js -> src/stores/radio.js -> src/stores/radioInsights.js -> src/services/syncService.js`
 - 4-file cycle: `src/components/headerSystem.vue -> src/stores/auth.js -> src/router/index.js -> src/views/homeView.vue -> src/components/headerSystem.vue`
+- 4-file cycle: `src/services/syncService.js -> src/stores/auth.js -> src/stores/radio.js -> src/stores/radioInsights.js -> src/services/syncService.js`
 - 5-file cycle: `src/router/index.js -> src/views/authView.vue -> src/stores/vault.js -> src/services/syncService.js -> src/stores/auth.js -> src/router/index.js`
-- 5-file cycle: `src/services/syncService.js -> src/stores/auth.js -> src/stores/player.js -> src/stores/radio.js -> src/stores/radioInsights.js -> src/services/syncService.js`
 - 5-file cycle: `src/components/SubscriptionModal.vue -> src/stores/auth.js -> src/router/index.js -> src/views/homeView.vue -> src/components/headerSystem.vue -> src/components/SubscriptionModal.vue`
 - 5-file cycle: `src/components/headerSystem.vue -> src/components/startMenu/StartMenu.vue -> src/stores/auth.js -> src/router/index.js -> src/views/homeView.vue -> src/components/headerSystem.vue`
 - 5-file cycle: `src/components/headerSystem.vue -> src/stores/aiCredits.js -> src/stores/auth.js -> src/router/index.js -> src/views/homeView.vue -> src/components/headerSystem.vue`
 - 5-file cycle: `src/router/index.js -> src/views/homeView.vue -> src/stores/vault.js -> src/services/syncService.js -> src/stores/auth.js -> src/router/index.js`
+- 5-file cycle: `src/services/syncService.js -> src/stores/auth.js -> src/stores/player.js -> src/stores/radio.js -> src/stores/radioInsights.js -> src/services/syncService.js`
 
-## Communities (157 total, 13 thin omitted)
+## Communities (164 total, 14 thin omitted)
 
 ### Community 0 - "HealthTrackingTab.vue"
 Cohesion: 0.12
@@ -206,12 +213,12 @@ Cohesion: 0.14
 Nodes (6): checkScrollability(), currentTabId(), handler(), initResizeObserver(), mounted(), scrollToActiveTab()
 
 ### Community 2 - "KademNexo.vue"
-Cohesion: 0.04
-Nodes (25): appendBudgetAiMessage(), budgetAiStorageKey(), budgetGroupHeaderStyle(), budgetGroupStyle(), calendarDateParts(), countCsvDelimiters(), csvImportSummary(), deleteConnection() (+17 more)
+Cohesion: 0.05
+Nodes (24): appendBudgetAiMessage(), budgetAiStorageKey(), budgetGroupHeaderStyle(), budgetGroupStyle(), calendarDateParts(), countCsvDelimiters(), csvImportSummary(), detectCsvDelimiter() (+16 more)
 
 ### Community 4 - "RadioFlow.vue"
-Cohesion: 0.05
-Nodes (10): beforeUnmount(), fetch_search_results(), format_bytes(), handle_load_more(), is_player_lifted(), observe_lifted_player(), perform_mobile_search(), perform_search() (+2 more)
+Cohesion: 0.06
+Nodes (6): beforeUnmount(), format_bytes(), is_player_lifted(), observe_lifted_player(), release_lifted_player(), upload_usage_label()
 
 ### Community 5 - "CategoryCombo.vue"
 Cohesion: 0.19
@@ -233,21 +240,17 @@ Nodes (8): visible_tracks(), get_visible_playlist_tracks(), normalize_search(), 
 Cohesion: 0.06
 Nodes (27): bring_lyrics_to_front(), bring_video_to_front(), cycle_reaction(), format_seconds_to_time(), formatted_current_time(), formatted_duration(), get_current_time(), get_duration() (+19 more)
 
-### Community 11 - "NexoInvestmentsTab.vue"
-Cohesion: 0.05
-Nodes (6): goalCurrentAmount(), goalProgress(), heroProgressPercent(), heroProgressText(), INVESTMENT_TAB_IDS, nearestGoal()
-
 ### Community 12 - "resetPasswordView.vue"
-Cohesion: 0.10
-Nodes (12): completeLink(), handleAlexaLogin(), onMfaVerified(), backToPassword(), continueToSessions(), endsCurrentSession(), mounted(), passwordError() (+4 more)
+Cohesion: 0.20
+Nodes (9): backToPassword(), continueToSessions(), endsCurrentSession(), mounted(), passwordError(), resetResponse(), setResponse(), submitReset() (+1 more)
 
 ### Community 13 - "syncService.js"
 Cohesion: 0.10
-Nodes (38): attachmentUploads, finishAttachmentUpload(), reportAttachmentUpload(), isRadioInsightsTask(), buildChangesArray(), delay(), deleteFinanceLocalRecord(), _handleAccountTask() (+30 more)
+Nodes (37): attachmentUploads, finishAttachmentUpload(), reportAttachmentUpload(), isRadioInsightsTask(), buildChangesArray(), delay(), deleteFinanceLocalRecord(), _handleAccountTask() (+29 more)
 
 ### Community 14 - "AccountCenter.vue"
-Cohesion: 0.14
-Nodes (7): "auth.user.email"(), handleBiometricUnlock(), handleCloseModal(), handleSaveNewAccount(), mounted(), refreshVaultBiometricStatus(), toggleVaultBiometrics()
+Cohesion: 0.13
+Nodes (9): usePasskey(), "auth.user.email"(), handleBiometricUnlock(), handleCloseModal(), handleSaveNewAccount(), mounted(), refreshVaultBiometricStatus(), toggleVaultBiometrics() (+1 more)
 
 ### Community 15 - "TrackList.vue"
 Cohesion: 0.07
@@ -258,20 +261,20 @@ Cohesion: 0.07
 Nodes (6): close_download_menu(), closeMenu(), format_total_duration_verbose(), toggle_download_menu(), toggle_options_menu(), total_duration_formatted()
 
 ### Community 17 - "BaseModal.vue"
-Cohesion: 0.16
-Nodes (15): beforeUnmount(), close(), destroyObservers(), handleKeydown(), handleMobileBack(), handler(), handleResize(), handleTouchEnd() (+7 more)
+Cohesion: 0.15
+Nodes (16): beforeUnmount(), close(), destroyObservers(), handleKeydown(), handleMobileBack(), handler(), handleResize(), handleTouchEnd() (+8 more)
 
 ### Community 19 - "headerSystem.vue"
-Cohesion: 0.11
+Cohesion: 0.09
 Nodes (14): ai_credits_remaining(), ai_credits_total(), ai_credits_used(), closeAllPopups(), closeContextMenu(), handleMenuClick(), handler(), mobile_back() (+6 more)
 
 ### Community 20 - "reloadAll"
-Cohesion: 0.15
-Nodes (23): closeDeleteConfirm(), confirmCsvImport(), confirmDeleteAction(), deleteInvestmentEvent(), loadBudgets(), loadCategories(), loadDashboard(), loadInvestmentRates() (+15 more)
+Cohesion: 0.11
+Nodes (30): closeDeleteConfirm(), confirmCsvImport(), confirmDeleteAction(), deleteConnection(), deleteInvestmentEvent(), loadBudgets(), loadCategories(), loadConnections() (+22 more)
 
 ### Community 21 - "auth.js"
-Cohesion: 0.12
-Nodes (23): handleGenerateRecovery(), handleMigration(), handleRescue(), api, accountsRepository, radioRepository, syncHealthDelta(), syncService (+15 more)
+Cohesion: 0.11
+Nodes (22): handleGenerateRecovery(), handleMigration(), handleRescue(), accountsRepository, projectRepository, radioRepository, _handleProjectTask(), syncHealthDelta() (+14 more)
 
 ### Community 22 - "SubscriptionModal.vue"
 Cohesion: 0.06
@@ -294,12 +297,12 @@ Cohesion: 0.06
 Nodes (7): completed_child_count(), candidates(), completedChildrenCount(), isTaskDone(), toggleChildCompletion(), canSetTaskParent(), isSubtaskComplete()
 
 ### Community 28 - "ProjectKanban.vue"
-Cohesion: 0.07
-Nodes (8): beforeUnmount(), can_paste_attachment(), close_confirmation(), handle_confirm_delete(), handler(), load_board(), on_column_drag_end(), isTopModal()
+Cohesion: 0.08
+Nodes (6): beforeUnmount(), close_confirmation(), handle_confirm_delete(), handler(), load_board(), on_column_drag_end()
 
 ### Community 29 - "authView.vue"
-Cohesion: 0.07
-Nodes (31): created(), repairStorage(), consumeLocalDbIssue(), onLocalDbIssue(), repairLocalEnvironment(), afterLogin(), auth(), checkBiometricSupport() (+23 more)
+Cohesion: 0.09
+Nodes (21): afterLogin(), auth(), checkPasswordStrength(), confirmBiometrics(), confirmTrust(), continueAfterLogin(), continueAfterMfaCheck(), declineMfaSetup() (+13 more)
 
 ### Community 30 - "TrackOptionsMenu.vue"
 Cohesion: 0.09
@@ -338,8 +341,12 @@ Cohesion: 0.12
 Nodes (4): cancelAddOccupation(), handleAddNewOccupation(), handleSaveBio(), toggleBioEdit()
 
 ### Community 39 - "financeService.js"
-Cohesion: 0.20
+Cohesion: 0.22
 Nodes (12): entityMatchesAnyServerId(), entityReferenceIds(), entityServerId(), findLocalMacro(), isServerId(), pendingDeleteServerIds(), preparePendingMacroUpdate(), removeDeletedCategoryReferencesFromQueue() (+4 more)
+
+### Community 40 - "ProductivityWindow.vue"
+Cohesion: 0.13
+Nodes (6): handleWindowClick(), beforeUnmount(), close_app(), mobile_back(), window_store(), useWindowStore
 
 ### Community 41 - "updateTransaction"
 Cohesion: 0.18
@@ -349,17 +356,17 @@ Nodes (16): applyPendingCategorySelection(), applyTransactionPatch(), deleteTran
 Cohesion: 0.18
 Nodes (11): close(), createValue(), filteredMacros(), handleOutsideClick(), handleViewportChange(), normalize(), open(), select() (+3 more)
 
-### Community 44 - "useAuthStore"
-Cohesion: 0.09
-Nodes (21): setup(), setup(), setup(), data(), frames, vAnimateHeight, app, pinia (+13 more)
+### Community 44 - "main.js"
+Cohesion: 0.20
+Nodes (8): frames, vAnimateHeight, app, pinia, utils_store, router, routes, radioFlowApi
 
 ### Community 45 - "health.js"
 Cohesion: 0.16
 Nodes (19): frequencyLabel(), openEditObjectModal(), openNewObjectModal(), submitObject(), DIGESTIVE_WELLBEING_TEMPLATE, addInterval(), controlFields, DEFAULT_HEALTH_UNITS (+11 more)
 
 ### Community 47 - "biometricAuth.js"
-Cohesion: 0.15
-Nodes (21): add(), deviceName(), mounted(), remove(), usePasskey(), authenticateVaultWithBiometrics(), authenticateVaultWithLocalBiometrics(), authenticateWithBiometrics() (+13 more)
+Cohesion: 0.30
+Nodes (12): authenticateVaultWithBiometrics(), authenticateVaultWithLocalBiometrics(), authenticateWithBiometrics(), bufferToBase64Url(), credentialForVerification(), getBiometricStatus(), getWebAuthn(), prepareVaultBiometricUnlock() (+4 more)
 
 ### Community 48 - "SearchableDropdown.vue"
 Cohesion: 0.13
@@ -373,9 +380,9 @@ Nodes (9): cancel(), clear(), handler(), METHOD_ORDER, onModelUpdate(), prepare(
 Cohesion: 0.11
 Nodes (23): addBudgetGroup(), addBudgetItem(), availableCategoriesForMacro(), budgetSummary(), categoriesForMacro(), categoryKey(), closeTransactionForm(), filteredTransactions() (+15 more)
 
-### Community 52 - "mobileNavigation.test.js"
-Cohesion: 0.12
-Nodes (5): windowNavigationKey, overlayScopeKey, overlayScopeMixin, browserHistory(), settled()
+### Community 52 - "mobileNavigation.js"
+Cohesion: 0.07
+Nodes (8): close(), mobile_back(), mobileNavigationMixin, windowNavigationKey, overlayScopeKey, overlayScopeMixin, browserHistory(), settled()
 
 ### Community 53 - "AudioSettingsPanel.vue"
 Cohesion: 0.05
@@ -386,8 +393,8 @@ Cohesion: 0.20
 Nodes (3): localDateTime(), resetForm(), visible()
 
 ### Community 55 - "BaseWindow.vue"
-Cohesion: 0.11
-Nodes (17): handleWindowClick(), provide(), data(), focus(), minimize(), mobile_back(), provide(), reload_content() (+9 more)
+Cohesion: 0.13
+Nodes (13): provide(), data(), focus(), minimize(), mobile_back(), provide(), reload_content(), startDrag() (+5 more)
 
 ### Community 56 - "QueueSidebar.vue"
 Cohesion: 0.12
@@ -409,25 +416,25 @@ Nodes (30): canPlay(), changeYear(), connected, currentYear, dateInputValue, dis
 Cohesion: 0.16
 Nodes (6): createViteServer(), installMemoryStorage(), loadBoard(), stubRouter, withHierarchyBoard(), withProjectCreation()
 
-### Community 62 - "MfaChallenge.vue"
-Cohesion: 0.08
-Nodes (15): codeComplete(), METHOD_DESCRIPTIONS, METHOD_ICONS, METHOD_ORDER, sendEmail(), startCooldown(), submit(), onInput() (+7 more)
+### Community 62 - "OtpInput.vue"
+Cohesion: 0.16
+Nodes (9): codeComplete(), onInput(), codeComplete(), onInput(), digitsOnly(), formatRecoveryCode(), normalizeRecoveryCode(), OTP_LENGTH (+1 more)
 
 ### Community 63 - "player.js"
-Cohesion: 0.19
-Nodes (9): apiServices, PROFILE_VERSION, loudnessRepository, radioInsightsRepository, listening_runtimes, normalization_runtimes, clean_text(), parse_srt() (+1 more)
+Cohesion: 0.09
+Nodes (27): setup(), setup(), data(), api, check_system_health(), CSRF_EXEMPT_PATHS, ensureCsrfToken(), getCookie() (+19 more)
 
 ### Community 64 - "scripts"
 Cohesion: 0.11
 Nodes (18): scripts, build, dev, format, lint, lint:eslint, lint:oxlint, preview (+10 more)
 
 ### Community 65 - "kanban.js"
-Cohesion: 0.21
-Nodes (9): kanbanRepository, projectRepository, pendingPulls, useKanbanStore, loadKanbanSyncs(), normalizeKanbanSyncs(), DEFAULT_COLUMN_TYPE, isColumnType() (+1 more)
+Cohesion: 0.23
+Nodes (8): kanbanRepository, pendingPulls, useKanbanStore, loadKanbanSyncs(), normalizeKanbanSyncs(), DEFAULT_COLUMN_TYPE, isColumnType(), normalizeColumn()
 
-### Community 66 - "api.js"
-Cohesion: 0.22
-Nodes (8): check_system_health(), CSRF_EXEMPT_PATHS, ensureCsrfToken(), getCookie(), isCsrfExempt(), MUTATION_METHODS, normalizePath(), url_api
+### Community 66 - "MfaChallenge.vue"
+Cohesion: 0.12
+Nodes (5): METHOD_DESCRIPTIONS, METHOD_ICONS, METHOD_ORDER, sendEmail(), startCooldown()
 
 ### Community 67 - "switchComponent.vue"
 Cohesion: 0.28
@@ -481,9 +488,9 @@ Nodes (3): canPickGoal(), hasGoalColumn(), isInvestmentRow()
 Cohesion: 0.40
 Nodes (4): printWidth, $schema, semi, singleQuote
 
-### Community 82 - "mobileNavigation.js"
-Cohesion: 0.32
-Nodes (3): close(), mobile_back(), mobileNavigationMixin
+### Community 82 - "PasskeysSection.vue"
+Cohesion: 0.20
+Nodes (10): add(), deviceName(), mounted(), remove(), biometricDeclinedKey(), isBiometricSupported(), rememberedEmailKey, checkBiometricSupport() (+2 more)
 
 ### Community 83 - "HealthObjectModal.vue"
 Cohesion: 0.10
@@ -510,16 +517,12 @@ Cohesion: 0.50
 Nodes (4): createGoalForm(), data(), resetGoalForm(), submitGoal()
 
 ### Community 90 - "SideModal.vue"
-Cohesion: 0.23
-Nodes (11): beforeUnmount(), checkMobile(), close(), destroyObservers(), handleKeydown(), handleWindowResize(), initObservers(), is_modal_active() (+3 more)
-
-### Community 95 - "HealthTrackingInsights.vue"
-Cohesion: 0.12
-Nodes (3): patterns(), runComparison(), healthAiService
+Cohesion: 0.22
+Nodes (12): beforeUnmount(), checkMobile(), close(), destroyObservers(), handleKeydown(), handleWindowResize(), initObservers(), is_modal_active() (+4 more)
 
 ### Community 96 - "apiErrorMessage"
-Cohesion: 0.10
-Nodes (22): sendLink(), submit(), cancel(), confirm(), modelValue(), reset(), sendCode(), startCooldown() (+14 more)
+Cohesion: 0.20
+Nodes (9): submit(), sendLink(), submit(), active(), loadDevices(), onDevicesChanged(), online(), reload() (+1 more)
 
 ### Community 97 - "HealthCategoryModal.vue"
 Cohesion: 0.28
@@ -534,8 +537,8 @@ Cohesion: 0.09
 Nodes (13): data(), emptyCard(), loadSettings(), mounted(), refreshQr(), save(), healthPublicCardService, copyFullSummary() (+5 more)
 
 ### Community 100 - "NexoTransactionsTable.vue"
-Cohesion: 0.16
-Nodes (7): sourceLabel(), timeLabel(), isGenosNotification(), notificationClock, transactionCalendarDate(), transactionDescription(), transactionObservation()
+Cohesion: 0.15
+Nodes (8): sourceLabel(), timeLabel(), editedTransactionDate(), isGenosNotification(), notificationClock, transactionCalendarDate(), transactionDescription(), transactionObservation()
 
 ### Community 101 - "UploadTrackModal.vue"
 Cohesion: 0.25
@@ -550,15 +553,15 @@ Cohesion: 0.29
 Nodes (12): active_index(), check_scroll_position(), close_modal(), current_time(), get_track_key(), handle_scroll(), handler(), modelValue() (+4 more)
 
 ### Community 104 - "moneyInput"
-Cohesion: 0.32
-Nodes (8): money(), moneyInput(), openTransactionForm(), parseMoneyInput(), signedMoney(), updateBudgetAmount(), updateBudgetGroupAmount(), updateTransactionAmount()
+Cohesion: 0.24
+Nodes (10): data(), localToday(), money(), moneyInput(), openTransactionForm(), parseMoneyInput(), signedMoney(), updateBudgetAmount() (+2 more)
 
 ### Community 105 - "buildCsvExactKey"
 Cohesion: 0.31
 Nodes (10): buildCsvExactKey(), buildCsvLegacyKey(), buildTransactionCandidateMaps(), consumeCandidate(), csvAmountKey(), csvDateOnly(), csvHasMeaningfulTime(), filterCsvDuplicates() (+2 more)
 
 ### Community 109 - "MfaSection.vue"
-Cohesion: 0.13
+Cohesion: 0.24
 Nodes (4): disable(), regenerate(), removeRecoveryEmail(), run()
 
 ### Community 110 - "global.js"
@@ -581,6 +584,10 @@ Nodes (13): close_search(), get_liked_tracks(), handle_create_playlist(), handle
 Cohesion: 0.40
 Nodes (7): handlePwaInstall(), mounted(), getPwaInstallUnavailableMessage(), isIOSDevice(), isPwaInstalled(), isStandalone(), requestPwaInstall()
 
+### Community 120 - "alexaAuthView.vue"
+Cohesion: 0.18
+Nodes (3): completeLink(), handleAlexaLogin(), onMfaVerified()
+
 ### Community 121 - "deleteInvestmentGoal"
 Cohesion: 0.38
 Nodes (7): deleteInvestmentGoal(), investmentGoalKey(), investmentGoalMatches(), removeInvestmentGoalFromList(), requestDeleteInvestmentGoal(), saveInvestmentGoal(), upsertInvestmentGoalInList()
@@ -588,6 +595,10 @@ Nodes (7): deleteInvestmentGoal(), investmentGoalKey(), investmentGoalMatches(),
 ### Community 122 - "close_options"
 Cohesion: 0.25
 Nodes (8): close_options(), close_search(), emit_delete_request(), handle_click_outside_search(), open_type_config(), show_new_task_form(), start_rename(), toggle_search()
+
+### Community 123 - "securityService.js"
+Cohesion: 0.24
+Nodes (8): cancel(), confirm(), modelValue(), reset(), start(), apiErrorCode(), mfaMethodLabels, securityService
 
 ### Community 125 - "authSession.js"
 Cohesion: 0.36
@@ -610,24 +621,32 @@ Cohesion: 0.50
 Nodes (4): close_comment_menu(), delete_comment(), edit_comment(), handle_global_click()
 
 ### Community 131 - "financeSync.test.js"
-Cohesion: 0.33
-Nodes (3): installMemoryStorage(), loadOfflineFinance(), stubRouter
+Cohesion: 0.25
+Nodes (5): localDashboard(), creditSummary(), installMemoryStorage(), loadOfflineFinance(), stubRouter
 
-### Community 132 - "expandWrappedCsvRow"
-Cohesion: 0.83
-Nodes (4): expandWrappedCsvRow(), isWrappedCsvRow(), normalizeParsedCsvRows(), splitCsvLine()
+### Community 133 - "RecoveryEmailModal.vue"
+Cohesion: 0.25
+Nodes (6): cancel(), confirm(), modelValue(), reset(), sendCode(), startCooldown()
+
+### Community 134 - "NexoCreditTab.vue"
+Cohesion: 0.12
+Nodes (7): labelFor(), cardName(), financeService, cardLabel(), normalizePaymentOrigin(), PAYMENT_METHODS, paymentMethodLabel()
 
 ### Community 135 - "upload_attachment_file"
 Cohesion: 0.33
 Nodes (6): confirm_pasted_attachment(), handle_attachment_selected(), refresh_attachment_row(), upload_attachment_file(), uploading_attachment_ids(), upsert_attachment_row()
+
+### Community 136 - "App.vue"
+Cohesion: 0.29
+Nodes (7): created(), repairStorage(), consumeLocalDbIssue(), onLocalDbIssue(), repairLocalEnvironment(), mounted(), repairStorage()
 
 ### Community 137 - "findMacroByName"
 Cohesion: 0.22
 Nodes (10): categoryTargetMacro(), findMacroByName(), handleNewCategoryRequest(), macroKey(), onCategoryMacroChange(), openCategoryForm(), openCategoryFormForTransaction(), openMacroForm() (+2 more)
 
 ### Community 138 - "healthInsights.js"
-Cohesion: 0.40
-Nodes (8): checkinsInPeriod(), comparePattern(), findPatterns(), hasValue(), observedOptions(), trackerSeries(), checkins, reference
+Cohesion: 0.35
+Nodes (9): patterns(), checkinsInPeriod(), comparePattern(), findPatterns(), hasValue(), observedOptions(), trackerSeries(), checkins (+1 more)
 
 ### Community 139 - "animate_filter_change"
 Cohesion: 0.25
@@ -677,24 +696,36 @@ Nodes (4): currentVote, props, store, votes
 Cohesion: 0.67
 Nodes (5): finite(), isStateMap(), normalizeWindowStates(), position(), size()
 
+### Community 155 - "goalCurrentAmount"
+Cohesion: 0.40
+Nodes (5): goalCurrentAmount(), goalProgress(), heroProgressPercent(), heroProgressText(), nearestGoal()
+
+### Community 157 - "fetch_search_results"
+Cohesion: 0.50
+Nodes (4): fetch_search_results(), handle_load_more(), perform_mobile_search(), perform_search()
+
+### Community 158 - "activeInvestmentTab"
+Cohesion: 0.67
+Nodes (3): activeInvestmentTab(), mounted(), updateChartDimensions()
+
 ### Community 167 - "usePlayerStore"
-Cohesion: 0.22
-Nodes (9): activeTab(), data(), activeInvestmentTab(), mounted(), updateChartDimensions(), setup(), data(), normalization_runtime() (+1 more)
+Cohesion: 0.23
+Nodes (11): activeTab(), setup(), setup(), data(), player_store(), RADIO_FLOW_WINDOW, radio_store(), state_snapshot() (+3 more)
 
 ## Knowledge Gaps
 - **164 isolated node(s):** `$schema`, `semi`, `singleQuote`, `printWidth`, `paths` (+159 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **13 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `useAuthStore` connect `useAuthStore` to `KademNexo.vue`, `KanbanColumn.vue`, `HealthWindow.vue`, `NewProject.vue`, `resetPasswordView.vue`, `syncService.js`, `AccountCenter.vue`, `TrackList.vue`, `PlaylistHeader.vue`, `TaskDetailForm.vue`, `headerSystem.vue`, `auth.js`, `SubscriptionModal.vue`, `ImageCropperModal.vue`, `windows.js`, `TaskRelations.vue`, `ProjectKanban.vue`, `authView.vue`, `StartMenu.vue`, `MainInformations.vue`, `usePlayerStore`, `health.js`, `biometricAuth.js`, `ReauthModal.vue`, `player.js`, `kanban.js`, `homeView.vue`, `logoutView.vue`, `apiErrorMessage`, `authSession.js`?**
-  _High betweenness centrality (0.102) - this node is a cross-community bridge._
-- **Why does `usePlayerStore` connect `usePlayerStore` to `.event`, `KademNexo.vue`, `RadioFlow.vue`, `HealthWindow.vue`, `PlayerWrapper.vue`, `NexoInvestmentsTab.vue`, `TrackList.vue`, `auth.js`, `windows.js`, `PlaylistSidebar.vue`, `VideoModal.vue`, `ProductivityWindow.vue`, `radioFlowWidget.vue`, `useAuthStore`, `AudioSettingsPanel.vue`, `QueueSidebar.vue`, `RadioInsightsPanel.vue`, `player.js`, `homeView.vue`, `createGoalForm`, `LyricsModal.vue`?**
-  _High betweenness centrality (0.047) - this node is a cross-community bridge._
-- **Why does `selectivePersistence()` connect `radioNormalizationIntegration.test.js` to `useAuthStore`?**
-  _High betweenness centrality (0.025) - this node is a cross-community bridge._
+- **Why does `useAuthStore` connect `player.js` to `KademNexo.vue`, `KanbanColumn.vue`, `HealthWindow.vue`, `NewProject.vue`, `resetPasswordView.vue`, `syncService.js`, `AccountCenter.vue`, `TrackList.vue`, `PlaylistHeader.vue`, `TaskDetailForm.vue`, `headerSystem.vue`, `auth.js`, `SubscriptionModal.vue`, `ImageCropperModal.vue`, `windows.js`, `TaskRelations.vue`, `ProjectKanban.vue`, `authView.vue`, `StartMenu.vue`, `MainInformations.vue`, `usePlayerStore`, `health.js`, `ReauthModal.vue`, `kanban.js`, `homeView.vue`, `PasskeysSection.vue`, `logoutView.vue`, `apiErrorMessage`, `authSession.js`?**
+  _High betweenness centrality (0.098) - this node is a cross-community bridge._
+- **Why does `usePlayerStore` connect `usePlayerStore` to `.event`, `KademNexo.vue`, `RadioFlow.vue`, `HealthWindow.vue`, `PlayerWrapper.vue`, `NexoInvestmentsTab.vue`, `TrackList.vue`, `auth.js`, `windows.js`, `activeInvestmentTab`, `PlaylistSidebar.vue`, `VideoModal.vue`, `ProductivityWindow.vue`, `radioFlowWidget.vue`, `AudioSettingsPanel.vue`, `QueueSidebar.vue`, `RadioInsightsPanel.vue`, `player.js`, `homeView.vue`, `createGoalForm`, `LyricsModal.vue`, `moneyInput`?**
+  _High betweenness centrality (0.054) - this node is a cross-community bridge._
+- **Why does `useAppStore` connect `useAppStore` to `RadioFlow.vue`, `App.vue`, `AccountCenter.vue`, `TaskDetailForm.vue`, `headerSystem.vue`, `auth.js`, `DesktopWindowManager.vue`, `ProjectKanban.vue`, `PlaylistSidebar.vue`, `StartMenu.vue`, `main.js`, `ProjectList.vue`, `mobileNavigation.js`, `BaseWindow.vue`, `QueueSidebar.vue`, `player.js`, `DevicesSection.vue`, `homeView.vue`, `PasskeysSection.vue`, `apiErrorMessage`, `MfaSection.vue`, `Configuration.vue`?**
+  _High betweenness centrality (0.021) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `usePlayerStore` (e.g. with `track()` and `.flush()`) actually correct?**
   _`usePlayerStore` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `$schema`, `semi`, `singleQuote` to the rest of the system?**

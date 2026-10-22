@@ -24,6 +24,7 @@
         <section v-for="tab in tabs" :key="tab.id" class="tab-pane custom-scrollbar" :style="paneStyle">
           <template v-if="tab.id === 'overview'">
             <NexoOverviewTab
+              :credit-summary="credit"
               :totals="totals"
               :categories="categories"
               :recent-transactions="recentTransactions"
@@ -33,6 +34,7 @@
               :format-signed-money="signedMoney"
               :format-short-date="shortDate"
               @view-transactions="setActiveTab('transactions')"
+              @view-credit="setActiveTab('credit')"
               @toggle-ignored="toggleIgnored"
               @delete-transaction="requestDeleteTransaction"
             />
@@ -40,6 +42,7 @@
 
           <template v-else-if="tab.id === 'transactions'">
             <NexoTransactionsTab
+              :credit-cards="creditCards"
               :is-paid-plan="isPaidPlan"
               :can-use-ai="canUseAi"
               :categorizing-ai="categorizingAi"
@@ -77,6 +80,19 @@
             />
           </template>
 
+          <template v-else-if="tab.id === 'credit'">
+            <NexoCreditTab
+              :cards="creditCards"
+              :summary="credit"
+              :review-items="paymentReviewItems"
+              :categories="categories"
+              :format-money="money"
+              :format-short-date="shortDate"
+              :can-use-ai="canUseAi"
+              @changed="refreshCredit"
+              @edit-transaction="openTransactionForm"
+            />
+          </template>
           <template v-else-if="tab.id === 'budget'">
             <div class="budget-summary-grid">
               <article class="budget-summary-card income">
@@ -369,6 +385,7 @@
     <NexoTransactionModal
       :visible="showTransactionForm"
       :form="form"
+      :credit-cards="creditCards"
       :categories="categories"
       :goal-options="goalOptions"
       :saving="savingTransaction"
@@ -631,6 +648,10 @@ import MacroCategoryCombo from "./MacroCategoryCombo.vue";
 import NexoHeader from "./nexo/NexoHeader.vue";
 import NexoTabs from "./nexo/NexoTabs.vue";
 import NexoOverviewTab from "./nexo/NexoOverviewTab.vue";
+import NexoCreditTab from './nexo/NexoCreditTab.vue';
+import { creditSummary as buildCreditSummary } from '@/utils/financeCredit';
+import { transactionCalendarDate, editedTransactionDate } from '@/utils/financeNotificationDisplay';
+const localToday = () => new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 import NexoInvestmentsTab from "./nexo/NexoInvestmentsTab.vue";
 import NexoTransactionsTab from "./nexo/NexoTransactionsTab.vue";
 import NexoTransactionModal from "./nexo/NexoTransactionModal.vue";
@@ -671,6 +692,7 @@ export default {
     NexoHeader,
     NexoTabs,
     NexoOverviewTab,
+    NexoCreditTab,
     NexoInvestmentsTab,
     NexoTransactionsTab,
     NexoTransactionModal,
@@ -680,10 +702,11 @@ export default {
     NexoAiTab,
   },
   data() {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday();
     const tabs = [
       { id: "overview", label: "Visão", icon: "chart-simple" },
       { id: "transactions", label: "Movimentos", icon: "list" },
+      { id: "credit", label: "Crédito", icon: "credit-card" },
       { id: "budget", label: "Orçamento", icon: "clipboard" },
       { id: "investments", label: "Investimentos", icon: "money-bill" },
       { id: "connections", label: "Conexões", icon: "link" },
@@ -694,7 +717,7 @@ export default {
     const savedTab = usePlayerStore().active_app_tabs?.[NEXO_TAB_STORAGE_KEY];
     return {
       activeTab: tabs.some((tab) => tab.id === savedTab) ? savedTab : "overview",
-      selectedMonth: new Date().toISOString().slice(0, 7),
+      selectedMonth: today.slice(0, 7),
       loading: false,
       hasLoadedOnce: false,
       syncingBanks: false,
@@ -709,6 +732,9 @@ export default {
       showMacroForm: false,
       showBudgetAiForm: false,
       showPlanModal: false,
+      creditCards: [],
+      credit: {expense:0,unassigned:0,review_count:0,categories:[],by_card:[]},
+      paymentReviewItems: [],
       totals: { income: 0, expense: 0, balance: 0 },
       transactions: [],
       recentTransactions: [],
@@ -1314,6 +1340,8 @@ export default {
       this.loading = true;
       try {
         await Promise.all([
+          this.loadCreditCards(),
+          this.loadPaymentReviews(),
           this.loadDashboard(),
           this.loadTransactions(),
           this.loadMacroCategories(),
@@ -1330,8 +1358,12 @@ export default {
         this.hasLoadedOnce = true;
       }
     },
+    async loadCreditCards() { const {data}=await financeService.getCreditCards(); this.creditCards=data || []; },
+    async loadPaymentReviews() { const {data}=await financeService.listPaymentReviews({month:this.selectedMonth}); this.paymentReviewItems=data || []; },
+    async refreshCredit() { await Promise.all([this.loadCreditCards(),this.loadDashboard(),this.loadTransactions(),this.loadPaymentReviews()]); },
     async loadDashboard() {
       const { data } = await financeService.getDashboard({ month: this.selectedMonth });
+      this.credit = data.credit || {expense:0,unassigned:0,review_count:0,categories:[],by_card:[]};
       this.totals = data.totals || { income: 0, expense: 0, balance: 0 };
       this.recentTransactions = data.transactions || data.recent_transactions || [];
       this.macroDistribution = data.macro_distribution || [];
@@ -1425,7 +1457,7 @@ export default {
       this.usage = usage || {};
     },
     async refreshTransactionDrivenViews({ includeTransactions = true } = {}) {
-      const loaders = [this.loadDashboard(), this.loadBudgets(), this.loadInvestments()];
+      const loaders = [this.loadDashboard(), this.loadBudgets(), this.loadInvestments(), this.loadPaymentReviews()];
       if (includeTransactions) {
         loaders.push(this.loadTransactions());
       }
@@ -1449,9 +1481,13 @@ export default {
         amount_display: transaction ? this.moneyInput(amount) : "",
         category_id: currentTransaction.category_id || null,
         goal_id: currentTransaction.goal_id || null,
+        payment_method: currentTransaction.payment_method || 'UNKNOWN',
+        credit_card_id: currentTransaction.credit_card_id || null,
+        original_timestamp: currentTransaction.transaction_date || null,
+        original_provider: currentTransaction.provider || null,
         // lembra se ja tinha meta: so assim a edicao sabe que precisa mandar goal_id: null para desvincular
         original_goal_id: currentTransaction.goal_id || null,
-        transaction_date: String(currentTransaction.transaction_date || new Date().toISOString().slice(0, 10)).slice(
+        transaction_date: String(transactionCalendarDate(currentTransaction) || localToday()).slice(
           0,
           10,
         ),
@@ -1473,6 +1509,7 @@ export default {
     },
     updateTransactionFormField({ field, value }) {
       this.form[field] = value;
+      if ((field === 'payment_method' && value !== 'CREDIT_CARD') || (field === 'type' && value !== 'EXPENSE')) this.form.credit_card_id = null;
       // categoria comum nao carrega meta
       if (field === "category_id" && !this.isInvestmentCategory(this.findCategory(value))) {
         this.form.goal_id = null;
@@ -1489,12 +1526,13 @@ export default {
       if (this.savingTransaction) return;
       this.savingTransaction = true;
 
-      const { goal_id: formGoalId, original_goal_id: originalGoalId, ...formFields } = this.form;
+      const { goal_id: formGoalId, original_goal_id: originalGoalId, original_timestamp, original_provider, ...formFields } = this.form;
       const payload = {
         ...formFields,
         observation: this.form.observation || null,
         amount: Number(this.form.amount || 0),
       };
+      payload.transaction_date = editedTransactionDate({transaction_date:original_timestamp,provider:original_provider},this.form.transaction_date);
       // goal_id so viaja quando ha meta (ou quando uma meta existente foi removida): assim um lancamento
       // sem meta continua com o mesmo payload de antes.
       const goalId = this.isInvestmentCategory(this.findCategory(payload.category_id)) ? formGoalId : null;
@@ -2443,7 +2481,7 @@ export default {
       return this.sameId(transaction.id, id) || this.sameId(transaction.local_id, id);
     },
     transactionBelongsToSelectedMonth(transaction) {
-      return String(transaction.transaction_date || "").startsWith(this.selectedMonth);
+      return String(transactionCalendarDate(transaction) || "").startsWith(this.selectedMonth);
     },
     enrichTransactionForList(transaction = {}) {
       const category = this.findCategory(transaction.category_id);
@@ -2484,6 +2522,7 @@ export default {
       } else {
         this.transactions = withoutCurrent;
       }
+      this.credit = buildCreditSummary(this.transactions,this.categories);
     },
     removeTransactionFromList(id) {
       this.transactions = this.transactions.filter((transaction) => !this.transactionMatches(transaction, id));

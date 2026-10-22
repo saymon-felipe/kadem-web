@@ -85,6 +85,7 @@
       </div>
     </div>
     <NexoTransactionsTable
+      :credit-cards="creditCards"
       :transactions="transactions"
       :categories="categories"
       :categorizing-ids="categorizingIds"
@@ -130,6 +131,7 @@ export default {
     "upgrade",
   ],
   props: {
+    creditCards: {type:Array,default:()=>[]},
     isPaidPlan: {
       type: Boolean,
       default: false,
@@ -393,6 +395,7 @@ export default {
   min-height: 42px !important;
   border-radius: var(--radius-sm);
   border: 1px solid var(--glass-border);
+  box-shadow: none !important;
   background: var(--surface-1);
   color: var(--text-primary);
   padding: 0 34px 0 38px;
@@ -408,7 +411,7 @@ export default {
 .input-with-icon input:focus {
   border-color: var(--color-info);
   background: var(--surface-0);
-  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.14);
+  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.14) !important;
 }
 
 .clear-search-btn {
@@ -476,8 +479,11 @@ button:disabled {
     align-items: stretch;
   }
 
+  .filter-field.search-filter,
   .filter-field.category-filter {
     flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
   }
 }
 
@@ -501,8 +507,11 @@ button:disabled {
     align-items: stretch;
   }
 
+  .filter-field.search-filter,
   .filter-field.category-filter {
     flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
   }
 }
 

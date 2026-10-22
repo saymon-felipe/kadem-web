@@ -2361,6 +2361,7 @@ export default {
   box-sizing: border-box;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
+  box-shadow: none !important;
   background: var(--surface-1);
   color: var(--text-primary);
   padding: 14px var(--space-3) 2px;
@@ -2379,7 +2380,7 @@ export default {
 .floating-field input:focus,
 .floating-field select:focus {
   border-color: var(--deep-blue);
-  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.14);
+  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.14) !important;
 }
 
 .floating-field span {

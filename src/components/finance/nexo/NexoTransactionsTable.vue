@@ -26,6 +26,24 @@
             </td>
             <td class="col-desc transaction-description-cell">
               <strong class="desc-text">{{ transactionDescription(transaction) }}</strong>
+              <div v-if="shouldShowPaymentOrigin(transaction)" class="payment-origin">
+                <span>
+                  {{ paymentMethodLabel(transaction.payment_method)
+                  }}<template v-if="transaction.payment_method === 'CREDIT_CARD'">
+                    · {{ cardName(transaction.credit_card_id) }}</template
+                  >
+                </span>
+                <button
+                  v-if="transaction.payment_review_reason"
+                  type="button"
+                  class="review-origin-badge"
+                  :title="transaction.payment_review_reason"
+                  @click.stop="$emit('edit', transaction)"
+                >
+                  <font-awesome-icon icon="triangle-exclamation" />
+                  <span>Revisar</span>
+                </button>
+              </div>
               <small v-if="transaction.observation" class="transaction-observation">
                 {{ transactionObservation(transaction) }}
               </small>
@@ -143,6 +161,24 @@
 
           <div class="card-main-row">
             <strong class="desc-text">{{ transactionDescription(transaction) }}</strong>
+            <div v-if="shouldShowPaymentOrigin(transaction)" class="payment-origin">
+              <span>
+                {{ paymentMethodLabel(transaction.payment_method)
+                }}<template v-if="transaction.payment_method === 'CREDIT_CARD'">
+                  · {{ cardName(transaction.credit_card_id) }}</template
+                >
+              </span>
+              <button
+                v-if="transaction.payment_review_reason"
+                type="button"
+                class="review-origin-badge"
+                :title="transaction.payment_review_reason"
+                @click.stop="$emit('edit', transaction)"
+              >
+                <font-awesome-icon icon="triangle-exclamation" />
+                <span>Revisar</span>
+              </button>
+            </div>
             <small v-if="transaction.observation" class="transaction-observation">
               {{ transactionObservation(transaction) }}
             </small>
@@ -236,6 +272,7 @@
 </template>
 
 <script>
+import { paymentMethodLabel, cardLabel } from "@/utils/financeCredit";
 import CategoryCombo from "../CategoryCombo.vue";
 import { isGenosNotification, transactionCalendarDate, transactionDescription, transactionObservation } from "@/utils/financeNotificationDisplay";
 
@@ -246,6 +283,7 @@ export default {
   },
   emits: ["clear-filters", "create-category-for-transaction", "delete", "edit", "select-category", "toggle-ignored"],
   props: {
+    creditCards: {type:Array,default:()=>[]},
     hasActiveFilters: {
       type: Boolean,
       default: false,
@@ -309,6 +347,15 @@ export default {
     },
   },
   methods: {
+    paymentMethodLabel,
+    cardName(id) {
+      return cardLabel(this.creditCards.find((c) => String(c.id) === String(id)));
+    },
+    shouldShowPaymentOrigin(transaction) {
+      if (!transaction) return false;
+      if (transaction.payment_review_reason) return true;
+      return Boolean(transaction.payment_method && transaction.payment_method !== "UNKNOWN");
+    },
     transactionCalendarDate,
     transactionDescription,
     transactionObservation,
@@ -338,6 +385,45 @@ export default {
 </script>
 
 <style scoped>
+.payment-origin {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  margin-top: 4px;
+}
+
+.review-origin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.review-origin-badge:hover {
+  background: rgba(245, 158, 11, 0.22);
+  transform: translateY(-1px);
+}
+
+[data-theme="dark"] .review-origin-badge {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.14);
+}
+
+[data-theme="dark"] .review-origin-badge:hover {
+  background: rgba(251, 191, 36, 0.24);
+}
 .table-stack {
   display: grid;
   gap: var(--space-3);
@@ -403,8 +489,8 @@ tr.ignored {
 }
 
 .col-cat {
-  width: 220px;
-  min-width: 190px;
+  width: 240px;
+  min-width: 205px;
 }
 
 .col-source {

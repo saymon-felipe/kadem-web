@@ -8,9 +8,13 @@
     >
       <span v-if="selectedCategory" class="selected-category">
         <i class="combo-swatch" :style="{ background: selectedCategory.color || '#999999' }"></i>
-        <font-awesome-icon :icon="selectedCategory.icon || 'tag'" class="combo-icon" />
-        <span>{{ selectedCategory.name }}</span>
-        <small>{{ selectedCategory.macro_category }}</small>
+        <span class="combo-icon-wrap">
+          <font-awesome-icon :icon="selectedCategory.icon || 'tag'" class="combo-icon" />
+        </span>
+        <div class="combo-labels">
+          <span class="category-name">{{ selectedCategory.name }}</span>
+          <small class="category-macro">{{ selectedCategory.macro_category }}</small>
+        </div>
       </span>
       <span v-else class="combo-placeholder">{{ placeholder }}</span>
       <font-awesome-icon icon="chevron-down" class="combo-arrow" :class="{ up: isOpen }" />
@@ -54,11 +58,15 @@
               :class="{ selected: sameId(category.id, modelValue) }"
               @click="select(category.id)"
             >
-            <i class="combo-swatch" :style="{ background: category.color || '#999999' }"></i>
-            <font-awesome-icon :icon="category.icon || 'tag'" class="combo-icon" />
-            <span>{{ category.name }}</span>
-            <small>{{ category.macro_category }}</small>
-          </button>
+              <i class="combo-swatch" :style="{ background: category.color || '#999999' }"></i>
+              <span class="combo-icon-wrap">
+                <font-awesome-icon :icon="category.icon || 'tag'" class="combo-icon" />
+              </span>
+              <div class="combo-labels">
+                <span class="category-name">{{ category.name }}</span>
+                <small class="category-macro">{{ category.macro_category }}</small>
+              </div>
+            </button>
 
             <p v-if="filteredCategories.length === 0" class="combo-empty">
               {{ emptyLabel }}
@@ -174,7 +182,7 @@ export default {
       const extraHeight = this.allowCreate ? 150 : 104;
       const minHeight = this.allowCreate ? 240 : 220;
       const menuHeight = Math.min(340, Math.max(minHeight, this.filteredCategories.length * 44 + extraHeight));
-      const targetWidth = Math.min(Math.max(rect.width, 220), Math.min(360, window.innerWidth - 24));
+      const targetWidth = Math.min(Math.max(rect.width, 280), Math.min(400, window.innerWidth - 24));
       const maxAllowedLeft = window.innerWidth - targetWidth - 12;
       const left = Math.max(12, Math.min(rect.left, maxAllowedLeft));
       this.menuStyle = {
@@ -278,26 +286,41 @@ export default {
 
 .selected-category {
   min-width: 0;
-  display: grid;
-  grid-template-columns: 12px 18px minmax(0, 1fr);
-  column-gap: var(--space-2);
+  flex: 1;
+  display: flex;
   align-items: center;
+  gap: var(--space-2);
   text-align: left;
 }
 
-.selected-category span,
-.combo-option span {
+.combo-labels {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-self: center;
+  min-width: 0;
+  flex: 1 1 auto;
+  line-height: 1.25;
+}
+
+.category-name {
+  font-size: var(--fontsize-xs, 0.82rem);
+  font-weight: 600;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.25;
 }
 
-.selected-category small,
-.combo-option small {
-  grid-column: 3;
-  color: var(--text-muted);
+.category-macro {
   font-size: 0.72rem;
-  line-height: 1;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.15;
+  margin-top: 1px;
 }
 
 .combo-placeholder {
@@ -318,20 +341,37 @@ export default {
   width: 10px;
   height: 10px;
   border-radius: 50%;
+  flex: 0 0 10px;
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+  align-self: center;
+}
+
+[data-theme='dark'] .combo-swatch {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
+}
+
+.combo-icon-wrap {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 18px;
+  align-self: center;
 }
 
 .combo-icon {
   color: var(--text-primary);
-  opacity: 0.78;
+  opacity: 0.82;
+  font-size: 0.85rem;
 }
 
 .combo-menu {
   position: absolute;
   left: 0;
   z-index: 10020;
-  width: min(360px, 92vw);
-  max-height: 300px;
+  width: min(380px, 92vw);
+  max-height: 320px;
   padding: var(--space-3);
   background: var(--surface-2);
   border: 1px solid var(--glass-border);
@@ -344,7 +384,7 @@ export default {
 
 .combo-menu.floating {
   position: fixed;
-  min-width: 220px;
+  min-width: 280px;
   overflow-x: hidden;
 }
 
@@ -423,12 +463,11 @@ export default {
   background: transparent;
   color: var(--text-primary);
   border-radius: var(--radius-sm);
-  min-height: 42px;
+  min-height: 44px;
   padding: var(--space-2) var(--space-3);
-  display: grid;
-  grid-template-columns: 12px 18px minmax(0, 1fr);
-  column-gap: var(--space-2);
+  display: flex;
   align-items: center;
+  gap: var(--space-2);
   min-width: 0;
   text-align: left;
   cursor: pointer;
@@ -442,9 +481,11 @@ export default {
 }
 
 .combo-option.clear {
-  grid-template-columns: 1fr;
-  color: var(--gray-100);
-  min-height: 34px;
+  color: var(--text-secondary);
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+  min-height: 36px;
+  padding-left: var(--space-3);
 }
 
 .combo-create {

@@ -1,3 +1,5 @@
+import { normalizePaymentOrigin } from '../../utils/financeCredit';
+import { transactionCalendarDate } from '../../utils/financeNotificationDisplay';
 import { db } from "../../db";
 import { clampToMacroTone, isToneOf } from "../../utils/colorTones";
 import { captureSyncSession, assertSyncSession, requireSyncArray } from "../../utils/syncState";
@@ -146,8 +148,27 @@ const normalizeCategoryMacroReferences = async () => {
 };
 
 export const financeRepository = {
+  async setCreditCards(items = []) { await replaceServerItemsPreservingPending(db.finance_credit_cards, items); },
+  async getCreditCards() { return db.finance_credit_cards.orderBy('name').toArray(); },
+  async findCreditCard(id) {
+    return db.finance_credit_cards.filter((c) => String(c.id) === String(id) || String(c.local_key) === String(id)).first();
+  },
+  async saveLocalCreditCard(id, data) {
+    if (id) {
+      const current = await this.findCreditCard(id);
+      if (!current) throw new Error('Cartão não encontrado.');
+      const patch = {...data, pending_sync:true, updated_at:now()};
+      await db.finance_credit_cards.update(current.local_id,patch);
+      return {...current,...patch};
+    }
+    const key = localKey('card');
+    const card = {...data,id:key,local_key:key,client_id:key,is_archived:0,pending_sync:true,created_at:now(),updated_at:now()};
+    const local_id = await db.finance_credit_cards.add(card);
+    return {...card,local_id};
+  },
   async clearLocalFinance() {
     await Promise.all([
+      db.finance_credit_cards.clear(),
       db.finance_macro_categories.clear(),
       db.finance_categories.clear(),
       db.finance_transactions.clear(),
@@ -571,7 +592,7 @@ export const financeRepository = {
     const selected = normalizeMonth(month);
     const rows = await db.finance_transactions.toArray();
     return rows
-      .filter((item) => !selected || String(item.transaction_date || "").startsWith(selected))
+      .filter((item) => !selected || String(transactionCalendarDate(item) || "").startsWith(selected))
       .sort((a, b) => {
         const dateCompare = String(b.transaction_date || "").localeCompare(String(a.transaction_date || ""));
         if (dateCompare !== 0) return dateCompare;
@@ -627,6 +648,7 @@ export const financeRepository = {
     const category = category_id ? await this.findCategory(category_id) : null;
     const payload = {
       ...data,
+      ...normalizePaymentOrigin(data),
       category_id,
       local_key: localKey("transaction"),
       id: data.id || null,
@@ -663,6 +685,7 @@ export const financeRepository = {
         const lKey = localKey("transaction");
         const payload = {
           ...data,
+          ...normalizePaymentOrigin(data),
           category_id,
           local_key: lKey,
           id: data.id || lKey,
@@ -711,6 +734,10 @@ export const financeRepository = {
       const effectiveCategoryId = payload.category_id !== undefined ? payload.category_id : current.category_id;
       const effectiveCategory = effectiveCategoryId ? await this.findCategory(effectiveCategoryId) : null;
       if (!isInvestmentFlowCategory(effectiveCategory)) payload.goal_id = null;
+    }
+    if (changes.payment_method !== undefined || changes.credit_card_id !== undefined || changes.type !== undefined || changes.category_id !== undefined) {
+      Object.assign(payload, normalizePaymentOrigin(payload,current));
+      if (changes.payment_method !== undefined || changes.credit_card_id !== undefined) payload.payment_source_locked = 1;
     }
     await db.finance_transactions.update(current.local_id, payload);
     return { ...current, ...payload };

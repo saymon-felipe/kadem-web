@@ -8,7 +8,43 @@ import vue from "@vitejs/plugin-vue";
 import { createPinia, setActivePinia } from "pinia";
 import { createSSRApp } from "vue";
 import { renderToString } from "vue/server-renderer";
-import { transactionCalendarDate, transactionDescription, transactionObservation } from "../src/utils/financeNotificationDisplay.js";
+import { transactionCalendarDate, transactionDescription, transactionObservation, editedTransactionDate } from "../src/utils/financeNotificationDisplay.js";
+import {creditSummary,normalizePaymentOrigin} from '../src/utils/financeCredit.js';
+
+test('crédito agrega centavos por categoria/cartão e exclui débito, pix, ignorados e cancelados',()=>{
+  const summary=creditSummary([
+    {type:'EXPENSE',amount:.1,payment_method:'CREDIT_CARD',credit_card_id:1,category_id:2},
+    {type:'EXPENSE',amount:.2,payment_method:'CREDIT_CARD',credit_card_id:1,category_id:2},
+    {type:'EXPENSE',amount:10,payment_method:'CREDIT_CARD',credit_card_id:null,payment_review_reason:'Cartão'},
+    ...['PIX','DEBIT_CARD'].map(payment_method=>({type:'EXPENSE',amount:100,payment_method})),
+    {type:'EXPENSE',amount:50,payment_method:'CREDIT_CARD',is_ignored:true},
+    {type:'EXPENSE',amount:50,payment_method:'CREDIT_CARD',status:'CANCELED'},
+  ],[{id:2,name:'Mercado',color:'#ff0000'}]);
+  assert.equal(summary.expense,10.3);assert.equal(summary.unassigned,10);assert.equal(summary.review_count,1);
+  const card=summary.by_card.find(c=>c.credit_card_id===1);assert.equal(card.total,.3);assert.equal(card.categories[0].total,.3);
+  assert.equal(normalizePaymentOrigin({payment_method:'PIX'},{type:'EXPENSE',credit_card_id:1}).credit_card_id,null);
+});
+
+test('cartão criado offline sobrevive ao pull e sincroniza antes da compra, remapeando referências', {timeout:30000},async()=>{
+  const server=await createViteServer();let db;
+  try{
+    const m=await loadOfflineFinance(server);db=m.db;m.setOnline(false);
+    const {data:card}=await m.financeService.saveCreditCard(null,{name:'Pessoal',bank:'PicPay',last_four:'0042',brand:'Visa',credit_limit:1000});
+    await m.financeService.createTransaction({description:'Mercado',type:'EXPENSE',amount:20,transaction_date:'2026-10-21',payment_method:'CREDIT_CARD',credit_card_id:card.id});
+    await m.financeRepository.setCreditCards([]);
+    assert.equal((await m.financeRepository.getCreditCards()).length,1);
+    await m.financeService.saveCreditCard(card.id,{name:'Editado offline'});
+    await m.financeRepository.setCreditCards([{id:987,name:'Remoto',last_four:'9999',bank:'Outro',brand:'Visa'}]);
+    assert.ok((await m.financeRepository.getCreditCards()).some(c=>c.name==='Editado offline'));
+    m.api.put=async (_url,body)=>({data:{id:100,...body}});
+    m.setOnline(true);await m.syncService.processSyncQueue();
+    assert.deepEqual(m.posts.map(p=>p.url),['/finance/credit-cards','/finance/transactions']);
+    assert.equal(m.posts[1].body.credit_card_id,100);
+    assert.equal((await m.financeRepository.getTransactions({month:'2026-10'}))[0].credit_card_id,100);
+    assert.equal((await m.financeRepository.findCreditCard(100)).name,'Editado offline');
+    assert.equal((await m.syncQueueRepository.getPendingTasks()).length,0);
+  } finally{db?.close();await server.close()}
+});
 
 test("Genos apresenta o instante no fuso bancário sem alterar datas de CSV nem os dados persistidos", () => {
   const notification = {
@@ -26,6 +62,9 @@ test("Genos apresenta o instante no fuso bancário sem alterar datas de CSV nem 
   assert.equal(transactionCalendarDate(csv), csv.transaction_date);
   assert.equal(transactionDescription(csv), csv.description);
   assert.equal(transactionCalendarDate({ ...csv, transaction_date: "2026-10-21" }), "2026-10-21");
+  assert.equal(editedTransactionDate(notification,'2026-10-21'),notification.transaction_date);
+  assert.equal(editedTransactionDate(notification,'2026-10-20'),'2026-10-20T21:00:25.909-03:00');
+  assert.equal(editedTransactionDate({...csv,transaction_date:'2026-10-21 15:27:00.123'},'2026-10-20'),'2026-10-20 15:27:00.123');
 });
 
 // O grafo de stores importa o router, que exige window/history; o teste so precisa da fila.

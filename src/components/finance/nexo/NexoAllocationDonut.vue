@@ -1,7 +1,7 @@
 <template>
   <section class="panel allocation-panel">
     <div class="panel-title">
-      <h3>Distribuição</h3>
+      <h3>{{ title }}</h3>
     </div>
     <div class="allocation-body">
       <div class="donut">
@@ -45,8 +45,8 @@
                 <small class="hover-value">{{ hoveredCategoryTotal }}</small>
               </template>
               <template v-else>
-                <span>{{ expensePercent }}%</span>
-                <small>uso</small>
+                <span :class="{ 'total-money-value': showTotal }">{{ showTotal ? formatMoney(totalAmount) : `${expensePercent}%` }}</span>
+                <small>{{ showTotal ? 'no mês' : 'uso' }}</small>
               </template>
             </div>
           </Transition>
@@ -79,6 +79,8 @@
 export default {
   name: 'NexoAllocationDonut',
   props: {
+    title: { type: String, default: 'Distribuição' },
+    showTotal: { type: Boolean, default: false },
     macroDistribution: {
       type: Array,
       required: true,
@@ -217,16 +219,21 @@ export default {
 
 .donut-hole {
   grid-area: 1 / 1;
-  width: 116px;
+  width: 112px;
   aspect-ratio: 1;
   border-radius: 50%;
   background: var(--surface-0);
+  border: 1px solid var(--glass-border);
   display: grid;
   place-items: center;
   align-content: center;
-  transition: background var(--transition-base);
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base);
   z-index: 1;
   pointer-events: none;
+  padding: var(--space-1);
+  box-sizing: border-box;
 }
 
 .hole-content {
@@ -236,13 +243,26 @@ export default {
   justify-content: center;
   text-align: center;
   width: 100%;
-  padding: 0 var(--space-2);
+  gap: 2px;
+  padding: 0 var(--space-1);
+  box-sizing: border-box;
 }
 
 .donut-hole span {
-  font-weight: 900;
+  font-weight: 800;
   font-size: var(--fontsize-md);
   color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.donut-hole span.total-money-value {
+  font-size: clamp(0.8rem, 1.1vw, 0.94rem);
+  letter-spacing: -0.02em;
+  max-width: 98px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hover-title {
@@ -368,11 +388,16 @@ export default {
   }
 
   .donut-hole {
-    width: 104px;
+    width: 100px;
   }
 
   .donut-hole span {
     font-size: var(--fontsize-sm);
+  }
+
+  .donut-hole span.total-money-value {
+    font-size: 0.78rem;
+    max-width: 86px;
   }
 
   .legend-list {
@@ -410,11 +435,16 @@ export default {
   }
 
   .donut-hole {
-    width: 104px;
+    width: 100px;
   }
 
   .donut-hole span {
     font-size: var(--fontsize-sm);
+  }
+
+  .donut-hole span.total-money-value {
+    font-size: 0.78rem;
+    max-width: 86px;
   }
 
   .legend-list {
