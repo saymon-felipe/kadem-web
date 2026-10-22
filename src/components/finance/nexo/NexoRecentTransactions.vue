@@ -26,8 +26,8 @@
         :class="{ ignored: transaction.is_ignored }"
       >
         <div class="movement-copy">
-          <strong>{{ transaction.description }}</strong>
-          <span>{{ categoryLabel(transaction) }} | {{ formatShortDate(transaction.transaction_date) }}</span>
+          <strong>{{ transactionDescription(transaction) }}</strong>
+          <span>{{ categoryLabel(transaction) }} | {{ formatShortDate(transactionCalendarDate(transaction)) }}</span>
         </div>
         <div class="movement-actions">
           <b :class="transaction.type">{{ formatSignedMoney(transaction) }}</b>
@@ -57,6 +57,8 @@
 </template>
 
 <script>
+import { transactionCalendarDate, transactionDescription } from "@/utils/financeNotificationDisplay";
+
 export default {
   name: 'NexoRecentTransactions',
   emits: ['view-all', 'clear-filter', 'toggle-ignored', 'delete-transaction'],
@@ -93,6 +95,8 @@ export default {
     },
   },
   methods: {
+    transactionCalendarDate,
+    transactionDescription,
     categoryLabel(transaction) {
       return (
         transaction.category_name ||

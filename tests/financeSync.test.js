@@ -8,6 +8,25 @@ import vue from "@vitejs/plugin-vue";
 import { createPinia, setActivePinia } from "pinia";
 import { createSSRApp } from "vue";
 import { renderToString } from "vue/server-renderer";
+import { transactionCalendarDate, transactionDescription, transactionObservation } from "../src/utils/financeNotificationDisplay.js";
+
+test("Genos apresenta o instante no fuso bancário sem alterar datas de CSV nem os dados persistidos", () => {
+  const notification = {
+    provider: "GENOS_NOTIFICATION", source: "IMPORT", transaction_date: "2026-10-22T00:00:25.909Z",
+    description: "PicPay: UNKNOWN para Mercado", observation: "PicPay · UNKNOWN · Mercado",
+  };
+  assert.equal(transactionCalendarDate(notification), "2026-10-21 21:00:25");
+  assert.equal(transactionCalendarDate({ ...notification, transaction_date: "2026-11-01T02:59:59Z" }), "2026-10-31 23:59:59");
+  assert.equal(transactionCalendarDate({ ...notification, transaction_date: "2026-10-21T21:00:25-03:00" }), "2026-10-21 21:00:25");
+  assert.equal(transactionDescription(notification), "PicPay: Transação para Mercado");
+  assert.equal(transactionObservation(notification), "PicPay · Meio não informado · Mercado");
+  assert.equal(notification.transaction_date, "2026-10-22T00:00:25.909Z");
+  assert.equal(notification.description, "PicPay: UNKNOWN para Mercado");
+  const csv = { ...notification, provider: "CSV", transaction_date: "2026-10-21 00:00:00" };
+  assert.equal(transactionCalendarDate(csv), csv.transaction_date);
+  assert.equal(transactionDescription(csv), csv.description);
+  assert.equal(transactionCalendarDate({ ...csv, transaction_date: "2026-10-21" }), "2026-10-21");
+});
 
 // O grafo de stores importa o router, que exige window/history; o teste so precisa da fila.
 const STUB_ROUTER_ID = "\0stub-router";
@@ -43,6 +62,29 @@ const createViteServer = () =>
     optimizeDeps: { noDiscovery: true, include: [] },
     logLevel: "error",
   });
+
+test("tabela desktop e celular mostram hora real de Genos, inclusive meia-noite, e origem correta", { timeout: 30000 }, async () => {
+  const server = await createViteServer();
+  try {
+    const { default: Table } = await server.ssrLoadModule("/src/components/finance/nexo/NexoTransactionsTable.vue");
+    const transactions = [
+      { id: 1, provider: "GENOS_NOTIFICATION", source: "IMPORT", transaction_date: "2026-10-22T00:00:25Z", description: "Pix recebido", amount: 0.1, type: "INCOME" },
+      { id: 2, provider: "GENOS_NOTIFICATION", source: "IMPORT", transaction_date: "2026-10-22T03:00:25Z", description: "PicPay: UNKNOWN para Mercado", observation: "PicPay · UNKNOWN · Mercado", amount: 20, type: "EXPENSE" },
+      { id: 3, provider: "CSV", source: "IMPORT", transaction_date: "2026-10-21 15:27:00", description: "CSV preservado", amount: 5, type: "EXPENSE" },
+    ];
+    const app = createSSRApp(Table, { transactions, categories: [], categorizingIds: [],
+      formatSignedMoney: ({ amount }) => String(amount), formatShortDate: (value) => `${String(value).slice(8, 10)}/${String(value).slice(5, 7)}`,
+    });
+    app.component("font-awesome-icon", { render: () => null });
+    const html = await renderToString(app);
+    assert.equal((html.match(/>21:00</g) || []).length, 2);
+    assert.equal((html.match(/>00:00</g) || []).length, 2);
+    assert.equal((html.match(/>15:27</g) || []).length, 2);
+    assert.equal((html.match(/>Genos</g) || []).length, 4);
+    assert.equal((html.match(/>CSV</g) || []).length, 2);
+    assert.ok(html.includes("21/10")); assert.ok(html.includes("Meio não informado")); assert.ok(!html.includes("UNKNOWN"));
+  } finally { await server.close(); }
+});
 
 test("CSV atualiza os créditos só quando consulta a IA, inclusive se a análise falhar", { timeout: 30000 }, async () => {
   const server = await createViteServer();

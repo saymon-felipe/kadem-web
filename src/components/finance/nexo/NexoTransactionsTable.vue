@@ -19,15 +19,15 @@
             :class="{ ignored: transaction.is_ignored }"
           >
             <td class="col-date date-cell">
-              <strong>{{ formatShortDate(transaction.transaction_date) }}</strong>
-              <small v-if="timeLabel(transaction.transaction_date)">{{
-                timeLabel(transaction.transaction_date)
+              <strong>{{ formatShortDate(transactionCalendarDate(transaction)) }}</strong>
+              <small v-if="timeLabel(transaction)">{{
+                timeLabel(transaction)
               }}</small>
             </td>
             <td class="col-desc transaction-description-cell">
-              <strong class="desc-text">{{ transaction.description }}</strong>
+              <strong class="desc-text">{{ transactionDescription(transaction) }}</strong>
               <small v-if="transaction.observation" class="transaction-observation">
-                {{ transaction.observation }}
+                {{ transactionObservation(transaction) }}
               </small>
               <small v-if="transaction.goal_name" class="transaction-goal">
                 <font-awesome-icon icon="clipboard" /> Meta: {{ transaction.goal_name }}
@@ -50,7 +50,7 @@
             </td>
             <td class="col-source">
               <span class="source-tag" :class="transaction.source ? transaction.source.toLowerCase() : ''">
-                {{ sourceLabel(transaction.source) }}
+                {{ sourceLabel(transaction) }}
               </span>
             </td>
             <td class="col-amount right value-cell">
@@ -122,12 +122,12 @@
         >
           <div class="card-top-row">
             <div class="date-badge">
-              <strong>{{ formatShortDate(transaction.transaction_date) }}</strong>
-              <small v-if="timeLabel(transaction.transaction_date)">{{
-                timeLabel(transaction.transaction_date)
+              <strong>{{ formatShortDate(transactionCalendarDate(transaction)) }}</strong>
+              <small v-if="timeLabel(transaction)">{{
+                timeLabel(transaction)
               }}</small>
               <span class="source-tag" :class="transaction.source ? transaction.source.toLowerCase() : ''">
-                {{ sourceLabel(transaction.source) }}
+                {{ sourceLabel(transaction) }}
               </span>
             </div>
             <div class="amount-badge">
@@ -142,9 +142,9 @@
           </div>
 
           <div class="card-main-row">
-            <strong class="desc-text">{{ transaction.description }}</strong>
+            <strong class="desc-text">{{ transactionDescription(transaction) }}</strong>
             <small v-if="transaction.observation" class="transaction-observation">
-              {{ transaction.observation }}
+              {{ transactionObservation(transaction) }}
             </small>
             <small v-if="transaction.goal_name" class="transaction-goal">
               <font-awesome-icon icon="clipboard" /> Meta: {{ transaction.goal_name }}
@@ -237,6 +237,7 @@
 
 <script>
 import CategoryCombo from "../CategoryCombo.vue";
+import { isGenosNotification, transactionCalendarDate, transactionDescription, transactionObservation } from "@/utils/financeNotificationDisplay";
 
 export default {
   name: "NexoTransactionsTable",
@@ -308,18 +309,23 @@ export default {
     },
   },
   methods: {
+    transactionCalendarDate,
+    transactionDescription,
+    transactionObservation,
     polarityLabel(type) {
       return type === "INCOME" ? "positivo" : "negativo";
     },
-    sourceLabel(source) {
+    sourceLabel(transaction) {
+      if (isGenosNotification(transaction)) return "Genos";
       const labels = { MANUAL: "Manual", OPEN_FINANCE: "Open Finance", IMPORT: "CSV" };
-      return labels[source] || "Não definido";
+      return labels[transaction.source] || "Não definido";
     },
-    timeLabel(value) {
+    timeLabel(transaction) {
+      const value = transactionCalendarDate(transaction);
       const raw = String(value || "").trim();
       if (!raw || raw.length <= 10) return "";
       const rawTime = raw.match(/^\d{4}-\d{2}-\d{2}[T\s](\d{2}:\d{2})/);
-      if (rawTime) return rawTime[1] === "00:00" ? "" : rawTime[1];
+      if (rawTime) return rawTime[1] === "00:00" && !isGenosNotification(transaction) ? "" : rawTime[1];
 
       const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(raw) ? raw.replace(" ", "T") : raw;
       const parsed = new Date(normalized);
