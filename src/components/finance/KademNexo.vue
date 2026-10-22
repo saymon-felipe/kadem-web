@@ -42,6 +42,8 @@
 
           <template v-else-if="tab.id === 'transactions'">
             <NexoTransactionsTab
+              :saving-payment-origin-ids="savingPaymentOriginIds"
+              :payment-origin-error="paymentOriginError"
               :credit-cards="creditCards"
               :is-paid-plan="isPaidPlan"
               :can-use-ai="canUseAi"
@@ -74,6 +76,7 @@
               @toggle-ignored="toggleIgnored"
               @delete-transaction="requestDeleteTransaction"
               @select-category="selectTransactionCategory"
+              @select-payment-origin="selectTransactionPaymentOrigin"
               @create-category-for-transaction="openCategoryFormForTransaction"
               @update:transaction-search="transactionSearch = $event"
               @update:transaction-category-filter="transactionCategoryFilter = $event"
@@ -727,6 +730,8 @@ export default {
       loadingSchema: false,
       showTransactionForm: false,
       savingTransaction: false,
+      savingPaymentOriginIds: [],
+      paymentOriginError: "",
       savingCategory: false,
       savingMacro: false,
       showCategoryForm: false,
@@ -2590,6 +2595,29 @@ export default {
     matchesTransactionSearch(transaction, normalizedSearch) {
       if (!normalizedSearch) return true;
       return this.buildTransactionSearchText(transaction).includes(normalizedSearch);
+    },
+    async selectTransactionPaymentOrigin(transaction, origin) {
+      const id = this.transactionKey(transaction);
+      const key = String(id);
+      if (!id || this.savingPaymentOriginIds.includes(key)) return;
+      this.savingPaymentOriginIds.push(key);
+      this.paymentOriginError = "";
+      let result;
+      try {
+        result = await financeService.updateTransaction(id, origin, { waitForSync: false });
+        if (result.data) this.upsertTransactionInList(result.data);
+      } catch (error) {
+        this.paymentOriginError = error.response?.data?.message || error.message || "Não foi possível salvar o meio de pagamento.";
+        return;
+      } finally {
+        this.savingPaymentOriginIds = this.savingPaymentOriginIds.filter((item) => item !== key);
+      }
+      try {
+        await result.synced;
+        await this.refreshTransactionDrivenViews();
+      } catch (error) {
+        this.paymentOriginError = error.response?.data?.message || error.message || "Não foi possível atualizar os dados do pagamento.";
+      }
     },
     async selectTransactionCategory(transaction, categoryId, options = {}) {
       const category = this.findCategory(categoryId);
