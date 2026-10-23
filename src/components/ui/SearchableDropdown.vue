@@ -251,7 +251,8 @@ export default {
         left: `${left}px`,
         width: `${targetWidth}px`,
         maxHeight: `${maxHeight}px`,
-        zIndex: "99999",
+        // BaseModal usa 100000 no celular; o menu teleportado precisa ficar acima dele.
+        zIndex: "100001",
       };
 
       if (openUpwards) {
