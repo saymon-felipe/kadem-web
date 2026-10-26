@@ -47,11 +47,7 @@
       <div class="tabs-track" :style="track_style">
         <form :class="['tab-panel details-panel custom-scrollbar', { 'is-active': active_tab === 'details' }]"
           :aria-hidden="active_tab !== 'details'" @submit.prevent="handle_save">
-          <section class="description-card">
-            <label :for="`task-description-${$.uid}`">Descrição</label>
-            <textarea :id="`task-description-${$.uid}`" v-model="editable_task.description" rows="7"
-              class="description-input"></textarea>
-          </section>
+          <TaskDescriptionEditor :key="task.local_id" v-model="editable_task.description" />
 
           <section class="field-grid">
             <div class="form-group">
@@ -357,6 +353,7 @@ import BaseModal from "@/components/BaseModal.vue";
 import CustomDropdown from "../ui/CustomDropdown.vue";
 import KademTabs from "../ui/KademTabs.vue";
 import TaskRelations from "./TaskRelations.vue";
+import TaskDescriptionEditor from "./TaskDescriptionEditor.vue";
 import { overlayScopeMixin } from '@/utils/overlayScope';
 
 import moment from "moment/min/moment-with-locales";
@@ -366,7 +363,7 @@ moment.locale("pt-br");
 export default {
   name: "TaskDetailForm",
   mixins: [overlayScopeMixin],
-  components: { BaseModal, CustomDropdown, KademTabs, TaskRelations },
+  components: { BaseModal, CustomDropdown, KademTabs, TaskRelations, TaskDescriptionEditor },
   props: {
     task: { type: Object, required: true },
     projectName: { type: String, default: "Projeto" },
@@ -1360,41 +1357,12 @@ export default {
   gap: var(--space-5);
 }
 
-.description-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  flex: 0 0 auto;
-}
-
-.description-card label,
 .form-group label {
   font-size: 0.8rem;
   color: var(--text-primary);
   font-weight: 800;
   position: static;
   transform: none;
-}
-
-.description-input {
-  height: clamp(160px, 30vh, 260px);
-  min-height: 160px;
-  max-height: 280px;
-  flex: 0 0 auto;
-  resize: none;
-  overflow: auto;
-  background-color: var(--surface-2);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-5);
-  font-size: var(--fontsize-sm);
-  line-height: 1.45;
-  color: var(--text-primary);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
-}
-
-.description-input:focus {
-  outline: 3px solid var(--color-info);
 }
 
 .field-grid {
@@ -2201,12 +2169,6 @@ export default {
 
   .details-panel {
     gap: var(--space-4);
-  }
-
-  .description-input {
-    height: clamp(130px, 28vh, 190px);
-    min-height: 130px;
-    max-height: 190px;
   }
 
   .attachment-item {

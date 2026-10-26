@@ -581,6 +581,23 @@ const withHierarchyBoard = async (run) => {
   }
 };
 
+test('criar e editar Markdown offline preserva a fonte na tarefa, no Dexie e na fila', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, db }, server) => {
+  const { useAuthStore } = await server.ssrLoadModule('/src/stores/auth.js');
+  useAuthStore().user = { id: 1, name: 'Pessoa' };
+  const original = '# Tarefa\n\n**Descrição** com acentuação\n- [ ] Fazer\n\n```js\nconst x = 1;\n```';
+  const created = await store.createTask(columnA.local_id, { project_id: PROJECT_ID, description: original });
+  assert.equal(created.description, original);
+  assert.equal((await db.kanban_tasks.get(created.local_id)).description, original);
+  assert.equal((await db.syncQueue.toArray()).find(item => item.type === 'CREATE_TASK' && item.entity_id === created.local_id).payload.description, original);
+
+  const edited = `${original}\n\n[Documentação](https://example.com)`;
+  await store.updateTask({ ...created, description: edited });
+  await store.loadBoardFromLocal(PROJECT_ID);
+  assert.equal(store.getTasks(columnA.local_id).find(task => task.local_id === created.local_id).description, edited);
+  assert.equal((await db.kanban_tasks.get(created.local_id)).description, edited);
+  assert.equal((await db.syncQueue.toArray()).find(item => item.type === 'UPDATE_TASK' && item.entity_id === created.local_id).payload.description, edited);
+}));
+
 test('progresso conta filhas no mesmo status a partir de revisão no card e na aba Subtarefas', { timeout: 30000 }, () => withHierarchyBoard(async ({ store, columnA, columnB, task, db }, server) => {
   const { default: Card } = await server.ssrLoadModule('/src/components/projects/KanbanTask.vue');
   const { default: Relations } = await server.ssrLoadModule('/src/components/projects/TaskRelations.vue');

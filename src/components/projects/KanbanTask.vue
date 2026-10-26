@@ -24,7 +24,7 @@
       </div>
     </div>
 
-    <p class="task-description">{{ task.description }}</p>
+    <MarkdownContent class="task-description" :source="task.description" compact />
 
     <div class="task-footer">
       <img
@@ -49,9 +49,11 @@ import defaultAccountImage from "@/assets/images/kadem-default-account.jpg";
 import { mapState } from 'pinia';
 import { useKanbanStore } from '@/stores/kanban';
 import { isSubtaskComplete } from '@/utils/taskHierarchy';
+import MarkdownContent from '../ui/MarkdownContent.vue';
 
 export default {
   name: "KanbanTask",
+  components: { MarkdownContent },
   props: {
     task: {
       type: Object,
@@ -190,7 +192,7 @@ export default {
   line-height: 1.4;
   margin: 0;
   pointer-events: none;
-  white-space: pre-wrap;
+  max-height: 4.2em;
   word-break: break-word;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -287,6 +289,7 @@ export default {
 
   .task-description {
     -webkit-line-clamp: 2;
+    max-height: 2.8em;
   }
 }
 </style>
