@@ -12,6 +12,12 @@
       <span>Saldo da conta</span>
       <strong :class="{ negative: totals.balance < 0 }">{{ formatMoney(totals.balance) }}</strong>
     </div>
+    <div v-if="hasTransfers" class="metric transfer" title="Saques e transferências patrimoniais saem da conta, mas não são despesa">
+      <span>Saques e transferências</span>
+      <strong>−&nbsp;{{ formatMoney(totals.transfer_out || 0) }}</strong>
+      <small v-if="Number(totals.transfer_in) > 0">+ {{ formatMoney(totals.transfer_in) }} recebidos</small>
+      <small v-else>Transferência patrimonial, não é despesa</small>
+    </div>
     <div class="metric credit">
       <span>Gastos no crédito</span>
       <strong>{{ formatMoney(creditExpense) }}</strong>
@@ -43,6 +49,11 @@ export default {
     investmentSummary: {
       type: Object,
       default: null,
+    },
+  },
+  computed: {
+    hasTransfers() {
+      return Number(this.totals.transfer_out) > 0 || Number(this.totals.transfer_in) > 0
     },
   },
 }
@@ -87,6 +98,19 @@ export default {
 .metric.expense strong,
 .negative {
   color: var(--color-expense);
+}
+
+.metric.transfer strong {
+  color: #8a7339;
+}
+
+.metric.transfer small {
+  color: var(--text-secondary);
+  font-size: var(--fontsize-xs);
+}
+
+[data-theme='dark'] .metric.transfer strong {
+  color: #d1b76a;
 }
 
 .metric.credit strong {

@@ -211,20 +211,32 @@ const localDashboard = async (month) => {
   const macros = await financeRepository.getMacroCategories();
   const categoryMap = new Map(categories.map((category) => [String(category.id || category.local_id), category]));
   const macroMap = new Map(macros.map((macro) => [macro?.name, macro]));
-  const visible = transactions.filter((item) => !item.is_ignored && item.status !== 'CANCELED');
+  // Saque (categoria de sistema) e vinculos fisicos sao transferencias patrimoniais: debito/credito digital, nunca despesa/receita.
+  const isTransfer = (item) =>
+    Boolean(Number(item.is_patrimonial_transfer) || Number(categoryMap.get(String(item.category_id || ""))?.is_patrimonial_transfer));
+  const visible = transactions.filter((item) => !item.is_ignored && !isTransfer(item) && item.status !== 'CANCELED');
+  const transfers = transactions
+    .filter((item) => !item.is_ignored && isTransfer(item) && item.status !== 'CANCELED' && item.payment_method !== 'CREDIT_CARD')
+    .reduce(
+      (acc, item) => {
+        acc[item.type === "INCOME" ? "transfer_in" : "transfer_out"] += Number(item.amount || 0);
+        return acc;
+      },
+      { transfer_out: 0, transfer_in: 0 },
+    );
   const accountingVisible = visible.filter((item) => {
     const category = categoryMap.get(String(item.category_id || ""));
-    return category?.investment_flow_type !== "INVESTMENT_OUT" && item.payment_method !== 'CREDIT_CARD';
+    return category?.investment_flow_type !== "INVESTMENT_OUT" && !['CREDIT_CARD','CASH'].includes(item.payment_method);
   });
   const totals = accountingVisible.reduce(
     (acc, item) => {
-      const amount = Number(item.amount || 0);
+      const amount = Number(item.amount || 0) - (item.payment_method === 'MIXED' ? Number(item.cash_amount || 0) : 0);
       if (item.type === "INCOME") acc.income += amount;
       else acc.expense += amount;
       acc.balance = acc.income - acc.expense;
       return acc;
     },
-    { income: 0, expense: 0, balance: 0 },
+    { income: 0, expense: 0, balance: 0, ...transfers },
   );
   const byMacro = new Map();
   accountingVisible
@@ -237,7 +249,7 @@ const localDashboard = async (month) => {
         color: category?.macro_color || category?.color || "#999999",
         total: 0,
       };
-      current.total += Number(item.amount || 0);
+      current.total += Number(item.amount || 0) - (item.payment_method === 'MIXED' ? Number(item.cash_amount || 0) : 0);
       byMacro.set(name, current);
     });
   const month_invested = visible
@@ -403,6 +415,7 @@ export const financeService = {
 
   async createTransaction(data, options) {
     const cleanData = toPlain(data);
+    cleanData.client_id ||= crypto.randomUUID();
     const local = await financeRepository.createLocalTransaction(cleanData);
     const { synced } = await enqueue("CREATE_FINANCE_TRANSACTION", { local_id: local.local_id, data: cleanData }, options);
     return { ...response(local), synced };

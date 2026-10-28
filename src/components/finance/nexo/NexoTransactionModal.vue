@@ -57,6 +57,10 @@
         <CategoryCombo :model-value="form.category_id" :categories="categories" placeholder="Sem categoria"
           @update:modelValue="updateField('category_id', $event)" />
       </div>
+      <div v-if="form.payment_method === 'CASH' || form.payment_method === 'MIXED'" class="cash-notice-box">
+        <font-awesome-icon icon="circle-info" class="notice-icon" />
+        <span class="notice-text">{{ cashNotice }}</span>
+      </div>
       <div v-if="showGoalSelect" class="nexo-field static-label">
         <label>Meta (opcional)</label>
         <CategoryCombo :model-value="form.goal_id" :categories="goalOptions" placeholder="Sem meta"
@@ -95,7 +99,7 @@
 <script>
 import BaseModal from '@/components/BaseModal.vue'
 import CategoryCombo from '../CategoryCombo.vue'
-import { PAYMENT_METHODS, cardLabel } from '@/utils/financeCredit'
+import { paymentMethodChoices, cardLabel } from '@/utils/financeCredit'
 
 export default {
   name: 'NexoTransactionModal',
@@ -129,7 +133,14 @@ export default {
     },
   },
   computed: {
-    paymentMethods() { return PAYMENT_METHODS },
+    paymentMethods() { return paymentMethodChoices(this.form.payment_method) },
+    cashNotice() {
+      const cash = Number(this.form.cash_amount)
+      const part = this.form.payment_method === 'MIXED' && cash > 0
+        ? ` Parcela em espécie: ${cash.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
+        : ''
+      return `Pagamento em dinheiro identificado por nota fiscal ou comprovante.${part} Troco e conta em espécie são conciliados em Patrimônio Físico.`
+    },
     availableCards() { return this.creditCards.filter((c) => !Number(c.is_archived) || String(c.id) === String(this.form.credit_card_id)) },
     selectedCategory() {
       const id = this.form.category_id
@@ -310,6 +321,35 @@ export default {
 [data-theme='dark'] .segmented .income-toggle.active {
   color: var(--green);
   background: rgba(46, 204, 113, 0.2);
+}
+
+.cash-notice-box {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(234, 179, 8, 0.08);
+  border: 1px solid rgba(234, 179, 8, 0.25);
+  color: #92400e;
+  font-size: var(--fontsize-xs);
+  line-height: 1.4;
+}
+
+[data-theme='dark'] .cash-notice-box {
+  background: rgba(234, 179, 8, 0.12);
+  border-color: rgba(234, 179, 8, 0.3);
+  color: #fef08a;
+}
+
+.cash-notice-box .notice-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #d97706;
+}
+
+[data-theme='dark'] .cash-notice-box .notice-icon {
+  color: #facc15;
 }
 
 .receipt-shortcut-btn {

@@ -195,6 +195,7 @@ export const financeRepository = {
       db.finance_connections.clear(),
       db.finance_investment_goals.clear(),
       db.finance_investment_events.clear(),
+      db.finance_physical_cache.clear(),
     ]);
   },
 

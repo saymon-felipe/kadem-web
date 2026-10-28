@@ -6,74 +6,38 @@
     </div>
 
     <div class="nexo-actions">
-      <!-- Input de data visível no Desktop -->
+      <!-- Seletor de mês visível no Desktop: setas, texto animado e painel de meses por ano -->
       <div class="desktop-month-picker">
-        <input
-          :value="selectedMonth"
-          type="month"
-          @input="$emit('update:selectedMonth', $event.target.value)"
+        <NexoMonthPicker
+          :model-value="selectedMonth"
+          @update:modelValue="$emit('update:selectedMonth', $event)"
           @change="$emit('reload')"
         />
       </div>
 
-      <!-- Dropdown de filtro no Responsivo -->
-      <div class="mobile-filter-dropdown" v-click-outside="closeDateDropdown">
+      <!-- Filtro de mês no Responsivo: um modal (bottom sheet no celular) com o mesmo painel de meses por ano -->
+      <div class="mobile-month-filter">
         <button
           type="button"
           class="icon-btn filter-trigger-btn"
-          :class="{ 'is-active': isDateDropdownOpen }"
-          title="Filtrar por data"
-          aria-label="Filtrar por data"
-          @click="toggleDateDropdown"
+          :class="{ 'is-active': isMonthModalOpen }"
+          title="Filtrar por mês"
+          aria-label="Filtrar por mês"
+          aria-haspopup="dialog"
+          @click="isMonthModalOpen = true"
         >
           <font-awesome-icon icon="filter" />
         </button>
 
-        <transition name="dropdown-fade">
-          <div v-if="isDateDropdownOpen" class="date-dropdown-menu">
-            <div class="date-dropdown-header">
-              <span class="date-dropdown-title">Filtrar por data</span>
-              <span class="date-dropdown-current">{{ formatMonthLabel(selectedMonth) }}</span>
-            </div>
-            <div class="date-dropdown-body">
-              <input
-                :value="selectedMonth"
-                type="month"
-                class="mobile-date-input"
-                @input="onMonthInput($event.target.value)"
-                @change="onMonthChange"
-              />
-            </div>
-            <div class="date-dropdown-quick">
-              <button
-                type="button"
-                class="quick-month-btn"
-                title="Mês anterior"
-                @click="changeMonth(-1)"
-              >
-                <font-awesome-icon icon="chevron-left" />
-                <span>Anterior</span>
-              </button>
-              <button
-                type="button"
-                class="quick-month-btn current"
-                title="Ir para o mês atual"
-                @click="goToCurrentMonth"
-              >
-                Atual
-              </button>
-              <button
-                type="button"
-                class="quick-month-btn"
-                title="Próximo mês"
-                @click="changeMonth(1)"
-              >
-                <span>Próximo</span>
-                <font-awesome-icon icon="chevron-right" />
-              </button>
-            </div>
+        <BaseModal v-model="isMonthModalOpen" title="Filtrar por mês" size="sm">
+          <div class="month-modal-body">
+            <p class="month-modal-current">
+              Mês selecionado
+              <strong>{{ monthLabel(selectedMonth) }}</strong>
+            </p>
+            <NexoMonthPanel :value="selectedMonth" @select="selectMonth" />
           </div>
-        </transition>
+        </BaseModal>
       </div>
 
       <!-- Botão de Atualizar -->
@@ -96,24 +60,15 @@
 </template>
 
 <script>
+import BaseModal from '@/components/BaseModal.vue';
+import NexoMonthPanel from './NexoMonthPanel.vue';
+import NexoMonthPicker from './NexoMonthPicker.vue';
+import { monthLabel } from '@/utils/monthKey';
+
 export default {
   name: 'NexoHeader',
+  components: { BaseModal, NexoMonthPanel, NexoMonthPicker },
   emits: ['new-transaction', 'reload', 'update:selectedMonth'],
-  directives: {
-    'click-outside': {
-      mounted(el, binding) {
-        el.clickOutsideEvent = function (event) {
-          if (!(el === event.target || el.contains(event.target))) {
-            binding.value(event);
-          }
-        };
-        document.body.addEventListener('click', el.clickOutsideEvent);
-      },
-      unmounted(el) {
-        document.body.removeEventListener('click', el.clickOutsideEvent);
-      },
-    },
-  },
   props: {
     selectedMonth: {
       type: String,
@@ -134,53 +89,16 @@ export default {
   },
   data() {
     return {
-      isDateDropdownOpen: false,
+      isMonthModalOpen: false,
     };
   },
   methods: {
-    toggleDateDropdown() {
-      this.isDateDropdownOpen = !this.isDateDropdownOpen;
-    },
-    closeDateDropdown() {
-      this.isDateDropdownOpen = false;
-    },
-    onMonthInput(val) {
-      this.$emit('update:selectedMonth', val);
-    },
-    onMonthChange() {
+    monthLabel,
+    selectMonth(month) {
+      this.isMonthModalOpen = false;
+      if (month === this.selectedMonth) return;
+      this.$emit('update:selectedMonth', month);
       this.$emit('reload');
-    },
-    changeMonth(offset) {
-      if (!this.selectedMonth) return;
-      const [yearStr, monthStr] = this.selectedMonth.split('-');
-      let year = parseInt(yearStr, 10);
-      let month = parseInt(monthStr, 10) + offset;
-      if (month < 1) {
-        month = 12;
-        year -= 1;
-      } else if (month > 12) {
-        month = 1;
-        year += 1;
-      }
-      const formattedMonth = `${year}-${String(month).padStart(2, '0')}`;
-      this.$emit('update:selectedMonth', formattedMonth);
-      this.$emit('reload');
-    },
-    goToCurrentMonth() {
-      const now = new Date();
-      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      this.$emit('update:selectedMonth', currentMonth);
-      this.$emit('reload');
-    },
-    formatMonthLabel(monthStr) {
-      if (!monthStr) return '';
-      const [y, m] = monthStr.split('-');
-      const monthNames = [
-        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-      ];
-      const idx = parseInt(m, 10) - 1;
-      return `${monthNames[idx] || m} de ${y}`;
     },
   },
 }
@@ -215,118 +133,30 @@ export default {
   position: relative;
 }
 
-.desktop-month-picker input {
-  height: 42px;
-  min-height: 42px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-0);
-  color: var(--text-primary);
-  padding: 0 var(--space-3);
-  box-shadow: none;
-  outline: none;
-  font-size: var(--fontsize-sx);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.desktop-month-picker input:focus {
-  border-color: var(--color-info);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.14);
-}
-
-.mobile-filter-dropdown {
+.mobile-month-filter {
   display: none;
   position: relative;
 }
 
-.date-dropdown-menu {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  right: 0;
-  z-index: 1000;
-  width: 260px;
-  max-width: min(280px, 86vw);
-  background: var(--surface-0);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-elevated);
-  padding: var(--space-3);
+/* Conteúdo do modal de mês (celular): o rótulo do mês atual acima do painel de meses por ano. */
+.month-modal-body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  gap: var(--space-4);
 }
 
-.date-dropdown-header {
+.month-modal-current {
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-.date-dropdown-title {
-  font-size: var(--fontsize-xs);
-  font-weight: 700;
-  color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.date-dropdown-current {
   font-size: var(--fontsize-xs);
   color: var(--text-secondary);
 }
 
-.mobile-date-input {
-  width: 100%;
-  height: 40px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-1);
+.month-modal-current strong {
+  font-size: 1rem;
   color: var(--text-primary);
-  padding: 0 var(--space-3);
-  font-size: var(--fontsize-xs);
-  box-sizing: border-box;
-  outline: none;
-  transition: border-color var(--transition-fast);
-}
-
-.mobile-date-input:focus {
-  border-color: var(--deep-blue);
-}
-
-.date-dropdown-quick {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  border-top: 1px solid var(--glass-border);
-  padding-top: var(--space-2);
-}
-
-.quick-month-btn {
-  border: 1px solid var(--glass-border);
-  background: var(--surface-1);
-  color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  padding: var(--space-1) var(--space-2);
-  font-size: 0.72rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  transition: background var(--transition-fast);
-}
-
-.quick-month-btn:hover {
-  background: var(--surface-2);
-}
-
-.quick-month-btn.current {
-  background: rgba(31, 39, 76, 0.08);
-  font-weight: 700;
 }
 
 .filter-trigger-btn.is-active {
@@ -385,17 +215,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.dropdown-fade-enter-active,
-.dropdown-fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
-}
-
-.dropdown-fade-enter-from,
-.dropdown-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-6px) scale(0.97);
-}
-
 /* Responsivo (Container query) */
 @container (max-width: 600px) {
   .nexo-header {
@@ -442,7 +261,7 @@ button:disabled {
     display: none;
   }
 
-  .mobile-filter-dropdown {
+  .mobile-month-filter {
     display: block;
   }
 
@@ -508,7 +327,7 @@ button:disabled {
     display: none;
   }
 
-  .mobile-filter-dropdown {
+  .mobile-month-filter {
     display: block;
   }
 

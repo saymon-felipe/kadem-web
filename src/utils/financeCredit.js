@@ -6,7 +6,13 @@ export const PAYMENT_METHODS = [
   { value: "CARD", label: "Cartão (modalidade a revisar)" },
   { value: "BOLETO", label: "Boleto" },
   { value: "TRANSFER", label: "Transferência" },
+  { value: "CASH", label: "Dinheiro em espécie" },
+  { value: "MIXED", label: "Misto (inclui espécie)" },
 ];
+// Cash only comes from fiscal receipts/proofs that specify it (see Patrimônio Físico), so it is never a manual choice.
+export const CASH_PAYMENT_METHODS = ["CASH", "MIXED"];
+export const paymentMethodChoices = (current) =>
+  PAYMENT_METHODS.filter((m) => !CASH_PAYMENT_METHODS.includes(m.value) || m.value === current);
 export const paymentMethodLabel = (method) => PAYMENT_METHODS.find((m) => m.value === method)?.label || "Não informado";
 export const cardLabel = (card) =>
   card ? `${card.name} · ${card.brand} •• ${card.last_four}` : "Cartão a identificar";

@@ -120,7 +120,7 @@ const buildChangesArray = (payload, timestamp) => {
 const sanitizeTransactionPayload = (data) => {
   if (!data) return {};
   const allowedKeys = [
-    'payment_method', 'credit_card_id',
+    'payment_method', 'credit_card_id', 'cash_amount', 'client_id',
     "description",
     "observation",
     "amount",
@@ -1192,6 +1192,7 @@ async function _handleFinanceTask(task) {
     case "UPDATE_FINANCE_TRANSACTION": {
       const id = await resolveFinanceServerId("finance_transactions", payload);
       const cleanData = await resolveTransactionPayloadForServer(payload.data);
+      delete cleanData.client_id;
       const response = await api.put(`/finance/transactions/${id}`, cleanData);
       await updateFinanceLocalRecord("finance_transactions", payload.local_id, response.data);
       return;
