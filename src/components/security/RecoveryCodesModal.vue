@@ -164,14 +164,7 @@ export default {
 
 .codes-ack input[type="checkbox"] {
   flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
   margin: 0;
-  padding: 0;
-  box-shadow: none;
-  border: none;
-  background: transparent;
-  accent-color: var(--blue);
 }
 
 .codes-footer {

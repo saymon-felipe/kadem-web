@@ -25,6 +25,7 @@
           <template v-if="tab.id === 'overview'">
             <NexoOverviewTab
               :credit-summary="credit"
+              :credit-cards="creditCards"
               :totals="totals"
               :categories="categories"
               :recent-transactions="recentTransactions"
@@ -83,6 +84,9 @@
             />
           </template>
 
+          <template v-else-if="tab.id === 'receipts'">
+            <NexoReceiptsTab :active="activeTab === 'receipts'" :transaction-id="receiptTransactionFilter" :credit-cards="creditCards" @changed="refreshTransactionDrivenViews(); loadUsage()" @clear-transaction="receiptTransactionFilter = null" @view-transaction="viewReceiptTransaction" />
+          </template>
           <template v-else-if="tab.id === 'credit'">
             <NexoCreditTab
               :cards="creditCards"
@@ -397,6 +401,7 @@
       @save="saveTransaction"
       @update-amount="updateTransactionAmount"
       @update-field="updateTransactionFormField"
+      @view-receipts="receiptTransactionFilter = form.id; closeTransactionForm(); setActiveTab('receipts')"
     />
 
     <NexoCsvPreviewModal
@@ -653,6 +658,7 @@ import NexoHeader from "./nexo/NexoHeader.vue";
 import NexoTabs from "./nexo/NexoTabs.vue";
 import NexoOverviewTab from "./nexo/NexoOverviewTab.vue";
 import NexoCreditTab from './nexo/NexoCreditTab.vue';
+import NexoReceiptsTab from './nexo/NexoReceiptsTab.vue';
 import { creditSummary as buildCreditSummary } from '@/utils/financeCredit';
 import { transactionCalendarDate, editedTransactionDate } from '@/utils/financeNotificationDisplay';
 const localToday = () => new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -697,6 +703,7 @@ export default {
     NexoTabs,
     NexoOverviewTab,
     NexoCreditTab,
+    NexoReceiptsTab,
     NexoInvestmentsTab,
     NexoTransactionsTab,
     NexoTransactionModal,
@@ -710,6 +717,7 @@ export default {
     const tabs = [
       { id: "overview", label: "Visão", icon: "chart-simple" },
       { id: "transactions", label: "Movimentos", icon: "list" },
+      { id: "receipts", label: "Notas fiscais", icon: "receipt" },
       { id: "credit", label: "Crédito", icon: "credit-card" },
       { id: "budget", label: "Orçamento", icon: "clipboard" },
       { id: "investments", label: "Investimentos", icon: "money-bill" },
@@ -721,6 +729,7 @@ export default {
     const savedTab = usePlayerStore().active_app_tabs?.[NEXO_TAB_STORAGE_KEY];
     return {
       activeTab: tabs.some((tab) => tab.id === savedTab) ? savedTab : "overview",
+      receiptTransactionFilter: null,
       selectedMonth: today.slice(0, 7),
       loading: false,
       hasLoadedOnce: false,
@@ -1168,12 +1177,22 @@ export default {
         }
       });
       if (tabId === "transactions") {
-        this.loadTransactions();
+        return this.loadTransactions();
       }
       if (tabId === "investments") {
         this.loadInvestments();
         this.loadInvestmentRates();
       }
+    },
+    async viewReceiptTransaction(link) {
+      if (!link.transaction_id) return;
+      const date = transactionCalendarDate({ transaction_date: link.transaction_date, provider: link.provider });
+      if (date) this.selectedMonth = date.slice(0, 7);
+      this.transactionSearch = "";
+      this.transactionCategoryFilter = "";
+      await this.setActiveTab("transactions");
+      const transaction = this.transactions.find((row) => this.sameId(row.id, link.transaction_id));
+      if (transaction) this.openTransactionForm(transaction);
     },
     handleViewportScroll() {
       if (this.$refs.tabViewport && this.$refs.tabViewport.scrollLeft !== 0) {

@@ -131,6 +131,12 @@ db.version(26).stores({
   item.payment_review_reason ??= item.type === 'EXPENSE' ? 'Confirme o meio de pagamento.' : null;
 }));
 
+db.version(27).stores({
+  finance_receipts: '++local_id, &[user_id+local_key], [user_id+id], user_id, status',
+  finance_receipt_files: '&local_key, user_id, receipt_local_key, document_id',
+  finance_import_entries: '&client_id, user_id, state',
+});
+
 let dbOpenPromise = null;
 
 function canUseBrowserStorage() {

@@ -40,6 +40,7 @@
         class="overview-recent"
         :categories="categories"
         :recent-transactions="filteredRecentTransactions"
+        :credit-cards="creditCards"
         :selected-category="selectedCategory"
         :format-short-date="formatShortDate"
         :format-signed-money="formatSignedMoney"
@@ -68,6 +69,7 @@ export default {
   },
   emits: ['view-transactions', 'view-credit', 'toggle-ignored', 'delete-transaction'],
   props: {
+    creditCards: { type: Array, default: () => [] },
     creditSummary: { type: Object, default: () => ({expense:0,categories:[]}) },
     totals: {
       type: Object,

@@ -5,16 +5,8 @@ import { captureSyncSession, assertSyncSession, requireSyncArray } from "@/utils
 import { creditSummary } from '@/utils/financeCredit';
 
 const response = (data) => ({ data });
-const FINANCE_BATCH_LIMIT = 100;
 const isServerId = (id) => id !== null && id !== undefined && Number.isFinite(Number(id));
 const sameId = (left, right) => String(left ?? "") === String(right ?? "");
-const chunkItems = (items = [], size = FINANCE_BATCH_LIMIT) => {
-  const chunks = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
-  }
-  return chunks;
-};
 const entityReferenceIds = (entity) =>
   [entity?.server_id, entity?.id, entity?.local_key].filter((value) => value !== null && value !== undefined);
 const entityServerId = (...ids) => {
@@ -417,19 +409,10 @@ export const financeService = {
   },
 
   async createTransactionsBatch(transactions) {
-    const cleanTransactions = toPlain(transactions, []);
-    const local = await financeRepository.createLocalTransactionsBatch(cleanTransactions);
-    const localIds = local.map((item) => item.local_id);
-    const transactionChunks = chunkItems(cleanTransactions);
-    const localIdChunks = chunkItems(localIds);
-
-    for (let index = 0; index < transactionChunks.length; index += 1) {
-      await enqueue("CREATE_FINANCE_TRANSACTIONS_BATCH", {
-        local_ids: localIdChunks[index] || [],
-        transactions: transactionChunks[index] || [],
-      });
-    }
-    return response(local);
+    const {receiptService} = await import('@/services/receiptService');
+    await receiptService.queueImports(toPlain(transactions, []));
+    await syncService.processSyncQueue();
+    return response(transactions);
   },
 
   async updateTransaction(id, data, options) {
