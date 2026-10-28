@@ -8,7 +8,7 @@
   >
     <form class="health-modal-body" @submit.prevent="handleSubmit">
         <p class="modal-description">
-          Conecte um insumo a este agendamento. Toda vez que ele for concluído, o sistema registrará a baixa automática no estoque.
+          Conecte um insumo a esta rotina. Ao concluir o agendamento ou registrar uma ocorrência manual, o sistema dará baixa no estoque.
         </p>
 
         <div class="health-field static-label">

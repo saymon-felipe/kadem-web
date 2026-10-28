@@ -34,7 +34,11 @@ export function isHealthRecurring(object) {
 }
 
 export function isHealthEntity(object) {
-  return isHealthObject(object) && !isHealthScheduled(object);
+  return isHealthObject(object) && !isHealthRoutine(object);
+}
+
+export function isHealthRoutine(object) {
+  return isHealthScheduled(object) || object?.object_type === "SCHEDULE";
 }
 
 export function isHealthStockObject(object) {

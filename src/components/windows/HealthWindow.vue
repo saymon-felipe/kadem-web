@@ -81,7 +81,6 @@
             :schedules="schedules"
             :supplies="supplies"
             :relations="relations"
-            :widgets="widgets"
             :next-due-at="nextDueAt"
             :due-label="dueLabel"
             :schedule-due-class="scheduleDueClass"
@@ -93,13 +92,12 @@
             :format-date="formatDate"
             @new-object="openNewObjectModal('SCHEDULE')"
             @edit-object="openEditObjectModal"
+            @delete-object="requestDeleteObject"
             @quick-consume="handleQuickConsume"
             @quick-receive="handleQuickReceive"
             @record-event="openNewActionModal('OBSERVATION', $event)"
             @link-supply="openRelationModal"
             @complete-schedule="handleDirectCompleteSchedule"
-            @add-widget="addWidget"
-            @remove-widget="removeWidget"
           />
         </section>
 
@@ -111,7 +109,6 @@
             :schedules="schedules"
             :supplies="supplies"
             :relations="relations"
-            :widgets="widgets"
             :next-due-at="nextDueAt"
             :due-label="dueLabel"
             :schedule-due-class="scheduleDueClass"
@@ -123,11 +120,10 @@
             :format-date="formatDate"
             @new-object="openNewObjectModal('SUPPLY')"
             @edit-object="openEditObjectModal"
+            @delete-object="requestDeleteObject"
             @record-event="openNewActionModal('OBSERVATION', $event)"
             @quick-consume="handleQuickConsume"
             @quick-receive="handleQuickReceive"
-            @add-widget="addWidget"
-            @remove-widget="removeWidget"
           />
         </section>
 
@@ -259,6 +255,8 @@
       @confirmed="confirmDeleteTrackerGroup"
     />
 
+    <ConfirmationModal :model-value="showDeleteObjectConfirmation" message="Excluir este cadastro?" :description="deleteObjectDescription" confirm-text="Excluir" @cancelled="cancelDeleteObject" @confirmed="confirmDeleteObject" />
+
     <ConfirmationModal
       :model-value="showDeleteEventConfirmation"
       message="Excluir esta movimentação?"
@@ -300,7 +298,7 @@ import SubscriptionModal from "@/components/SubscriptionModal.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import { useAiCreditsStore } from "@/stores/aiCredits";
 import { usePlayerStore } from "@/stores/player";
-import { isHealthScheduled, isHealthRecurring } from "@/utils/healthObjectTypes";
+import { isHealthRoutine, isHealthScheduled, isHealthRecurring } from "@/utils/healthObjectTypes";
 
 const HEALTH_TAB_STORAGE_KEY = "kadem_health";
 const HEALTH_TAB_IDS = ["overview", "schedules", "supplies", "tracking", "timeline", "ai", "public-card"];
@@ -354,6 +352,8 @@ export default {
       relationError: "",
 
       showDeleteEventConfirmation: false,
+      showDeleteObjectConfirmation: false,
+      objectPendingDeletion: null,
       eventPendingDeletion: null,
       showTrackerModal: false,
       trackerBeingEdited: null,
@@ -467,6 +467,9 @@ export default {
     lowStockCount() {
       return this.supplies.filter((s) => this.isLowStock(s)).length;
     },
+    deleteObjectDescription() {
+      return `O cadastro "${this.objectPendingDeletion?.name || ""}" e seus vínculos serão excluídos. Os eventos anteriores permanecerão na linha do tempo.`;
+    },
     deleteGroupDescription() {
       if (!this.groupPendingDeletion) return "";
       const count = this.activeTrackers.filter(
@@ -530,6 +533,7 @@ export default {
       "createCheckin",
       "addDigestiveWellbeingTemplate",
       "deleteEvent",
+      "deleteObject",
       "createEvent",
       "recordSupplyMovement",
       "completeSchedule",
@@ -654,7 +658,7 @@ export default {
     openEditObjectModal(object) {
       this.objectBeingEdited = object;
       this.objectModalType = object.object_type;
-      this.objectModalScope = isHealthScheduled(object) ? "schedules" : "entities";
+      this.objectModalScope = isHealthRoutine(object) ? "schedules" : "entities";
       this.objectError = "";
       this.showObjectModal = true;
     },
@@ -760,6 +764,15 @@ export default {
       try { await this.archiveTracker(tracker); }
       catch (error) { this.trackingError = error.message || "Não foi possível arquivar o rastreador."; }
     },
+    requestDeleteObject(object) { this.objectPendingDeletion = object; this.showDeleteObjectConfirmation = true; },
+    cancelDeleteObject() { this.objectPendingDeletion = null; this.showDeleteObjectConfirmation = false; },
+    async confirmDeleteObject() {
+      const object = this.objectPendingDeletion;
+      this.cancelDeleteObject();
+      if (!object) return;
+      try { await this.deleteObject(object); }
+      catch (err) { this.objectError = err.message || "Não foi possível excluir o cadastro."; this.objectBeingEdited = object; this.showObjectModal = true; }
+    },
     requestDeleteEvent(event) {
       this.eventPendingDeletion = event;
       this.showDeleteEventConfirmation = true;
@@ -822,12 +835,12 @@ export default {
       try {
         if (this.objectBeingEdited) {
           const updated = await this.updateObject(this.objectBeingEdited, formData);
-          this.activeTab = isHealthScheduled(updated) ? "schedules" : "supplies";
+          this.activeTab = isHealthRoutine(updated) ? "schedules" : "supplies";
           this.showObjectModal = false;
           return;
         }
         const created = await this.createObject(formData);
-        this.activeTab = isHealthScheduled(created) ? "schedules" : "supplies";
+        this.activeTab = isHealthRoutine(created) ? "schedules" : "supplies";
         if (
           ["SUPPLY", "MEDICATION"].includes(formData.object_type) &&
           Number(formData.initial_stock) > 0 &&

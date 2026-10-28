@@ -50,13 +50,10 @@
             <span>{{ typeLabel(object.object_type) }}</span>
           </div>
 
-          <!-- Status / Pin -->
           <div class="top-meta">
-            <button class="pin-badge-btn" :class="{ 'is-pinned': isPinned(object) }"
-              :title="isPinned(object) ? 'Fixado no Overview (clique para remover)' : 'Fixar no Overview'" type="button"
-              @click="togglePin(object)">
-              <font-awesome-icon :icon="isPinned(object) ? 'star' : 'star'" />
-              <span>{{ isPinned(object) ? 'No Overview' : 'Fixar' }}</span>
+            <button class="delete-object-btn" type="button" :aria-label="'Excluir ' + object.name"
+              title="Excluir" @click="$emit('delete-object', object)">
+              <font-awesome-icon icon="trash-can" />
             </button>
           </div>
         </div>
@@ -78,7 +75,9 @@
               </span>
             </div>
 
-            <div class="info-block">
+          </template>
+
+            <div v-if="isHealthRoutine(object)" class="info-block">
               <span class="info-label">Insumos consumidos por conclusão:</span>
               <div v-if="getConsumptionRelations(object).length" class="relations-chips">
                 <span v-for="rel in getConsumptionRelations(object)" :key="rel.local_key" class="rel-chip">
@@ -89,7 +88,6 @@
               </div>
               <span v-else class="no-rel-caption">Nenhum consumo vinculado</span>
             </div>
-          </template>
 
           <!-- Detalhes de SUPPLY -->
           <template v-if="isHealthStockObject(object)">
@@ -130,14 +128,14 @@
             <font-awesome-icon icon="pen" />
             <span>Editar</span>
           </button>
-          <template v-if="isHealthScheduled(object)">
+          <template v-if="isHealthRoutine(object)">
             <button v-if="supplies.length"
               class="kadem-health-button kadem-health-button--secondary kadem-health-button--compact" type="button"
               title="Vincular insumo a este agendamento" @click="$emit('link-supply', object.local_key)">
               <font-awesome-icon icon="link" />
               <span>Vincular Insumo</span>
             </button>
-            <button class="kadem-health-button kadem-health-button--success kadem-health-button--compact" type="button"
+            <button v-if="isHealthScheduled(object)" class="kadem-health-button kadem-health-button--success kadem-health-button--compact" type="button"
               :disabled="!nextDueAt(object)"
               @click="$emit('complete-schedule', object.local_key)">
               <font-awesome-icon icon="check" />
@@ -173,7 +171,7 @@
 
 <script>
 import HealthEmptyState from "./HealthEmptyState.vue";
-import { isHealthStockObject, isHealthScheduled } from "@/utils/healthObjectTypes";
+import { isHealthStockObject, isHealthScheduled, isHealthRoutine } from "@/utils/healthObjectTypes";
 
 export default {
   name: "HealthObjectsTab",
@@ -199,10 +197,6 @@ export default {
       default: () => [],
     },
     relations: {
-      type: Array,
-      default: () => [],
-    },
-    widgets: {
       type: Array,
       default: () => [],
     },
@@ -246,13 +240,12 @@ export default {
   emits: [
     "new-object",
     "edit-object",
+    "delete-object",
     "link-supply",
     "complete-schedule",
     "quick-consume",
     "quick-receive",
     "record-event",
-    "add-widget",
-    "remove-widget",
   ],
   data() {
     return {
@@ -309,6 +302,7 @@ export default {
   methods: {
     isHealthStockObject,
     isHealthScheduled,
+    isHealthRoutine,
     typeLabel(type) {
       const map = {
         SCHEDULE: "Agenda / Rotina",
@@ -338,25 +332,14 @@ export default {
       return map[object.object_type] || "heart-pulse";
     },
     objectCardClass(object) {
-      if (isHealthScheduled(object)) return "card-schedule";
+      if (isHealthRoutine(object)) return "card-schedule";
       if (isHealthStockObject(object)) return "card-supply";
       return "card-generic";
     },
     objectBadgeClass(object) {
-      if (isHealthScheduled(object)) return "badge-schedule";
+      if (isHealthRoutine(object)) return "badge-schedule";
       if (isHealthStockObject(object)) return "badge-supply";
       return "badge-generic";
-    },
-    isPinned(object) {
-      return this.widgets.some((w) => w.object_key === object.local_key);
-    },
-    togglePin(object) {
-      const widget = this.widgets.find((w) => w.object_key === object.local_key);
-      if (widget) {
-        this.$emit("remove-widget", widget);
-      } else {
-        this.$emit("add-widget", object.local_key);
-      }
     },
     getConsumptionRelations(schedule) {
       return this.relations.filter(
@@ -537,10 +520,10 @@ export default {
   color: #8d5fd3;
 }
 
-.pin-badge-btn {
-  background: transparent;
-  border: 1px solid var(--glass-border);
-  color: var(--text-secondary);
+.delete-object-btn {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #ef4444;
   padding: 2px 7px;
   border-radius: 6px;
   font-size: 0.68rem;
@@ -552,15 +535,11 @@ export default {
   transition: all var(--transition-fast);
 }
 
-.pin-badge-btn:hover {
-  background: var(--surface-2);
-  color: var(--text-primary);
-}
-
-.pin-badge-btn.is-pinned {
-  background: rgba(245, 158, 11, 0.15);
-  border-color: rgba(245, 158, 11, 0.3);
-  color: #d97706;
+.delete-object-btn:hover,
+.delete-object-btn:focus-visible {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
 }
 
 .object-title {

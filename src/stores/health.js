@@ -6,7 +6,8 @@ import { healthRepository } from "@/services/localData/healthRepository";
 import { syncQueueRepository } from "@/services/localData/syncQueueRepository";
 import { syncService } from "@/services/syncService";
 import { DIGESTIVE_WELLBEING_TEMPLATE } from "@/services/healthTrackerTemplates";
-import { isHealthEntity, isHealthObject, isHealthScheduled, isHealthRecurring, isHealthStockObject } from "@/utils/healthObjectTypes";
+import { isHealthEntity, isHealthObject, isHealthRoutine, isHealthScheduled, isHealthRecurring, isHealthStockObject } from "@/utils/healthObjectTypes";
+import { db } from "@/db";
 import { captureSyncSession, assertSyncSession } from "@/utils/syncState";
 
 export const DEFAULT_HEALTH_UNITS = [
@@ -84,7 +85,7 @@ export const useHealthStore = defineStore("health", () => {
       .filter((record) => record.record_type === "OVERVIEW_WIDGET")
       .sort((left, right) => Number(left.order || 0) - Number(right.order || 0)),
   );
-  const schedules = computed(() => objects.value.filter(isHealthScheduled));
+  const schedules = computed(() => objects.value.filter(isHealthRoutine));
   const supplies = computed(() => objects.value.filter(isHealthStockObject));
   const entities = computed(() => objects.value.filter(isHealthEntity));
   const trackers = computed(() => objects.value.filter((object) => object.object_type === "TRACKER"));
@@ -336,10 +337,10 @@ export const useHealthStore = defineStore("health", () => {
   async function linkConsumption(data) {
     const schedule = findObject(data.schedule_key);
     const supply = findObject(data.supply_key);
-    if (!isHealthScheduled(schedule)) throw new Error("Selecione uma agenda válida.");
+    if (!isHealthRoutine(schedule)) throw new Error("Selecione uma agenda válida.");
     if (!isHealthStockObject(supply)) throw new Error("Selecione um insumo válido.");
     const quantity = Number(data.quantity || 0);
-    if (!quantity) throw new Error("Informe a quantidade consumida.");
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("Informe a quantidade consumida.");
     return createRecord("OBJECT_RELATION", {
       source_key: schedule.local_key,
       target_key: supply.local_key,
@@ -571,6 +572,31 @@ export const useHealthStore = defineStore("health", () => {
     await syncService.processSyncQueue();
   }
 
+  async function deleteObject(object) {
+    const current = findObject(object?.local_key);
+    if (!isHealthObject(current)) throw new Error("Selecione uma entidade de saúde válida.");
+    const related = records.value.filter((item) =>
+      (item.record_type === "OBJECT_RELATION" && (item.source_key === current.local_key || item.target_key === current.local_key)) ||
+      (item.record_type === "OVERVIEW_WIDGET" && item.object_key === current.local_key)
+    );
+    const deletedAt = now();
+    const removed = [...related, current];
+    await db.transaction("rw", db.health_records, db.syncQueue, async () => {
+      for (const item of removed) {
+        await healthRepository.markDeleted(item.local_key, deletedAt);
+        await syncQueueRepository.addSyncQueueTask({
+          type: "DELETE_HEALTH_RECORD",
+          payload: { local_id: item.local_id, local_key: item.local_key, record_type: item.record_type, updated_at: deletedAt },
+          timestamp: deletedAt,
+          compact_key: `health-record:${item.local_key}`,
+        });
+      }
+    });
+    const keys = new Set(removed.map((item) => item.local_key));
+    records.value = records.value.filter((item) => !keys.has(item.local_key));
+    await syncService.processSyncQueue();
+  }
+
   async function removeWidget(widget) {
     return deleteRecord(widget);
   }
@@ -583,7 +609,7 @@ export const useHealthStore = defineStore("health", () => {
   async function createEvent(data) {
     const object = findObject(data.object_key);
     if (!object) throw new Error("Selecione uma entidade de saúde ou rotina.");
-    return createRecord("HEALTH_EVENT", {
+    const event = await createRecord("HEALTH_EVENT", {
       object_key: object.local_key,
       event_type: data.event_type || "OBSERVATION",
       title: data.title || object.name,
@@ -592,6 +618,10 @@ export const useHealthStore = defineStore("health", () => {
       occurred_at: data.occurred_at || now(),
       metadata: data.metadata || {},
     });
+    if (object.object_type === "SCHEDULE" && !isHealthScheduled(object) && event.event_type === "OBSERVATION") {
+      await consumeRelations(object, event.occurred_at, data.notes);
+    }
+    return event;
   }
 
   async function recordSupplyMovement(data) {
@@ -623,6 +653,11 @@ export const useHealthStore = defineStore("health", () => {
       occurred_at: occurredAt,
       metadata: { scheduled_for: schedule.anchor_date },
     });
+    await consumeRelations(schedule, occurredAt, data.notes);
+    return completion;
+  }
+
+  async function consumeRelations(schedule, occurredAt, notes) {
     const consumptionRelations = objectRelations(schedule.local_key, "CONSUMES");
     for (const relation of consumptionRelations) {
       const supply = findObject(relation.target_key);
@@ -631,13 +666,12 @@ export const useHealthStore = defineStore("health", () => {
         object_key: supply.local_key,
         event_type: "SUPPLY_CONSUMED",
         title: "Uso automático: " + supply.name,
-        notes: "Vinculado a " + schedule.name + (data.notes ? " · " + data.notes : ""),
+        notes: "Vinculado a " + schedule.name + (notes ? " · " + notes : ""),
         quantity: relation.quantity,
         occurred_at: occurredAt,
         metadata: { schedule_key: schedule.local_key, relation_key: relation.local_key, unit: supply.unit },
       });
     }
-    return completion;
   }
 
   return {
@@ -675,6 +709,7 @@ export const useHealthStore = defineStore("health", () => {
     createCheckin,
     removeWidget,
     deleteEvent,
+    deleteObject,
     createEvent,
     recordSupplyMovement,
     completeSchedule,

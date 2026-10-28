@@ -33,7 +33,7 @@
         <label class="schedule-switch">
           <span class="switch-copy">
             <strong>Agendamento / recorrência</strong>
-            <small>{{ form.schedule_enabled ? 'Aparecerá em Rotinas & Agendas.' : 'Aparecerá em Entidades de saúde.' }}</small>
+            <small>{{ form.schedule_enabled ? 'Acompanhe uma data prevista.' : form.object_type === 'SCHEDULE' ? 'Rotina sem data prevista; registre suas ocorrências manualmente.' : 'Aparecerá em Entidades de saúde.' }}</small>
           </span>
           <input v-model="form.schedule_enabled" type="checkbox" role="switch" aria-label="Agendamento / recorrência" />
           <span class="switch-track" aria-hidden="true"></span>

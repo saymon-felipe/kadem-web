@@ -133,7 +133,10 @@ test("health entities can be edited offline without replacing identity, history 
     const appointment = await store.createObject({ name: "Consulta pontual", object_type: "APPOINTMENT", schedule_enabled: true, recurrence_enabled: false, anchor_date: "2090-10-14T09:00:00.000Z", warning_before: 0 });
     assert.equal(store.nextDueAt(appointment), "2090-10-14T09:00:00.000Z");
     assert.equal(appointment.warning_before, 0);
+    await store.linkConsumption({ schedule_key: appointment.local_key, supply_key: supply.local_key, quantity: 1 });
+    const balanceBeforeAppointment = store.supplyBalance(supply.local_key);
     await store.completeSchedule({ object_key: appointment.local_key, occurred_at: "2090-10-14T08:30:00.000Z" });
+    assert.equal(store.supplyBalance(supply.local_key), balanceBeforeAppointment - 1);
     assert.equal(store.nextDueAt(appointment), null, "even an early completion closes a one-time appointment");
     await assert.rejects(store.completeSchedule({ object_key: appointment.local_key }), /já foi concluído/);
     const rescheduled = await store.updateObject(appointment, { name: appointment.name, schedule_enabled: true, recurrence_enabled: false, anchor_date: "2091-10-14T09:00:00.000Z" });
@@ -154,7 +157,7 @@ test("health entities can be edited offline without replacing identity, history 
     await store.linkConsumption({ schedule_key: medication.local_key, supply_key: medication.local_key, quantity: 1 });
     await store.completeSchedule({ object_key: medication.local_key, occurred_at: "2090-10-14T09:00:00.000Z" });
     assert.equal(store.nextDueAt(scheduledMedication), "2090-10-14T17:00:00.000Z");
-    assert.equal(store.supplyBalance(supply.local_key), 10, "scheduled typed entities keep automatic consumption links");
+    assert.equal(store.supplyBalance(supply.local_key), 9, "scheduled typed entities keep automatic consumption links");
     assert.equal(store.supplyBalance(medication.local_key), 5, "scheduled medication can consume its own stock");
     await store.updateObject(scheduledMedication, { name: scheduledMedication.name, unit: scheduledMedication.unit, minimum_quantity: 5, schedule_enabled: false });
     assert.ok(store.entities.some((object) => object.local_key === medication.local_key));
@@ -178,10 +181,28 @@ test("health entities can be edited offline without replacing identity, history 
     const migratedLocal = (await healthRepository.getRecords("health-entities-test")).find((record) => record.local_key === "legacy-EXAM");
     assert.equal(migratedLocal.schedule_enabled, undefined, "tab migration does not rewrite remote records");
     assert.equal(store.findObject(medication.local_key).schedule_enabled, false);
-    assert.equal(store.supplyBalance(supply.local_key), 10);
+    assert.equal(store.supplyBalance(supply.local_key), 9);
     const schedulingTask = (await syncQueueRepository.getPendingTasksByType("UPSERT_HEALTH_RECORD")).find((task) => task.payload.local_key === treatment.local_key);
     assert.equal(schedulingTask.payload.data.object_type, "TREATMENT");
     assert.equal(schedulingTask.payload.data.recurrence_enabled, true);
+
+    const manual = await store.createObject({ name: "Rotina manual", object_type: "SCHEDULE", schedule_enabled: false });
+    assert.ok(store.schedules.some((item) => item.local_key === manual.local_key));
+    assert.ok(!store.entities.some((item) => item.local_key === manual.local_key));
+    const link = await store.linkConsumption({ schedule_key: manual.local_key, supply_key: supply.local_key, quantity: 2 });
+    const pin = await store.addWidget(manual.local_key);
+    const before = store.supplyBalance(supply.local_key);
+    const observation = await store.createEvent({ object_key: manual.local_key, event_type: "OBSERVATION" });
+    assert.equal(store.supplyBalance(supply.local_key), before - 2);
+    await store.deleteObject(manual);
+    assert.equal(store.findObject(manual.local_key), null);
+    assert.ok(!store.relations.some((item) => item.local_key === link.local_key));
+    assert.ok(!store.widgets.some((item) => item.local_key === pin.local_key));
+    assert.ok(store.events.some((item) => item.local_key === observation.local_key));
+    const deletes = await syncQueueRepository.getPendingTasksByType("DELETE_HEALTH_RECORD");
+    for (const item of [manual, link, pin]) assert.ok(deletes.some((task) => task.payload.local_key === item.local_key));
+    await healthRepository.applyServerChanges("health-entities-test", [{ local_key: manual.local_key, operation: "UPSERT", record: manual }], 2);
+    assert.ok(!(await healthRepository.getRecords("health-entities-test")).some((item) => item.local_key === manual.local_key));
   } finally {
     db?.close();
     await server.close();
