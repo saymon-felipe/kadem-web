@@ -388,6 +388,12 @@ export default {
   overflow-x: hidden;
 }
 
+@media (max-width: 768px) {
+  .combo-menu.floating {
+    z-index: 100001; /* Acima do BaseModal no celular. */
+  }
+}
+
 .combo-menu.down {
   top: calc(100% + 6px);
   transform-origin: top;
