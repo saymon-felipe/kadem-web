@@ -27,6 +27,7 @@
       >
         <div class="movement-copy">
           <strong>{{ transactionDescription(transaction) }}</strong>
+          <NexoPaymentBadges v-if="isGenosNotification(transaction)" class="recent-payment-badges" :transaction="transaction" :credit-cards="creditCards" />
           <span>{{ categoryLabel(transaction) }} | {{ formatShortDate(transactionCalendarDate(transaction)) }}</span>
         </div>
         <div class="movement-actions">
@@ -57,12 +58,15 @@
 </template>
 
 <script>
-import { transactionCalendarDate, transactionDescription } from "@/utils/financeNotificationDisplay";
+import { isGenosNotification, transactionCalendarDate, transactionDescription } from "@/utils/financeNotificationDisplay";
+import NexoPaymentBadges from './NexoPaymentBadges.vue'
 
 export default {
   name: 'NexoRecentTransactions',
+  components: { NexoPaymentBadges },
   emits: ['view-all', 'clear-filter', 'toggle-ignored', 'delete-transaction'],
   props: {
+    creditCards: { type: Array, default: () => [] },
     recentTransactions: {
       type: Array,
       required: true,
@@ -97,6 +101,7 @@ export default {
   methods: {
     transactionCalendarDate,
     transactionDescription,
+    isGenosNotification,
     categoryLabel(transaction) {
       return (
         transaction.category_name ||
@@ -111,6 +116,7 @@ export default {
 </script>
 
 <style scoped>
+.recent-payment-badges { margin: 4px 0; }
 .panel {
   background: var(--surface-0);
   border: 1px solid var(--glass-border);

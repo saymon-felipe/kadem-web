@@ -242,18 +242,98 @@ input:where(:not([type='range']):not([type='radio']):not([type='checkbox']):not(
   height: 50px;
 }
 
-/* Radio & Checkbox base reset — prevent square focus outline on rounded inputs */
-input[type='radio'],
-input[type='checkbox'] {
+/* Radio & Checkbox padronizados do sistema (Light & Dark Theme) */
+input[type='radio'] {
   box-shadow: none !important;
   border-radius: 50%;
   outline: none !important;
 }
 
+input[type='checkbox']:not([role='switch']):not(.sr-only-checkbox),
+.kadem-checkbox {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  border-radius: 5px;
+  border: 1.5px solid rgba(31, 39, 76, 0.28);
+  background-color: var(--surface-0, #ffffff);
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: pointer;
+  position: relative;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  vertical-align: middle;
+  transition:
+    background-color var(--transition-fast, 0.15s ease),
+    border-color var(--transition-fast, 0.15s ease),
+    box-shadow var(--transition-fast, 0.15s ease),
+    transform var(--transition-fast, 0.15s ease);
+}
+
+[data-theme='dark'] input[type='checkbox']:not([role='switch']):not(.sr-only-checkbox),
+[data-theme='dark'] .kadem-checkbox {
+  background-color: var(--surface-1, #141829);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+input[type='checkbox']:not([role='switch']):not(.sr-only-checkbox)::after,
+.kadem-checkbox::after {
+  content: '';
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  transform: translateY(-1px) rotate(-45deg) scale(0);
+  transform-origin: center;
+  transition: transform 0.16s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+input[type='checkbox']:not([role='switch']):not(.sr-only-checkbox):hover:not(:disabled),
+.kadem-checkbox:hover:not(:disabled) {
+  border-color: var(--color-info, #355afd);
+  background-color: rgba(53, 90, 253, 0.08);
+}
+
+input[type='checkbox']:not([role='switch']):not(.sr-only-checkbox):checked,
+.kadem-checkbox:checked {
+  background-color: #1f274c;
+  background-image: linear-gradient(135deg, #1f274c, #344079);
+  border-color: #1f274c;
+}
+
+[data-theme='dark'] input[type='checkbox']:not([role='switch']):not(.sr-only-checkbox):checked,
+[data-theme='dark'] .kadem-checkbox:checked {
+  background-color: #355afd;
+  background-image: linear-gradient(135deg, #355afd, #4f46e5);
+  border-color: #355afd;
+  box-shadow: 0 2px 6px rgba(53, 90, 253, 0.32) !important;
+}
+
+input[type='checkbox']:not([role='switch']):not(.sr-only-checkbox):checked::after,
+.kadem-checkbox:checked::after {
+  transform: translateY(-1px) rotate(-45deg) scale(1);
+}
+
+input[type='checkbox']:not([role='switch']):not(.sr-only-checkbox):focus-visible,
+.kadem-checkbox:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(53, 90, 253, 0.22) !important;
+}
+
+input[type='checkbox']:not([role='switch']):not(.sr-only-checkbox):disabled,
+.kadem-checkbox:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 input[type='radio']:focus,
-input[type='checkbox']:focus,
-input[type='radio']:focus-visible,
-input[type='checkbox']:focus-visible {
+input[type='radio']:focus-visible {
   outline: none !important;
   box-shadow: none !important;
 }

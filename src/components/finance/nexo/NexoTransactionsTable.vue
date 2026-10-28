@@ -27,12 +27,7 @@
             <td class="col-desc transaction-description-cell">
               <strong class="desc-text">{{ transactionDescription(transaction) }}</strong>
               <div v-if="shouldShowPaymentOrigin(transaction)" class="payment-origin">
-                <span>
-                  {{ paymentMethodLabel(transaction.payment_method)
-                  }}<template v-if="transaction.payment_method === 'CREDIT_CARD'">
-                    · {{ cardName(transaction.credit_card_id) }}</template
-                  >
-                </span>
+                <NexoPaymentBadges :transaction="transaction" :credit-cards="creditCards" />
                 <NexoPaymentOriginDropdown
                   v-if="transaction.payment_review_reason"
                   :transaction="transaction"
@@ -41,7 +36,7 @@
                   @select="$emit('select-payment-origin', transaction, $event)"
                 />
               </div>
-              <small v-if="transaction.observation" class="transaction-observation">
+              <small v-if="transactionObservation(transaction)" class="transaction-observation">
                 {{ transactionObservation(transaction) }}
               </small>
               <small v-if="transaction.goal_name" class="transaction-goal">
@@ -64,7 +59,14 @@
               />
             </td>
             <td class="col-source">
-              <span class="source-tag" :class="transaction.source ? transaction.source.toLowerCase() : ''">
+              <span
+                class="source-tag"
+                :class="[
+                  transaction.source ? transaction.source.toLowerCase() : '',
+                  { 'fiscal-receipt': transaction.provider === 'FISCAL_RECEIPT' },
+                ]"
+              >
+                <font-awesome-icon v-if="transaction.provider === 'FISCAL_RECEIPT'" icon="receipt" />
                 {{ sourceLabel(transaction) }}
               </span>
             </td>
@@ -141,7 +143,14 @@
               <small v-if="timeLabel(transaction)">{{
                 timeLabel(transaction)
               }}</small>
-              <span class="source-tag" :class="transaction.source ? transaction.source.toLowerCase() : ''">
+              <span
+                class="source-tag"
+                :class="[
+                  transaction.source ? transaction.source.toLowerCase() : '',
+                  { 'fiscal-receipt': transaction.provider === 'FISCAL_RECEIPT' },
+                ]"
+              >
+                <font-awesome-icon v-if="transaction.provider === 'FISCAL_RECEIPT'" icon="receipt" />
                 {{ sourceLabel(transaction) }}
               </span>
             </div>
@@ -159,12 +168,7 @@
           <div class="card-main-row">
             <strong class="desc-text">{{ transactionDescription(transaction) }}</strong>
             <div v-if="shouldShowPaymentOrigin(transaction)" class="payment-origin">
-              <span>
-                {{ paymentMethodLabel(transaction.payment_method)
-                }}<template v-if="transaction.payment_method === 'CREDIT_CARD'">
-                  · {{ cardName(transaction.credit_card_id) }}</template
-                >
-              </span>
+              <NexoPaymentBadges :transaction="transaction" :credit-cards="creditCards" />
               <NexoPaymentOriginDropdown
                 v-if="transaction.payment_review_reason"
                 :transaction="transaction"
@@ -173,7 +177,7 @@
                 @select="$emit('select-payment-origin', transaction, $event)"
               />
             </div>
-            <small v-if="transaction.observation" class="transaction-observation">
+            <small v-if="transactionObservation(transaction)" class="transaction-observation">
               {{ transactionObservation(transaction) }}
             </small>
             <small v-if="transaction.goal_name" class="transaction-goal">
@@ -266,9 +270,9 @@
 </template>
 
 <script>
-import { paymentMethodLabel, cardLabel } from "@/utils/financeCredit";
 import CategoryCombo from "../CategoryCombo.vue";
 import NexoPaymentOriginDropdown from "./NexoPaymentOriginDropdown.vue";
+import NexoPaymentBadges from "./NexoPaymentBadges.vue";
 import { isGenosNotification, transactionCalendarDate, transactionDescription, transactionObservation } from "@/utils/financeNotificationDisplay";
 
 export default {
@@ -276,6 +280,7 @@ export default {
   components: {
     CategoryCombo,
     NexoPaymentOriginDropdown,
+    NexoPaymentBadges,
   },
   emits: ["clear-filters", "create-category-for-transaction", "delete", "edit", "select-category", "select-payment-origin", "toggle-ignored"],
   props: {
@@ -347,12 +352,9 @@ export default {
     isSavingPaymentOrigin(transaction) {
       return this.savingPaymentOriginIds.includes(String(transaction.id || transaction.local_id));
     },
-    paymentMethodLabel,
-    cardName(id) {
-      return cardLabel(this.creditCards.find((c) => String(c.id) === String(id)));
-    },
     shouldShowPaymentOrigin(transaction) {
       if (!transaction) return false;
+      if (isGenosNotification(transaction)) return true;
       if (transaction.payment_review_reason) return true;
       return Boolean(transaction.payment_method && transaction.payment_method !== "UNKNOWN");
     },
@@ -363,6 +365,7 @@ export default {
       return type === "INCOME" ? "positivo" : "negativo";
     },
     sourceLabel(transaction) {
+      if (transaction?.provider === 'FISCAL_RECEIPT') return 'Nota fiscal';
       if (isGenosNotification(transaction)) return "Genos";
       const labels = { MANUAL: "Manual", OPEN_FINANCE: "Open Finance", IMPORT: "CSV" };
       return labels[transaction.source] || "Não definido";
@@ -553,7 +556,21 @@ tr.ignored {
   font-weight: 600;
   border: 1px solid var(--glass-border);
   white-space: nowrap;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.source-tag.fiscal-receipt {
+  background: rgba(53, 90, 253, 0.08);
+  border-color: rgba(53, 90, 253, 0.22);
+  color: var(--color-info);
+}
+
+[data-theme="dark"] .source-tag.fiscal-receipt {
+  background: rgba(95, 124, 255, 0.14);
+  border-color: rgba(95, 124, 255, 0.28);
+  color: #a5b4fc;
 }
 
 .empty-table-cell {

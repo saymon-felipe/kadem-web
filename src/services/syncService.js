@@ -22,7 +22,7 @@ import { db } from "../db";
 import { radioInsightsRepository, isRadioInsightsTask, LISTENING_COUNTERS } from './localData/radioInsightsRepository';
 import { reportAttachmentUpload, finishAttachmentUpload } from "./attachmentUploadProgress";
 import { clampToMacroTone } from "../utils/colorTones";
-import { captureSyncSession, requireSyncArray } from "../utils/syncState";
+import { captureSyncSession, assertSyncSession, requireSyncArray } from "../utils/syncState";
 
 let isProcessing = false;
 let rerunRequested = false;
@@ -1114,11 +1114,35 @@ async function _handleFinanceTask(task) {
   const { payload } = task;
 
   switch (task.type) {
+    case 'SYNC_FINANCE_RECEIPT': {
+      const { receiptService } = await import('@/services/receiptService');
+      await receiptService.sync(payload.local_key,payload.user_id);
+      return;
+    }
+    case 'IMPORT_FINANCE_TRANSACTION': {
+      const session = captureSyncSession();
+      const {user_id,...data} = payload;
+      if(user_id !== useAuthStore().user?.id) throw new Error('NOT_SYNCED: aguardando a conta proprietária da importação.');
+      const cleanData = await resolveTransactionPayloadForServer(data);
+      cleanData.client_id = data.client_id;
+      const result = await api.post('/finance/transaction-imports',cleanData,{headers:{'X-Expected-User-Id':String(user_id)}});
+      assertSyncSession(session);
+      if(result.data.client_id !== data.client_id) throw new Error('Resposta de importação incompatível.');
+      await db.finance_import_entries.update(data.client_id,{state:result.data.state,result:result.data});
+      if(result.data.transaction) {
+        const existing = await db.finance_transactions.where('id').equals(result.data.transaction.id).first();
+        if(!existing?.pending_sync) {
+          if(existing) await db.finance_transactions.update(existing.local_id,result.data.transaction);
+          else await db.finance_transactions.add({...result.data.transaction,pending_sync:false});
+        }
+      }
+      return;
+    }
     case 'CREATE_FINANCE_CREDIT_CARD':
     case 'UPDATE_FINANCE_CREDIT_CARD': {
       const creating = task.type === 'CREATE_FINANCE_CREDIT_CARD';
       const id = creating ? null : await resolveFinanceServerId('finance_credit_cards',payload);
-      const keys = ['client_id','name','bank','last_four','brand','credit_limit','is_archived'];
+      const keys = ['client_id','name','bank','last_four','brand','credit_limit','is_archived','is_primary'];
       const data = Object.fromEntries(keys.filter((k) => payload.data[k] !== undefined && (!creating || k !== 'is_archived')).map((k) => [k,payload.data[k]]));
       const result = creating ? await api.post('/finance/credit-cards',data) : await api.put(`/finance/credit-cards/${id}`,data);
       await updateFinanceLocalRecord('finance_credit_cards',payload.local_id,result.data);

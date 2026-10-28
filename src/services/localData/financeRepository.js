@@ -148,16 +148,33 @@ const normalizeCategoryMacroReferences = async () => {
 };
 
 export const financeRepository = {
-  async setCreditCards(items = []) { await replaceServerItemsPreservingPending(db.finance_credit_cards, items); },
+  async setCreditCards(items = []) {
+    await db.transaction('rw', db.finance_credit_cards, async () => {
+      await replaceServerItemsPreservingPending(db.finance_credit_cards, items);
+      const cards = await db.finance_credit_cards.toArray();
+      const pendingPrimary = cards.filter((card) => card.pending_sync && Number(card.is_primary) && !Number(card.is_archived))
+        .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))[0];
+      if (pendingPrimary) await Promise.all(cards.filter((card) => card.local_id !== pendingPrimary.local_id && Number(card.is_primary))
+        .map((card) => db.finance_credit_cards.update(card.local_id, { is_primary: 0 })));
+    });
+  },
   async getCreditCards() { return db.finance_credit_cards.orderBy('name').toArray(); },
   async findCreditCard(id) {
     return db.finance_credit_cards.filter((c) => String(c.id) === String(id) || String(c.local_key) === String(id)).first();
   },
   async saveLocalCreditCard(id, data) {
+    return db.transaction('rw', db.finance_credit_cards, async () => {
+    if (data.is_primary && data.is_archived) throw new Error('Reative o cartão antes de defini-lo como principal.');
+    const current = id ? await this.findCreditCard(id) : null;
+    if (id && !current) throw new Error('Cartão não encontrado.');
+    if (data.is_primary && Number(current?.is_archived) && data.is_archived !== false) throw new Error('Reative o cartão antes de defini-lo como principal.');
+    if (data.is_primary) {
+      const cards = await db.finance_credit_cards.toArray();
+      await Promise.all(cards.filter((card) => card.local_id !== current?.local_id && Number(card.is_primary))
+        .map((card) => db.finance_credit_cards.update(card.local_id, { is_primary: 0 })));
+    }
     if (id) {
-      const current = await this.findCreditCard(id);
-      if (!current) throw new Error('Cartão não encontrado.');
-      const patch = {...data, pending_sync:true, updated_at:now()};
+      const patch = {...data, ...(data.is_archived ? { is_primary: 0 } : {}), pending_sync:true, updated_at:now()};
       await db.finance_credit_cards.update(current.local_id,patch);
       return {...current,...patch};
     }
@@ -165,6 +182,7 @@ export const financeRepository = {
     const card = {...data,id:key,local_key:key,client_id:key,is_archived:0,pending_sync:true,created_at:now(),updated_at:now()};
     const local_id = await db.finance_credit_cards.add(card);
     return {...card,local_id};
+    });
   },
   async clearLocalFinance() {
     await Promise.all([

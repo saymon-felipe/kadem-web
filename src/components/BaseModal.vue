@@ -245,7 +245,8 @@ export default {
         bodyContentHeight = Array.from(body.children).reduce((total, child, index) => {
           const style = window.getComputedStyle(child);
           const margins = (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
-          return total + child.offsetHeight + margins + (index > 0 ? gap : 0);
+          const naturalChildHeight = Math.max(child.offsetHeight, child.scrollHeight);
+          return total + naturalChildHeight + margins + (index > 0 ? gap : 0);
         }, 0);
       }
 
@@ -278,10 +279,15 @@ export default {
         });
       }
     },
+    handleMediaLoad() {
+      this.updateModalHeight(true);
+    },
     initObservers() {
       this.destroyObservers();
       const body = this.$refs.bodyRef;
       if (!body) return;
+
+      body.addEventListener("load", this.handleMediaLoad, true);
 
       if (typeof ResizeObserver !== "undefined") {
         this.resizeObserver = new ResizeObserver(() => {
@@ -305,6 +311,10 @@ export default {
       }
     },
     destroyObservers() {
+      const body = this.$refs.bodyRef;
+      if (body) {
+        body.removeEventListener("load", this.handleMediaLoad, true);
+      }
       if (this.resizeObserver) {
         this.resizeObserver.disconnect();
         this.resizeObserver = null;
@@ -537,6 +547,43 @@ export default {
   flex-direction: column;
 }
 
+/* Rodapé fixo do modal (borda de fora a fora igual ao header) */
+.modal-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--glass-border);
+  flex-shrink: 0;
+}
+
+.modal-footer-row > :deep(.reauth-footer),
+.modal-footer-row > :deep(.recovery-footer),
+.modal-footer-row > :deep(.migration-footer),
+.modal-footer-row > :deep(.codes-footer),
+.modal-footer-row > :deep(.email-footer),
+.modal-footer-row > :deep(.totp-footer),
+.modal-footer-row > :deep(.column-type-modal-footer) {
+  padding: 0;
+  border-top: none;
+  width: 100%;
+}
+
+/* Barras de rodapé declaradas dentro do corpo (ex.: formulários de modais) vão de fora a fora */
+.modal-body-area :deep(.modal-actions),
+.modal-body-area :deep(.modal-actions-bar),
+.modal-body-area :deep(.modal-footer-bar),
+.modal-body-area :deep(.actions-footer) {
+  margin-left: calc(var(--space-6) * -1);
+  margin-right: calc(var(--space-6) * -1);
+  padding-left: var(--space-6);
+  padding-right: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--glass-border);
+  box-sizing: border-box;
+}
+
 .mobile-drag-bar {
   display: none;
 }
@@ -598,6 +645,20 @@ export default {
 
   .modal-body-area {
     padding: var(--space-4) var(--space-5);
+  }
+
+  .modal-footer-row {
+    padding: var(--space-3) var(--space-5);
+  }
+
+  .modal-body-area :deep(.modal-actions),
+  .modal-body-area :deep(.modal-actions-bar),
+  .modal-body-area :deep(.modal-footer-bar),
+  .modal-body-area :deep(.actions-footer) {
+    margin-left: calc(var(--space-5) * -1);
+    margin-right: calc(var(--space-5) * -1);
+    padding-left: var(--space-5);
+    padding-right: var(--space-5);
   }
 }
 

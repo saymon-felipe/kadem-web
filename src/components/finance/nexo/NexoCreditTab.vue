@@ -29,16 +29,7 @@
         </div>
         <label class="credit-field filter-select-field">
           <span>Filtrar categorias por cartão</span>
-          <select v-model="selectedCard">
-            <option value="">Todos os cartões</option>
-            <option
-              v-for="row in summary.by_card || []"
-              :key="row.credit_card_id || 'none'"
-              :value="String(row.credit_card_id || 'none')"
-            >
-              {{ labelFor(row.credit_card_id) }}
-            </option>
-          </select>
+          <SearchableDropdown v-model="selectedCard" :options="cardFilterOptions" searchable search-placeholder="Buscar cartão..." size="md" />
         </label>
         <div v-if="summary.by_card?.length" class="card-spending-list">
           <div v-for="row in summary.by_card || []" :key="row.credit_card_id || 'none'" class="card-spending">
@@ -89,6 +80,7 @@
               </div>
             </div>
             <span v-if="Number(card.is_archived)" class="status-pill archived-pill">Arquivado</span>
+            <span v-else-if="Number(card.is_primary)" class="status-pill primary-pill">Principal</span>
           </div>
 
           <div class="card-limit-block">
@@ -220,6 +212,13 @@
             required
           />
         </label>
+        <div class="primary-switch-row">
+          <div>
+            <label for="credit-card-primary"><strong>Cartão principal</strong></label>
+            <p class="modal-helper">Usado quando a nota não identificar outro cartão cadastrado.</p>
+          </div>
+          <FormSwitch id="credit-card-primary" v-model="cardForm.is_primary" :disabled="cardForm.is_archived" aria-label="Usar como cartão principal" />
+        </div>
         <p v-if="error" role="alert" class="credit-error">{{ error }}</p>
         <div class="modal-actions">
           <button type="button" class="text-btn" @click="showCard = false">Cancelar</button>
@@ -234,11 +233,13 @@
 </template>
 <script>
 import BaseModal from "@/components/BaseModal.vue";
+import FormSwitch from "@/components/FormSwitch.vue";
+import SearchableDropdown from "@/components/ui/SearchableDropdown.vue";
 import { financeService } from "@/services/financeService";
 import { cardLabel, paymentMethodLabel } from "@/utils/financeCredit";
 import NexoCreditChart from "./NexoCreditChart.vue";
 export default {
-  components: { BaseModal, NexoCreditChart },
+  components: { BaseModal, FormSwitch, SearchableDropdown, NexoCreditChart },
   emits: ["changed", "edit-transaction"],
   props: {
     cards: { type: Array, default: () => [] },
@@ -259,6 +260,16 @@ export default {
     brands: ["Visa", "Mastercard", "Elo", "American Express", "Hipercard", "Outra"],
   }),
   computed: {
+    cardFilterOptions() {
+      const options = [{ value: "", label: "Todos os cartões" }];
+      for (const card of this.cards) {
+        const hasSpending = (this.summary.by_card || []).some((row) => String(row.credit_card_id) === String(card.id));
+        if (Number(card.is_archived) && !hasSpending) continue;
+        options.push({ value: String(card.id), label: `${cardLabel(card)}${Number(card.is_primary) ? ' · Principal' : ''}${Number(card.is_archived) ? ' · Arquivado' : ''}` });
+      }
+      if ((this.summary.by_card || []).some((row) => !row.credit_card_id)) options.push({ value: 'none', label: 'Cartão a identificar' });
+      return options;
+    },
     selectedSummary() {
       return this.selectedCard
         ? (this.summary.by_card || []).find((r) => String(r.credit_card_id || "none") === this.selectedCard) || {
@@ -287,8 +298,10 @@ export default {
             last_four: card.last_four,
             brand: card.brand,
             credit_limit: Number(card.credit_limit),
+            is_primary: Boolean(Number(card.is_primary)),
+            is_archived: Boolean(Number(card.is_archived)),
           }
-        : { id: null, name: "", bank: "", last_four: "", brand: "", credit_limit: 0 };
+        : { id: null, name: "", bank: "", last_four: "", brand: "", credit_limit: 0, is_primary: false, is_archived: false };
       this.showCard = true;
     },
     async saveCard() {
@@ -296,7 +309,7 @@ export default {
       this.savingCard = true;
       this.error = "";
       try {
-        const { id, ...data } = this.cardForm;
+        const { id, is_archived: _archived, ...data } = this.cardForm;
         const result = await financeService.saveCreditCard(id, { ...data, credit_limit: Number(data.credit_limit) });
         this.showCard = false;
         this.$emit("changed");
@@ -437,6 +450,16 @@ small {
 
 .filter-select-field {
   margin-top: var(--space-4);
+}
+.primary-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.primary-pill {
+  color: #4f46e5;
+  background: rgba(79, 70, 229, 0.12);
 }
 
 .card-spending-list {

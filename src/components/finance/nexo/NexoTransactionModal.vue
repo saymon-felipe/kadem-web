@@ -1,140 +1,94 @@
 <template>
-  <BaseModal
-    :model-value="visible"
-    :title="form.id ? 'Editar lançamento' : 'Novo lançamento'"
-    size="md"
-    @close="$emit('close')"
-  >
-    <form
-      class="transaction-form-body"
-      :class="form.type.toLowerCase()"
-      @submit.prevent="$emit('save')"
-    >
-        <div class="segmented">
-          <button
-            type="button"
-            class="expense-toggle"
-            :class="{ active: form.type === 'EXPENSE' }"
-            @click="updateField('type', 'EXPENSE')"
-          >
-            Saída
-          </button>
-          <button
-            type="button"
-            class="income-toggle"
-            :class="{ active: form.type === 'INCOME' }"
-            @click="updateField('type', 'INCOME')"
-          >
-            Entrada
-          </button>
+  <BaseModal :model-value="visible" :title="form.id ? 'Editar lançamento' : 'Novo lançamento'" size="md"
+    @close="$emit('close')">
+    <form class="transaction-form-body" :class="form.type.toLowerCase()" @submit.prevent="$emit('save')">
+      <div class="segmented">
+        <button type="button" class="expense-toggle" :class="{ active: form.type === 'EXPENSE' }"
+          @click="updateField('type', 'EXPENSE')">
+          Saída
+        </button>
+        <button type="button" class="income-toggle" :class="{ active: form.type === 'INCOME' }"
+          @click="updateField('type', 'INCOME')">
+          Entrada
+        </button>
+      </div>
+      <div class="nexo-field static-label">
+        <label for="transaction-description">Descrição</label>
+        <input id="transaction-description" :value="form.description"
+          placeholder="Ex.: Supermercado, salário, aluguel..." required
+          @input="updateField('description', $event.target.value)" />
+      </div>
+      <div class="form-grid">
+        <div class="nexo-field static-label">
+          <label for="transaction-amount">Valor</label>
+          <input id="transaction-amount" :value="form.amount_display" type="text" inputmode="numeric"
+            placeholder="R$ 0,00" required @input="$emit('update-amount', $event)" />
         </div>
         <div class="nexo-field static-label">
-          <label for="transaction-description">Descrição</label>
-          <input
-            id="transaction-description"
-            :value="form.description"
-            placeholder="Ex.: Supermercado, salário, aluguel..."
-            required
-            @input="updateField('description', $event.target.value)"
-          />
+          <label for="transaction-date">Data</label>
+          <input id="transaction-date" :value="form.transaction_date" type="date" placeholder="" required
+            @input="updateField('transaction_date', $event.target.value)" />
         </div>
-        <div class="form-grid">
-          <div class="nexo-field static-label">
-            <label for="transaction-amount">Valor</label>
-            <input
-              id="transaction-amount"
-              :value="form.amount_display"
-              type="text"
-              inputmode="numeric"
-              placeholder="R$ 0,00"
-              required
-              @input="$emit('update-amount', $event)"
-            />
-          </div>
-          <div class="nexo-field static-label">
-            <label for="transaction-date">Data</label>
-            <input
-              id="transaction-date"
-              :value="form.transaction_date"
-              type="date"
-              placeholder=""
-              required
-              @input="updateField('transaction_date', $event.target.value)"
-            />
-          </div>
-        </div>
-        <div
-          class="form-grid"
-          :class="{ 'single-col': !(form.type === 'EXPENSE' && form.payment_method === 'CREDIT_CARD') }"
-        >
-          <div class="nexo-field static-label">
-            <label for="transaction-payment-method">Meio de pagamento</label>
-            <select
-              id="transaction-payment-method"
-              :value="form.payment_method || 'UNKNOWN'"
-              @change="updateField('payment_method', $event.target.value)"
-            >
-              <option v-for="method in paymentMethods" :key="method.value" :value="method.value">
-                {{ method.label }}
-              </option>
-            </select>
-          </div>
-          <div
-            v-if="form.type === 'EXPENSE' && form.payment_method === 'CREDIT_CARD'"
-            class="nexo-field static-label"
-          >
-            <label for="transaction-credit-card">Cartão de origem</label>
-            <select
-              id="transaction-credit-card"
-              :value="form.credit_card_id || ''"
-              @change="updateField('credit_card_id', $event.target.value || null)"
-            >
-              <option value="">A identificar / revisar depois</option>
-              <option v-for="card in availableCards" :key="card.id" :value="card.id">
-                {{ cardLabel(card) }}{{ Number(card.is_archived) ? ' (arquivado)' : '' }}
-              </option>
-            </select>
-            <small v-if="!creditCards.length" class="field-helper">Cadastre seus cartões na aba Crédito.</small>
-          </div>
-        </div>
+      </div>
+      <div class="form-grid"
+        :class="{ 'single-col': !(form.type === 'EXPENSE' && form.payment_method === 'CREDIT_CARD') }">
         <div class="nexo-field static-label">
-          <label>Categoria</label>
-          <CategoryCombo
-            :model-value="form.category_id"
-            :categories="categories"
-            placeholder="Sem categoria"
-            @update:modelValue="updateField('category_id', $event)"
-          />
+          <label for="transaction-payment-method">Meio de pagamento</label>
+          <select id="transaction-payment-method" :value="form.payment_method || 'UNKNOWN'"
+            @change="updateField('payment_method', $event.target.value)">
+            <option v-for="method in paymentMethods" :key="method.value" :value="method.value">
+              {{ method.label }}
+            </option>
+          </select>
         </div>
-        <div v-if="showGoalSelect" class="nexo-field static-label">
-          <label>Meta (opcional)</label>
-          <CategoryCombo
-            :model-value="form.goal_id"
-            :categories="goalOptions"
-            placeholder="Sem meta"
-            clear-option-label="Sem meta"
-            empty-label="Nenhuma meta encontrada."
-            @update:modelValue="updateField('goal_id', $event)"
-          />
+        <div v-if="form.type === 'EXPENSE' && form.payment_method === 'CREDIT_CARD'" class="nexo-field static-label">
+          <label for="transaction-credit-card">Cartão de origem</label>
+          <select id="transaction-credit-card" :value="form.credit_card_id || ''"
+            @change="updateField('credit_card_id', $event.target.value || null)">
+            <option value="">A identificar / revisar depois</option>
+            <option v-for="card in availableCards" :key="card.id" :value="card.id">
+              {{ cardLabel(card) }}{{ Number(card.is_archived) ? ' (arquivado)' : '' }}
+            </option>
+          </select>
         </div>
-        <div class="nexo-field static-label textarea">
-          <label for="transaction-observation">Observação (opcional)</label>
-          <textarea
-            id="transaction-observation"
-            rows="2"
-            :value="form.observation"
-            placeholder="Detalhe opcional para diferenciar este movimento"
-            @input="updateField('observation', $event.target.value.trim())"
-          ></textarea>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="text-btn" :disabled="saving" @click="$emit('close')">Cancelar</button>
-          <button type="submit" class="primary-action" :disabled="saving">
-            <font-awesome-icon v-if="saving" icon="circle-notch" spin />
-            {{ saving ? 'Salvando...' : form.id ? 'Salvar alterações' : 'Salvar' }}
-          </button>
-        </div>
-      </form>
+      </div>
+      <div class="nexo-field static-label">
+        <label>Categoria</label>
+        <CategoryCombo :model-value="form.category_id" :categories="categories" placeholder="Sem categoria"
+          @update:modelValue="updateField('category_id', $event)" />
+      </div>
+      <div v-if="showGoalSelect" class="nexo-field static-label">
+        <label>Meta (opcional)</label>
+        <CategoryCombo :model-value="form.goal_id" :categories="goalOptions" placeholder="Sem meta"
+          clear-option-label="Sem meta" empty-label="Nenhuma meta encontrada."
+          @update:modelValue="updateField('goal_id', $event)" />
+      </div>
+      <div class="nexo-field static-label textarea">
+        <label for="transaction-observation">Observação (opcional)</label>
+        <textarea id="transaction-observation" rows="2" :value="form.observation"
+          placeholder="Detalhe opcional para diferenciar este movimento"
+          @input="updateField('observation', $event.target.value.trim())"></textarea>
+      </div>
+      <button v-if="form.id" type="button" class="receipt-shortcut-btn" @click="$emit('view-receipts')">
+        <span class="receipt-shortcut-main">
+          <span class="receipt-shortcut-icon">
+            <font-awesome-icon icon="receipt" />
+          </span>
+          <span class="receipt-shortcut-copy">
+            <strong>Notas fiscais vinculadas</strong>
+            <small>Consultar comprovantes deste lançamento</small>
+          </span>
+        </span>
+        <font-awesome-icon icon="chevron-right" class="receipt-shortcut-arrow" />
+      </button>
+      <div class="modal-actions">
+        <button type="button" class="text-btn" :disabled="saving" @click="$emit('close')">Cancelar</button>
+        <button type="submit" class="primary-action" :disabled="saving">
+          <font-awesome-icon v-if="saving" icon="circle-notch" spin />
+          {{ saving ? 'Salvando...' : form.id ? 'Salvar alterações' : 'Salvar' }}
+        </button>
+      </div>
+    </form>
   </BaseModal>
 </template>
 
@@ -149,7 +103,7 @@ export default {
     BaseModal,
     CategoryCombo,
   },
-  emits: ['close', 'save', 'update-amount', 'update-field'],
+  emits: ['close', 'save', 'update-amount', 'update-field', 'view-receipts'],
   props: {
     creditCards: { type: Array, default: () => [] },
     visible: {
@@ -218,6 +172,7 @@ export default {
 .transaction-modal.income {
   background: linear-gradient(160deg, rgba(243, 255, 247, 0.97), rgba(255, 255, 255, 0.95));
 }
+
 [data-theme='dark'] .nexo-modal {
   background: var(--surface-2);
   color: var(--text-primary);
@@ -357,6 +312,80 @@ export default {
   background: rgba(46, 204, 113, 0.2);
 }
 
+.receipt-shortcut-btn {
+  width: 100%;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.receipt-shortcut-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--color-info);
+  transform: translateY(-1px);
+}
+
+.receipt-shortcut-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.receipt-shortcut-icon {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: var(--radius-xs);
+  background: rgba(53, 90, 253, 0.1);
+  color: var(--color-info);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+
+[data-theme='dark'] .receipt-shortcut-icon {
+  background: rgba(95, 124, 255, 0.16);
+  color: #a5b4fc;
+}
+
+.receipt-shortcut-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.receipt-shortcut-copy strong {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.receipt-shortcut-copy small {
+  font-size: var(--fontsize-xs);
+  color: var(--text-secondary);
+}
+
+.receipt-shortcut-arrow {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+
 .modal-actions {
   display: flex;
   align-items: center;
@@ -383,9 +412,17 @@ export default {
 }
 
 .primary-action {
-  background: var(--deep-blue-gradient-right);
-  color: var(--white);
+  background: linear-gradient(135deg, #1f274c, #344079);
+  color: #ffffff;
   padding: 0 var(--space-4);
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(31, 39, 76, 0.2);
+}
+
+[data-theme='dark'] .primary-action {
+  background: linear-gradient(135deg, #355afd, #4f46e5);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(53, 90, 253, 0.32);
 }
 
 .primary-action:hover {
@@ -403,12 +440,13 @@ export default {
 
 .text-btn {
   background: transparent;
-  color: var(--text-primary);
-  padding: 0;
+  color: var(--text-secondary);
+  padding: 0 var(--space-3);
 }
 
 .text-btn:hover {
-  color: var(--deep-blue);
+  color: var(--text-primary);
+  background: var(--surface-2);
 }
 
 .form-grid {

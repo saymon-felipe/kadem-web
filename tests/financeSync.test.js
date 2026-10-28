@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { before, test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import process from "node:process";
@@ -44,6 +44,30 @@ test('cartão criado offline sobrevive ao pull e sincroniza antes da compra, rem
     assert.equal((await m.financeRepository.findCreditCard(100)).name,'Editado offline');
     assert.equal((await m.syncQueueRepository.getPendingTasks()).length,0);
   } finally{db?.close();await server.close()}
+});
+
+test('cartão principal funciona offline, prevalece no pull e segue para a sincronização', { timeout: 30000 }, async () => {
+  const server = await createViteServer(); let db;
+  try {
+    const m = await loadOfflineFinance(server); db = m.db; m.setOnline(false);
+    const cards = [
+      { id: 10, name: 'Um', bank: 'Banco', last_four: '0001', brand: 'Visa', credit_limit: 100, is_primary: 1, is_archived: 0 },
+      { id: 11, name: 'Dois', bank: 'Banco', last_four: '0002', brand: 'Visa', credit_limit: 100, is_primary: 0, is_archived: 0 },
+    ];
+    await m.financeRepository.setCreditCards(cards);
+    await m.financeService.saveCreditCard(11, { is_primary: true });
+    await m.financeRepository.setCreditCards(cards);
+    let local = await m.financeRepository.getCreditCards();
+    assert.equal(Number(local.find((c) => c.id === 10).is_primary), 0);
+    assert.equal(Number(local.find((c) => c.id === 11).is_primary), 1);
+    const sent = [];
+    m.api.put = async (url, body) => { sent.push({ url, body }); return { data: { ...cards[1], ...body } }; };
+    m.setOnline(true); await m.syncService.processSyncQueue();
+    assert.equal(sent[0].body.is_primary, true);
+    assert.equal(sent[0].url, '/finance/credit-cards/11');
+    local = await m.financeRepository.getCreditCards();
+    assert.equal(local.filter((c) => Number(c.is_primary)).length, 1);
+  } finally { db?.close(); await server.close(); }
 });
 
 test("revisão direta salva offline e preserva data, categoria e escolha manual", { timeout: 30000 }, async () => {
@@ -105,7 +129,7 @@ test("Genos apresenta o instante no fuso bancário sem alterar datas de CSV nem 
   assert.equal(transactionCalendarDate({ ...notification, transaction_date: "2026-11-01T02:59:59Z" }), "2026-10-31 23:59:59");
   assert.equal(transactionCalendarDate({ ...notification, transaction_date: "2026-10-21T21:00:25-03:00" }), "2026-10-21 21:00:25");
   assert.equal(transactionDescription(notification), "PicPay: Transação para Mercado");
-  assert.equal(transactionObservation(notification), "PicPay · Meio não informado · Mercado");
+  assert.equal(transactionObservation(notification), "");
   assert.equal(notification.transaction_date, "2026-10-22T00:00:25.909Z");
   assert.equal(notification.description, "PicPay: UNKNOWN para Mercado");
   const csv = { ...notification, provider: "CSV", transaction_date: "2026-10-21 00:00:00" };
@@ -146,11 +170,27 @@ const createViteServer = () =>
     plugins: [stubRouter, vue()],
     root: process.cwd(),
     resolve: { alias: { "@": path.resolve("src") } },
-    server: { middlewareMode: true },
+    server: { middlewareMode: true, hmr: false },
     appType: "custom",
     optimizeDeps: { noDiscovery: true, include: [] },
     logLevel: "error",
   });
+
+// Compile the shared SSR dependency graph before timing individual finance workflows.
+// A cold Windows module load must not consume a transaction test's timeout.
+before(async () => {
+  installMemoryStorage();
+  setActivePinia(createPinia());
+  const server = await createViteServer();
+  let db;
+  try {
+    ({ db } = await server.ssrLoadModule('/src/db.js'));
+    await server.ssrLoadModule('/src/components/finance/KademNexo.vue');
+  } finally {
+    db?.close();
+    await server.close();
+  }
+});
 
 test("tabela desktop e celular mostram hora real de Genos, inclusive meia-noite, e origem correta", { timeout: 30000 }, async () => {
   const server = await createViteServer();
@@ -169,9 +209,48 @@ test("tabela desktop e celular mostram hora real de Genos, inclusive meia-noite,
     assert.equal((html.match(/>21:00</g) || []).length, 2);
     assert.equal((html.match(/>00:00</g) || []).length, 2);
     assert.equal((html.match(/>15:27</g) || []).length, 2);
-    assert.equal((html.match(/>Genos</g) || []).length, 4);
-    assert.equal((html.match(/>CSV</g) || []).length, 2);
-    assert.ok(html.includes("21/10")); assert.ok(html.includes("Meio não informado")); assert.ok(!html.includes("UNKNOWN"));
+    assert.equal((html.match(/>\s*Genos\s*</g) || []).length, 4);
+    assert.equal((html.match(/>\s*CSV\s*</g) || []).length, 2);
+    assert.ok(html.includes("21/10")); assert.ok(html.includes("Não informado")); assert.ok(!html.includes("UNKNOWN"));
+  } finally { await server.close(); }
+});
+
+test("Genos simplifica o título e omite apenas a observação automática repetida", () => {
+  const transaction = { provider: "GENOS_NOTIFICATION", type: "EXPENSE", payment_method: "CREDIT_CARD",
+    description: "PicPay: Crédito para Max Cambe", observation: "PicPay · Crédito · Max Cambe" };
+  assert.equal(transactionDescription(transaction), "PicPay: Compra em Max Cambe");
+  assert.equal(transactionObservation(transaction), "");
+  assert.equal(transactionObservation({ ...transaction, observation: "Compra do mês, dividir com Ana" }), "Compra do mês, dividir com Ana");
+  assert.equal(transactionDescription({ ...transaction, description: "Título que personalizei" }), "Título que personalizei");
+  assert.equal(transactionDescription({ ...transaction, type: "INCOME", payment_method: "PIX", description: "PicPay: Pix recebido de Ana" }), "PicPay: Recebimento de Ana");
+  assert.equal(transactionDescription({ ...transaction, payment_method: "PIX", description: "PicPay: Pix para Ana" }), "PicPay: Pagamento para Ana");
+  assert.equal(transactionDescription({ ...transaction, description: "PicPay: Crédito para Contraparte não informada" }), "PicPay: Compra");
+  assert.equal(transactionDescription({ ...transaction, provider: "CSV" }), transaction.description);
+  assert.equal(transactionObservation({ ...transaction, provider: "CSV" }), transaction.observation);
+  assert.equal(transaction.description, "PicPay: Crédito para Max Cambe");
+  assert.equal(transaction.observation, "PicPay · Crédito · Max Cambe");
+});
+
+test("desktop, celular e Recentes mostram compra Genos com pílulas e sem metadados repetidos", { timeout: 30000 }, async () => {
+  const server = await createViteServer();
+  try {
+    const { default: Table } = await server.ssrLoadModule("/src/components/finance/nexo/NexoTransactionsTable.vue");
+    const { default: Recent } = await server.ssrLoadModule("/src/components/finance/nexo/NexoRecentTransactions.vue");
+    const transaction = { id: 233, provider: "GENOS_NOTIFICATION", type: "EXPENSE", payment_method: "CREDIT_CARD", credit_card_id: 1,
+      transaction_date: "2026-10-26T17:03:06Z", amount: 30.94, description: "PicPay: Crédito para Max Cambe", observation: "PicPay · Crédito · Max Cambe" };
+    const creditCards = [{ id: 1, name: "Cartão principal", brand: "Mastercard", last_four: "9027" }];
+    const common = { creditCards, categories: [], formatSignedMoney: ({ amount }) => String(amount), formatShortDate: () => "26/10" };
+    for (const [Component, props, count] of [[Table, { transactions: [transaction], categorizingIds: [] }, 2], [Recent, { recentTransactions: [transaction] }, 1]]) {
+      const app = createSSRApp(Component, { ...common, ...props });
+      app.component("font-awesome-icon", { render: () => null });
+      const html = await renderToString(app);
+      assert.equal((html.match(/PicPay: Compra em Max Cambe/g) || []).length, count);
+      assert.equal((html.match(/payment-method-pill/g) || []).length, count);
+      assert.equal((html.match(/payment-card-pill/g) || []).length, count);
+      assert.ok(html.includes("Cartão principal · Mastercard •• 9027"));
+      assert.ok(!html.includes("PicPay · Crédito · Max Cambe"));
+      assert.ok(!html.includes('class="transaction-observation"'));
+    }
   } finally { await server.close(); }
 });
 
