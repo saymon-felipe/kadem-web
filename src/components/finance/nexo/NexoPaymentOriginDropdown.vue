@@ -16,7 +16,7 @@
 
 <script>
 import SearchableDropdown from "@/components/ui/SearchableDropdown.vue";
-import { PAYMENT_METHODS, cardLabel } from "@/utils/financeCredit";
+import { paymentMethodChoices, cardLabel } from "@/utils/financeCredit";
 
 export default {
   name: "NexoPaymentOriginDropdown",
@@ -34,7 +34,7 @@ export default {
         : this.transaction.payment_method || "UNKNOWN";
     },
     options() {
-      return PAYMENT_METHODS.flatMap((method) => {
+      return paymentMethodChoices(this.transaction.payment_method).flatMap((method) => {
         const option = {
           ...method,
           origin: { payment_method: method.value, credit_card_id: null },

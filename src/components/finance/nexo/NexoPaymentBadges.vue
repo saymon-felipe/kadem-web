@@ -1,5 +1,6 @@
 <template>
   <div v-if="visible" class="payment-badges" aria-label="Meio de pagamento e cartão">
+    <span v-if="Number(transaction.is_patrimonial_transfer)" class="payment-pill">Transferência patrimonial</span>
     <span class="payment-pill payment-method-pill">{{ paymentMethodLabel(transaction.payment_method) }}</span>
     <span v-if="transaction.payment_method === 'CREDIT_CARD' && transaction.credit_card_id" class="payment-pill payment-card-pill">{{ cardName }}</span>
   </div>
@@ -17,7 +18,7 @@ export default {
   },
   computed: {
     visible() {
-      return isGenosNotification(this.transaction) || Boolean(this.transaction.payment_review_reason || (this.transaction.payment_method && this.transaction.payment_method !== 'UNKNOWN'))
+      return Number(this.transaction.is_patrimonial_transfer) || isGenosNotification(this.transaction) || Boolean(this.transaction.payment_review_reason || (this.transaction.payment_method && this.transaction.payment_method !== 'UNKNOWN'))
     },
     cardName() {
       return cardLabel(this.creditCards.find(card => String(card.id) === String(this.transaction.credit_card_id)))

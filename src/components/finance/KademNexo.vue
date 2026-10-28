@@ -31,9 +31,13 @@
               :recent-transactions="recentTransactions"
               :macro-distribution="macroDistribution"
               :investment-summary="investmentSummary"
+              :physical-state="physicalState"
+              :physical-offline="physicalOffline"
+              :physical-error="physicalError"
               :format-money="money"
               :format-signed-money="signedMoney"
               :format-short-date="shortDate"
+              @view-physical="setActiveTab('physical')"
               @view-transactions="setActiveTab('transactions')"
               @view-credit="setActiveTab('credit')"
               @toggle-ignored="toggleIgnored"
@@ -84,6 +88,9 @@
             />
           </template>
 
+          <template v-else-if="tab.id === 'physical'">
+            <NexoPhysicalWealthTab :active="activeTab === 'physical'" :categories="categories" :month="selectedMonth" @changed="refreshPhysicalViews" />
+          </template>
           <template v-else-if="tab.id === 'receipts'">
             <NexoReceiptsTab :active="activeTab === 'receipts'" :transaction-id="receiptTransactionFilter" :credit-cards="creditCards" @changed="refreshTransactionDrivenViews(); loadUsage()" @clear-transaction="receiptTransactionFilter = null" @view-transaction="viewReceiptTransaction" />
           </template>
@@ -664,6 +671,8 @@ import { transactionCalendarDate, editedTransactionDate } from '@/utils/financeN
 const localToday = () => new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 import NexoInvestmentsTab from "./nexo/NexoInvestmentsTab.vue";
 import NexoTransactionsTab from "./nexo/NexoTransactionsTab.vue";
+import NexoPhysicalWealthTab from './nexo/NexoPhysicalWealthTab.vue';
+import { physicalWealthService } from '@/services/physicalWealthService';
 import NexoTransactionModal from "./nexo/NexoTransactionModal.vue";
 import NexoCsvPreviewModal from "./nexo/NexoCsvPreviewModal.vue";
 import NexoConnectionsTab from "./nexo/NexoConnectionsTab.vue";
@@ -706,6 +715,7 @@ export default {
     NexoReceiptsTab,
     NexoInvestmentsTab,
     NexoTransactionsTab,
+    NexoPhysicalWealthTab,
     NexoTransactionModal,
     NexoCsvPreviewModal,
     NexoConnectionsTab,
@@ -717,12 +727,13 @@ export default {
     const tabs = [
       { id: "overview", label: "Visão", icon: "chart-simple" },
       { id: "transactions", label: "Movimentos", icon: "list" },
-      { id: "receipts", label: "Notas fiscais", icon: "receipt" },
       { id: "credit", label: "Crédito", icon: "credit-card" },
+      { id: "receipts", label: "Notas fiscais", icon: "receipt" },
       { id: "budget", label: "Orçamento", icon: "clipboard" },
       { id: "investments", label: "Investimentos", icon: "money-bill" },
-      { id: "connections", label: "Conexões", icon: "link" },
+      { id: "physical", label: "Patrimônio Físico", icon: "boxes-stacked" },
       { id: "categories", label: "Categorias", icon: "layer-group" },
+      { id: "connections", label: "Conexões", icon: "link" },
       { id: "ai", label: "IA", icon: "crown", pro: true },
     ];
     // Reabre na aba em que o usuario estava antes do F5.
@@ -730,6 +741,9 @@ export default {
     return {
       activeTab: tabs.some((tab) => tab.id === savedTab) ? savedTab : "overview",
       receiptTransactionFilter: null,
+      physicalState: null,
+      physicalOffline: false,
+      physicalError: '',
       selectedMonth: today.slice(0, 7),
       loading: false,
       hasLoadedOnce: false,
@@ -750,7 +764,7 @@ export default {
       creditCards: [],
       credit: {expense:0,unassigned:0,review_count:0,categories:[],by_card:[]},
       paymentReviewItems: [],
-      totals: { income: 0, expense: 0, balance: 0 },
+      totals: { income: 0, expense: 0, balance: 0, transfer_out: 0, transfer_in: 0 },
       transactions: [],
       recentTransactions: [],
       categories: [],
@@ -1376,6 +1390,7 @@ export default {
           this.loadInvestmentRates(),
           this.loadConnections(),
           this.loadUsage(),
+          this.loadPhysical(),
         ]);
         this.loadBudgetAiConversation();
       } finally {
@@ -1383,13 +1398,23 @@ export default {
         this.hasLoadedOnce = true;
       }
     },
+    // O dashboard completo vive na aba Patrimônio Físico; a Visão mostra apenas o indicador de total, dinheiro, ouro e prata.
+    async loadPhysical() {
+      try {
+        const result = await physicalWealthService.overview();
+        this.physicalState = result.data;
+        this.physicalOffline = result.offline;
+        this.physicalError = '';
+      } catch (e) { this.physicalError = e.response?.data?.message || 'Patrimônio físico indisponível. Tente atualizar os dados.'; }
+    },
+    async refreshPhysicalViews() { await this.refreshTransactionDrivenViews(); },
     async loadCreditCards() { const {data}=await financeService.getCreditCards(); this.creditCards=data || []; },
     async loadPaymentReviews() { const {data}=await financeService.listPaymentReviews({month:this.selectedMonth}); this.paymentReviewItems=data || []; },
     async refreshCredit() { await Promise.all([this.loadCreditCards(),this.loadDashboard(),this.loadTransactions(),this.loadPaymentReviews()]); },
     async loadDashboard() {
       const { data } = await financeService.getDashboard({ month: this.selectedMonth });
       this.credit = data.credit || {expense:0,unassigned:0,review_count:0,categories:[],by_card:[]};
-      this.totals = data.totals || { income: 0, expense: 0, balance: 0 };
+      this.totals = data.totals || { income: 0, expense: 0, balance: 0, transfer_out: 0, transfer_in: 0 };
       this.recentTransactions = data.transactions || data.recent_transactions || [];
       this.macroDistribution = data.macro_distribution || [];
       this.investmentSummary = {
@@ -1482,7 +1507,7 @@ export default {
       this.usage = usage || {};
     },
     async refreshTransactionDrivenViews({ includeTransactions = true } = {}) {
-      const loaders = [this.loadDashboard(), this.loadBudgets(), this.loadInvestments(), this.loadPaymentReviews()];
+      const loaders = [this.loadDashboard(), this.loadBudgets(), this.loadInvestments(), this.loadPaymentReviews(), this.loadPhysical()];
       if (includeTransactions) {
         loaders.push(this.loadTransactions());
       }
@@ -1507,6 +1532,7 @@ export default {
         category_id: currentTransaction.category_id || null,
         goal_id: currentTransaction.goal_id || null,
         payment_method: currentTransaction.payment_method || 'UNKNOWN',
+        cash_amount: currentTransaction.cash_amount ?? null,
         credit_card_id: currentTransaction.credit_card_id || null,
         original_timestamp: currentTransaction.transaction_date || null,
         original_provider: currentTransaction.provider || null,
@@ -1558,6 +1584,7 @@ export default {
         amount: Number(this.form.amount || 0),
       };
       payload.transaction_date = editedTransactionDate({transaction_date:original_timestamp,provider:original_provider},this.form.transaction_date);
+      if (payload.payment_method !== 'MIXED') delete payload.cash_amount;
       // goal_id so viaja quando ha meta (ou quando uma meta existente foi removida): assim um lancamento
       // sem meta continua com o mesmo payload de antes.
       const goalId = this.isInvestmentCategory(this.findCategory(payload.category_id)) ? formGoalId : null;
@@ -2712,6 +2739,7 @@ export default {
       await this.refreshTransactionDrivenViews();
     },
     async toggleIgnored(transaction) {
+      if (transaction.physical_linked) { this.paymentOriginError = 'Estorne a transferência em Patrimônio Físico antes de alterar o lançamento bancário.'; return; }
       const transactionId = this.transactionKey(transaction);
       if (!transactionId) return;
       const nextIgnored = !transaction.is_ignored;
@@ -3113,6 +3141,7 @@ export default {
       this.confirmationState.show = false;
     },
     requestDeleteTransaction(transaction) {
+      if (transaction.has_physical_history || transaction.physical_linked) { this.paymentOriginError = 'Este lançamento integra o histórico do patrimônio físico. Preserve o vínculo e use um estorno.'; return; }
       this.openConfirmation({
         message: `Excluir o lançamento "${transaction.description}"`,
         description: `Esta ação excluirá o lançamento no valor de ${this.money(transaction.amount)} e não poderá ser desfeita.`,

@@ -158,6 +158,14 @@ import {
   faBolt,
   faAlignLeft,
   faToggleOn,
+  faCoins,
+  faVault,
+  faWallet,
+  faArrowRightArrowLeft,
+  faChartPie,
+  faChartLine,
+  faFileLines,
+  faBuildingColumns,
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -302,6 +310,14 @@ library.add(
   faBolt,
   faAlignLeft,
   faToggleOn,
+  faCoins,
+  faVault,
+  faWallet,
+  faArrowRightArrowLeft,
+  faChartPie,
+  faChartLine,
+  faFileLines,
+  faBuildingColumns,
 );
 
 window.addEventListener('error', (event) => {

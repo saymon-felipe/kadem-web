@@ -29,7 +29,7 @@
               <div v-if="shouldShowPaymentOrigin(transaction)" class="payment-origin">
                 <NexoPaymentBadges :transaction="transaction" :credit-cards="creditCards" />
                 <NexoPaymentOriginDropdown
-                  v-if="transaction.payment_review_reason"
+                  v-if="transaction.payment_review_reason && !Number(transaction.is_patrimonial_transfer)"
                   :transaction="transaction"
                   :credit-cards="creditCards"
                   :saving="isSavingPaymentOrigin(transaction)"
@@ -81,7 +81,7 @@
             </td>
             <td class="col-actions right">
               <div class="row-actions">
-                <button class="icon-btn small" title="Editar" @click="$emit('edit', transaction)">
+                <button class="icon-btn small" :disabled="Boolean(transaction.physical_linked)" title="Editar (lançamento vinculado a um movimento do Patrimônio Físico: estorne lá para alterar)" @click="$emit('edit', transaction)">
                   <font-awesome-icon icon="pencil" />
                 </button>
                 <button
@@ -91,7 +91,7 @@
                 >
                   <font-awesome-icon :icon="transaction.is_ignored ? 'eye-slash' : 'eye'" />
                 </button>
-                <button class="icon-btn small danger" title="Excluir" @click="$emit('delete', transaction)">
+                <button class="icon-btn small danger" :disabled="Boolean(transaction.has_physical_history || transaction.physical_linked)" title="Excluir (vínculos patrimoniais preservam o histórico)" @click="$emit('delete', transaction)">
                   <font-awesome-icon icon="trash" />
                 </button>
               </div>
@@ -170,7 +170,7 @@
             <div v-if="shouldShowPaymentOrigin(transaction)" class="payment-origin">
               <NexoPaymentBadges :transaction="transaction" :credit-cards="creditCards" />
               <NexoPaymentOriginDropdown
-                v-if="transaction.payment_review_reason"
+                v-if="transaction.payment_review_reason && !Number(transaction.is_patrimonial_transfer)"
                 :transaction="transaction"
                 :credit-cards="creditCards"
                 :saving="isSavingPaymentOrigin(transaction)"
@@ -203,7 +203,7 @@
 
           <div class="card-bottom-row">
             <div class="row-actions">
-              <button class="icon-btn small" title="Editar" @click="$emit('edit', transaction)">
+              <button class="icon-btn small" :disabled="Boolean(transaction.physical_linked)" title="Editar (lançamento vinculado a um movimento do Patrimônio Físico: estorne lá para alterar)" @click="$emit('edit', transaction)">
                 <font-awesome-icon icon="pencil" />
               </button>
               <button
@@ -213,7 +213,7 @@
               >
                 <font-awesome-icon :icon="transaction.is_ignored ? 'eye-slash' : 'eye'" />
               </button>
-              <button class="icon-btn small danger" title="Excluir" @click="$emit('delete', transaction)">
+              <button class="icon-btn small danger" :disabled="Boolean(transaction.has_physical_history || transaction.physical_linked)" title="Excluir (vínculos patrimoniais preservam o histórico)" @click="$emit('delete', transaction)">
                 <font-awesome-icon icon="trash" />
               </button>
             </div>
@@ -354,6 +354,7 @@ export default {
     },
     shouldShowPaymentOrigin(transaction) {
       if (!transaction) return false;
+      if (Number(transaction.is_patrimonial_transfer)) return true;
       if (isGenosNotification(transaction)) return true;
       if (transaction.payment_review_reason) return true;
       return Boolean(transaction.payment_method && transaction.payment_method !== "UNKNOWN");

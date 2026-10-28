@@ -137,6 +137,10 @@ db.version(27).stores({
   finance_import_entries: '&client_id, user_id, state',
 });
 
+db.version(28).stores({
+  finance_physical_cache: '&[user_id+key], user_id',
+});
+
 let dbOpenPromise = null;
 
 function canUseBrowserStorage() {

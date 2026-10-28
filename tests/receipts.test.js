@@ -10,6 +10,16 @@ import { createPinia, setActivePinia } from "pinia";
 import { transactionCalendarDate, editedTransactionDate } from "../src/utils/financeNotificationDisplay.js";
 import { groupReceiptItems, matchingReceiptItemIds } from "../src/utils/receiptItemGrouping.js";
 import { orderedReceiptColumns, moveReceiptColumn, sortReceiptRows } from "../src/utils/receiptGrid.js";
+import { paymentMethodChoices, paymentMethodLabel } from "../src/utils/financeCredit.js";
+
+test("dinheiro não é escolha manual: só aparece quando a nota fiscal já definiu o pagamento", () => {
+  const values = (current) => paymentMethodChoices(current).map((m) => m.value);
+  assert.ok(!values("UNKNOWN").some((v) => ["CASH", "MIXED"].includes(v)));
+  assert.ok(!values("PIX").some((v) => ["CASH", "MIXED"].includes(v)));
+  assert.ok(values("CASH").includes("CASH") && !values("CASH").includes("MIXED"));
+  assert.ok(values("MIXED").includes("MIXED") && !values("MIXED").includes("CASH"));
+  assert.equal(paymentMethodLabel("CASH"), "Dinheiro em espécie");
+});
 
 test("grids fiscais ordenam nomes e números e movem colunas sem alterar a fonte", () => {
   const columns = [{ key: "description" }, { key: "purchase_count", numeric: true }];
@@ -87,6 +97,7 @@ async function setup() {
   useAuthStore().user = { id: 1 };
   const { api } = await load("/src/plugins/api.js");
   const { receiptService } = await load("/src/services/receiptService.js");
+  const { physicalWealthService } = await load('/src/services/physicalWealthService.js');
   const { receiptRepository } = await load("/src/services/localData/receiptRepository.js");
   const { invalidateSyncSession } = await load("/src/utils/syncState.js");
   await db.open();
@@ -95,6 +106,7 @@ async function setup() {
     db,
     api,
     receiptService,
+    physicalWealthService,
     receiptRepository,
     useAuthStore,
     invalidateSyncSession,
@@ -104,7 +116,31 @@ async function setup() {
     },
   };
 }
-test("Dexie v26 → v27 preserva lançamentos e adiciona o arquivo fiscal", { timeout: 30000 }, async () => {
+test('patrimônio físico preserva consulta offline, isola contas e rejeita respostas de outra sessão', {timeout:30000},async () => {
+  const m = await setup();
+  const snapshot = {summary:{cash:'123.45'},wallets:[],holdings:[]};
+  try {
+    m.api.get = async () => ({data:snapshot});
+    assert.equal((await m.physicalWealthService.overview()).offline,false);
+    m.api.get = async () => { throw new Error('offline'); };
+    assert.equal((await m.physicalWealthService.overview()).data.summary.cash,'123.45');
+    assert.equal((await m.physicalWealthService.overview()).offline,true);
+    m.useAuthStore().user = {id:2};
+    await assert.rejects(() => m.physicalWealthService.overview(),/offline/);
+    m.useAuthStore().user = {id:1};
+    m.api.get = async () => ({data:{summary:null}});
+    assert.equal((await m.physicalWealthService.overview()).data.summary.cash,'123.45');
+    let resolve, started;
+    const ready = new Promise(r => {started = r;});
+    m.api.get = () => {started();return new Promise(r => {resolve = r;});};
+    const pending = m.physicalWealthService.overview();
+    await ready; m.invalidateSyncSession(); resolve({data:{summary:{cash:'999'},wallets:[],holdings:[]}});
+    await assert.rejects(pending,/troca de sessão/);
+    assert.equal((await m.db.finance_physical_cache.get([1,':{}'])).data.summary.cash,'123.45');
+  } finally { await m.close(); }
+});
+
+test("Dexie v26 → v28 preserva lançamentos e adiciona os arquivos fiscal e patrimonial", { timeout: 30000 }, async () => {
   const old = new Dexie("KademDB");
   old.version(26).stores({
     finance_transactions:
@@ -115,9 +151,10 @@ test("Dexie v26 → v27 preserva lançamentos e adiciona o arquivo fiscal", { ti
   old.close();
   const m = await setup();
   try {
-    assert.equal(m.db.verno, 27);
+    assert.equal(m.db.verno, 28);
     assert.equal((await m.db.finance_transactions.where("id").equals(123).first()).description, "Preservar");
     assert.ok(m.db.finance_receipt_files);
+    assert.ok(m.db.finance_physical_cache);
   } finally {
     await m.close();
   }

@@ -69,7 +69,7 @@
           <span class="category-name">{{ segment.macro_category || 'Geral' }}</span>
           <strong>{{ formatMoney(segment.total) }}</strong>
         </div>
-        <p v-if="macroDistribution.length === 0" class="empty-line">Sem gastos no mês.</p>
+        <p v-if="macroDistribution.length === 0" class="empty-line">{{ emptyLabel }}</p>
       </div>
     </div>
   </section>
@@ -80,6 +80,7 @@ export default {
   name: 'NexoAllocationDonut',
   props: {
     title: { type: String, default: 'Distribuição' },
+    emptyLabel: { type: String, default: 'Sem gastos no mês.' },
     showTotal: { type: Boolean, default: false },
     macroDistribution: {
       type: Array,

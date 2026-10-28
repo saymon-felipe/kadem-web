@@ -6,6 +6,12 @@
       :investment-summary="investmentSummary"
       :format-money="formatMoney"
     />
+    <NexoPhysicalIndicator
+      :state="physicalState"
+      :offline="physicalOffline"
+      :error="physicalError"
+      @open="$emit('view-physical')"
+    />
     <div v-if="creditSummary.review_count" class="payment-review-banner">
       <div class="banner-info">
         <span class="banner-icon">
@@ -36,39 +42,29 @@
         @category-selected="toggleCategoryFilter"
       />
       <NexoCreditChart :summary="creditSummary" :format-money="formatMoney" />
-      <NexoRecentTransactions
-        class="overview-recent"
-        :categories="categories"
-        :recent-transactions="filteredRecentTransactions"
-        :credit-cards="creditCards"
-        :selected-category="selectedCategory"
-        :format-short-date="formatShortDate"
-        :format-signed-money="formatSignedMoney"
-        @view-all="$emit('view-transactions')"
-        @clear-filter="selectedCategory = null"
-        @toggle-ignored="$emit('toggle-ignored', $event)"
-        @delete-transaction="$emit('delete-transaction', $event)"
-      />
     </div>
   </div>
 </template>
 
 <script>
 import NexoAllocationDonut from './NexoAllocationDonut.vue'
-import NexoRecentTransactions from './NexoRecentTransactions.vue'
 import NexoSummaryCards from './NexoSummaryCards.vue'
+import NexoPhysicalIndicator from './NexoPhysicalIndicator.vue'
 import NexoCreditChart from './NexoCreditChart.vue'
 
 export default {
   name: 'NexoOverviewTab',
   components: {
     NexoAllocationDonut,
-    NexoRecentTransactions,
     NexoSummaryCards,
+    NexoPhysicalIndicator,
     NexoCreditChart,
   },
-  emits: ['view-transactions', 'view-credit', 'toggle-ignored', 'delete-transaction'],
+  emits: ['view-transactions', 'view-credit', 'view-physical', 'toggle-ignored', 'delete-transaction'],
   props: {
+    physicalState: { type: Object, default: null },
+    physicalOffline: Boolean,
+    physicalError: { type: String, default: '' },
     creditCards: { type: Array, default: () => [] },
     creditSummary: { type: Object, default: () => ({expense:0,categories:[]}) },
     totals: {
