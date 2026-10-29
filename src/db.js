@@ -142,6 +142,9 @@ db.version(28).stores({
 });
 
 let dbOpenPromise = null;
+db.version(29).stores({
+  background_settings: '&key',
+});
 
 function canUseBrowserStorage() {
   return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";

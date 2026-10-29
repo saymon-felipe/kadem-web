@@ -90,6 +90,7 @@ export const useAuthStore = defineStore("auth", {
     },
 
     async _acceptLoginResponse(response) {
+      await (await import('@/services/notificationService')).notificationService.reset().catch(() => {});
       invalidateSyncSession();
       const { token, user } = response.data;
 
@@ -145,6 +146,7 @@ export const useAuthStore = defineStore("auth", {
 
     async logout(force = false, not_redirect = false) {
       invalidateSyncSession();
+      await (await import('@/services/notificationService')).notificationService.reset().catch(() => {});
       const windowStore = useWindowStore();
       const appStore = useAppStore();
       const projectStore = useProjectStore();

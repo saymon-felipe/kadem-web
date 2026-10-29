@@ -43,6 +43,7 @@ export const useAppStore = defineStore("app", {
   state: () => ({
     system: {},
     isStartMenuOpen: false,
+    startMenuInitialTab: "main",
     isMobile: window.innerWidth < 1100,
     theme: systemTheme(),
     themeOverride: null,
@@ -140,6 +141,10 @@ export const useAppStore = defineStore("app", {
     },
     toggleStartMenu() {
       this.isStartMenuOpen = !this.isStartMenuOpen;
+    },
+    openStartMenu(tab = "main") {
+      this.startMenuInitialTab = tab;
+      this.isStartMenuOpen = true;
     },
     closeStartMenu() {
       if (this.isStartMenuOpen) {

@@ -69,6 +69,7 @@ import { useAppStore } from "@/stores/app";
 import MainInformations from "./MainInformations.vue";
 import Configuration from "./Configuration.vue";
 import SecuritySettings from "./SecuritySettings.vue";
+import PrivacySettings from "./PrivacySettings.vue";
 import AccountCenter from "./AccountCenter/AccountCenter.vue";
 import NewProject from "./NewProject.vue";
 import ConfirmationModal from "../ConfirmationModal.vue";
@@ -83,6 +84,7 @@ export default {
     MainInformations,
     Configuration,
     SecuritySettings,
+    PrivacySettings,
     AccountCenter,
     NewProject,
     ConfirmationModal,
@@ -104,6 +106,7 @@ export default {
           isNav: true,
         },
         { id: "config", name: "Configurações", component: Configuration, isNav: true },
+        { id: "privacy", name: "Privacidade", component: PrivacySettings, isNav: true },
         { id: "security", name: "Segurança", component: SecuritySettings, isNav: true },
         {
           id: "accounts",
@@ -177,7 +180,7 @@ export default {
     },
     // Todas as abas ficam montadas; a de Segurança só busca dados quando está visível.
     paneProps(tab) {
-      return tab.id === "security" ? { active: this.activeTab === "security" } : {};
+      return ["security", "privacy"].includes(tab.id) ? { active: this.activeTab === tab.id } : {};
     },
     goToLogoutScreen() {
       this.$router.push("/logout");
@@ -225,6 +228,13 @@ export default {
         this.goToLogoutScreen();
       }
     },
+  },
+  mounted() {
+    const appStore = useAppStore();
+    if (appStore.startMenuInitialTab && appStore.startMenuInitialTab !== "main") {
+      this.setActiveTabById(appStore.startMenuInitialTab);
+      appStore.startMenuInitialTab = "main";
+    }
   },
 };
 </script>

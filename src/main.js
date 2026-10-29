@@ -38,6 +38,8 @@ import {
   faCheck,
   faCommentDots,
   faGripLines,
+  faBell,
+  faBellSlash,
   faEllipsisV,
   faChevronDown,
   faChevronLeft,
@@ -188,6 +190,8 @@ library.add(
   faCopy,
   faCog,
   faGripLines,
+  faBell,
+  faBellSlash,
   faCheck,
   faCommentDots,
   faEllipsisV,
@@ -359,3 +363,5 @@ utils_store.init_connection_monitor();
 initializeLocalDb().catch(() => {});
 
 app.mount('#app');
+import { initializeNotifications } from '@/services/notificationService';
+initializeNotifications().catch(error => console.warn('Não foi possível iniciar os lembretes pessoais.', error));

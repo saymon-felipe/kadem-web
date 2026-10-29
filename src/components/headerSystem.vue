@@ -1,6 +1,7 @@
 <template>
   <div class="header-wrapper">
     <header class="glass">
+      <NotificationTray />
       <button class="plan-pill" @click="open_plan_modal" :class="{ 'is-pro': is_pro }" title="Gerenciar Plano">
         <span class="status-dot"></span>
         {{ plan_label }}
@@ -103,6 +104,7 @@ import { useAiCreditsStore } from "@/stores/aiCredits";
 import ContextMenu from "./ContextMenu.vue";
 import StartMenu from "./startMenu/StartMenu.vue";
 import SubscriptionModal from "./SubscriptionModal.vue";
+import NotificationTray from "./notifications/NotificationTray.vue";
 import { mobileNavigationMixin } from "@/utils/mobileNavigation";
 
 const ANIMATION_DURATION = 150;
@@ -114,6 +116,7 @@ export default {
     ContextMenu,
     StartMenu,
     SubscriptionModal,
+    NotificationTray,
   },
   data() {
     return {
@@ -263,6 +266,11 @@ export default {
       if (isCreditsPopover) {
         // O dropdown de créditos de IA flutua por cima de tudo e cuida do próprio
         // fechamento (botão/clique fora); não deve fechar o Menu Iniciar por baixo.
+        return;
+      }
+      const isTray = event.target.closest(".notification-tray-anchor");
+      if (isTray) {
+        // O tray de notificações cuida do próprio fechamento
         return;
       }
       if (this.show_credits_dropdown) {
@@ -706,6 +714,55 @@ header {
   .ai-credits-anchor .ai-credits-badge {
     gap: 0;
     padding: var(--space-3) !important;
+  }
+}
+
+@media (max-width: 600px) {
+  header {
+    gap: var(--space-2);
+    padding: 0 44px;
+    justify-content: center;
+  }
+
+  header button.header-button {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    max-width: 44px;
+    max-height: 44px;
+    margin: 0 1px;
+    padding: var(--space-2);
+  }
+
+  .plan-pill {
+    height: 32px;
+    padding: 4px 8px;
+    font-size: var(--fontsize-xs);
+    margin-right: 2px;
+  }
+}
+
+@media (max-width: 400px) {
+  header {
+    padding: 0 40px;
+    gap: 1px;
+  }
+
+  header button.header-button {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    max-width: 38px;
+    max-height: 38px;
+    margin: 0 1px;
+  }
+
+  .plan-pill {
+    height: 28px;
+    padding: 2px 6px;
+    font-size: 11px;
   }
 }
 </style>

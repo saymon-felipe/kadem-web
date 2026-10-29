@@ -47,6 +47,9 @@ export const syncQueueRepository = {
     });
   },
   async addSyncQueueTask(task) {
+    if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+      navigator.serviceWorker.getRegistration().then(registration => registration?.sync?.register('kadem-personal-sync')).catch(() => {});
+    }
     return runDbOperation(async () => {
       const timestamp = task.timestamp || new Date().toISOString();
       const idempotency_key =
