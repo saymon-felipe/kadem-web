@@ -533,3 +533,17 @@ test("tentativa interativa não fica disponível simultaneamente na fila de uplo
     assert.equal((await m.db.syncQueue.toArray())[0].status, "FAILED");
   } finally { await m.close(); }
 });
+
+test('moedas estrangeiras são exibidas sem rotular USD como BRL e histórico não mistura moedas', { timeout: 30000 }, async () => {
+  const m = await setup();
+  try {
+    const { default: component } = await m.server.ssrLoadModule('/src/components/finance/nexo/NexoReceiptsTab.vue');
+    const data = { document_kind: 'FOREIGN_RECEIPT', country_code: 'PY', currency: 'USD', total: '416.99' };
+    assert.equal(component.computed.foreignReceipt.call({ selected: { data } }), true);
+    assert.equal(component.computed.receiptCurrency.call({ selected: { data }, foreignReceipt: true }), 'USD');
+    assert.match(component.methods.money('416.99', 'USD'), /US\$/);
+    assert.match(component.methods.money('2185.01'), /R\$/);
+    const vm = { history: [{ unit_price: '35.99', currency: 'USD' }, { unit_price: '1.00', currency: 'BRL' }, { unit_price: '30.00', currency: 'USD' }] };
+    assert.equal(component.computed.lowestHistoryPrice.call(vm), 30);
+  } finally { await m.close(); }
+});

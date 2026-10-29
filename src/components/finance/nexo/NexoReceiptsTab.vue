@@ -307,7 +307,8 @@
               </div>
 
               <div class="receipt-row-end">
-                <strong class="receipt-amount">{{ money(row.total) }}</strong>
+                <strong class="receipt-amount">{{ money(row.total ?? row.data?.total, row.total == null ? (row.data?.currency || (row.data?.document_kind === 'FOREIGN_RECEIPT' ? '???' : 'BRL')) : 'BRL') }}</strong>
+                <small v-if="row.data?.document_kind === 'FOREIGN_RECEIPT'">Nota estrangeira · {{ money(row.data.total, row.data.currency || '???') }}</small>
                 <div class="receipt-row-actions">
                   <button
                     type="button"
@@ -695,6 +696,9 @@
     <!-- MODAL 1: DETALHES DA NOTA FISCAL (Simplificado e Objetivo) -->
     <BaseModal :model-value="!!selected" :title="selected?.merchant || 'Nota fiscal'" size="lg" @close="closeDetail">
       <div v-if="selected" class="nexo-receipt-modal">
+        <div v-if="foreignReceipt" class="nexo-banner info" role="status">
+          Comprovante estrangeiro · {{ receiptCountry }}. Valores originais em {{ receiptCurrency }}.
+        </div>
         <div v-if="selected.sync_error" class="nexo-banner error" role="alert">Falha no envio: {{ selected.sync_error }}. Tente novamente ou exclua o rascunho.</div>
         <div v-for="warning in selected.warnings" :key="warning" class="nexo-banner warning" role="alert">
           <font-awesome-icon icon="triangle-exclamation" class="banner-icon" />
@@ -753,9 +757,16 @@
 
           <div class="overview-total-col">
             <span class="stat-label">Valor total</span>
-            <strong class="overview-total-value">{{ money(selected.total) }}</strong>
+            <strong class="overview-total-value">{{ money(selected.total ?? selected.data?.total, selected.total == null ? receiptCurrency : 'BRL') }}</strong>
+            <small v-if="foreignReceipt">Original: {{ money(selected.data.total, receiptCurrency) }}</small>
           </div>
         </header>
+        <div v-if="foreignReceipt && selected.data?.accounting?.exchange_rate" class="nexo-banner info" role="status">
+          {{ receiptPaymentLabel }}: {{ money(selected.data.accounting.paid_total) }} · Troco: {{ money(selected.data.accounting.change) }}.
+          Câmbio efetivo da compra em {{ dateLabel(selected.issued_on) }}:
+          1 {{ receiptCurrency }} ≈ {{ money(selected.data.accounting.exchange_rate) }}.
+          Calculado pelo pagamento líquido e pelo total original.
+        </div>
 
         <Transition name="receipt-stage-next" mode="out-in">
           <!-- Modo de Edição Manual (Exclusivo enquanto aberto) -->
@@ -775,7 +786,7 @@
                   <input v-model="edit.merchant" class="nexo-control" required maxlength="255" />
                 </label>
                 <label class="filter-field">
-                  <span>CPF / CNPJ</span>
+                  <span>{{ foreignReceipt ? 'Identificador do emitente (RUC etc.)' : 'CPF / CNPJ' }}</span>
                   <input v-model="edit.issuer_id" class="nexo-control" required maxlength="30" />
                 </label>
                 <label class="filter-field">
@@ -783,10 +794,10 @@
                   <input v-model="edit.issued_on" type="date" class="nexo-control" required />
                 </label>
                 <label class="filter-field">
-                  <span>Total (R$)</span>
+                  <span>Total ({{ receiptCurrency }})</span>
                   <input v-model="edit.total" type="number" min="0.01" step="0.01" class="nexo-control" required />
                 </label>
-                <label class="filter-field">
+                <label v-if="!foreignReceipt" class="filter-field">
                   <span>Modelo</span>
                   <select v-model="edit.model" class="nexo-control">
                     <option value="55">NF-e (Modelo 55)</option>
@@ -794,17 +805,50 @@
                   </select>
                 </label>
                 <label class="filter-field">
-                  <span>Desconto total (R$)</span>
+                  <span>Desconto total ({{ receiptCurrency }})</span>
                   <input v-model="edit.discount" type="number" min="0" step="0.01" class="nexo-control" />
                 </label>
                 <label class="filter-field">
-                  <span>Frete (R$)</span>
+                  <span>Frete ({{ receiptCurrency }})</span>
                   <input v-model="edit.freight" type="number" min="0" step="0.01" class="nexo-control" />
                 </label>
                 <label class="filter-field">
-                  <span>Outros acréscimos (R$)</span>
+                  <span>Outros acréscimos ({{ receiptCurrency }})</span>
                   <input v-model="edit.other" type="number" step="0.01" class="nexo-control" />
                 </label>
+              </div>
+
+              <div v-if="foreignReceipt" class="edit-fields-grid">
+                <label class="filter-field">
+                  <span>País do emitente (sigla)</span>
+                  <input v-model.trim="edit.country_code" maxlength="2" class="nexo-control" @input="edit.country_code = edit.country_code.toUpperCase()" />
+                </label>
+                <label class="filter-field">
+                  <span>Moeda dos itens (USD, BRL etc.)</span>
+                  <input v-model.trim="edit.currency" maxlength="3" class="nexo-control" @input="edit.currency = edit.currency.toUpperCase()" />
+                </label>
+                <label class="filter-field">
+                  <span>Troco</span>
+                  <input v-model="edit.change" type="number" min="0" step="0.01" class="nexo-control" />
+                </label>
+                <label class="filter-field">
+                  <span>Moeda do troco</span>
+                  <input v-model.trim="edit.change_currency" maxlength="3" class="nexo-control" @input="edit.change_currency = edit.change_currency.toUpperCase()" />
+                </label>
+                <template v-for="(payment, index) in edit.payments" :key="index">
+                  <label class="filter-field">
+                    <span>Forma do pagamento {{ index + 1 }}</span>
+                    <input v-model="payment.fiscal_method" placeholder="Ex.: dinheiro" class="nexo-control" />
+                  </label>
+                  <label class="filter-field">
+                    <span>Valor entregue</span>
+                    <input v-model="payment.amount" type="number" min="0" step="0.01" class="nexo-control" />
+                  </label>
+                  <label class="filter-field">
+                    <span>Moeda do pagamento</span>
+                    <input v-model.trim="payment.currency" maxlength="3" class="nexo-control" @input="payment.currency = payment.currency.toUpperCase()" />
+                  </label>
+                </template>
               </div>
 
               <div class="nexo-table-wrap">
@@ -1064,8 +1108,14 @@
                   <small v-if="row.gtin || row.supplier_code" class="table-item-code">{{ row.gtin || row.supplier_code }}</small>
                 </template>
                 <template #quantity="{ row }">{{ quantityLabel(row.quantity, row.unit) }}</template>
-                <template #unit_price="{ row }">{{ money(row.unit_price) }}</template>
-                <template #total="{ row }"><strong>{{ money(row.total) }}</strong></template>
+                <template #unit_price="{ row }">
+                  {{ money(row.unit_price, receiptCurrency) }}
+                  <small v-if="foreignReceipt && selected.data?.accounting?.exchange_rate">≈ {{ money(Number(row.unit_price) * Number(selected.data.accounting.exchange_rate)) }}</small>
+                </template>
+                <template #total="{ row }">
+                  <strong>{{ money(row.total, receiptCurrency) }}</strong>
+                  <small v-if="Number(row.discount) > 0">Desconto: {{ money(row.discount, receiptCurrency) }}</small>
+                </template>
                 <template #actions="{ row }">
                   <div class="table-row-actions">
                     <button type="button" class="icon-btn small" title="Histórico de preços" aria-label="Histórico de preços"
@@ -1318,11 +1368,11 @@
           </article>
           <article class="detail-stat-card">
             <span class="stat-label">Último preço unitário</span>
-            <strong class="stat-value">{{ money(history[0]?.unit_price) }}</strong>
+            <strong class="stat-value">{{ money(history[0]?.unit_price, history[0]?.currency) }}</strong>
           </article>
           <article class="detail-stat-card">
-            <span class="stat-label">Menor preço pago</span>
-            <strong class="stat-value positive">{{ money(lowestHistoryPrice) }}</strong>
+            <span class="stat-label">Menor preço pago ({{ history[0]?.currency || 'BRL' }})</span>
+            <strong class="stat-value positive">{{ money(lowestHistoryPrice, history[0]?.currency) }}</strong>
           </article>
         </section>
 
@@ -1352,7 +1402,7 @@
             </div>
             <div class="receipt-row-end">
               <div class="purchase-price-stack">
-                <strong>{{ money(purchase.unit_price) }}/un.</strong>
+                <strong>{{ money(purchase.unit_price, purchase.currency) }}/un.</strong>
                 <small>{{ quantityLabel(purchase.quantity, purchase.unit) }}</small>
               </div>
               <span class="row-chevron">
@@ -1548,6 +1598,22 @@ export default {
     },
   }),
   computed: {
+    foreignReceipt() {
+      return this.selected?.data?.document_kind === 'FOREIGN_RECEIPT';
+    },
+    receiptCurrency() {
+      return this.selected?.data?.currency || (this.foreignReceipt ? '???' : 'BRL');
+    },
+    receiptCountry() {
+      const code = this.selected?.data?.country_code;
+      try { return new Intl.DisplayNames(['pt-BR'], { type: 'region' }).of(code); }
+      catch { return code || 'país não identificado'; }
+    },
+    receiptPaymentLabel() {
+      const payments = this.selected?.data?.accounting?.payments || [];
+      return payments.length && payments.every((payment) => /^(?:01|cash|efectivo|dinheiro|dinheiro em especie)$/i.test(payment.fiscal_method || ''))
+        ? 'Dinheiro em espécie' : 'Pagamento';
+    },
     unmatchedLocalFiles() {
       const ids = new Set((this.selected?.documents || []).map((document) => document.id));
       return this.localFiles.filter((file) => !file.document_id || !ids.has(file.document_id));
@@ -1594,7 +1660,9 @@ export default {
     },
     lowestHistoryPrice() {
       if (!this.history?.length) return null;
-      const prices = this.history.map((p) => Number(p?.unit_price)).filter((n) => Number.isFinite(n) && n > 0);
+      const currency = this.history[0]?.currency || 'BRL';
+      if (currency === '???') return null;
+      const prices = this.history.filter((p) => (p.currency || 'BRL') === currency).map((p) => Number(p?.unit_price)).filter((n) => Number.isFinite(n) && n > 0);
       return prices.length ? Math.min(...prices) : this.history[0]?.unit_price;
     },
   },
@@ -1698,10 +1766,11 @@ export default {
       };
       this.gliderReady = true;
     },
-    money(value) {
+    money(value, currency = 'BRL') {
+      if (!/^[A-Z]{3}$/.test(currency || '')) return value == null ? '—' : `${Number(value).toLocaleString('pt-BR')} (moeda não identificada)`;
       return value == null
         ? "—"
-        : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value));
+        : new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(Number(value));
     },
     quantityLabel(value, unit) {
       const num = Number(value);
@@ -2001,13 +2070,18 @@ export default {
         issuer_id: d.issuer_id || "",
         issued_on: d.issued_on || "",
         total: d.total || "",
-        model: d.model || "65",
+        model: d.model || (this.foreignReceipt ? null : "65"),
         environment: d.environment || "1",
         discount: d.discount || "0",
         freight: d.freight || "0",
         other: d.other || "0",
         document_complete: !!this.selected.original_complete,
         items: JSON.parse(JSON.stringify(d.items || [])),
+        ...(this.foreignReceipt ? {
+          document_kind: 'FOREIGN_RECEIPT', country_code: d.country_code || '', currency: d.currency || '',
+          change: d.change || '0', change_currency: d.change_currency || '',
+          payments: JSON.parse(JSON.stringify(d.payments?.length ? d.payments : [{ fiscal_method: null, amount: null, currency: null }])),
+        } : {}),
       };
       this.editing = true;
     },
