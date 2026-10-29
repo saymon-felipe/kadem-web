@@ -36,7 +36,8 @@
         @reset="$emit('reset-csv')"
         @confirm="$emit('confirm-csv', $event)"
       />
-      <div class="transaction-filters-bar">
+      <NexoFilterPanel v-slot="{ compact }" title="Filtrar movimentos" :has-filters="hasActiveFilters" :surface="false" show-results-action>
+      <div class="transaction-filters-bar" :class="{ 'in-filter-modal': compact }">
         <div class="filter-field search-filter">
           <label for="transaction-search-input">Buscar</label>
           <div class="input-with-icon">
@@ -83,6 +84,7 @@
           </button>
         </div>
       </div>
+      </NexoFilterPanel>
     </div>
     <p v-if="paymentOriginError" class="payment-origin-error" role="alert">{{ paymentOriginError }}</p>
     <NexoTransactionsTable
@@ -110,6 +112,7 @@
 import CategoryCombo from "../CategoryCombo.vue";
 import NexoCsvImportCard from "./NexoCsvImportCard.vue";
 import NexoTransactionsTable from "./NexoTransactionsTable.vue";
+import NexoFilterPanel from "./NexoFilterPanel.vue";
 
 export default {
   name: "NexoTransactionsTab",
@@ -117,6 +120,7 @@ export default {
     CategoryCombo,
     NexoCsvImportCard,
     NexoTransactionsTable,
+    NexoFilterPanel,
   },
   emits: [
     "auto-categorize",
@@ -362,6 +366,18 @@ export default {
   align-items: flex-end;
   gap: var(--space-3);
   flex-wrap: wrap;
+}
+
+.transaction-filters-bar.in-filter-modal {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+.transaction-filters-bar.in-filter-modal .filter-field {
+  flex: none;
+  min-width: 0;
+  width: 100%;
 }
 
 .filter-field {

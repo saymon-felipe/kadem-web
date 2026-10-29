@@ -160,8 +160,8 @@
             </button>
           </div>
 
-          <div class="filters-surface">
-            <form class="receipt-filters-bar" @submit.prevent="reload">
+          <NexoFilterPanel v-slot="{ compact, close }" title="Filtrar notas e produtos" :has-filters="hasActiveReceiptFilters">
+            <form class="receipt-filters-bar" :class="{ 'in-filter-modal': compact }" @submit.prevent="close(); reload()">
               <div class="filter-field search-filter">
                 <label for="receipt-filter-q">Pesquisar notas e produtos</label>
                 <div class="input-with-icon">
@@ -181,6 +181,7 @@
                     title="Limpar busca"
                     @click="
                       filters.q = '';
+                      close();
                       reload();
                     "
                   >
@@ -243,14 +244,14 @@
                   type="button"
                   class="reset-filters-btn"
                   title="Limpar filtros"
-                  @click="clearReceiptFilters"
+                  @click="close(); clearReceiptFilters()"
                 >
                   <font-awesome-icon icon="xmark" />
                   <span>Limpar</span>
                 </button>
               </div>
             </form>
-          </div>
+          </NexoFilterPanel>
 
           <div v-if="rows.length" class="receipt-list">
             <div
@@ -366,8 +367,8 @@
 
         <!-- ABA 2: PRODUTOS -->
         <div v-else-if="view === 'products'" key="products" class="receipt-view-stage">
-          <div class="filters-surface">
-            <form class="receipt-filters-bar products-filter-bar" @submit.prevent="loadProducts">
+          <NexoFilterPanel v-slot="{ compact, close }" title="Filtrar produtos" :has-filters="!!productQuery.trim()">
+            <form class="receipt-filters-bar products-filter-bar" :class="{ 'in-filter-modal': compact }" @submit.prevent="close(); loadProducts()">
               <div class="filter-field search-filter">
                 <label for="product-search-input">Pesquisar catálogo de produtos</label>
                 <div class="input-with-icon">
@@ -387,6 +388,7 @@
                     title="Limpar busca"
                     @click="
                       productQuery = '';
+                      close();
                       loadProducts();
                     "
                   >
@@ -405,6 +407,7 @@
                   class="reset-filters-btn"
                   @click="
                     productQuery = '';
+                    close();
                     loadProducts();
                   "
                 >
@@ -413,7 +416,7 @@
                 </button>
               </div>
             </form>
-          </div>
+          </NexoFilterPanel>
 
           <NexoReceiptGrid v-if="products.length" v-model:column-order="productColumnOrder"
             :columns="productGridColumns" :rows="products" label="Produtos das notas fiscais">
@@ -1495,6 +1498,7 @@
 import BaseModal from "@/components/BaseModal.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import NexoReceiptGrid from "./NexoReceiptGrid.vue";
+import NexoFilterPanel from "./NexoFilterPanel.vue";
 import { receiptService } from "@/services/receiptService";
 import { receiptRepository } from "@/services/localData/receiptRepository";
 import { api } from "@/plugins/api";
@@ -1507,7 +1511,7 @@ import { groupReceiptItems, matchingReceiptItemIds } from "@/utils/receiptItemGr
 
 export default {
   name: "NexoReceiptsTab",
-  components: { BaseModal, ConfirmationModal, NexoReceiptGrid },
+  components: { BaseModal, ConfirmationModal, NexoReceiptGrid, NexoFilterPanel },
   props: {
     active: Boolean,
     transactionId: { type: [Number, String], default: null },
@@ -3171,19 +3175,29 @@ export default {
 /* ==========================================================================
    CONTROLES DE FORMULÁRIO, FILTROS & INPUTS (Reset sobre main.css + Teleport)
    ========================================================================== */
-.filters-surface {
-  background: var(--surface-1);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-}
-
 .receipt-filters-bar {
   display: flex;
   flex-direction: row !important;
   align-items: flex-end;
   gap: var(--space-3);
   flex-wrap: wrap;
+}
+
+.receipt-filters-bar.in-filter-modal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+.receipt-filters-bar.in-filter-modal .filter-field,
+.in-filter-modal .filter-actions-col {
+  min-width: 0;
+  width: 100%;
+}
+
+.in-filter-modal .filter-actions-col button {
+  flex: 1;
 }
 
 .filter-field {
@@ -5089,10 +5103,6 @@ button:disabled {
 
   .header-actions > .primary-action {
     flex: 1;
-  }
-
-  .filters-surface {
-    padding: var(--space-3);
   }
 
   .receipt-filters-bar {
