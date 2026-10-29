@@ -1110,11 +1110,11 @@
                 <template #quantity="{ row }">{{ quantityLabel(row.quantity, row.unit) }}</template>
                 <template #unit_price="{ row }">
                   {{ money(row.unit_price, receiptCurrency) }}
-                  <small v-if="foreignReceipt && selected.data?.accounting?.exchange_rate">≈ {{ money(Number(row.unit_price) * Number(selected.data.accounting.exchange_rate)) }}</small>
+                  <small v-if="foreignReceipt && selected.data?.accounting?.exchange_rate" class="receipt-amount-detail">≈ {{ money(Number(row.unit_price) * Number(selected.data.accounting.exchange_rate)) }}</small>
                 </template>
                 <template #total="{ row }">
                   <strong>{{ money(row.total, receiptCurrency) }}</strong>
-                  <small v-if="Number(row.discount) > 0">Desconto: {{ money(row.discount, receiptCurrency) }}</small>
+                  <small v-if="Number(row.discount) > 0" class="receipt-amount-detail">Desconto: {{ money(row.discount, receiptCurrency) }}</small>
                 </template>
                 <template #actions="{ row }">
                   <div class="table-row-actions">
@@ -4297,9 +4297,16 @@ button:disabled {
 
 .table-item-name {
   display: block;
+  min-width: 160px;
   color: var(--text-primary);
   font-size: 0.84rem;
   overflow-wrap: anywhere;
+}
+
+.receipt-amount-detail {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-secondary);
 }
 
 .table-item-code {
