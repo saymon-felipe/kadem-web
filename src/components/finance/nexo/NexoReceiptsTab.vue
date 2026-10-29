@@ -274,7 +274,7 @@
                     <strong>{{ row.merchant || "Comprovante aguardando leitura" }}</strong>
                     <span v-if="row.pending_sync" class="status-pill pending">
                       <font-awesome-icon icon="cloud-arrow-up" />
-                      Aguardando envio
+                      {{ row.sync_error ? "Falha no envio" : "Aguardando envio" }}
                     </span>
                     <span v-else class="status-pill" :class="statusTone(row)">
                       {{ states[row.status] || row.status }}
@@ -682,9 +682,20 @@
       </div>
     </BaseModal>
 
+    <ConfirmationModal
+      :model-value="!!captureFailure"
+      message="Atenção: não foi possível enviar a nota fiscal"
+      :description="captureFailure.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')"
+      confirm-text="Entendi"
+      cancel-text="Fechar"
+      @cancelled="captureFailure = ''"
+      @confirmed="captureFailure = ''"
+    />
+
     <!-- MODAL 1: DETALHES DA NOTA FISCAL (Simplificado e Objetivo) -->
     <BaseModal :model-value="!!selected" :title="selected?.merchant || 'Nota fiscal'" size="lg" @close="closeDetail">
       <div v-if="selected" class="nexo-receipt-modal">
+        <div v-if="selected.sync_error" class="nexo-banner error" role="alert">Falha no envio: {{ selected.sync_error }}. Tente novamente ou exclua o rascunho.</div>
         <div v-for="warning in selected.warnings" :key="warning" class="nexo-banner warning" role="alert">
           <font-awesome-icon icon="triangle-exclamation" class="banner-icon" />
           <span>{{ warning }}</span>
@@ -1495,6 +1506,7 @@ export default {
     hasMore: false,
     selected: null,
     captureModalOpen: false,
+    captureFailure: "",
     reconcilePanel: "",
     confirmDelete: false,
     deleteTarget: null,
@@ -1618,6 +1630,7 @@ export default {
       this.rows = [];
       this.selected = null;
       this.captureModalOpen = false;
+      this.captureFailure = "";
       this.reconcilePanel = "";
       this.confirmDelete = false;
       this.deleteTarget = null;
@@ -1886,12 +1899,13 @@ export default {
             failures.push(error?.response?.data?.message || error.message);
           }
         }
-        this.message = failures.length
-          ? `${failures.length} importação(ões) precisam de atenção. Confira os rascunhos locais. ${failures[0]}`
-          : "Originais preservados. Confira os dados e as conciliações.";
-        if (!failures.length) {
-          this.stopCamera();
-          this.captureModalOpen = false;
+        this.stopCamera();
+        this.captureModalOpen = false;
+        if (failures.length) {
+          this.message = "";
+          this.captureFailure = `${failures.length} envio(s) falharam. ${failures[0]}`;
+        } else {
+          this.message = navigator.onLine ? "Originais preservados. Confira os dados e as conciliações." : "Arquivo salvo neste dispositivo, aguardando conexão para envio.";
         }
         this.$emit("changed");
       });
@@ -1905,7 +1919,14 @@ export default {
     },
     async captureReference() {
       await this.run(async () => {
-        await receiptService.capture([], this.qr);
+        try {
+          await receiptService.capture([], this.qr);
+        } catch (error) {
+          this.stopCamera();
+          this.captureModalOpen = false;
+          this.captureFailure = error.message || "Não foi possível registrar a referência.";
+          return;
+        }
         this.qr = "";
         this.stopCamera();
         this.captureModalOpen = false;
@@ -1915,7 +1936,7 @@ export default {
     },
     async open(row) {
       await this.run(async () => {
-        this.selected = await this.request(() => receiptService.detail(row));
+        this.selected = { ...await this.request(() => receiptService.detail(row)), sync_error: row.sync_error };
         this.groupItems = true;
         this.localFiles = await receiptRepository.files(useAuthStore().user.id, row.local_key);
         this.editing = false;
@@ -1952,12 +1973,14 @@ export default {
       });
     },
     async reprocess(use_ai) {
+      let completed = false;
       await this.run(async () => {
         this.progress = "Lendo o comprovante…";
         this.selected = await receiptService.retry(this.selected, use_ai);
+        completed = true;
         this.$emit("changed");
       });
-      await this.reload();
+      if (completed) await this.reload();
     },
     startEdit() {
       const d = this.selected.data || {};

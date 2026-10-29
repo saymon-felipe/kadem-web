@@ -140,7 +140,7 @@ test('patrimônio físico preserva consulta offline, isola contas e rejeita resp
   } finally { await m.close(); }
 });
 
-test("Dexie v26 → v28 preserva lançamentos e adiciona os arquivos fiscal e patrimonial", { timeout: 30000 }, async () => {
+test("Dexie v26 → v29 preserva lançamentos e adiciona os arquivos fiscal e patrimonial", { timeout: 30000 }, async () => {
   const old = new Dexie("KademDB");
   old.version(26).stores({
     finance_transactions:
@@ -151,7 +151,7 @@ test("Dexie v26 → v28 preserva lançamentos e adiciona os arquivos fiscal e pa
   old.close();
   const m = await setup();
   try {
-    assert.equal(m.db.verno, 28);
+    assert.equal(m.db.verno, 29);
     assert.equal((await m.db.finance_transactions.where("id").equals(123).first()).description, "Preservar");
     assert.ok(m.db.finance_receipt_files);
     assert.ok(m.db.finance_physical_cache);
@@ -396,4 +396,82 @@ test("outro dispositivo remove cópia offline quando descobre a exclusão no ser
     assert.equal((await m.receiptRepository.files(1, row.local_key)).length, 0);
     assert.equal((await m.db.syncQueue.toArray()).filter((task) => task.type === "SYNC_FINANCE_RECEIPT").length, 0);
   } finally { await m.close(); }
+});
+
+test("falha ao enviar cancela rascunho remoto vazio e remove a fila", { timeout: 30000 }, async () => {
+  const m = await setup();
+  try {
+    navigator.onLine = true;
+    let clientId;
+    m.api.post = async (url, body) => {
+      if (url === "/finance/receipts") { clientId = body.client_id; return { data: { id: "draft", client_id: clientId, documents: [] } }; }
+      throw Object.assign(new Error("upload falhou"), { response: { status: 400, data: { message: "Arquivo inválido" } } });
+    };
+    m.api.get = async () => ({ data: { id: "draft", client_id: clientId, documents: [] } });
+    m.api.delete = async (url) => { assert.equal(url, "/finance/receipts/draft"); };
+    await assert.rejects(() => m.receiptService.capture([new File(["x"], "nota.xml")]), /Arquivo inválido.*inserção foi cancelada/);
+    assert.equal(await m.db.finance_receipts.count(), 0);
+    assert.equal(await m.db.finance_receipt_files.count(), 0);
+    assert.equal(await m.db.syncQueue.count(), 0);
+  } finally { await m.close(); }
+});
+
+test("falha após arquivo recebido preserva original, suspende envio e permite tentativa explícita", { timeout: 30000 }, async () => {
+  const m = await setup();
+  try {
+    navigator.onLine = true;
+    let key;
+    let processCount = 0;
+    const original = new File(["original"], "nota.xml", { type: "application/xml" });
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await original.arrayBuffer())), b => b.toString(16).padStart(2, "0")).join("");
+    m.api.post = async (url, body) => {
+      if (url === "/finance/receipts") { key = body.client_id; return { data: { id: "draft", client_id: key, documents: [] } }; }
+      if (url.endsWith("/documents")) return { data: { id: "draft", client_id: key, documents: [{ id: "doc", sha256: hash }] } };
+      if (url.endsWith("/process")) { if (++processCount === 1) throw new Error("conexão interrompida"); return { data: { id: "draft", client_id: key, documents: [{ id: "doc", sha256: hash }], status: "REVIEW" } }; }
+      assert.fail(url);
+    };
+    m.api.get = async () => assert.fail("não deve excluir nota processada");
+    m.api.delete = async () => assert.fail("não deve excluir nota processada");
+    await assert.rejects(() => m.receiptService.capture([original]), /preservado.*não será reenviado/);
+    const task = (await m.db.syncQueue.toArray())[0];
+    assert.equal(task.status, "FAILED");
+    assert.match(task.last_error, /conexão interrompida/);
+    const row = await m.receiptRepository.get(1, key);
+    assert.equal(await (await m.receiptRepository.files(1, key))[0].blob.text(), "original");
+    await m.receiptService.retry(row);
+    assert.equal(await m.db.syncQueue.count(), 0);
+    assert.equal((await m.receiptRepository.get(1, key)).pending_sync, false);
+  } finally { await m.close(); }
+});
+
+test("modal de captura fecha e mostra falhas sem mensagem de sucesso", { timeout: 30000 }, async () => {
+  const m = await setup();
+  const originalCapture = m.receiptService.capture;
+  try {
+    const { default: component } = await m.server.ssrLoadModule("/src/components/finance/nexo/NexoReceiptsTab.vue");
+    const vm = { ...component.methods, busy: false, groupPhotos: false, captureModalOpen: true, message: "", captureFailure: "", stopCamera() {}, reload: async () => {}, $emit() {} };
+    m.receiptService.capture = async () => { throw new Error("Arquivo inválido. A inserção foi cancelada."); };
+    await vm.selectFiles({ target: { files: [new File(["x"], "nota.xml")], value: "x" } });
+    assert.equal(vm.captureModalOpen, false);
+    assert.equal(vm.message, "");
+    assert.match(vm.captureFailure, /Arquivo inválido.*cancelada/);
+    m.receiptService.capture = async () => ({});
+    vm.captureFailure = ""; vm.captureModalOpen = true;
+    await vm.selectFiles({ target: { files: [new File(["x"], "nota.xml")], value: "x" } });
+    assert.equal(vm.captureModalOpen, false);
+    assert.equal(vm.captureFailure, "");
+    assert.match(vm.message, /aguardando conexão/);
+  } finally { m.receiptService.capture = originalCapture; await m.close(); }
+});
+
+test("captura reverte gravação local se não conseguir criar a tarefa de envio", { timeout: 30000 }, async () => {
+  const m = await setup();
+  const { syncQueueRepository } = await m.server.ssrLoadModule("/src/services/localData/syncQueueRepository.js");
+  const originalAdd = syncQueueRepository.addSyncQueueTask;
+  try {
+    syncQueueRepository.addSyncQueueTask = async () => { throw new Error("fila indisponível"); };
+    await assert.rejects(() => m.receiptService.capture([new File(["original"], "nota.xml")]), /fila indisponível/);
+    assert.equal(await m.db.finance_receipts.count(), 0);
+    assert.equal(await m.db.finance_receipt_files.count(), 0);
+  } finally { syncQueueRepository.addSyncQueueTask = originalAdd; await m.close(); }
 });

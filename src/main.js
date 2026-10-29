@@ -15,6 +15,20 @@ import { useUtilsStore } from '@/stores/utils';
 import { initializeLocalDb } from "@/db";
 import { radioFlowApi } from "@/services/radioFlowApi";
 import "./services/pwaInstall";
+import { registerSW } from "virtual:pwa-register";
+
+registerSW({
+  immediate: true,
+  onRegisteredSW(_url, registration) {
+    const checkForUpdate = () => {
+      if (navigator.onLine && registration) registration.update().catch((error) => console.warn("[PWA] Falha ao verificar atualização.", error));
+    };
+    checkForUpdate();
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkForUpdate(); });
+    window.addEventListener("online", checkForUpdate);
+  },
+  onRegisterError(error) { console.warn("[PWA] Falha ao registrar service worker.", error); },
+});
 
 import {
   faForwardStep,

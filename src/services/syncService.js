@@ -937,7 +937,12 @@ export const syncService = {
             else await syncQueueRepository.deleteTask(task.id);
             console.log(`[SyncService] OK: ${task.type} (${task.id})`);
           } catch (error) {
-            if (error.response && (error.response.status === 403 || error.response.status === 404)) {
+            // A captura interativa pode ter cancelado ou suspendido esta tarefa enquanto ela aguardava o mesmo envio.
+            if (task.type === "SYNC_FINANCE_RECEIPT") {
+              const current = await db.syncQueue.get(task.id);
+              if (!current || current.status === "FAILED") continue;
+            }
+            if (task.type !== "SYNC_FINANCE_RECEIPT" && error.response && (error.response.status === 403 || error.response.status === 404)) {
               console.warn(`[SyncService] Erro Fatal (${error.response.status}). Removendo tarefa ${task.type}.`);
               await syncQueueRepository.deleteTask(task.id);
 
@@ -962,7 +967,7 @@ export const syncService = {
               console.error(`[SyncService] FALHA FINAL: Tarefa ${task.id} excedeu ${max_retries} tentativas.`);
               await syncQueueRepository.updateTask(task.id, {
                 status: "FAILED",
-                last_error: error.message || "Erro desconhecido",
+                last_error: error.response?.data?.message || error.message || "Erro desconhecido",
               });
             } else {
               const new_count = current_retries + 1;
@@ -973,7 +978,7 @@ export const syncService = {
                 retry_count: new_count,
                 status: "RETRY",
                 next_attempt_at: new Date(Date.now() + retryDelayMs).toISOString(),
-                last_error: error.message || "Erro desconhecido",
+                last_error: error.response?.data?.message || error.message || "Erro desconhecido",
               });
               hadFailure = true;
             }

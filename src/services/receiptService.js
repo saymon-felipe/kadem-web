@@ -52,6 +52,10 @@ export const receiptService = {
       }
     }
     const rows = await receiptRepository.list(user_id, filters);
+    const tasks = await db.syncQueue.where("type").equals("SYNC_FINANCE_RECEIPT").toArray();
+    const failures = new Map(tasks.filter((task) => task.payload?.user_id === user_id && task.last_error)
+      .map((task) => [task.payload.local_key, task.last_error]));
+    for (const row of rows) if (row.pending_sync && failures.has(row.local_key)) row.sync_error = failures.get(row.local_key);
     const result = filters.transaction_id
       ? rows.filter((r) =>
           matchingIds
@@ -67,15 +71,44 @@ export const receiptService = {
     const session = captureSyncSession();
     for (const file of files) if (file.size > 25 * 1024 * 1024) throw new Error("Cada arquivo deve ter até 25 MiB.");
     if (files.length > 20) throw new Error("Selecione até 20 fotografias da mesma nota.");
-    const row = await receiptRepository.create(user_id, files, qr_reference);
-    assertSyncSession(session);
-    await syncQueueRepository.addSyncQueueTask({
-      type: "SYNC_FINANCE_RECEIPT",
-      payload: { user_id, local_key: row.local_key },
-      idempotency_key: row.local_key,
-      compact_key: `receipt:${user_id}:${row.local_key}`,
+    const row = await db.transaction("rw", db.finance_receipts, db.finance_receipt_files, db.syncQueue, async () => {
+      const created = await receiptRepository.create(user_id, files, qr_reference);
+      assertSyncSession(session);
+      await syncQueueRepository.addSyncQueueTask({
+        type: "SYNC_FINANCE_RECEIPT",
+        payload: { user_id, local_key: created.local_key },
+        idempotency_key: created.local_key,
+        compact_key: `receipt:${user_id}:${created.local_key}`,
+      });
+      return created;
     });
-    if (online()) await this.sync(row.local_key, user_id);
+    if (online()) {
+      try {
+        await this.sync(row.local_key, user_id);
+      } catch (error) {
+        assertSyncSession(session);
+        const message = error?.response?.data?.message || error.message || "Erro desconhecido";
+        const tasks = await db.syncQueue.where("type").equals("SYNC_FINANCE_RECEIPT")
+          .filter((task) => task.payload?.user_id === user_id && task.payload?.local_key === row.local_key).toArray();
+        for (const task of tasks) await syncQueueRepository.updateTask(task.id, { status: "FAILED", last_error: message });
+        let cancelled = false;
+        try {
+          const current = await receiptRepository.get(user_id, row.local_key);
+          if (current?.id && !current.operation_key) {
+            const { data } = await api.get(`/finance/receipts/${current.id}`);
+            assertSyncSession(session);
+            if (data.id === current.id && data.client_id === row.local_key && Array.isArray(data.documents) && data.documents.length === 0) {
+              await api.delete(`/finance/receipts/${current.id}`, identity(user_id));
+              assertSyncSession(session);
+              await purgeLocal(user_id, [current]);
+              cancelled = true;
+            }
+          }
+        } catch { /* Preserve the original when cancellation cannot be confirmed. */ }
+        const detail = cancelled ? "A inserção foi cancelada." : "Não foi possível confirmar o cancelamento; o arquivo foi preservado para revisão e não será reenviado automaticamente.";
+        throw new Error(`${message} ${detail}`);
+      }
+    }
     assertSyncSession(session);
     return receiptRepository.get(user_id, row.local_key);
   },
@@ -177,7 +210,7 @@ export const receiptService = {
     );
     check();
     row = await receiptRepository.save(user_id, local_key, data, { pending_sync: false });
-    const tasks = await syncQueueRepository.getPendingTasksByType("SYNC_FINANCE_RECEIPT");
+    const tasks = await db.syncQueue.where("type").equals("SYNC_FINANCE_RECEIPT").toArray();
     for (const task of tasks.filter((t) => t.payload.user_id === user_id && t.payload.local_key === local_key))
       await syncQueueRepository.deleteTask(task.id);
     return row;
