@@ -58,9 +58,10 @@ export const receiptRepository = {
     await db.transaction("rw", db.finance_receipts, async () => {
       assertSyncSession(currentSession);
       for (const row of rows) {
-        const existing = await db.finance_receipts.where("[user_id+id]").equals([user_id, row.id]).first();
+        const existing = await db.finance_receipts.where("[user_id+id]").equals([user_id, row.id]).first()
+          || (row.client_id && await this.get(user_id, row.client_id));
         if (existing) {
-          if (!existing.pending_sync) await db.finance_receipts.update(existing.local_id, { ...row, user_id });
+          if (!existing.pending_sync && !existing.pending_delete) await db.finance_receipts.update(existing.local_id, { ...row, user_id });
         } else await db.finance_receipts.add({ ...row, user_id, local_key: row.id, pending_sync: false });
       }
       assertSyncSession(currentSession);
@@ -70,7 +71,9 @@ export const receiptRepository = {
     return runDbOperation(async () => {
       const rows = await db.finance_receipts.where("user_id").equals(user_id).toArray();
       const deduplicated = new Map();
+      const deletedIds = new Set(rows.filter((row) => row.pending_delete && row.id).map((row) => row.id));
       for (const row of rows) {
+        if (row.pending_delete || deletedIds.has(row.id)) continue;
         const key = row.id || row.local_key;
         const prior = deduplicated.get(key);
         if (!prior || row.pending_sync || (!prior.pending_sync && row.local_id > prior.local_id))

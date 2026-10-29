@@ -290,7 +290,9 @@ test("exclusão conserva os arquivos locais até confirmação do servidor e rem
   const m = await setup();
   try {
     const row = await m.receiptService.capture([new File(["original"], "nota.xml")]);
-    await assert.rejects(() => m.receiptService.remove(row), /internet/);
+    await m.receiptService.remove(row);
+    assert.equal((await m.receiptRepository.list(1)).length, 0);
+    assert.equal((await m.db.syncQueue.toArray())[0].type, "DELETE_FINANCE_RECEIPT");
     assert.equal((await m.receiptRepository.files(1, row.local_key)).length, 1);
     navigator.onLine = true;
     m.api.post = async () => ({ data: { id: "remote-note", documents: [] } });
@@ -311,6 +313,7 @@ test("exclusão atualiza a lista com filtros válidos e informa falha de atualiz
   try {
     const { default: component } = await m.server.ssrLoadModule("/src/components/finance/nexo/NexoReceiptsTab.vue");
     assert.deepEqual(component.computed.unmatchedLocalFiles.call({ selected: { documents: [{ id: "remote" }] }, localFiles: [{ local_key: "uploaded", document_id: "remote" }, { local_key: "pending" }] }).map((file) => file.local_key), ["pending"]);
+    navigator.onLine = true;
     const target = { local_key: "deleted" };
     const other = { local_key: "other" };
     const events = [];
@@ -340,7 +343,7 @@ test("exclusão atualiza a lista com filtros válidos e informa falha de atualiz
     m.receiptService.list = async () => { throw new Error("falha de rede"); };
     await vm.deleteReceipt();
     assert.deepEqual(vm.rows.map((row) => row.local_key), ["other"]);
-    assert.match(vm.error, /excluída, mas não foi possível atualizar/);
+    assert.match(vm.captureFailure, /excluída, mas não foi possível atualizar/);
     assert.deepEqual(events, ["changed", "changed"]);
   } finally {
     m.receiptService.remove = originalRemove;
@@ -450,7 +453,7 @@ test("modal de captura fecha e mostra falhas sem mensagem de sucesso", { timeout
   try {
     const { default: component } = await m.server.ssrLoadModule("/src/components/finance/nexo/NexoReceiptsTab.vue");
     const vm = { ...component.methods, busy: false, groupPhotos: false, captureModalOpen: true, message: "", captureFailure: "", stopCamera() {}, reload: async () => {}, $emit() {} };
-    m.receiptService.capture = async () => { throw new Error("Arquivo inválido. A inserção foi cancelada."); };
+    m.receiptService.capture = async () => { assert.equal(vm.captureModalOpen, false); throw new Error("Arquivo inválido. A inserção foi cancelada."); };
     await vm.selectFiles({ target: { files: [new File(["x"], "nota.xml")], value: "x" } });
     assert.equal(vm.captureModalOpen, false);
     assert.equal(vm.message, "");
@@ -474,4 +477,59 @@ test("captura reverte gravação local se não conseguir criar a tarefa de envio
     assert.equal(await m.db.finance_receipts.count(), 0);
     assert.equal(await m.db.finance_receipt_files.count(), 0);
   } finally { syncQueueRepository.addSyncQueueTask = originalAdd; await m.close(); }
+});
+
+test("exclusão fecha confirmação e remove a linha antes de o servidor responder", { timeout: 30000 }, async () => {
+  const m = await setup();
+  const originalRemove = m.receiptService.remove;
+  try {
+    const { default: component } = await m.server.ssrLoadModule("/src/components/finance/nexo/NexoReceiptsTab.vue");
+    const target = await m.receiptService.capture([new File(["original"], "nota.xml")]);
+    let reject;
+    m.receiptService.remove = () => new Promise((_resolve, fail) => { reject = fail; });
+    const vm = { ...component.methods, deleteTarget: target, selected: null, confirmDelete: true, rows: [target], $emit() {} };
+    const deleting = vm.deleteReceipt();
+    assert.equal(vm.confirmDelete, false);
+    assert.equal(vm.deleteTarget, null);
+    assert.equal(vm.rows.length, 0);
+    reject(new Error("armazenamento indisponível"));
+    await deleting;
+    assert.match(vm.captureFailure, /armazenamento indisponível/);
+    assert.equal(vm.rows.length, 1);
+  } finally { m.receiptService.remove = originalRemove; await m.close(); }
+});
+
+test("pull concorrente não restaura uma exclusão fiscal pendente e retry não reenvia o arquivo", { timeout: 30000 }, async () => {
+  const m = await setup();
+  try {
+    const row = await m.receiptService.capture([new File(["original"], "nota.xml")]);
+    await m.receiptRepository.save(1, row.local_key, { id: "remote-note" });
+    await m.receiptService.remove(row);
+    await m.receiptRepository.merge(1, [{ id: "remote-note", merchant: "Não restaurar" }]);
+    assert.equal((await m.receiptRepository.list(1)).length, 0);
+    assert.equal((await m.receiptRepository.files(1, row.local_key)).length, 1);
+    navigator.onLine = true;
+    m.api.post = async () => assert.fail("não deve reenviar original excluído");
+    m.api.delete = async () => { throw Object.assign(new Error("já excluída"), { response: { status: 404 } }); };
+    const { createPersonalSyncExecutor } = await m.server.ssrLoadModule("/src/services/personalSyncExecutor.js");
+    const executor = createPersonalSyncExecutor({ api: m.api, getUserId: () => 1, deleteReceipt: payload => m.receiptService.syncDeletion(payload.local_key, payload.user_id) });
+    await executor.finance((await m.db.syncQueue.toArray())[0]);
+    assert.equal(await m.db.finance_receipts.count(), 0);
+    assert.equal(await m.db.finance_receipt_files.count(), 0);
+    assert.equal(await m.db.syncQueue.count(), 0);
+  } finally { await m.close(); }
+});
+
+test("tentativa interativa não fica disponível simultaneamente na fila de upload", { timeout: 30000 }, async () => {
+  const m = await setup();
+  try {
+    navigator.onLine = true;
+    m.api.post = async () => {
+      const { syncQueueRepository } = await m.server.ssrLoadModule("/src/services/localData/syncQueueRepository.js");
+      assert.equal((await syncQueueRepository.getPendingTasks()).length, 0);
+      throw new Error("offline");
+    };
+    await assert.rejects(() => m.receiptService.capture([new File(["original"], "nota.xml")]), /offline/);
+    assert.equal((await m.db.syncQueue.toArray())[0].status, "FAILED");
+  } finally { await m.close(); }
 });

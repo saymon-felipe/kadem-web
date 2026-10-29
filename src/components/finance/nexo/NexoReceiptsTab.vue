@@ -684,7 +684,7 @@
 
     <ConfirmationModal
       :model-value="!!captureFailure"
-      message="Atenção: não foi possível enviar a nota fiscal"
+      message="Atenção: não foi possível concluir a operação"
       :description="captureFailure.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')"
       confirm-text="Entendi"
       cancel-text="Fechar"
@@ -1796,22 +1796,32 @@ export default {
     async deleteReceipt() {
       const target = this.deleteTarget || this.selected;
       if (!target) return;
-      await this.run(async () => {
+      const session = captureSyncSession();
+      this.confirmDelete = false;
+      this.deleteTarget = null;
+      if (this.selected?.local_key === target.local_key) this.closeDetail();
+      const previousRows = this.rows;
+      this.rows = this.rows.filter((row) => row.local_key !== target.local_key && (!target.id || row.id !== target.id));
+      this.message = "Exclusão salva. Sincronizando…";
+      try {
         await receiptService.remove(target);
-        this.confirmDelete = false;
-        this.deleteTarget = null;
-        if (this.selected && this.selected.local_key === target.local_key) {
-          this.closeDetail();
-        }
-        this.rows = this.rows.filter((row) => row.local_key !== target.local_key);
-        this.message = "Nota fiscal excluída.";
+        assertSyncSession(session);
+        this.message = navigator.onLine ? "Nota fiscal excluída." : "Exclusão salva neste dispositivo. Será sincronizada ao reconectar.";
         this.$emit("changed");
         try {
           await this.fetchReceiptPage();
         } catch {
           throw new Error("Nota fiscal excluída, mas não foi possível atualizar a lista. Tente novamente.");
         }
-      });
+      } catch (error) {
+        if (!session()) return;
+        // Restore the row only when persisting the deletion itself failed.
+        const current = await receiptRepository.get(useAuthStore().user.id, target.local_key).catch(() => null);
+        if (current && !current.pending_delete) this.rows = previousRows;
+        this.message = "";
+        this.captureFailure = error?.response?.data?.message || error.message || "Não foi possível excluir a nota fiscal.";
+        if (current?.pending_delete) this.captureFailure += " A exclusão ficou salva e será sincronizada novamente ao recuperar a conexão.";
+      }
     },
     async run(fn) {
       if (this.busy) return;
@@ -1884,6 +1894,7 @@ export default {
       const files = Array.from(event.target.files || []);
       event.target.value = "";
       if (!files.length) return;
+      this.closeCaptureModal();
       const session = captureSyncSession();
       await this.run(async () => {
         const groups =
@@ -1918,6 +1929,7 @@ export default {
       this.groupPhotos = prior;
     },
     async captureReference() {
+      this.closeCaptureModal();
       await this.run(async () => {
         try {
           await receiptService.capture([], this.qr);

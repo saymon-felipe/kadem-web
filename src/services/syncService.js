@@ -22,7 +22,7 @@ import { db } from "../db";
 import { radioInsightsRepository, isRadioInsightsTask, LISTENING_COUNTERS } from './localData/radioInsightsRepository';
 import { reportAttachmentUpload, finishAttachmentUpload } from "./attachmentUploadProgress";
 import { createPersonalSyncExecutor } from "./personalSyncExecutor";
-const personalSync = createPersonalSyncExecutor({ api: { post: (...args) => api.post(...args), put: (...args) => api.put(...args), delete: (...args) => api.delete(...args) }, getUserId: () => useAuthStore().user?.id, syncReceipt: async (payload) => { const { receiptService } = await import("./receiptService"); await receiptService.sync(payload.local_key, payload.user_id); } });
+const personalSync = createPersonalSyncExecutor({ api: { post: (...args) => api.post(...args), put: (...args) => api.put(...args), delete: (...args) => api.delete(...args) }, getUserId: () => useAuthStore().user?.id, syncReceipt: async (payload) => { const { receiptService } = await import("./receiptService"); await receiptService.sync(payload.local_key, payload.user_id); }, deleteReceipt: async (payload) => { const { receiptService } = await import("./receiptService"); await receiptService.syncDeletion(payload.local_key, payload.user_id); } });
 import { captureSyncSession, assertSyncSession, requireSyncArray } from "../utils/syncState";
 
 let isProcessing = false;
@@ -938,11 +938,11 @@ export const syncService = {
             console.log(`[SyncService] OK: ${task.type} (${task.id})`);
           } catch (error) {
             // A captura interativa pode ter cancelado ou suspendido esta tarefa enquanto ela aguardava o mesmo envio.
-            if (task.type === "SYNC_FINANCE_RECEIPT") {
+            if (["SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT"].includes(task.type)) {
               const current = await db.syncQueue.get(task.id);
               if (!current || current.status === "FAILED") continue;
             }
-            if (task.type !== "SYNC_FINANCE_RECEIPT" && error.response && (error.response.status === 403 || error.response.status === 404)) {
+            if (!["SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT"].includes(task.type) && error.response && (error.response.status === 403 || error.response.status === 404)) {
               console.warn(`[SyncService] Erro Fatal (${error.response.status}). Removendo tarefa ${task.type}.`);
               await syncQueueRepository.deleteTask(task.id);
 

@@ -16,6 +16,9 @@ import { initializeLocalDb } from "@/db";
 import { radioFlowApi } from "@/services/radioFlowApi";
 import "./services/pwaInstall";
 import { registerSW } from "virtual:pwa-register";
+import { installAssetRecovery } from "./utils/assetRecovery";
+
+installAssetRecovery();
 
 registerSW({
   immediate: true,
@@ -337,19 +340,6 @@ library.add(
   faFileLines,
   faBuildingColumns,
 );
-
-window.addEventListener('error', (event) => {
-  const isTagError = event.target && (event.target.tagName === 'SCRIPT' || event.target.tagName === 'LINK');
-
-  if (isTagError) {
-    if (navigator.onLine) {
-      console.warn('[Global] Asset load failed. Reloading...');
-      window.location.reload(true);
-    } else {
-      console.warn('[Global] Asset load failed while offline. Keeping the cached app running.');
-    }
-  }
-}, true);
 
 import KademTabs from '@/components/ui/KademTabs.vue';
 

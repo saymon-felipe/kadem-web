@@ -12,13 +12,13 @@ const owner = () => {
 };
 const online = () => typeof navigator === "undefined" || navigator.onLine !== false;
 const syncing = new Map();
-const deleting = new Set();
+const deleting = new Map();
 const identity = (user_id) => ({ headers: { "X-Expected-User-Id": String(user_id) } });
 const purgeLocal = async (user_id, rows) => {
   const keys = new Set(rows.map((item) => item.local_key));
   await db.transaction("rw", db.finance_receipts, db.finance_receipt_files, db.syncQueue, async () => {
     await db.finance_receipt_files.where("user_id").equals(user_id).filter((file) => keys.has(file.receipt_local_key)).delete();
-    await db.syncQueue.where("type").equals("SYNC_FINANCE_RECEIPT").filter((task) => task.payload?.user_id === user_id && keys.has(task.payload?.local_key)).delete();
+    await db.syncQueue.where("type").anyOf("SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT").filter((task) => task.payload?.user_id === user_id && keys.has(task.payload?.local_key)).delete();
     await db.finance_receipts.bulkDelete(rows.map((item) => item.local_id));
   });
 };
@@ -79,6 +79,9 @@ export const receiptService = {
         payload: { user_id, local_key: created.local_key },
         idempotency_key: created.local_key,
         compact_key: `receipt:${user_id}:${created.local_key}`,
+        // A foreground request owns this attempt. Recover after a closed/crashed page,
+        // but don't let the background queue race the upload and its error handling.
+        next_attempt_at: new Date(Date.now() + (online() ? 360000 : 0)).toISOString(),
       });
       return created;
     });
@@ -121,44 +124,79 @@ export const receiptService = {
     return pending;
   },
   async remove(row) {
-    const user_id = owner(),
-      session = captureSyncSession(),
+    const user_id = owner(), session = captureSyncSession();
+    await db.transaction("rw", db.finance_receipts, db.syncQueue, async () => {
+      const current = await receiptRepository.get(user_id, row.local_key);
+      if (!current) return;
+      await db.finance_receipts.where("user_id").equals(user_id)
+        .filter((item) => item.local_key === row.local_key || (current.id && item.id === current.id))
+        .modify({ pending_delete: true, pending_sync: true });
+      await db.syncQueue.where("type").equals("SYNC_FINANCE_RECEIPT")
+        .filter((task) => task.payload?.user_id === user_id && task.payload?.local_key === row.local_key).delete();
+      await syncQueueRepository.addSyncQueueTask({
+        type: "DELETE_FINANCE_RECEIPT",
+        payload: { user_id, local_key: row.local_key },
+        compact_key: `delete-receipt:${user_id}:${row.local_key}`,
+      });
+      assertSyncSession(session);
+    });
+    if (online()) {
+      try {
+        return await this.syncDeletion(row.local_key, user_id);
+      } catch (error) {
+        assertSyncSession(session);
+        const tasks = await db.syncQueue.where("type").equals("DELETE_FINANCE_RECEIPT")
+          .filter((task) => task.payload?.user_id === user_id && task.payload?.local_key === row.local_key).toArray();
+        for (const task of tasks) await syncQueueRepository.updateTask(task.id, {
+          status: "RETRY", next_attempt_at: new Date(Date.now() + 30000).toISOString(),
+          last_error: error.response?.data?.message || error.message,
+        });
+        throw error;
+      }
+    }
+  },
+  syncDeletion(local_key, user_id) {
+    const key = `${user_id}:${local_key}`;
+    if (deleting.has(key)) return deleting.get(key);
+    const pending = this.performDeletion(local_key, user_id).finally(() => deleting.delete(key));
+    deleting.set(key, pending);
+    return pending;
+  },
+  async performDeletion(local_key, user_id) {
+    if (owner() !== user_id) throw new Error("NOT_SYNCED: aguardando a conta proprietária da nota fiscal.");
+    const row = { local_key };
+    const session = captureSyncSession(),
       key = `${user_id}:${row.local_key}`;
     if (!online()) throw new Error("Conecte-se à internet para excluir a nota e seus arquivos.");
-    if (deleting.has(key)) throw new Error("A nota já está sendo excluída.");
-    deleting.add(key);
-    try {
-      if (syncing.has(key)) await syncing.get(key);
+    // A failed upload must not prevent an explicit deletion.
+    if (syncing.has(key)) await syncing.get(key).catch(() => {});
+    assertSyncSession(session);
+    let current = await receiptRepository.get(user_id, row.local_key);
+    if (!current) return;
+    if (!current.id) {
+      const { data } = await api.post(
+        "/finance/receipts",
+        { client_id: current.local_key, qr_reference: current.qr_reference || null },
+        identity(user_id),
+      );
       assertSyncSession(session);
-      let current = await receiptRepository.get(user_id, row.local_key);
-      if (!current) return;
-      if (!current.id) {
-        const { data } = await api.post(
-          "/finance/receipts",
-          { client_id: current.local_key, qr_reference: current.qr_reference || null },
-          identity(user_id),
-        );
-        assertSyncSession(session);
-        current = await receiptRepository.save(user_id, row.local_key, data, { pending_sync: true });
-      }
-      try {
-        await api.delete(`/finance/receipts/${current.id}`, identity(user_id));
-      } catch (error) {
-        if (error.response?.status !== 404) throw error;
-      }
-      assertSyncSession(session);
-      const rows = await db.finance_receipts.where("user_id").equals(user_id)
-        .filter((item) => item.id === current.id || item.local_key === current.local_key).toArray();
-      await purgeLocal(user_id, rows);
-    } finally {
-      deleting.delete(key);
+      current = await receiptRepository.save(user_id, row.local_key, data, { pending_sync: true });
     }
+    try {
+      await api.delete(`/finance/receipts/${current.id}`, identity(user_id));
+    } catch (error) {
+      if (error.response?.status !== 404) throw error;
+    }
+    assertSyncSession(session);
+    const rows = await db.finance_receipts.where("user_id").equals(user_id)
+      .filter((item) => item.id === current.id || item.local_key === current.local_key).toArray();
+    await purgeLocal(user_id, rows);
   },
   async performSync(local_key, user_id) {
     if (owner() !== user_id) throw new Error("NOT_SYNCED: aguardando a conta proprietária da nota fiscal.");
     const session = captureSyncSession();
     let row = await receiptRepository.get(user_id, local_key);
-    if (!row) return;
+    if (!row || row.pending_delete) return;
     const check = () => {
       assertSyncSession(session);
       if (owner() !== user_id) throw new Error("Sessão alterada.");

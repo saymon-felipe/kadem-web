@@ -74,7 +74,7 @@ export async function backgroundPull() {
     .filter((t) => t.type.includes("FINANCE") || t.type.includes("HEALTH"))
     .sort((a, b) => (priority[a.type] || 4) - (priority[b.type] || 4));
   for (const task of tasks.slice(0, 50)) {
-    if (task.type === "SYNC_FINANCE_RECEIPT") continue;
+    if (["SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT"].includes(task.type)) continue;
     activeTask = task;
     try {
       await (task.type.includes("HEALTH") ? executor.health(task) : executor.finance(task));
@@ -89,15 +89,17 @@ export async function backgroundPull() {
   for (let page = 0; page < 10; page++) {
     const delta = await get(`/health/sync?cursor=${cursor}&limit=200`);
     requireSyncArray(delta.changes);
+    const nextCursor = Number(delta.next_cursor);
     if (
-      !Number.isSafeInteger(delta.next_cursor) ||
-      delta.next_cursor < cursor ||
-      (delta.has_more && delta.next_cursor <= cursor)
+      delta.next_cursor == null ||
+      !Number.isSafeInteger(nextCursor) ||
+      nextCursor < cursor ||
+      (delta.has_more && nextCursor <= cursor)
     )
       throw new Error("Cursor inválido");
     if ((await db.background_settings.get("current"))?.generation !== config.generation) return;
-    await healthRepository.applyServerChanges(String(config.user_id), delta.changes, delta.next_cursor);
-    cursor = delta.next_cursor;
+    await healthRepository.applyServerChanges(String(config.user_id), delta.changes, nextCursor);
+    cursor = nextCursor;
     if (!delta.has_more) break;
   }
   // These repository merges preserve local pending mutations. Avoid downloads while

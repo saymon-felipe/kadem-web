@@ -5,7 +5,7 @@ import { healthRepository } from "./localData/healthRepository";
 import { captureSyncSession, assertSyncSession } from "@/utils/syncState";
 import { clampToMacroTone } from "@/utils/colorTones";
 const FINANCE_BATCH_LIMIT = 100;
-export function createPersonalSyncExecutor({ api, getUserId, syncReceipt }) {
+export function createPersonalSyncExecutor({ api, getUserId, syncReceipt, deleteReceipt }) {
   const sanitizeTransactionPayload = (data) => {
     if (!data) return {};
     const allowedKeys = [
@@ -339,6 +339,10 @@ export function createPersonalSyncExecutor({ api, getUserId, syncReceipt }) {
     const { payload } = task;
 
     switch (task.type) {
+      case "DELETE_FINANCE_RECEIPT": {
+        await deleteReceipt(payload);
+        return;
+      }
       case "SYNC_FINANCE_RECEIPT": {
         await syncReceipt(payload);
         return;

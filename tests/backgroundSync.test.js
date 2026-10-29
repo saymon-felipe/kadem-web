@@ -32,7 +32,8 @@ test("worker sync preserves pending data, retries safely and rejects another acc
     });
     let owner = 55,
       fail = false,
-      posted = 0;
+      posted = 0,
+      invalidCursor = false;
     globalThis.fetch = async (url, options = {}) => {
       const u = new URL(url);
       if (u.pathname === "/notifications") return Response.json({ user_id: owner, notifications: [] });
@@ -48,7 +49,7 @@ test("worker sync preserves pending data, retries safely and rejects another acc
       if (u.pathname === "/health/sync")
         return Response.json({
           changes: [{ operation: "UPSERT", local_key: "pending", record: { name: "Remote" } }],
-          next_cursor: 1,
+          next_cursor: invalidCursor ? "inválido" : "1",
           has_more: false,
         });
       if (u.pathname === "/finance/investments") return Response.json({ goals: [], events: [] });
@@ -89,6 +90,11 @@ test("worker sync preserves pending data, retries safely and rejects another acc
     assert.equal(posted, 1);
     assert.equal(await db.syncQueue.count(), 0);
     assert.equal((await db.health_records.get(local_id)).pending_sync, false);
+    assert.equal((await db.health_sync_state.get("55")).cursor, 1);
+    invalidCursor = true;
+    await db.background_settings.update("current", { last_sync: 0 });
+    await assert.rejects(backgroundPull(), /Cursor inválido/);
+    assert.equal((await db.health_sync_state.get("55")).cursor, 1);
   } finally {
     globalThis.fetch = originalFetch;
     db?.close();
