@@ -146,6 +146,12 @@ db.version(29).stores({
   background_settings: '&key',
 });
 
+// Agenda central: chave composta porque a mesma chave de evento (ex.: importado do Google) pode existir para contas diferentes.
+db.version(30).stores({
+  agenda_events: '++local_id, &[user_id+local_key], user_id, id, start_at, pending_sync, deleted_at',
+  agenda_sync_state: '&user_id',
+});
+
 function canUseBrowserStorage() {
   return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
 }

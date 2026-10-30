@@ -214,6 +214,45 @@
             </div>
           </div>
         </div>
+
+        <!-- Agenda -->
+        <div class="priv-card module-card">
+          <div class="module-header">
+            <div class="module-title-group">
+              <div class="priv-icon info"><font-awesome-icon icon="calendar-days" /></div>
+              <div>
+                <h4 class="module-heading">Agenda</h4>
+                <span class="module-sub">Compromissos do Kadem e do Google Agenda</span>
+              </div>
+            </div>
+          </div>
+          <div class="priv-items-list">
+            <div v-for="key in agenda" :key="key" class="priv-item-row">
+              <div class="priv-item-info">
+                <span class="priv-item-title">{{ labels[key] }}</span>
+                <span class="priv-item-desc">{{ itemDescriptions[key] }}</span>
+              </div>
+              <label class="priv-switch">
+                <input type="checkbox" v-model="settings[key]" :disabled="!settings.enabled || !online || saving" />
+                <span class="priv-slider"></span>
+              </label>
+            </div>
+            <div class="priv-item-row">
+              <div class="priv-item-info">
+                <label class="priv-item-title" for="agenda-lead">Avisar</label>
+                <span class="priv-item-desc">Compromissos de dia inteiro avisam às 8h do próprio dia.</span>
+              </div>
+              <select
+                id="agenda-lead"
+                class="priv-select agenda-lead-select"
+                v-model.number="settings.agenda_lead"
+                :disabled="!settings.enabled || !settings.agenda_events || !online || saving"
+              >
+                <option v-for="option in leadOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- 4. Programação & Horário Silencioso -->
@@ -360,7 +399,7 @@
 import { mapState } from "pinia";
 import { useUtilsStore } from "@/stores/utils";
 import { useNotificationStore } from "@/stores/notifications";
-import { notificationService, notificationLabels } from "@/services/notificationService";
+import { notificationService, notificationLabels, agendaLeadOptions } from "@/services/notificationService";
 
 export default {
   name: "PrivacySettings",
@@ -379,6 +418,7 @@ export default {
     saving: false,
     permission: typeof Notification === "undefined" ? "unsupported" : Notification.permission,
     labels: notificationLabels,
+    leadOptions: agendaLeadOptions,
     itemDescriptions: {
       nexo_weekly: "Balanço resumido de receitas, gastos e saldo acumulado na semana.",
       nexo_budget: "Alertas preventivos ao atingir 80% e 100% dos limites de gastos.",
@@ -388,6 +428,7 @@ export default {
       health_stock: "Avisos de reposição para medicamentos e insumos com baixo estoque.",
       health_checkin: "Lembrete diário para acompanhamento de hábitos e sintomas.",
       health_weekly: "Panorama semanal de adesão ao tratamento e evolução clínica.",
+      agenda_events: "Aviso antes de cada compromisso, inclusive os que chegam do Google Agenda (os agendamentos do Health seguem nos lembretes do Health).",
     },
     days: ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"],
   }),
@@ -401,6 +442,9 @@ export default {
     },
     health() {
       return Object.keys(this.labels).filter((k) => k.startsWith("health"));
+    },
+    agenda() {
+      return Object.keys(this.labels).filter((k) => k.startsWith("agenda"));
     },
     permissionBadgeClass() {
       switch (this.permission) {
@@ -907,6 +951,12 @@ export default {
 }
 
 .priv-input:disabled,
+.priv-select.agenda-lead-select {
+  width: auto;
+  min-width: 190px;
+  flex-shrink: 0;
+}
+
 .priv-select:disabled {
   opacity: 0.5;
   cursor: not-allowed;

@@ -10,6 +10,7 @@ import {
   radioRepository,
   financeRepository,
   healthRepository,
+  agendaRepository,
 } from "./localData";
 
 import { useProjectStore } from "../stores/projects";
@@ -813,6 +814,32 @@ async function syncHealthDelta() {
   }
 }
 
+async function syncAgendaDelta() {
+  const isCurrent = captureSyncSession();
+  const authStore = useAuthStore();
+  const userId = authStore.user?.id;
+  if (!userId) return;
+
+  let cursor = await agendaRepository.getSyncCursor(String(userId));
+  if (!isCurrent()) return;
+  let hasMore = true;
+  while (hasMore) {
+    const response = await api.get("/agenda/sync", { params: { cursor, limit: 250 }, timeout: 15000 });
+    if (!isCurrent() || authStore.user?.id !== userId) return;
+    const payload = response.data;
+    if (!payload || typeof payload !== 'object') throw new Error('Resposta de sincronização da agenda inválida.');
+    requireSyncArray(payload.changes);
+    const nextCursor = Number(payload.next_cursor ?? cursor);
+    if (!Number.isSafeInteger(nextCursor) || nextCursor < cursor || (payload.has_more && nextCursor <= cursor)) {
+      throw new Error('Cursor de sincronização da agenda inválido.');
+    }
+    await agendaRepository.applyServerChanges(String(userId), payload.changes, nextCursor);
+    if (!isCurrent()) return;
+    cursor = nextCursor;
+    hasMore = Boolean(payload.has_more);
+  }
+}
+
 async function processTaskItem(task) {
   if (isRadioInsightsTask(task)) {
     const { user_id, revision: _revision, youtube_id: _youtube_id, ...payload } = task.payload;
@@ -830,6 +857,8 @@ async function processTaskItem(task) {
     await personalSync.finance(task);
   } else if (task.type.includes("HEALTH")) {
     await personalSync.health(task);
+  } else if (task.type.includes("AGENDA")) {
+    await personalSync.agenda(task);
   } else if (
     ["CREATE_PROJECT", "DELETE_PROJECT", "REMOVE_PROJECT_MEMBER", "REVOKE_PROJECT_INVITE"].includes(task.type)
   ) {
@@ -995,6 +1024,8 @@ export const syncService = {
         }
       }
       await syncHealthDelta();
+      // A agenda também recebe compromissos criados fora do app (Alexa e Google); uma falha aqui não pode travar o resto.
+      await syncAgendaDelta().catch((agendaError) => console.warn("[SyncService] Delta da agenda falhou:", agendaError));
     } catch (globalError) {
       console.error("[SyncService] Erro Crítico na Fila:", globalError);
     } finally {

@@ -1,8 +1,8 @@
 <template>
-  <!-- Sem app aberto a janela mostra a grade de apps: o esqueleto imita os 4 cartoes. -->
+  <!-- Sem app aberto a janela mostra a grade de apps: o esqueleto imita os 5 cartoes. -->
   <KademSkeletonGroup v-if="!active_app" class="sk-apps" label="Abrindo Produtividade…">
     <div class="sk-app-grid">
-      <div v-for="n in 4" :key="n" class="sk-app-card" :style="{ '--sk-delay': `${n * 90}ms` }">
+      <div v-for="n in 5" :key="n" class="sk-app-card" :style="{ '--sk-delay': `${n * 90}ms` }">
         <KademSkeleton shape="block" :width="60" :height="60" class="sk-app-icon" />
         <div class="sk-line-box sk-title-box">
           <KademSkeleton :width="`${n % 2 ? 56 : 44}%`" :height="13" />
@@ -31,6 +31,7 @@ const APP_NAMES = {
   radio_flow: "Radio Flow",
   kadem_nexo: "Kadem Nexo",
   kadem_health: "Kadem Health",
+  kadem_agenda: "Agenda",
 };
 
 // loadingComponent da janela de Produtividade enquanto o chunk dela baixa.

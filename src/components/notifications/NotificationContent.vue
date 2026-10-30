@@ -624,6 +624,11 @@ export default {
   color: var(--blue);
 }
 
+.module-tag.agenda {
+  background: rgba(20, 184, 166, 0.14);
+  color: #0f9488;
+}
+
 .item-time {
   font-size: 0.7rem;
   color: var(--text-muted);

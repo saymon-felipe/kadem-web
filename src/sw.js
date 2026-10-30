@@ -66,7 +66,8 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(
     (async () => {
       const url = new URL("/", self.location.origin);
-      url.searchParams.set("notification", event.notification.data?.module === "health" ? "health" : "nexo");
+      const module = event.notification.data?.module;
+      url.searchParams.set("notification", ["health", "agenda"].includes(module) ? module : "nexo");
       const clients = await self.clients.matchAll({ type: "window" });
       if (clients.length) {
         await clients[0].focus();

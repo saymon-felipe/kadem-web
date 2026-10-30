@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { syncQueueRepository } from "./localData/syncQueueRepository";
 import { financeRepository } from "./localData/financeRepository";
 import { healthRepository } from "./localData/healthRepository";
+import { agendaRepository, agendaEventData, buildAgendaUpsertTask } from "./localData/agendaRepository";
 import { captureSyncSession, assertSyncSession } from "@/utils/syncState";
 import { clampToMacroTone } from "@/utils/colorTones";
 const FINANCE_BATCH_LIMIT = 100;
@@ -615,5 +616,34 @@ export function createPersonalSyncExecutor({ api, getUserId, syncReceipt, delete
     throw new Error(`Tarefa Health desconhecida: ${task.type}`);
   }
 
-  return { finance: _handleFinanceTask, health: _handleHealthTask };
+  async function _handleAgendaTask(task) {
+    const payload = task.payload || {};
+    const userId = String(payload.user_id ?? "");
+    if (!userId || !payload.local_key || !payload.updated_at) {
+      throw new Error("AGENDA_INVALID_QUEUE_ITEM: tarefa sem dados suficientes para sincronizar.");
+    }
+    if (userId !== String(getUserId() ?? "")) throw new Error("NOT_SYNCED: aguardando a conta proprietária da agenda.");
+
+    if (task.type === "UPSERT_AGENDA_EVENT") {
+      const response = await api.post("/agenda/events", {
+        local_key: payload.local_key,
+        data: agendaEventData(payload.data || {}),
+        updated_at: payload.updated_at,
+      });
+      const { record, resync } = await agendaRepository.markEventSynced(userId, payload.local_key, response.data.record);
+      // Editado de novo durante o envio: a versão mais nova entra na fila em vez de ficar só no dispositivo.
+      if (resync && record) await syncQueueRepository.addSyncQueueTask(buildAgendaUpsertTask(record));
+      return;
+    }
+
+    if (task.type === "DELETE_AGENDA_EVENT") {
+      await api.delete("/agenda/events", { data: { local_key: payload.local_key, updated_at: payload.updated_at } });
+      await agendaRepository.resolveDeletedEvent(userId, payload.local_key);
+      return;
+    }
+
+    throw new Error(`Tarefa da agenda desconhecida: ${task.type}`);
+  }
+
+  return { finance: _handleFinanceTask, health: _handleHealthTask, agenda: _handleAgendaTask };
 }

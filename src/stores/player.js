@@ -1233,7 +1233,7 @@ export const usePlayerStore = defineStore("player", {
 
         if (prefs && Object.keys(prefs).length > 0) {
           if (prefs.is_shuffle !== undefined) this.is_shuffle = !!prefs.is_shuffle;
-          if (["radio_flow", "kadem_nexo", "kadem_health"].includes(prefs.active_app)) this.active_app = prefs.active_app;
+          if (["radio_flow", "kadem_nexo", "kadem_health", "kadem_agenda"].includes(prefs.active_app)) this.active_app = prefs.active_app;
           if (Array.isArray(prefs.queue) && prefs.queue.every(track => track && typeof track === "object")) this.queue = prefs.queue;
           if (prefs.playback_position !== undefined) {
             this.playback_position = Math.max(0, Number(prefs.playback_position) || 0);
@@ -1387,7 +1387,7 @@ export const usePlayerStore = defineStore("player", {
     afterHydrate: (ctx) => {
       ctx.store.queue = Array.isArray(ctx.store.queue) ? ctx.store.queue.filter(track => track && typeof track === 'object' && !Array.isArray(track)) : [];
       ctx.store.played_history = Array.isArray(ctx.store.played_history) ? ctx.store.played_history.filter(track => track && typeof track === 'object' && !Array.isArray(track)) : [];
-      if (![null, 'radio_flow', 'kadem_nexo', 'kadem_health'].includes(ctx.store.active_app)) ctx.store.active_app = null;
+      if (![null, 'radio_flow', 'kadem_nexo', 'kadem_health', 'kadem_agenda'].includes(ctx.store.active_app)) ctx.store.active_app = null;
       if (!ctx.store.active_app_tabs || typeof ctx.store.active_app_tabs !== 'object' || Array.isArray(ctx.store.active_app_tabs)) ctx.store.active_app_tabs = {};
       ctx.store.is_playing = false;
       ctx.store.is_loading = false;

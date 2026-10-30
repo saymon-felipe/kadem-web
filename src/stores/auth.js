@@ -11,6 +11,7 @@ import { useRadioStore } from "./radio";
 import { usePlayerStore } from "./player";
 import { useRadioInsightsStore } from './radioInsights';
 import { useHealthStore } from './health';
+import { useAgendaStore } from './agenda';
 import { isLocalDbUnavailableError } from "@/db";
 import { authenticateWithBiometrics } from "@/services/biometricAuth";
 import { securityService } from "@/services/securityService";
@@ -158,6 +159,7 @@ export const useAuthStore = defineStore("auth", {
       // Invalida pulls em andamento antes de qualquer limpeza assíncrona do banco.
       kanbanStore.clearState();
       useHealthStore().clearState();
+      useAgendaStore().clearState();
 
       try {
         await playerStore.stop_listening_tracking();

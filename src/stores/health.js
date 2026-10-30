@@ -212,6 +212,15 @@ export const useHealthStore = defineStore("health", () => {
     }
   }
 
+  // Leitura somente do Dexie, para quem só precisa exibir os dados (ex.: Agenda). Não migra registros, não
+  // enfileira nada e não cria grupos padrão; não sobrescreve uma carga completa em andamento.
+  async function loadLocalRecords() {
+    const sessionIsCurrent = captureSyncSession();
+    const generation = loadGeneration;
+    const local = (await healthRepository.getRecords(currentUserId())).filter((record) => record.record_type);
+    if (sessionIsCurrent() && generation === loadGeneration && !isLoading.value) records.value = local;
+  }
+
   function findObject(objectKey) {
     return objects.value.find((object) => object.local_key === objectKey) || null;
   }
@@ -690,6 +699,7 @@ export const useHealthStore = defineStore("health", () => {
     clearState,
     error,
     loadRecords,
+    loadLocalRecords,
     findObject,
     objectRelations,
     supplyBalance,

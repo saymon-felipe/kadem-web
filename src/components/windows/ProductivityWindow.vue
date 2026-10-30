@@ -32,6 +32,14 @@
           <p>Hub de saúde</p>
         </div>
 
+        <div class="app-card" @click="open_app('kadem_agenda')">
+          <div class="icon-wrapper gradient-agenda">
+            <font-awesome-icon icon="calendar-days" />
+          </div>
+          <span>Agenda</span>
+          <p>Compromissos, Health e Google Agenda.</p>
+        </div>
+
         <div class="app-card disabled">
           <div class="icon-wrapper gradient-gray">
             <font-awesome-icon icon="list-check" />
@@ -65,6 +73,9 @@
       <ContentErrorBoundary v-if="active_app === 'kadem_health'" title="Não foi possível exibir o Health" action-label="Voltar aos aplicativos" @action="close_app">
         <HealthWindow />
       </ContentErrorBoundary>
+      <ContentErrorBoundary v-if="active_app === 'kadem_agenda'" title="Não foi possível exibir a Agenda" action-label="Voltar aos aplicativos" @action="close_app">
+        <AgendaWindow />
+      </ContentErrorBoundary>
     </div>
   </div>
 </template>
@@ -76,12 +87,13 @@ import { useWindowStore } from "@/stores/windows"; // Necessário para verificar
 import RadioFlow from "../radio/RadioFlow.vue";
 import KademNexo from "../finance/KademNexo.vue";
 import HealthWindow from "./HealthWindow.vue";
+import AgendaWindow from "../agenda/AgendaWindow.vue";
 import { mobileNavigationMixin } from "@/utils/mobileNavigation";
 import ContentErrorBoundary from "@/components/ui/ContentErrorBoundary.vue";
 
 export default {
   mixins: [mobileNavigationMixin],
-  components: { RadioFlow, KademNexo, HealthWindow, ContentErrorBoundary },
+  components: { RadioFlow, KademNexo, HealthWindow, AgendaWindow, ContentErrorBoundary },
   props: ["windowId"], // Recebe o ID da janela do BaseWindow
   data() {
     return {
@@ -227,6 +239,9 @@ export default {
 }
 .gradient-health {
   background: linear-gradient(135deg, #e25373, #8d5fd3);
+}
+.gradient-agenda {
+  background: linear-gradient(135deg, #14b8a6, #3b82f6);
 }
 .gradient-gray {
   background: var(--gray-300);

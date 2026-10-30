@@ -17,7 +17,21 @@ export const notificationLabels = {
   health_stock: "Estoque baixo de medicamentos e insumos",
   health_checkin: "Check-in diário",
   health_weekly: "Revisão semanal do Health",
+  agenda_events: "Lembretes de compromissos",
 };
+// Antecedência dos lembretes da Agenda (minutos), igual à lista aceita pelo servidor.
+export const agendaLeadOptions = [
+  { value: 0, label: "Na hora de começar" },
+  { value: 5, label: "5 minutos antes" },
+  { value: 10, label: "10 minutos antes" },
+  { value: 15, label: "15 minutos antes" },
+  { value: 30, label: "30 minutos antes" },
+  { value: 60, label: "1 hora antes" },
+  { value: 120, label: "2 horas antes" },
+  { value: 1440, label: "1 dia antes" },
+];
+// Módulo da notificação (campo `module`) -> app da janela de Produtividade.
+export const notificationModuleApps = { health: "kadem_health", agenda: "kadem_agenda", nexo: "kadem_nexo" };
 export const notificationService = {
   async state() {
     return (await api.get("/notifications")).data;
@@ -97,7 +111,7 @@ export const notificationService = {
     const { useWindowStore } = await import("@/stores/windows");
     const { usePlayerStore } = await import("@/stores/player");
     useWindowStore().openWindow({ id: "productivity", title: "Produtividade", componentId: "ProductivityWindow" });
-    usePlayerStore().setActiveApp(module === "health" ? "kadem_health" : "kadem_nexo");
+    usePlayerStore().setActiveApp(notificationModuleApps[module] || notificationModuleApps.nexo);
   },
 };
 export async function initializeNotifications() {
