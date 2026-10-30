@@ -49,7 +49,11 @@ export const receiptRepository = {
   async save(user_id, local_key, remote, extra = {}) {
     const current = await this.get(user_id, local_key);
     if (!current) throw new Error("Rascunho de nota fiscal indisponível.");
-    await db.finance_receipts.update(current.local_id, { ...remote, ...extra, user_id, local_key });
+    // A tela entrega a nota como proxy reativo do Vue e o IndexedDB não clona Proxy (DataCloneError).
+    const fields = JSON.parse(JSON.stringify({ ...remote, ...extra }));
+    // O erro de envio vem da fila e só existe na tela; gravá-lo deixaria o aviso preso após o sucesso.
+    delete fields.sync_error;
+    await db.finance_receipts.update(current.local_id, { ...fields, user_id, local_key });
     return this.get(user_id, local_key);
   },
   async merge(user_id, rows) {

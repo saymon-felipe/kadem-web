@@ -297,7 +297,9 @@ export const receiptService = {
       session = captureSyncSession();
     const files = await receiptRepository.files(user_id, row.local_key);
     if (!row.id || row.pending_sync || files.some((f) => !f.uploaded)) {
-      await receiptRepository.save(user_id, row.local_key, row, { use_ai });
+      // Tentativa explícita é uma nova execução: com a chave antiga o servidor trata a execução
+      // interrompida como replay e devolve o mesmo aviso sem reler a nota.
+      await receiptRepository.save(user_id, row.local_key, row, { use_ai, operation_key: crypto.randomUUID() });
       return this.sync(row.local_key, user_id);
     }
     const operation_key = crypto.randomUUID();

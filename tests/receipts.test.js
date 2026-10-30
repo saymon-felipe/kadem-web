@@ -7,6 +7,7 @@ import Dexie from "dexie";
 import { createServer } from "vite";
 import vue from "@vitejs/plugin-vue";
 import { createPinia, setActivePinia } from "pinia";
+import { reactive } from "vue";
 import { transactionCalendarDate, editedTransactionDate } from "../src/utils/financeNotificationDisplay.js";
 import { groupReceiptItems, matchingReceiptItemIds } from "../src/utils/receiptItemGrouping.js";
 import { orderedReceiptColumns, moveReceiptColumn, sortReceiptRows } from "../src/utils/receiptGrid.js";
@@ -444,6 +445,41 @@ test("falha após arquivo recebido preserva original, suspende envio e permite t
     await m.receiptService.retry(row);
     assert.equal(await m.db.syncQueue.count(), 0);
     assert.equal((await m.receiptRepository.get(1, key)).pending_sync, false);
+  } finally { await m.close(); }
+});
+
+test("tentativa explícita com a nota reativa da tela grava no IndexedDB e inicia nova execução", { timeout: 30000 }, async () => {
+  const m = await setup();
+  try {
+    navigator.onLine = true;
+    let key;
+    let processCount = 0;
+    const operationKeys = [];
+    const original = new File(["original"], "nota.xml", { type: "application/xml" });
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await original.arrayBuffer())), b => b.toString(16).padStart(2, "0")).join("");
+    const remote = () => ({ id: "draft", client_id: key, documents: [{ id: "doc", sha256: hash }], warnings: [], data: {}, items: [], links: [] });
+    m.api.post = async (url, body) => {
+      if (url === "/finance/receipts") { key = body.client_id; return { data: { id: "draft", client_id: key, documents: [] } }; }
+      if (url.endsWith("/documents")) return { data: remote() };
+      if (url.endsWith("/process")) {
+        operationKeys.push(body.operation_key);
+        if (++processCount === 1) throw new Error("Network Error");
+        return { data: { ...remote(), status: "REVIEW" } };
+      }
+      assert.fail(url);
+    };
+    await assert.rejects(() => m.receiptService.capture([original]), /preservado/);
+    // A tela guarda a nota em um objeto reativo (Proxy) e acrescenta o erro vindo da fila.
+    const selected = reactive({ ...(await m.receiptRepository.get(1, key)), sync_error: "Network Error" });
+    const retried = await m.receiptService.retry(selected, true);
+    assert.equal(processCount, 2);
+    assert.notEqual(operationKeys[1], operationKeys[0], "tentativa explícita não pode reaproveitar a execução interrompida");
+    assert.equal(retried.pending_sync, false);
+    assert.equal(await m.db.syncQueue.count(), 0);
+    assert.equal((await m.db.finance_receipts.toArray())[0].sync_error, undefined);
+    // Anexar outra página também parte do objeto reativo da tela.
+    await m.receiptService.addDocuments(reactive({ ...retried }), [new File(["outra página"], "pagina.xml", { type: "application/xml" })]);
+    assert.equal(processCount, 3);
   } finally { await m.close(); }
 });
 
