@@ -141,7 +141,7 @@ test('patrimônio físico preserva consulta offline, isola contas e rejeita resp
   } finally { await m.close(); }
 });
 
-test("Dexie v26 → v29 preserva lançamentos e adiciona os arquivos fiscal e patrimonial", { timeout: 30000 }, async () => {
+test("Dexie v26 → v30 preserva lançamentos e adiciona os arquivos fiscal e patrimonial", { timeout: 30000 }, async () => {
   const old = new Dexie("KademDB");
   old.version(26).stores({
     finance_transactions:
@@ -152,7 +152,7 @@ test("Dexie v26 → v29 preserva lançamentos e adiciona os arquivos fiscal e pa
   old.close();
   const m = await setup();
   try {
-    assert.equal(m.db.verno, 29);
+    assert.equal(m.db.verno, 30);
     assert.equal((await m.db.finance_transactions.where("id").equals(123).first()).description, "Preservar");
     assert.ok(m.db.finance_receipt_files);
     assert.ok(m.db.finance_physical_cache);
