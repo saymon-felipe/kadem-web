@@ -483,6 +483,86 @@ test("tentativa explícita com a nota reativa da tela grava no IndexedDB e inici
   } finally { await m.close(); }
 });
 
+async function longReading(m, polls) {
+  navigator.onLine = true;
+  m.receiptService.processing.poll_ms = 1;
+  const original = new File(["original"], "nota.xml", { type: "application/xml" });
+  const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await original.arrayBuffer())), b => b.toString(16).padStart(2, "0")).join("");
+  const state = { key: null, processKeys: [], headers: [], polled: 0 };
+  const remote = (extra = {}) => ({ id: "draft", client_id: state.key, documents: [{ id: "doc", sha256: hash }], warnings: [], data: {}, items: [], links: [], ...extra });
+  m.api.post = async (url, body, config) => {
+    if (url === "/finance/receipts") { state.key = body.client_id; return { data: { id: "draft", client_id: state.key, documents: [] } }; }
+    if (url.endsWith("/documents")) return { data: remote() };
+    if (url.endsWith("/process")) {
+      state.processKeys.push(body.operation_key);
+      state.headers.push(config.headers);
+      if (body.force || state.processKeys.length > 1) return { status: 200, data: remote({ status: "READY" }) };
+      return { status: 202, data: remote({ status: "PROCESSING", processing: { operation_key: body.operation_key, state: "RUNNING" } }) };
+    }
+    assert.fail(url);
+  };
+  m.api.get = async (url) => {
+    assert.match(url, /^\/finance\/receipts\/draft\/process\/[0-9a-f-]+$/);
+    state.polled++;
+    const next = polls.shift();
+    if (next instanceof Error) throw next;
+    return { data: typeof next === "function" ? next(remote) : next };
+  };
+  return { original, remote, state };
+}
+
+test("leitura longa responde 202 e o cliente consulta até concluir, tolerando queda de rede e 503", { timeout: 30000 }, async () => {
+  const m = await setup();
+  try {
+    const { original, state } = await longReading(m, [
+      new Error("Network Error"),
+      { state: "RUNNING" },
+      Object.assign(new Error("indisponível"), { response: { status: 503 } }),
+      { state: "RUNNING" },
+      (remote) => ({ state: "COMPLETED", receipt: remote({ status: "READY", merchant: "Mercado" }) }),
+    ]);
+    const row = await m.receiptService.capture([original]);
+    assert.equal(state.headers[0].Prefer, "respond-async");
+    assert.equal(state.polled, 5);
+    assert.equal(row.status, "READY");
+    assert.equal(row.merchant, "Mercado");
+    assert.equal(row.pending_sync, false);
+    assert.equal(await m.db.syncQueue.count(), 0);
+  } finally { await m.close(); }
+});
+
+test("leitura que falha no servidor depois do 202 preserva o original e a nova tentativa usa outra execução", { timeout: 30000 }, async () => {
+  const m = await setup();
+  try {
+    const { original, state } = await longReading(m, [
+      (remote) => ({ state: "FAILED", error_code: "INTERRUPTED", receipt: remote({ status: "REVIEW", warnings: ["Processamento interrompido."] }) }),
+    ]);
+    await assert.rejects(() => m.receiptService.capture([original]), /Não foi possível processar o comprovante.*preservado/);
+    const task = (await m.db.syncQueue.toArray())[0];
+    assert.equal(task.status, "FAILED");
+    const row = await m.receiptRepository.get(1, state.key);
+    assert.equal(await (await m.receiptRepository.files(1, state.key))[0].blob.text(), "original");
+    await m.receiptService.retry(row);
+    assert.equal(state.processKeys.length, 2);
+    assert.notEqual(state.processKeys[1], state.processKeys[0]);
+    assert.equal((await m.receiptRepository.get(1, state.key)).pending_sync, false);
+    assert.equal(await m.db.syncQueue.count(), 0);
+  } finally { await m.close(); }
+});
+
+test("erro definitivo na consulta da leitura interrompe a espera sem ficar em loop", { timeout: 30000 }, async () => {
+  const m = await setup();
+  try {
+    const { original, state } = await longReading(m, [
+      Object.assign(new Error("proibido"), { response: { status: 403, data: { message: "Sem acesso" } } }),
+      { state: "RUNNING" },
+    ]);
+    await assert.rejects(() => m.receiptService.capture([original]), /Sem acesso/);
+    assert.equal(state.polled, 1);
+    assert.equal((await m.db.syncQueue.toArray())[0].status, "FAILED");
+  } finally { await m.close(); }
+});
+
 test("modal de captura fecha e mostra falhas sem mensagem de sucesso", { timeout: 30000 }, async () => {
   const m = await setup();
   const originalCapture = m.receiptService.capture;

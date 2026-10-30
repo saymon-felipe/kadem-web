@@ -14,6 +14,8 @@ const online = () => typeof navigator === "undefined" || navigator.onLine !== fa
 const syncing = new Map();
 const deleting = new Map();
 const identity = (user_id) => ({ headers: { "X-Expected-User-Id": String(user_id) } });
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const PROCESSING_FAILED = "Não foi possível processar o comprovante. O original foi preservado; revise ou tente novamente.";
 const purgeLocal = async (user_id, rows) => {
   const keys = new Set(rows.map((item) => item.local_key));
   await db.transaction("rw", db.finance_receipts, db.finance_receipt_files, db.syncQueue, async () => {
@@ -23,6 +25,38 @@ const purgeLocal = async (user_id, rows) => {
   });
 };
 export const receiptService = {
+  // A leitura por IA passa de 30 s e o roteador do Heroku encerra a requisição nesse ponto. Pedimos
+  // `respond-async`: o servidor responde 202 depois de ~20 s, segue lendo e o resultado é consultado.
+  processing: { poll_ms: 3000, max_wait_ms: 400000, max_failures: 20 },
+  async requestProcessing(receipt_id, body, user_id, session) {
+    const response = await api.post(`/finance/receipts/${receipt_id}/process`, body, {
+      headers: { ...identity(user_id).headers, Prefer: "respond-async" },
+      timeout: 60000,
+    });
+    if (response.status !== 202) return response.data;
+    const { poll_ms, max_wait_ms, max_failures } = this.processing;
+    const deadline = Date.now() + max_wait_ms;
+    let failures = 0;
+    while (Date.now() < deadline) {
+      await sleep(poll_ms);
+      assertSyncSession(session);
+      let data;
+      try {
+        ({ data } = await api.get(`/finance/receipts/${receipt_id}/process/${encodeURIComponent(body.operation_key)}`, identity(user_id)));
+        failures = 0;
+      } catch (error) {
+        assertSyncSession(session);
+        // Queda de rede, 5xx e leitura ainda não registrada não interrompem a espera; a leitura segue no servidor.
+        const status = error.response?.status;
+        const definitive = status && status < 500 && ![404, 408, 429].includes(status);
+        if (definitive || ++failures >= max_failures) throw error;
+        continue;
+      }
+      if (data.state === "COMPLETED") return data.receipt;
+      if (data.state === "FAILED") throw new Error(PROCESSING_FAILED);
+    }
+    throw new Error("A leitura está demorando mais que o esperado. Confira a nota em instantes ou tente novamente.");
+  },
   async list(filters = {}) {
     const user_id = owner(),
       session = captureSyncSession();
@@ -241,11 +275,7 @@ export const receiptService = {
     // Persist before the request: a response-loss retry uses the same operation.
     const operation_key = newFiles.length ? crypto.randomUUID() : row.operation_key || crypto.randomUUID();
     await receiptRepository.save(user_id, local_key, row, { operation_key, pending_sync: true });
-    const { data } = await api.post(
-      `/finance/receipts/${row.id}/process`,
-      { operation_key, use_ai: row.use_ai !== false },
-      { ...identity(user_id), timeout: 250000 },
-    );
+    const data = await this.requestProcessing(row.id, { operation_key, use_ai: row.use_ai !== false }, user_id, session);
     check();
     row = await receiptRepository.save(user_id, local_key, data, { pending_sync: false });
     const tasks = await db.syncQueue.where("type").equals("SYNC_FINANCE_RECEIPT").toArray();
@@ -303,11 +333,7 @@ export const receiptService = {
       return this.sync(row.local_key, user_id);
     }
     const operation_key = crypto.randomUUID();
-    const { data } = await api.post(
-      `/finance/receipts/${row.id}/process`,
-      { operation_key, use_ai, force: true },
-      { ...identity(user_id), timeout: 250000 },
-    );
+    const data = await this.requestProcessing(row.id, { operation_key, use_ai, force: true }, user_id, session);
     assertSyncSession(session);
     return receiptRepository.save(user_id, row.local_key, data, { operation_key, pending_sync: false });
   },
