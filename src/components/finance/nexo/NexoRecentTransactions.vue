@@ -18,13 +18,13 @@
       </div>
       <button class="text-btn" @click="$emit('view-all')">Ver todos</button>
     </div>
-    <div class="compact-list">
+    <div class="compact-list" :class="{ 'filtered-list': selectedCategory }">
       <article
-        v-for="transaction in recentTransactions.slice(0, 8)"
+        v-for="transaction in selectedCategory ? recentTransactions : recentTransactions.slice(0, 8)"
         :key="transaction.local_id || transaction.id"
-        class="movement-row"
-        :class="{ ignored: transaction.is_ignored }"
+        class="movement-entry"
       >
+        <div class="movement-row" :class="{ ignored: transaction.is_ignored }">
         <div class="movement-copy">
           <strong>{{ transactionDescription(transaction) }}</strong>
           <NexoPaymentBadges v-if="isGenosNotification(transaction)" class="recent-payment-badges" :transaction="transaction" :credit-cards="creditCards" />
@@ -36,6 +36,7 @@
             <button
               type="button"
               class="icon-btn"
+              :disabled="Boolean(transaction.physical_linked)"
               :title="transaction.is_ignored ? 'Reexibir' : 'Ignorar'"
               @click="$emit('toggle-ignored', transaction)"
             >
@@ -44,6 +45,7 @@
             <button
               type="button"
               class="icon-btn danger"
+              :disabled="Boolean(transaction.has_physical_history || transaction.physical_linked)"
               title="Excluir"
               @click="$emit('delete-transaction', transaction)"
             >
@@ -51,22 +53,56 @@
             </button>
           </div>
         </div>
+        </div>
+        <div v-if="showCreditDetails" class="payment-card-details">
+          <label>
+            Cartão deste pagamento
+            <select :value="transaction.payment_card_id || ''" :disabled="isSavingCard(transaction)" @change="$emit('select-payment-card', transaction, $event.target.value || null)">
+              <option value="">Selecionar cartão</option>
+              <option v-for="card in creditCards" :key="card.local_id || card.id" :value="card.id || card.local_key">{{ cardLabel(card) }}{{ Number(card.is_archived) ? ' (arquivado)' : '' }}</option>
+            </select>
+          </label>
+          <details v-if="transaction.payment_card_id" class="card-group">
+            <summary>
+              <span><span class="card-expand" aria-hidden="true">▸</span> Compras deste cartão no mês <small>({{ purchasesForPayment(transaction).length }})</small></span>
+              <strong>{{ formatMoney(purchasesTotal(transaction)) }}</strong>
+            </summary>
+            <p class="card-note">Compras do mês de referência; não representam necessariamente a fatura paga.</p>
+            <div class="card-transactions">
+              <div v-for="purchase in purchasesForPayment(transaction)" :key="purchase.local_id || purchase.id" class="card-transaction">
+                <div class="movement-copy">
+                  <strong>{{ transactionDescription(purchase) }}</strong>
+                  <span>{{ categoryLabel(purchase) }} | {{ formatShortDate(transactionCalendarDate(purchase)) }}</span>
+                </div>
+                <b class="EXPENSE">{{ formatSignedMoney(purchase) }}</b>
+              </div>
+              <p v-if="!purchasesForPayment(transaction).length" class="empty-line">Nenhuma compra neste mês.</p>
+            </div>
+          </details>
+        </div>
       </article>
-      <p v-if="recentTransactions.length === 0" class="empty-line">Nenhum lancamento.</p>
+      <p v-if="recentTransactions.length === 0" class="empty-line">Nenhum lançamento.</p>
     </div>
+    <p v-if="paymentCardError" role="alert" class="card-error">{{ paymentCardError }}</p>
   </section>
 </template>
 
 <script>
 import { isGenosNotification, transactionCalendarDate, transactionDescription } from "@/utils/financeNotificationDisplay";
 import NexoPaymentBadges from './NexoPaymentBadges.vue'
+import { cardLabel } from '@/utils/financeCredit'
 
 export default {
   name: 'NexoRecentTransactions',
   components: { NexoPaymentBadges },
-  emits: ['view-all', 'clear-filter', 'toggle-ignored', 'delete-transaction'],
+  emits: ['view-all', 'clear-filter', 'toggle-ignored', 'delete-transaction', 'select-payment-card'],
   props: {
     creditCards: { type: Array, default: () => [] },
+    savingPaymentCardIds: { type: Array, default: () => [] },
+    paymentCardError: { type: String, default: '' },
+    creditTransactions: { type: Array, default: () => [] },
+    showCreditDetails: { type: Boolean, default: false },
+    formatMoney: { type: Function, default: (amount) => String(amount) },
     recentTransactions: {
       type: Array,
       required: true,
@@ -89,6 +125,16 @@ export default {
     },
   },
   computed: {
+    purchasesByCard() {
+      const groups = new Map()
+      for (const transaction of this.creditTransactions) {
+        if (!transaction.credit_card_id) continue
+        const key = String(transaction.credit_card_id)
+        if (!groups.has(key)) groups.set(key, [])
+        groups.get(key).push(transaction)
+      }
+      return groups
+    },
     activeCategoryColor() {
       if (!this.selectedCategory) return '#eab308'
       const category = this.categories.find(
@@ -99,6 +145,10 @@ export default {
     },
   },
   methods: {
+    cardLabel,
+    isSavingCard(transaction) { return this.savingPaymentCardIds.includes(String(transaction.id || transaction.local_id)) },
+    purchasesForPayment(transaction) { return this.purchasesByCard.get(String(transaction.payment_card_id)) || [] },
+    purchasesTotal(transaction) { return this.purchasesForPayment(transaction).reduce((total, item) => total + Math.round(Number(item.amount || 0) * 100), 0) / 100 },
     transactionCalendarDate,
     transactionDescription,
     isGenosNotification,
@@ -207,6 +257,28 @@ export default {
   flex-direction: column;
   gap: var(--space-3);
 }
+
+.filtered-list { max-height: 460px; overflow-y: auto; }
+.icon-btn:disabled { opacity: .45; cursor: not-allowed; }
+.payment-card-details { padding: 0 var(--space-2) var(--space-3); }
+.payment-card-details label { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; color: var(--text-secondary); font-size: var(--fontsize-xs); }
+.payment-card-details select { max-width: 100%; padding: 7px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--text-primary); }
+.card-error { color: var(--color-expense); font-size: var(--fontsize-xs); }
+.card-note { margin: 0 0 var(--space-3); color: var(--text-secondary); font-size: var(--fontsize-xs); }
+.card-group { border: 1px solid var(--glass-border); border-radius: var(--radius-sm); margin-top: var(--space-2); }
+.card-group summary { cursor: pointer; display: flex; align-items: center; gap: var(--space-2); justify-content: space-between; padding: var(--space-3); color: var(--text-primary); }
+.card-group summary span { min-width: 0; overflow-wrap: anywhere; }
+.card-group summary small { color: var(--text-secondary); }
+.card-expand { display: inline-block; transition: transform var(--transition-fast); }
+.card-group[open] .card-expand { transform: rotate(90deg); }
+.card-group summary strong { flex-shrink: 0; }
+.card-group .card-note { padding: 0 var(--space-3); }
+.card-transactions { max-height: 300px; overflow-y: auto; padding: 0 var(--space-3); }
+.card-transaction { display: flex; gap: var(--space-3); justify-content: space-between; align-items: center; padding: var(--space-3) 0; border-top: 1px solid var(--glass-border); }
+.card-transaction .movement-copy { flex: 1; }
+.card-transaction .movement-copy strong, .card-transaction .movement-copy span { display: block; overflow-wrap: anywhere; }
+.card-transaction .movement-copy span { color: var(--text-secondary); font-size: var(--fontsize-xs); }
+.card-transaction b { flex-shrink: 0; }
 
 .movement-row {
   display: flex;

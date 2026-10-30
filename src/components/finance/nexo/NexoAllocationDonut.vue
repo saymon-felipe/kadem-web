@@ -30,9 +30,15 @@
               'segment-active': hoveredCategory === segment.macro_category || selectedCategory === segment.macro_category,
               'segment-dimmed': (hoveredCategory && hoveredCategory !== segment.macro_category) || (selectedCategory && selectedCategory !== segment.macro_category && !hoveredCategory)
             }"
+            role="button"
+            tabindex="0"
+            :aria-label="`${segment.macro_category}: ${formatMoney(segment.total)}`"
+            :aria-pressed="selectedCategory === segment.macro_category"
             @mouseenter="hoveredCategory = segment.macro_category"
             @mouseleave="hoveredCategory = null"
             @click="$emit('category-selected', segment.macro_category)"
+            @keydown.enter.prevent="$emit('category-selected', segment.macro_category)"
+            @keydown.space.prevent="$emit('category-selected', segment.macro_category)"
           >
             <title>{{ segment.macro_category }}: {{ formatMoney(segment.total) }} ({{ Math.round(segment.percentage * 100) }}%)</title>
           </circle>
@@ -53,14 +59,16 @@
         </div>
       </div>
       <div class="legend-list">
-        <div
+        <button
           v-for="segment in svgSegments"
+          type="button"
           :key="segment.key"
           class="legend-row"
           :class="{
             'legend-active': hoveredCategory === segment.macro_category || selectedCategory === segment.macro_category,
             'legend-dimmed': (hoveredCategory && hoveredCategory !== segment.macro_category) || (selectedCategory && selectedCategory !== segment.macro_category && !hoveredCategory)
           }"
+          :aria-pressed="selectedCategory === segment.macro_category"
           @mouseenter="hoveredCategory = segment.macro_category"
           @mouseleave="hoveredCategory = null"
           @click="$emit('category-selected', segment.macro_category)"
@@ -68,7 +76,7 @@
           <span class="swatch" :style="{ background: segment.color || '#999999' }"></span>
           <span class="category-name">{{ segment.macro_category || 'Geral' }}</span>
           <strong>{{ formatMoney(segment.total) }}</strong>
-        </div>
+        </button>
         <p v-if="macroDistribution.length === 0" class="empty-line">{{ emptyLabel }}</p>
       </div>
     </div>
@@ -311,6 +319,12 @@ export default {
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
   transition: transform 0.2s ease, background-color 0.2s ease, opacity 0.2s ease;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  font: inherit;
 }
 
 .legend-row:hover,

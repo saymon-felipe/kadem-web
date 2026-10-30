@@ -1,5 +1,5 @@
 import { normalizePaymentOrigin } from '../../utils/financeCredit';
-import { transactionCalendarDate } from '../../utils/financeNotificationDisplay';
+import { transactionReferenceMonth } from '../../utils/financeNotificationDisplay';
 import { db } from "../../db";
 import { clampToMacroTone, isToneOf } from "../../utils/colorTones";
 import { captureSyncSession, assertSyncSession, requireSyncArray } from "../../utils/syncState";
@@ -601,9 +601,28 @@ export const financeRepository = {
       .first();
   },
 
-  async setTransactions(items = []) {
-    await replaceServerItemsPreservingPending(db.finance_transactions, items, {
-      preserveFields: ["original_type"],
+  async setTransactions(items = [], { month } = {}) {
+    if (!month) {
+      await replaceServerItemsPreservingPending(db.finance_transactions, items, { preserveFields: ["original_type"] });
+      return;
+    }
+    const isCurrent = captureSyncSession();
+    requireSyncArray(items);
+    await db.transaction("rw", db.finance_transactions, async () => {
+      assertSyncSession(isCurrent);
+      const existing = await db.finance_transactions.toArray();
+      const byId = new Map(existing.filter((item) => isServerId(item.id)).map((item) => [String(item.id), item]));
+      const received = new Set(items.map((item) => String(item.id)));
+      for (const item of existing) {
+        const itemMonth = transactionReferenceMonth(item);
+        if (!item.pending_sync && itemMonth === month && !received.has(String(item.id))) await db.finance_transactions.delete(item.local_id);
+      }
+      for (const item of items) {
+        const current = byId.get(String(item.id));
+        if (current?.pending_sync) continue;
+        await db.finance_transactions.put({ ...item, ...(current?.local_id ? { local_id: current.local_id } : {}), ...(current?.local_key ? { local_key: current.local_key } : {}), ...(item.original_type === undefined && current?.original_type !== undefined ? { original_type: current.original_type } : {}) });
+      }
+      assertSyncSession(isCurrent);
     });
   },
 
@@ -611,7 +630,7 @@ export const financeRepository = {
     const selected = normalizeMonth(month);
     const rows = await db.finance_transactions.toArray();
     return rows
-      .filter((item) => !selected || String(transactionCalendarDate(item) || "").startsWith(selected))
+      .filter((item) => !selected || transactionReferenceMonth(item) === selected)
       .sort((a, b) => {
         const dateCompare = String(b.transaction_date || "").localeCompare(String(a.transaction_date || ""));
         if (dateCompare !== 0) return dateCompare;
@@ -628,6 +647,10 @@ export const financeRepository = {
 
         return (b.local_id || 0) - (a.local_id || 0);
       });
+  },
+
+  async getPendingTransactions() {
+    return db.finance_transactions.filter((item) => Boolean(item.pending_sync)).toArray();
   },
 
   async resolveCategoryFromLocalHistory(description) {
@@ -758,6 +781,7 @@ export const financeRepository = {
       Object.assign(payload, normalizePaymentOrigin(payload,current));
       if (changes.payment_method !== undefined || changes.credit_card_id !== undefined) payload.payment_source_locked = 1;
     }
+    if ((payload.type ?? current.type) !== 'EXPENSE' || (payload.payment_method ?? current.payment_method) === 'CREDIT_CARD') payload.payment_card_id = null;
     await db.finance_transactions.update(current.local_id, payload);
     return { ...current, ...payload };
   },
@@ -1006,7 +1030,7 @@ export const financeRepository = {
 
     investmentTransactions.forEach((transaction) => {
       const amount = Number(transaction.amount || 0);
-      const monthKey = String(transaction.transaction_date || "").slice(0, 7);
+      const monthKey = transactionReferenceMonth(transaction);
       const category = categoriesById.get(String(transaction.category_id || ""));
       const macro = macroByName.get(category?.macro_category || "Geral");
       const isWithdrawal = category.investment_flow_type === INVESTMENT_FLOW.OUT;

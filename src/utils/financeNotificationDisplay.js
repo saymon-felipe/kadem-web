@@ -25,6 +25,10 @@ export function transactionCalendarDate(transaction) {
   return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
+export function transactionReferenceMonth(transaction) {
+  return transaction?.reference_month || String(transactionCalendarDate(transaction) || "").slice(0, 7);
+}
+
 export function transactionDescription(transaction) {
   const value = transaction?.description || "";
   const parts = genosDescriptionParts(transaction);

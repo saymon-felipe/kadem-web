@@ -26,9 +26,12 @@
             <NexoOverviewTab
               :credit-summary="credit"
               :credit-cards="creditCards"
+              :saving-payment-card-ids="savingPaymentCardIds"
+              :payment-card-error="paymentCardError"
               :totals="totals"
               :categories="categories"
               :recent-transactions="recentTransactions"
+              :transactions="transactions"
               :macro-distribution="macroDistribution"
               :investment-summary="investmentSummary"
               :physical-state="physicalState"
@@ -42,11 +45,14 @@
               @view-credit="setActiveTab('credit')"
               @toggle-ignored="toggleIgnored"
               @delete-transaction="requestDeleteTransaction"
+              @select-payment-card="selectPaymentCard"
             />
           </template>
 
           <template v-else-if="tab.id === 'transactions'">
             <NexoTransactionsTab
+              :selected-month="selectedMonth"
+              :moving-transactions="movingTransactions"
               :saving-payment-origin-ids="savingPaymentOriginIds"
               :payment-origin-error="paymentOriginError"
               :credit-cards="creditCards"
@@ -78,6 +84,7 @@
               @reset-csv="resetCsvImport"
               @confirm-csv="confirmCsvImport"
               @edit-transaction="openTransactionForm"
+              @move-transactions="moveTransactions"
               @toggle-ignored="toggleIgnored"
               @delete-transaction="requestDeleteTransaction"
               @select-category="selectTransactionCategory"
@@ -667,7 +674,7 @@ import NexoOverviewTab from "./nexo/NexoOverviewTab.vue";
 import NexoCreditTab from './nexo/NexoCreditTab.vue';
 import NexoReceiptsTab from './nexo/NexoReceiptsTab.vue';
 import { creditSummary as buildCreditSummary } from '@/utils/financeCredit';
-import { transactionCalendarDate, editedTransactionDate } from '@/utils/financeNotificationDisplay';
+import { transactionCalendarDate, transactionReferenceMonth, editedTransactionDate } from '@/utils/financeNotificationDisplay';
 const localToday = () => new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 import NexoInvestmentsTab from "./nexo/NexoInvestmentsTab.vue";
 import NexoTransactionsTab from "./nexo/NexoTransactionsTab.vue";
@@ -745,6 +752,7 @@ export default {
       physicalOffline: false,
       physicalError: '',
       selectedMonth: today.slice(0, 7),
+      movingTransactions: false,
       loading: false,
       hasLoadedOnce: false,
       syncingBanks: false,
@@ -754,6 +762,8 @@ export default {
       showTransactionForm: false,
       savingTransaction: false,
       savingPaymentOriginIds: [],
+      savingPaymentCardIds: [],
+      paymentCardError: "",
       paymentOriginError: "",
       savingCategory: false,
       savingMacro: false,
@@ -1201,7 +1211,7 @@ export default {
     async viewReceiptTransaction(link) {
       if (!link.transaction_id) return;
       const date = transactionCalendarDate({ transaction_date: link.transaction_date, provider: link.provider });
-      if (date) this.selectedMonth = date.slice(0, 7);
+      if (date) this.selectedMonth = link.reference_month || date.slice(0, 7);
       this.transactionSearch = "";
       this.transactionCategoryFilter = "";
       await this.setActiveTab("transactions");
@@ -1512,6 +1522,22 @@ export default {
         loaders.push(this.loadTransactions());
       }
       await Promise.all(loaders);
+    },
+    async moveTransactions({ transactions, month }) {
+      if (this.movingTransactions || !transactions.length || !/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(month) || month === this.selectedMonth) return;
+      this.movingTransactions = true;
+      this.paymentOriginError = "";
+      try {
+        for (const transaction of transactions) {
+          const id = this.transactionKey(transaction);
+          const { data } = await financeService.updateTransaction(id, { reference_month: month });
+          if (data) this.upsertTransactionInList(data);
+        }
+      } catch (error) {
+        this.paymentOriginError = "Não foi possível enviar todos os movimentos. Confira a seleção e tente novamente.";
+      } finally {
+        try { await this.refreshTransactionDrivenViews(); } finally { this.movingTransactions = false; }
+      }
     },
     openTransactionForm(transaction = null) {
       if (transaction && typeof transaction.preventDefault === "function") {
@@ -2533,7 +2559,7 @@ export default {
       return this.sameId(transaction.id, id) || this.sameId(transaction.local_id, id);
     },
     transactionBelongsToSelectedMonth(transaction) {
-      return String(transactionCalendarDate(transaction) || "").startsWith(this.selectedMonth);
+      return transactionReferenceMonth(transaction) === this.selectedMonth;
     },
     enrichTransactionForList(transaction = {}) {
       const category = this.findCategory(transaction.category_id);
@@ -2663,6 +2689,23 @@ export default {
         await this.refreshTransactionDrivenViews();
       } catch (error) {
         this.paymentOriginError = error.response?.data?.message || error.message || "Não foi possível atualizar os dados do pagamento.";
+      }
+    },
+    async selectPaymentCard(transaction, cardId) {
+      const id = this.transactionKey(transaction);
+      const key = String(id);
+      if (!id || this.savingPaymentCardIds.includes(key)) return;
+      this.savingPaymentCardIds.push(key);
+      this.paymentCardError = '';
+      try {
+        const result = await financeService.updateTransaction(id, { payment_card_id: cardId || null }, { waitForSync: false });
+        if (result.data) this.upsertTransactionInList(result.data);
+        await result.synced;
+        await this.refreshTransactionDrivenViews();
+      } catch (error) {
+        this.paymentCardError = error.response?.data?.message || error.message || 'Não foi possível vincular o cartão.';
+      } finally {
+        this.savingPaymentCardIds = this.savingPaymentCardIds.filter((item) => item !== key);
       }
     },
     async selectTransactionCategory(transaction, categoryId, options = {}) {

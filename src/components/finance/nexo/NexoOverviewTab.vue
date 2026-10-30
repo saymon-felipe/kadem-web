@@ -41,7 +41,24 @@
         :selected-category="selectedCategory"
         @category-selected="toggleCategoryFilter"
       />
-      <NexoCreditChart :summary="creditSummary" :format-money="formatMoney" />
+      <NexoRecentTransactions
+        :categories="categories"
+        :credit-cards="creditCards"
+        :saving-payment-card-ids="savingPaymentCardIds"
+        :payment-card-error="paymentCardError"
+        :recent-transactions="filteredRecentTransactions"
+        :selected-category="selectedCategory"
+        :credit-transactions="creditTransactions"
+        :show-credit-details="isCreditCategory"
+        :format-money="formatMoney"
+        :format-short-date="formatShortDate"
+        :format-signed-money="formatSignedMoney"
+        @view-all="$emit('view-transactions')"
+        @clear-filter="selectedCategory = null"
+        @toggle-ignored="$emit('toggle-ignored', $event)"
+        @delete-transaction="$emit('delete-transaction', $event)"
+        @select-payment-card="(transaction, cardId) => $emit('select-payment-card', transaction, cardId)"
+      />
     </div>
   </div>
 </template>
@@ -50,7 +67,7 @@
 import NexoAllocationDonut from './NexoAllocationDonut.vue'
 import NexoSummaryCards from './NexoSummaryCards.vue'
 import NexoPhysicalIndicator from './NexoPhysicalIndicator.vue'
-import NexoCreditChart from './NexoCreditChart.vue'
+import NexoRecentTransactions from './NexoRecentTransactions.vue'
 
 export default {
   name: 'NexoOverviewTab',
@@ -58,14 +75,17 @@ export default {
     NexoAllocationDonut,
     NexoSummaryCards,
     NexoPhysicalIndicator,
-    NexoCreditChart,
+    NexoRecentTransactions,
   },
-  emits: ['view-transactions', 'view-credit', 'view-physical', 'toggle-ignored', 'delete-transaction'],
+  emits: ['view-transactions', 'view-credit', 'view-physical', 'toggle-ignored', 'delete-transaction', 'select-payment-card'],
   props: {
     physicalState: { type: Object, default: null },
     physicalOffline: Boolean,
     physicalError: { type: String, default: '' },
     creditCards: { type: Array, default: () => [] },
+    savingPaymentCardIds: { type: Array, default: () => [] },
+    paymentCardError: { type: String, default: '' },
+    transactions: { type: Array, default: () => [] },
     creditSummary: { type: Object, default: () => ({expense:0,categories:[]}) },
     totals: {
       type: Object,
@@ -106,15 +126,27 @@ export default {
     }
   },
   computed: {
+    isCreditCategory() {
+      return String(this.selectedCategory || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'credito'
+    },
+    creditTransactions() {
+      if (!this.isCreditCategory) return []
+      return this.transactions.filter((transaction) => transaction.type === 'EXPENSE'
+        && transaction.payment_method === 'CREDIT_CARD' && !transaction.is_ignored
+        && transaction.status !== 'CANCELED' && !Number(transaction.is_patrimonial_transfer))
+    },
     filteredRecentTransactions() {
       if (!this.selectedCategory) return this.recentTransactions
 
-      return this.recentTransactions.filter((transaction) => {
+      return this.transactions.filter((transaction) => {
         const category = this.categories.find(
-          (current) => String(current.id || '') === String(transaction.category_id || ''),
+          (current) => [current.id, current.local_id, current.local_key].some((id) => id != null && String(id) === String(transaction.category_id)),
         )
-        const macroName = category?.macro_category || 'Geral'
+        const macroName = category?.macro_category || transaction.macro_category || 'Geral'
         return macroName.toLowerCase() === this.selectedCategory.toLowerCase()
+          && transaction.type === 'EXPENSE' && !transaction.is_ignored
+          && transaction.status !== 'CANCELED' && !Number(transaction.is_patrimonial_transfer)
+          && !['CREDIT_CARD', 'CASH'].includes(transaction.payment_method)
       })
     },
   },
@@ -224,7 +256,7 @@ export default {
 
 .overview-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: var(--space-4);
 }
 

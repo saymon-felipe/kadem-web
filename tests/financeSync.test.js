@@ -8,7 +8,7 @@ import vue from "@vitejs/plugin-vue";
 import { createPinia, setActivePinia } from "pinia";
 import { createSSRApp } from "vue";
 import { renderToString } from "vue/server-renderer";
-import { transactionCalendarDate, transactionDescription, transactionObservation, editedTransactionDate } from "../src/utils/financeNotificationDisplay.js";
+import { transactionCalendarDate, transactionReferenceMonth, transactionDescription, transactionObservation, editedTransactionDate } from "../src/utils/financeNotificationDisplay.js";
 import {creditSummary,normalizePaymentOrigin} from '../src/utils/financeCredit.js';
 
 test('crédito agrega centavos por categoria/cartão e exclui débito, pix, ignorados e cancelados',()=>{
@@ -212,6 +212,60 @@ test("tabela desktop e celular mostram hora real de Genos, inclusive meia-noite,
     assert.equal((html.match(/>\s*Genos\s*</g) || []).length, 4);
     assert.equal((html.match(/>\s*CSV\s*</g) || []).length, 2);
     assert.ok(html.includes("21/10")); assert.ok(html.includes("Não informado")); assert.ok(!html.includes("UNKNOWN"));
+  } finally { await server.close(); }
+});
+
+test("Visão restaura Recentes e filtra todos os movimentos da categoria selecionada", { timeout: 30000 }, async () => {
+  const server = await createViteServer();
+  try {
+    const { default: Overview } = await server.ssrLoadModule('/src/components/finance/nexo/NexoOverviewTab.vue');
+    const categories = [{ id: 1, macro_category: 'Crédito' }, { id: 2, macro_category: 'Moradia' }];
+    const transactions = [
+      { id: 1, category_id: 1, type: 'EXPENSE', payment_method: 'PIX', description: 'Fatura' },
+      { id: 2, category_id: 1, type: 'EXPENSE', payment_method: 'CREDIT_CARD', description: 'Compra' },
+      { id: 3, category_id: 1, type: 'EXPENSE', is_ignored: true },
+      { id: 4, category_id: 2, type: 'EXPENSE', payment_method: 'PIX' },
+    ];
+    const context = { selectedCategory: 'Crédito', categories, transactions, recentTransactions: [] };
+    assert.deepEqual(Overview.computed.filteredRecentTransactions.call(context).map((item) => item.id), [1]);
+    assert.equal(Overview.computed.isCreditCategory.call(context), true);
+    context.isCreditCategory = true;
+    assert.deepEqual(Overview.computed.creditTransactions.call(context).map((item) => item.id), [2]);
+    context.selectedCategory = null;
+    assert.equal(Overview.computed.filteredRecentTransactions.call(context), context.recentTransactions);
+    const app = createSSRApp(Overview, { totals: {}, categories, transactions, recentTransactions: transactions,
+      macroDistribution: [], creditSummary: {}, formatMoney: String, formatSignedMoney: () => '', formatShortDate: () => '' });
+    app.component('font-awesome-icon', { render: () => null });
+    const html = await renderToString(app);
+    assert.match(html, /Recentes/);
+    assert.doesNotMatch(html, /Crédito por categoria/);
+  } finally { await server.close(); }
+});
+
+test("pagamento vinculado mostra somente as compras do respectivo cartão", { timeout: 30000 }, async () => {
+  const server = await createViteServer();
+  try {
+    const { default: Recent } = await server.ssrLoadModule('/src/components/finance/nexo/NexoRecentTransactions.vue');
+    const creditCards = [{ id: 10, name: 'Cartão A', brand: 'Visa', last_four: '1234' }, { id: 20, name: 'Cartão B', brand: 'Master', last_four: '5678' }];
+    const creditTransactions = [
+      { id: 1, credit_card_id: 10, amount: 0.1, description: 'Compra A' },
+      { id: 2, credit_card_id: 10, amount: 0.2, description: 'Compra B' },
+      { id: 3, credit_card_id: 20, amount: 8, description: 'Compra C' },
+      { id: 4, credit_card_id: null, amount: 1, description: 'Sem cartão' },
+    ];
+    const purchasesByCard = Recent.computed.purchasesByCard.call({ creditTransactions });
+    const context = { purchasesByCard, purchasesForPayment: Recent.methods.purchasesForPayment };
+    assert.equal(Recent.methods.purchasesTotal.call(context, { payment_card_id: 10 }), 0.3);
+    assert.deepEqual(Recent.methods.purchasesForPayment.call(context, { payment_card_id: 10 }).map((item) => item.id), [1, 2]);
+    assert.equal(purchasesByCard.has('none'), false);
+    const app = createSSRApp(Recent, { creditCards, creditTransactions, showCreditDetails: true, selectedCategory: 'Crédito',
+      recentTransactions: [{ id: 5, description: 'Pagamento da fatura', type: 'EXPENSE', payment_card_id: 10 }], categories: [],
+      formatMoney: String, formatSignedMoney: () => '', formatShortDate: () => '' });
+    app.component('font-awesome-icon', { render: () => null });
+    const html = await renderToString(app);
+    for (const text of ['Pagamento da fatura', 'Cartão A', 'Cartão B', 'Compra A', 'Compra B', 'não representam necessariamente a fatura paga']) assert.ok(html.includes(text), text);
+    assert.ok(!html.includes('Compra C'));
+    assert.ok(!html.includes('Sem cartão'));
   } finally { await server.close(); }
 });
 
@@ -522,6 +576,67 @@ const loadOfflineFinance = async (server) => {
     modules.db.finance_categories.add({ local_key: `category-${category.id}`, pending_sync: false, ...category });
   return modules;
 };
+
+test('vínculo de pagamento a cartão criado offline sobrevive ao pull e sincroniza com ID remoto', { timeout: 60000 }, async () => {
+  const server = await createViteServer(); let db;
+  try {
+    const m = await loadOfflineFinance(server); db = m.db; m.setOnline(false);
+    const original = { id: 501, description: 'Fatura', amount: 50, type: 'EXPENSE', payment_method: 'PIX', transaction_date: '2026-10-30' };
+    await m.financeRepository.setTransactions([original], { month: '2026-10' });
+    const { data: card } = await m.financeService.saveCreditCard(null, { name: 'A', bank: 'Banco', brand: 'Visa', last_four: '1234', credit_limit: 100 });
+    await m.financeService.updateTransaction(501, { payment_card_id: card.id });
+    await m.financeRepository.setTransactions([original], { month: '2026-10' });
+    assert.equal((await m.financeRepository.findTransaction(501)).payment_card_id, card.id);
+    const puts = [];
+    m.api.put = async (url, body) => { puts.push({ url, body }); return { data: { ...original, ...body } }; };
+    m.setOnline(true); await m.syncService.processSyncQueue();
+    assert.equal(puts.length, 1);
+    assert.equal(puts[0].body.payment_card_id, 100);
+    assert.equal((await m.financeRepository.findTransaction(501)).payment_card_id, 100);
+    await m.financeService.updateTransaction(501, { payment_card_id: null });
+    assert.equal(puts[1].body.payment_card_id, null);
+  } finally { db?.close(); await server.close(); }
+});
+
+test("mês de referência preserva data, mudança offline e atualização após criação", { timeout: 60000 }, async () => {
+  const server = await createViteServer();
+  let db;
+  try {
+    const m = await loadOfflineFinance(server);
+    db = m.db;
+    m.setOnline(false);
+    const date = "2026-10-30T12:15:00Z";
+    assert.equal(transactionReferenceMonth({ provider: "GENOS_NOTIFICATION", transaction_date: "2026-11-01T02:15:00Z" }), "2026-10");
+    const { data: created } = await m.financeService.createTransaction({ description: "Salário", type: "INCOME", amount: 100, transaction_date: date });
+    await m.financeService.updateTransaction(created.id, { reference_month: "2026-11" });
+    await m.financeRepository.setTransactions([], { month: "2026-10" });
+    assert.equal((await m.financeRepository.getTransactions({ month: "2026-10" })).length, 0);
+    let [moved] = await m.financeRepository.getTransactions({ month: "2026-11" });
+    assert.equal(moved.transaction_date, date);
+    assert.equal(moved.reference_month, "2026-11");
+    const puts = [];
+    m.api.put = async (url, body) => { puts.push({ url, body }); return { data: { id: 100, description: "Salário", type: "INCOME", amount: 100, transaction_date: date, ...body } }; };
+    m.setOnline(true);
+    await m.syncService.processSyncQueue();
+    assert.equal(puts.length, 1);
+    assert.equal(puts[0].body.reference_month, "2026-11");
+    [moved] = await m.financeRepository.getTransactions({ month: "2026-11" });
+    assert.equal(moved.transaction_date, date);
+    assert.equal(moved.reference_month, "2026-11");
+    assert.equal(moved.pending_sync, false);
+    m.setOnline(false);
+    const original = { id: 501, description: "Outro", type: "INCOME", amount: 50, transaction_date: "2026-10-30" };
+    await m.financeRepository.setTransactions([original], { month: "2026-10" });
+    await m.financeService.updateTransaction(501, { reference_month: "2026-11" });
+    await m.financeRepository.setTransactions([original], { month: "2026-10" });
+    assert.equal((await m.financeRepository.getTransactions({ month: "2026-10" })).length, 0);
+    assert.equal((await m.financeRepository.getTransactions({ month: "2026-11" })).find((item) => item.id === 501).reference_month, "2026-11");
+    assert.equal((await m.financeRepository.getPendingTransactions()).length, 1);
+  } finally {
+    db?.close();
+    await server.close();
+  }
+});
 
 test("aporte criado offline com meta nova: a meta sincroniza antes e o aporte leva o id do servidor", { timeout: 30000 }, async () => {
   const server = await createViteServer();

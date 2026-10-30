@@ -88,6 +88,8 @@
     </div>
     <p v-if="paymentOriginError" class="payment-origin-error" role="alert">{{ paymentOriginError }}</p>
     <NexoTransactionsTable
+      :selected-month="selectedMonth"
+      :moving="movingTransactions"
       :saving-payment-origin-ids="savingPaymentOriginIds"
       :credit-cards="creditCards"
       :transactions="transactions"
@@ -104,6 +106,7 @@
       @select-payment-origin="emitSelectPaymentOrigin"
       @create-category-for-transaction="emitCreateCategoryForTransaction"
       @clear-filters="clearAllFilters"
+      @move-transactions="$emit('move-transactions', $event)"
     />
   </section>
 </template>
@@ -123,6 +126,7 @@ export default {
     NexoFilterPanel,
   },
   emits: [
+    "move-transactions",
     "auto-categorize",
     "confirm-csv",
     "create-category-for-transaction",
@@ -139,6 +143,8 @@ export default {
     "upgrade",
   ],
   props: {
+    selectedMonth: { type: String, required: true },
+    movingTransactions: { type: Boolean, default: false },
     savingPaymentOriginIds: { type: Array, default: () => [] },
     paymentOriginError: { type: String, default: "" },
     creditCards: {type:Array,default:()=>[]},

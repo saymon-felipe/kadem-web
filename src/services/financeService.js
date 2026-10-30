@@ -284,6 +284,25 @@ const localDashboard = async (month) => {
   };
 };
 
+const localBudgetActuals = async (month, groups) => {
+  const [transactions, categories] = await Promise.all([
+    financeRepository.getTransactions({ month }), financeRepository.getCategories(),
+  ]);
+  const categoryById = new Map(categories.map((category) => [String(category.id || category.local_id), category]));
+  const eligible = transactions.filter((item) => !item.is_ignored && !Number(item.is_patrimonial_transfer));
+  return groups.map((group) => ({
+    ...group,
+    actual_amount: eligible.reduce((total, item) => {
+      const category = categoryById.get(String(item.category_id || ""));
+      return category && category.macro_category === group.macro_category && category.type === item.type ? total + Number(item.amount || 0) : total;
+    }, 0),
+    items: (group.items || []).map((budget) => ({
+      ...budget,
+      actual_amount: eligible.reduce((total, item) => String(item.category_id) === String(budget.category_id) && item.type === budget.type ? total + Number(item.amount || 0) : total, 0),
+    })),
+  }));
+};
+
 export const financeService = {
   async getGenosPairingAccess() {
     const isCurrent = captureSyncSession();
@@ -304,7 +323,7 @@ export const financeService = {
     try {
       const {data} = await api.get('/finance/transactions',{params:{...params,payment_review:true,limit:100}});
       assertSyncSession(isCurrent);
-      const ids = new Set(pending.map((t)=>String(t.id)));
+      const ids = new Set((await financeRepository.getPendingTransactions()).map((t)=>String(t.id)));
       return response([...pending.filter((t)=>t.payment_review_reason && !t.is_ignored && t.status !== 'CANCELED'),...requireSyncArray(data).filter((t)=>!ids.has(String(t.id)) && !t.is_ignored && t.status !== 'CANCELED')].slice(0,100));
     } catch { return response(local.filter((t)=>t.payment_review_reason && !t.is_ignored && t.status !== 'CANCELED').slice(0,100)); }
   },
@@ -328,7 +347,7 @@ export const financeService = {
   async getDashboard(params = {}) {
     const isCurrent = captureSyncSession();
     try {
-      if ((await financeRepository.getTransactions(params)).some((t) => t.pending_sync)) return response(await localDashboard(params.month));
+      if ((await financeRepository.getPendingTransactions()).length) return response(await localDashboard(params.month));
       const result = await api.get("/finance/dashboard", { params });
       assertSyncSession(isCurrent);
       const recentTransactions = Array.isArray(result.data.transactions)
@@ -350,6 +369,7 @@ export const financeService = {
   async getInvestments(params = {}) {
     const isCurrent = captureSyncSession();
     try {
+      if ((await financeRepository.getPendingTransactions()).length) return response(await financeRepository.getInvestmentsSummary(params));
       const result = await api.get("/finance/investments", { params });
       assertSyncSession(isCurrent);
       requireSyncArray(result.data.goals);
@@ -406,7 +426,7 @@ export const financeService = {
         items = requireSyncArray(result.data);
       }
 
-      await financeRepository.setTransactions(items);
+      await financeRepository.setTransactions(items, params);
       return response(await financeRepository.getTransactions(params));
     } catch {
       return response(await financeRepository.getTransactions(params));
@@ -682,14 +702,17 @@ export const financeService = {
 
   async getBudgets(params = {}) {
     const isCurrent = captureSyncSession();
+    let groups;
     try {
       const result = await api.get("/finance/budgets", { params });
       assertSyncSession(isCurrent);
       await financeRepository.setBudgetGroups(params.month, requireSyncArray(result.data));
-      return result;
+      groups = result.data;
     } catch {
-      return response(await financeRepository.getBudgetGroups(params.month));
+      groups = await financeRepository.getBudgetGroups(params.month);
     }
+    if ((await financeRepository.getPendingTransactions()).some((t) => t.reference_month)) groups = await localBudgetActuals(params.month, groups);
+    return response(groups);
   },
 
   async saveBudgets(data) {

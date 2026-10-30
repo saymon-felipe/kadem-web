@@ -1,9 +1,17 @@
 <template>
   <div class="table-stack">
+    <div v-if="transactions.length || selectedIds.length" class="move-controls">
+      <label><input type="checkbox" :checked="allSelected" :disabled="moving || !transactions.length" @change="selectAll($event.target.checked)" /> Selecionar todos os movimentos filtrados</label>
+      <span>{{ selectedIds.length }} selecionados</span>
+      <label>Enviar para <input v-model="targetMonth" type="month" :disabled="moving" aria-label="Mês de destino" /></label>
+      <button type="button" :disabled="moving || !selectedIds.length || !validTargetMonth || targetMonth === selectedMonth" @click="moveSelected">{{ moving ? 'Enviando...' : 'Enviar para outro mês' }}</button>
+      <small>A data original dos movimentos será mantida.</small>
+    </div>
     <div class="table-wrap desktop-table-wrap">
       <table>
         <thead>
           <tr>
+            <th class="col-select"><span class="sr-only">Selecionar</span></th>
             <th class="col-date">Data</th>
             <th class="col-desc">Descrição</th>
             <th class="col-cat">Categoria</th>
@@ -18,6 +26,7 @@
             :key="transaction.local_id || transaction.id"
             :class="{ ignored: transaction.is_ignored }"
           >
+            <td class="col-select"><input type="checkbox" :checked="isSelected(transaction)" :disabled="moving" aria-label="Selecionar movimento" @change="toggleSelection(transaction, $event.target.checked)" /></td>
             <td class="col-date date-cell">
               <strong>{{ formatShortDate(transactionCalendarDate(transaction)) }}</strong>
               <small v-if="timeLabel(transaction)">{{
@@ -100,7 +109,7 @@
         </tbody>
         <tbody v-else>
           <tr>
-            <td colspan="6" class="empty-table-cell">
+            <td colspan="7" class="empty-table-cell">
               <div class="empty-state-card">
                 <div class="empty-icon-circle">
                   <font-awesome-icon icon="receipt" />
@@ -138,6 +147,7 @@
           :class="{ ignored: transaction.is_ignored }"
         >
           <div class="card-top-row">
+            <input type="checkbox" :checked="isSelected(transaction)" :disabled="moving" aria-label="Selecionar movimento" @change="toggleSelection(transaction, $event.target.checked)" />
             <div class="date-badge">
               <strong>{{ formatShortDate(transactionCalendarDate(transaction)) }}</strong>
               <small v-if="timeLabel(transaction)">{{
@@ -282,8 +292,10 @@ export default {
     NexoPaymentOriginDropdown,
     NexoPaymentBadges,
   },
-  emits: ["clear-filters", "create-category-for-transaction", "delete", "edit", "select-category", "select-payment-origin", "toggle-ignored"],
+  emits: ["clear-filters", "create-category-for-transaction", "delete", "edit", "move-transactions", "select-category", "select-payment-origin", "toggle-ignored"],
   props: {
+    selectedMonth: { type: String, default: "" },
+    moving: { type: Boolean, default: false },
     savingPaymentOriginIds: { type: Array, default: () => [] },
     creditCards: {type:Array,default:()=>[]},
     hasActiveFilters: {
@@ -320,9 +332,13 @@ export default {
       page: 1,
       pageSize: 25,
       pageSizeOptions: [25, 50, 100],
+      selectedIds: [],
+      targetMonth: "",
     };
   },
   computed: {
+    allSelected() { return this.transactions.length > 0 && this.transactions.every((item) => this.isSelected(item)); },
+    validTargetMonth() { return /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(this.targetMonth); },
     totalPages() {
       return Math.max(1, Math.ceil(this.transactions.length / this.pageSize));
     },
@@ -339,16 +355,29 @@ export default {
     },
   },
   watch: {
+    selectedMonth() { this.selectedIds = []; this.targetMonth = ""; },
     paginationResetKey() {
       this.page = 1;
     },
     transactions() {
+      const available = new Set(this.transactions.map((item) => this.selectionKey(item)));
+      this.selectedIds = this.selectedIds.filter((id) => available.has(id));
       if (this.page > this.totalPages) {
         this.page = this.totalPages;
       }
     },
   },
   methods: {
+    selectionKey(transaction) { return String(transaction.local_id || transaction.id); },
+    isSelected(transaction) { return this.selectedIds.includes(this.selectionKey(transaction)); },
+    toggleSelection(transaction, checked) {
+      const id = this.selectionKey(transaction);
+      this.selectedIds = checked ? [...new Set([...this.selectedIds, id])] : this.selectedIds.filter((item) => item !== id);
+    },
+    selectAll(checked) { this.selectedIds = checked ? this.transactions.map((item) => this.selectionKey(item)) : []; },
+    moveSelected() {
+      this.$emit('move-transactions', { transactions: this.transactions.filter((item) => this.isSelected(item)), month: this.targetMonth });
+    },
     isSavingPaymentOrigin(transaction) {
       return this.savingPaymentOriginIds.includes(String(transaction.id || transaction.local_id));
     },
@@ -389,6 +418,14 @@ export default {
 </script>
 
 <style scoped>
+.move-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--text-secondary); font-size: 0.85rem; }
+.move-controls label { display: inline-flex; align-items: center; gap: 6px; }
+.move-controls input[type="month"], .move-controls button { padding: 8px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--text-primary); }
+.move-controls button { cursor: pointer; font-weight: 600; }
+.move-controls button:disabled { opacity: .5; cursor: not-allowed; }
+.move-controls small { flex-basis: 100%; }
+.col-select { width: 32px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 .payment-origin {
   display: flex;
   align-items: center;

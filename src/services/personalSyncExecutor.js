@@ -12,6 +12,7 @@ export function createPersonalSyncExecutor({ api, getUserId, syncReceipt, delete
     const allowedKeys = [
       "payment_method",
       "credit_card_id",
+      "payment_card_id",
       "cash_amount",
       "client_id",
       "description",
@@ -21,6 +22,7 @@ export function createPersonalSyncExecutor({ api, getUserId, syncReceipt, delete
       "category_id",
       "goal_id",
       "transaction_date",
+      "reference_month",
       "status",
       "source",
       "is_ignored",
@@ -107,25 +109,37 @@ export function createPersonalSyncExecutor({ api, getUserId, syncReceipt, delete
     }
   };
 
-  const updateFinanceLocalRecord = async (table, localId, serverData) => {
+  const updateFinanceLocalRecord = async (table, localId, serverData, currentTask = null) => {
     if (!localId || !serverData) return;
     const current = await db[table].get(localId);
+    const laterUpdates = table === "finance_transactions" && currentTask
+      ? (await db.syncQueue.toArray()).filter((task) => task.type === "UPDATE_FINANCE_TRANSACTION" && task.payload?.local_id === localId && task.id > currentTask.id)
+      : [];
+    const laterFields = Object.assign({}, ...laterUpdates.map((task) => task.payload.data));
     await db[table].update(localId, {
       ...serverData,
-      pending_sync: false,
+      ...laterFields,
+      pending_sync: laterUpdates.length > 0,
       updated_at: serverData.updated_at || new Date().toISOString(),
     });
 
     if (table === "finance_credit_cards" && current && serverData.id) {
       const refs = new Set([current.id, current.local_key].filter(Boolean).map(String));
-      const rows = await db.finance_transactions.filter((t) => refs.has(String(t.credit_card_id))).toArray();
-      await Promise.all(rows.map((t) => db.finance_transactions.update(t.local_id, { credit_card_id: serverData.id })));
+      const rows = await db.finance_transactions.filter((t) => refs.has(String(t.credit_card_id)) || refs.has(String(t.payment_card_id))).toArray();
+      await Promise.all(rows.map((t) => db.finance_transactions.update(t.local_id, {
+        ...(refs.has(String(t.credit_card_id)) ? { credit_card_id: serverData.id } : {}),
+        ...(refs.has(String(t.payment_card_id)) ? { payment_card_id: serverData.id } : {}),
+      })));
       const tasks = await syncQueueRepository.getPendingTasks();
       for (const task of tasks) {
         let changed = false;
         for (const data of [task.payload?.data, ...(task.payload?.transactions || [])].filter(Boolean)) {
           if (refs.has(String(data.credit_card_id))) {
             data.credit_card_id = serverData.id;
+            changed = true;
+          }
+          if (refs.has(String(data.payment_card_id))) {
+            data.payment_card_id = serverData.id;
             changed = true;
           }
         }
@@ -297,6 +311,8 @@ export function createPersonalSyncExecutor({ api, getUserId, syncReceipt, delete
     const cleanData = sanitizeTransactionPayload(data);
     if (cleanData.credit_card_id)
       cleanData.credit_card_id = await resolveFinanceEntityId("finance_credit_cards", cleanData.credit_card_id);
+    if (cleanData.payment_card_id)
+      cleanData.payment_card_id = await resolveFinanceEntityId("finance_credit_cards", cleanData.payment_card_id);
     if (cleanData.category_id) {
       cleanData.category_id = await resolveFinanceEntityId("finance_categories", cleanData.category_id);
     }
@@ -394,7 +410,7 @@ export function createPersonalSyncExecutor({ api, getUserId, syncReceipt, delete
       case "CREATE_FINANCE_TRANSACTION": {
         const cleanData = await resolveTransactionPayloadForServer(payload.data);
         const response = await api.post("/finance/transactions", cleanData);
-        await updateFinanceLocalRecord("finance_transactions", payload.local_id, response.data);
+        await updateFinanceLocalRecord("finance_transactions", payload.local_id, response.data, task);
         return;
       }
       case "CREATE_FINANCE_TRANSACTIONS_BATCH": {
@@ -423,7 +439,7 @@ export function createPersonalSyncExecutor({ api, getUserId, syncReceipt, delete
           for (let i = 0; i < response.data.length; i++) {
             const serverData = response.data[i];
             const localId = payload.local_ids[i];
-            await updateFinanceLocalRecord("finance_transactions", localId, serverData);
+            await updateFinanceLocalRecord("finance_transactions", localId, serverData, task);
           }
         }
         return;
@@ -434,7 +450,7 @@ export function createPersonalSyncExecutor({ api, getUserId, syncReceipt, delete
         const cleanData = await resolveTransactionPayloadForServer(payload.data);
         delete cleanData.client_id;
         const response = await api.put(`/finance/transactions/${id}`, cleanData);
-        await updateFinanceLocalRecord("finance_transactions", payload.local_id, response.data);
+        await updateFinanceLocalRecord("finance_transactions", payload.local_id, response.data, task);
         return;
       }
       case "DELETE_FINANCE_TRANSACTION": {
