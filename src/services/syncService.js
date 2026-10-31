@@ -971,7 +971,7 @@ export const syncService = {
               const current = await db.syncQueue.get(task.id);
               if (!current || current.status === "FAILED") continue;
             }
-            if (!["SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT"].includes(task.type) && error.response && (error.response.status === 403 || error.response.status === 404)) {
+            if (!["SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT", "MOVE_FINANCE_TRANSACTIONS"].includes(task.type) && error.response && (error.response.status === 403 || error.response.status === 404)) {
               console.warn(`[SyncService] Erro Fatal (${error.response.status}). Removendo tarefa ${task.type}.`);
               await syncQueueRepository.deleteTask(task.id);
 

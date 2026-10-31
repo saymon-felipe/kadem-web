@@ -3,6 +3,7 @@ import { financeRepository, syncQueueRepository } from "@/services/localData";
 import { syncService } from "@/services/syncService";
 import { captureSyncSession, assertSyncSession, requireSyncArray } from "@/utils/syncState";
 import { creditSummary } from '@/utils/financeCredit';
+import { useAuthStore } from '@/stores/auth';
 
 const response = (data) => ({ data });
 const isServerId = (id) => id !== null && id !== undefined && Number.isFinite(Number(id));
@@ -453,6 +454,15 @@ export const financeService = {
     const local = await financeRepository.updateLocalTransaction(id, cleanData);
     const { synced } = await enqueue("UPDATE_FINANCE_TRANSACTION", { id, local_id: local.local_id, data: cleanData }, options);
     return { ...response(local), synced };
+  },
+
+  async moveTransactions(transactions, referenceMonth) {
+    const rows = await financeRepository.moveTransactionsToMonth(transactions.map((item) => item.local_id), referenceMonth, useAuthStore().user?.id);
+    if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+      navigator.serviceWorker.getRegistration().then((registration) => registration?.sync?.register('kadem-personal-sync')).catch(() => {});
+    }
+    const synced = syncService.processSyncQueue();
+    return { ...response(rows), synced };
   },
 
   async deleteTransaction(id) {

@@ -1528,13 +1528,15 @@ export default {
       this.movingTransactions = true;
       this.paymentOriginError = "";
       try {
-        for (const transaction of transactions) {
-          const id = this.transactionKey(transaction);
-          const { data } = await financeService.updateTransaction(id, { reference_month: month });
-          if (data) this.upsertTransactionInList(data);
-        }
+        const result = await financeService.moveTransactions(transactions, month);
+        const moved = new Set(result.data.map((item) => item.local_id));
+        const movedKeys = new Set(transactions.map((item) => String(this.transactionKey(item))));
+        this.transactions = this.transactions.filter((item) => !moved.has(item.local_id));
+        this.recentTransactions = this.recentTransactions.filter((item) => !movedKeys.has(String(this.transactionKey(item))));
+        this.credit = buildCreditSummary(this.transactions, this.categories);
+        await result.synced;
       } catch (error) {
-        this.paymentOriginError = "Não foi possível enviar todos os movimentos. Confira a seleção e tente novamente.";
+        this.paymentOriginError = "Não foi possível transferir os movimentos. Confira a seleção e tente novamente.";
       } finally {
         try { await this.refreshTransactionDrivenViews(); } finally { this.movingTransactions = false; }
       }

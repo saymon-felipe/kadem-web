@@ -113,9 +113,13 @@ export function createPersonalSyncExecutor({ api, getUserId, syncReceipt, delete
     if (!localId || !serverData) return;
     const current = await db[table].get(localId);
     const laterUpdates = table === "finance_transactions" && currentTask
-      ? (await db.syncQueue.toArray()).filter((task) => task.type === "UPDATE_FINANCE_TRANSACTION" && task.payload?.local_id === localId && task.id > currentTask.id)
+      ? (await db.syncQueue.toArray()).filter((task) => task.id > currentTask.id && (
+        (task.type === "UPDATE_FINANCE_TRANSACTION" && task.payload?.local_id === localId)
+        || (task.type === "MOVE_FINANCE_TRANSACTIONS" && task.payload?.items?.some((item) => item.local_id === localId))
+      ))
       : [];
-    const laterFields = Object.assign({}, ...laterUpdates.map((task) => task.payload.data));
+    const laterFields = Object.assign({}, ...laterUpdates.map((task) => task.type === "MOVE_FINANCE_TRANSACTIONS"
+      ? { reference_month: task.payload.reference_month } : task.payload.data));
     await db[table].update(localId, {
       ...serverData,
       ...laterFields,
@@ -355,6 +359,12 @@ export function createPersonalSyncExecutor({ api, getUserId, syncReceipt, delete
   async function _handleFinanceTask(task) {
     const { payload } = task;
 
+    if (['UPDATE_FINANCE_TRANSACTION', 'DELETE_FINANCE_TRANSACTION'].includes(task.type)) {
+      const previousBatch = (await db.syncQueue.toArray()).some((other) => other.id < task.id
+        && other.type === 'MOVE_FINANCE_TRANSACTIONS' && other.payload?.items?.some((item) => item.local_id === payload.local_id));
+      if (previousBatch) throw new Error('NOT_SYNCED: aguardando transferência anterior do movimento.');
+    }
+
     switch (task.type) {
       case "DELETE_FINANCE_RECEIPT": {
         await deleteReceipt(payload);
@@ -451,6 +461,48 @@ export function createPersonalSyncExecutor({ api, getUserId, syncReceipt, delete
         delete cleanData.client_id;
         const response = await api.put(`/finance/transactions/${id}`, cleanData);
         await updateFinanceLocalRecord("finance_transactions", payload.local_id, response.data, task);
+        return;
+      }
+      case "MOVE_FINANCE_TRANSACTIONS": {
+        const session = captureSyncSession();
+        if (String(payload.user_id) !== String(getUserId())) throw new Error('NOT_SYNCED: aguardando a conta proprietária dos movimentos.');
+        const localIds = new Set(payload.items.map((item) => item.local_id));
+        const earlierTasks = (await db.syncQueue.toArray()).filter((other) => other.id < task.id);
+        if (earlierTasks.some((other) =>
+          (['CREATE_FINANCE_TRANSACTION', 'UPDATE_FINANCE_TRANSACTION', 'DELETE_FINANCE_TRANSACTION'].includes(other.type) && localIds.has(other.payload?.local_id))
+          || (other.type === 'CREATE_FINANCE_TRANSACTIONS_BATCH' && other.payload?.local_ids?.some((id) => localIds.has(id)))
+          || (other.type === 'MOVE_FINANCE_TRANSACTIONS' && other.payload?.items?.some((item) => localIds.has(item.local_id)))
+        )) throw new Error('NOT_SYNCED: aguardando alterações anteriores dos movimentos.');
+        const ids = [];
+        const currentRows = await db.finance_transactions.bulkGet(payload.items.map((item) => item.local_id));
+        for (let index = 0; index < payload.items.length; index++) {
+          const item = payload.items[index];
+          const current = currentRows[index];
+          if (!current && (!Number.isSafeInteger(Number(item.id)) || Number(item.id) <= 0)) continue;
+          const id = Number(current?.id || item.id);
+          if (!Number.isSafeInteger(id) || id <= 0) throw new Error('NOT_SYNCED: aguardando a criação dos movimentos.');
+          ids.push(id);
+        }
+        if (!ids.length) return;
+        const response = await api.put('/finance/transactions/reference-month', { transaction_ids: ids, reference_month: payload.reference_month });
+        assertSyncSession(session);
+        if (Number(response.data?.updated) !== ids.length || response.data?.reference_month !== payload.reference_month) throw new Error('Resposta incompatível ao transferir movimentos.');
+        await db.transaction('rw', db.finance_transactions, db.syncQueue, async () => {
+          assertSyncSession(session);
+          const laterTasks = (await db.syncQueue.toArray()).filter((next) => next.id > task.id);
+          const patches = new Map();
+          for (const next of laterTasks) {
+            const entries = next.type === 'UPDATE_FINANCE_TRANSACTION' ? [{ local_id: next.payload?.local_id, data: next.payload?.data }]
+              : next.type === 'MOVE_FINANCE_TRANSACTIONS' ? (next.payload?.items || []).map((item) => ({ local_id: item.local_id, data: { reference_month: next.payload.reference_month } })) : [];
+            for (const entry of entries) patches.set(entry.local_id, { ...patches.get(entry.local_id), ...entry.data });
+          }
+          const rows = await db.finance_transactions.bulkGet(payload.items.map((item) => item.local_id));
+          await db.finance_transactions.bulkPut(rows.filter(Boolean).map((row) => ({
+            ...row, reference_month: payload.reference_month, ...patches.get(row.local_id),
+            pending_sync: patches.has(row.local_id), updated_at: new Date().toISOString(),
+          })));
+          assertSyncSession(session);
+        });
         return;
       }
       case "DELETE_FINANCE_TRANSACTION": {

@@ -653,6 +653,29 @@ export const financeRepository = {
     return db.finance_transactions.filter((item) => Boolean(item.pending_sync)).toArray();
   },
 
+  async moveTransactionsToMonth(localIds, referenceMonth, userId) {
+    const isCurrent = captureSyncSession();
+    if (!userId || !localIds.length || localIds.length > 1000 || localIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
+      || new Set(localIds).size !== localIds.length || !/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(referenceMonth)) throw new Error('Seleção de movimentos inválida.');
+    return db.transaction('rw', db.finance_transactions, db.syncQueue, async () => {
+      assertSyncSession(isCurrent);
+      const rows = await db.finance_transactions.bulkGet(localIds);
+      if (rows.some((row) => !row)) throw new Error('Um movimento não foi encontrado. Nenhuma transferência foi realizada.');
+      const timestamp = now();
+      const updated = rows.map((row) => ({ ...row, reference_month: referenceMonth, pending_sync: true, updated_at: timestamp }));
+      await db.finance_transactions.bulkPut(updated);
+      await db.syncQueue.add({
+        type: 'MOVE_FINANCE_TRANSACTIONS',
+        payload: { user_id: userId, reference_month: referenceMonth, items: rows.map((row) => ({ id: row.id, local_id: row.local_id })) },
+        timestamp,
+        status: 'PENDING', retry_count: 0, next_attempt_at: timestamp,
+        idempotency_key: crypto.randomUUID(), last_error: null,
+      });
+      assertSyncSession(isCurrent);
+      return updated;
+    });
+  },
+
   async resolveCategoryFromLocalHistory(description) {
     if (!description) return null;
     try {

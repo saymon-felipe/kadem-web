@@ -577,6 +577,162 @@ const loadOfflineFinance = async (server) => {
   return modules;
 };
 
+test('mover movimentos é atômico offline e sincroniza todas em uma única requisição', { timeout: 60000 }, async () => {
+  const server = await createViteServer(); let db;
+  try {
+    const m = await loadOfflineFinance(server); db = m.db; m.setOnline(false);
+    const originals = [501, 502, 503].map((id) => ({ id, description: `Movimento ${id}`, amount: id, type: 'EXPENSE', transaction_date: '2026-10-30T12:00:00Z' }));
+    await m.financeRepository.setTransactions(originals, { month: '2026-10' });
+    const rows = await m.financeRepository.getTransactions({ month: '2026-10' });
+    await assert.rejects(() => m.financeRepository.moveTransactionsToMonth([rows[0].local_id, 999999], '2026-11', 1));
+    assert.equal((await m.financeRepository.getTransactions({ month: '2026-10' })).length, 3);
+    assert.equal((await m.syncQueueRepository.getPendingTasks()).length, 0);
+    const selected = rows.filter((row) => row.id !== 503);
+    await m.financeService.moveTransactions(selected, '2026-11');
+    assert.deepEqual((await m.financeRepository.getTransactions({ month: '2026-10' })).map((row) => row.id), [503]);
+    assert.equal((await m.financeRepository.getTransactions({ month: '2026-11' })).length, 2);
+    await m.financeRepository.setTransactions(originals, { month: '2026-10' });
+    assert.equal((await m.financeRepository.getTransactions({ month: '2026-11' })).length, 2);
+    const tasks = await m.syncQueueRepository.getPendingTasks();
+    assert.equal(tasks.length, 1);
+    assert.equal(tasks[0].type, 'MOVE_FINANCE_TRANSACTIONS');
+    const puts = [];
+    m.api.put = async (url, body) => { puts.push({ url, body }); return { data: { updated: body.transaction_ids.length, reference_month: body.reference_month } }; };
+    m.setOnline(true); await m.syncService.processSyncQueue();
+    assert.equal(puts.length, 1);
+    assert.equal(puts[0].url, '/finance/transactions/reference-month');
+    assert.deepEqual(puts[0].body.transaction_ids.slice().sort(), [501, 502]);
+    assert.equal(puts[0].body.reference_month, '2026-11');
+    const moved = await m.financeRepository.getTransactions({ month: '2026-11' });
+    assert.ok(moved.every((row) => row.transaction_date === '2026-10-30T12:00:00Z' && !row.pending_sync));
+  } finally { db?.close(); await server.close(); }
+});
+
+test('a tela remove toda a seleção de uma vez sem aguardar a rede', { timeout: 60000 }, async () => {
+  const server = await createViteServer();
+  try {
+    const { default: Nexo } = await server.ssrLoadModule('/src/components/finance/KademNexo.vue');
+    const { financeService } = await server.ssrLoadModule('/src/services/financeService.js');
+    const previous = financeService.moveTransactions;
+    let finish; const synced = new Promise((resolve) => { finish = resolve; });
+    const selected = [{ id: 1, local_id: 11 }, { id: 2, local_id: 12 }];
+    const context = { selectedMonth: '2026-10', movingTransactions: false, paymentOriginError: '',
+      transactions: [...selected, { id: 3, local_id: 13 }], recentTransactions: [...selected], categories: [],
+      transactionKey: Nexo.methods.transactionKey, refreshTransactionDrivenViews: async () => {} };
+    try {
+      financeService.moveTransactions = async (items, month) => { assert.equal(items.length, 2); assert.equal(month, '2026-11'); return { data: selected, synced }; };
+      const moving = Nexo.methods.moveTransactions.call(context, { transactions: selected, month: '2026-11' });
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.deepEqual(context.transactions.map((item) => item.id), [3]);
+      assert.deepEqual(context.recentTransactions, []);
+      assert.equal(context.movingTransactions, true);
+      finish(); await moving;
+      assert.equal(context.movingTransactions, false);
+    } finally { financeService.moveTransactions = previous; }
+  } finally { await server.close(); }
+});
+
+test('edição mais recente não é sobrescrita pela confirmação de um lote em andamento', { timeout: 60000 }, async () => {
+  const server = await createViteServer(); let db;
+  try {
+    const m = await loadOfflineFinance(server); db = m.db; m.setOnline(false);
+    const original = { id: 501, description: 'Movimento', type: 'EXPENSE', amount: 20, transaction_date: '2026-10-30' };
+    await m.financeRepository.setTransactions([original], { month: '2026-10' });
+    await m.financeService.moveTransactions(await m.financeRepository.getTransactions({ month: '2026-10' }), '2026-11');
+    let startBatch, finishBatch, startUpdate, finishUpdate;
+    const batchStarted = new Promise((resolve) => { startBatch = resolve; });
+    const batchWait = new Promise((resolve) => { finishBatch = resolve; });
+    const updateStarted = new Promise((resolve) => { startUpdate = resolve; });
+    const updateWait = new Promise((resolve) => { finishUpdate = resolve; });
+    m.api.put = async (url, body) => {
+      if (url.endsWith('/reference-month')) { startBatch(); await batchWait; return { data: { updated: 1, reference_month: '2026-11' } }; }
+      startUpdate(); await updateWait; return { data: { ...original, ...body } };
+    };
+    m.setOnline(true); const syncing = m.syncService.processSyncQueue();
+    await batchStarted;
+    await m.financeService.updateTransaction(501, { reference_month: '2026-12' }, { waitForSync: false });
+    finishBatch(); await updateStarted;
+    const pending = await m.financeRepository.findTransaction(501);
+    assert.equal(pending.reference_month, '2026-12');
+    assert.equal(pending.pending_sync, true);
+    finishUpdate(); await syncing;
+    assert.equal((await m.financeRepository.findTransaction(501)).reference_month, '2026-12');
+  } finally { db?.close(); await server.close(); }
+});
+
+test('lote aguarda criação offline e preserva transferência posterior antes da confirmação', { timeout: 60000 }, async () => {
+  const server = await createViteServer(); let db;
+  try {
+    const m = await loadOfflineFinance(server); db = m.db; m.setOnline(false);
+    await m.financeService.createTransaction({ description: 'Novo', type: 'INCOME', amount: 50, transaction_date: '2026-10-30' });
+    const [created] = await m.financeRepository.getTransactions({ month: '2026-10' });
+    await m.financeService.moveTransactions([created], '2026-11');
+    let startBatch, finishBatch;
+    const batchStarted = new Promise((resolve) => { startBatch = resolve; });
+    const batchWait = new Promise((resolve) => { finishBatch = resolve; });
+    const calls = [];
+    m.api.put = async (url, body) => {
+      calls.push({ url, body });
+      if (calls.length === 1) { startBatch(); await batchWait; }
+      return { data: { updated: body.transaction_ids.length, reference_month: body.reference_month } };
+    };
+    m.setOnline(true); const syncing = m.syncService.processSyncQueue();
+    await batchStarted;
+    let [moved] = await m.financeRepository.getTransactions({ month: '2026-11' });
+    assert.equal(moved.id, 100);
+    assert.equal(moved.pending_sync, true);
+    await m.financeService.moveTransactions([moved], '2026-12');
+    finishBatch(); await syncing;
+    [moved] = await m.financeRepository.getTransactions({ month: '2026-12' });
+    assert.equal(moved.id, 100);
+    assert.equal(moved.pending_sync, false);
+    assert.deepEqual(calls.map((call) => call.body.reference_month), ['2026-11', '2026-12']);
+    assert.deepEqual(calls.map((call) => call.body.transaction_ids), [[100], [100]]);
+  } finally { db?.close(); await server.close(); }
+});
+
+test('edição posterior aguarda lote anterior pendente do mesmo movimento', { timeout: 60000 }, async () => {
+  const server = await createViteServer(); let db;
+  try {
+    const m = await loadOfflineFinance(server); db = m.db; m.setOnline(false);
+    const original = { id: 501, description: 'Movimento', type: 'EXPENSE', amount: 20, transaction_date: '2026-10-30' };
+    await m.financeRepository.setTransactions([original], { month: '2026-10' });
+    await m.financeService.moveTransactions(await m.financeRepository.getTransactions({ month: '2026-10' }), '2026-11');
+    await m.financeService.updateTransaction(501, { reference_month: '2026-12' }, { waitForSync: false });
+    const tasks = await m.syncQueueRepository.getPendingTasks();
+    const { createPersonalSyncExecutor } = await server.ssrLoadModule('/src/services/personalSyncExecutor.js');
+    let calls = 0;
+    const executor = createPersonalSyncExecutor({ api: { put: async (_url, body) => { calls++; return { data: { ...original, ...body } }; } }, getUserId: () => 1 });
+    await assert.rejects(() => executor.finance(tasks[1]), /aguardando transferência anterior/);
+    assert.equal(calls, 0);
+    assert.equal((await m.financeRepository.findTransaction(501)).reference_month, '2026-12');
+  } finally { db?.close(); await server.close(); }
+});
+
+test('falha de rede mantém o lote completo pendente para nova tentativa', { timeout: 60000 }, async () => {
+  const server = await createViteServer(); let db;
+  try {
+    const m = await loadOfflineFinance(server); db = m.db; m.setOnline(false);
+    const originals = [501, 502].map((id) => ({ id, description: `Movimento ${id}`, type: 'EXPENSE', amount: 20, transaction_date: '2026-10-30' }));
+    await m.financeRepository.setTransactions(originals, { month: '2026-10' });
+    await m.financeService.moveTransactions(await m.financeRepository.getTransactions({ month: '2026-10' }), '2026-11');
+    m.api.put = async () => { const error = new Error('servidor indisponível'); error.response = { status: 404 }; throw error; };
+    m.setOnline(true); await m.syncService.processSyncQueue();
+    const queued = await db.syncQueue.toArray();
+    assert.equal(queued.length, 1);
+    assert.equal(queued[0].status, 'RETRY');
+    assert.equal(queued[0].payload.items.length, 2);
+    assert.ok((await m.financeRepository.getTransactions({ month: '2026-11' })).every((item) => item.pending_sync));
+    await db.syncQueue.update(queued[0].id, { next_attempt_at: new Date(0).toISOString() });
+    let calls = 0;
+    m.api.put = async (_url, body) => { calls++; return { data: { updated: body.transaction_ids.length, reference_month: body.reference_month } }; };
+    await m.syncService.processSyncQueue();
+    assert.equal(calls, 1);
+    assert.ok((await m.financeRepository.getTransactions({ month: '2026-11' })).every((item) => !item.pending_sync));
+    assert.equal(await db.syncQueue.count(), 0);
+  } finally { db?.close(); await server.close(); }
+});
+
 test('vínculo de pagamento a cartão criado offline sobrevive ao pull e sincroniza com ID remoto', { timeout: 60000 }, async () => {
   const server = await createViteServer(); let db;
   try {
