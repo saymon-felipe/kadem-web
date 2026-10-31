@@ -1,17 +1,89 @@
 <template>
   <div class="table-stack">
-    <div v-if="transactions.length || selectedIds.length" class="move-controls">
-      <label><input type="checkbox" :checked="allSelected" :disabled="moving || !transactions.length" @change="selectAll($event.target.checked)" /> Selecionar todos os movimentos filtrados</label>
-      <span>{{ selectedIds.length }} selecionados</span>
-      <label>Enviar para <input v-model="targetMonth" type="month" :disabled="moving" aria-label="Mês de destino" /></label>
-      <button type="button" :disabled="moving || !selectedIds.length || !validTargetMonth || targetMonth === selectedMonth" @click="moveSelected">{{ moving ? 'Enviando...' : 'Enviar para outro mês' }}</button>
-      <small>A data original dos movimentos será mantida.</small>
-    </div>
+    <!-- Barra de Ações em Lote (exibida apenas quando há itens selecionados) -->
+    <Transition name="bulk-bar-anim">
+      <div v-if="someSelected" class="bulk-selection-bar" role="region" aria-label="Ações para movimentos selecionados">
+        <div class="bulk-left-group">
+          <div class="selection-pill">
+            <span class="selection-pill-icon">
+              <font-awesome-icon icon="check" />
+            </span>
+            <span class="selection-pill-text">
+              <strong>{{ selectedIds.length }}</strong>
+              {{ selectedIds.length === 1 ? 'movimento selecionado' : 'movimentos selecionados' }}
+            </span>
+          </div>
+
+          <div class="bulk-selection-actions">
+            <button
+              v-if="!allSelected && transactions.length > selectedIds.length"
+              type="button"
+              class="bulk-text-btn"
+              :disabled="moving"
+              @click="selectAll(true)"
+            >
+              Selecionar todos os {{ transactions.length }}
+            </button>
+            <button
+              type="button"
+              class="bulk-text-btn bulk-clear-btn"
+              :disabled="moving"
+              @click="clearSelection"
+            >
+              <font-awesome-icon icon="xmark" />
+              <span>Desmarcar todos</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="bulk-right-group">
+          <div class="bulk-move-controls">
+            <div class="bulk-month-field-wrap">
+              <font-awesome-icon icon="calendar-days" class="bulk-month-icon" />
+              <input
+                v-model="targetMonth"
+                type="month"
+                :disabled="moving"
+                class="bulk-month-input"
+                aria-label="Mês de destino"
+                title="Mês para onde os lançamentos serão transferidos"
+              />
+            </div>
+            <button
+              type="button"
+              class="bulk-move-btn"
+              :disabled="moving || !selectedIds.length || !validTargetMonth || targetMonth === selectedMonth"
+              :title="targetMonth === selectedMonth ? 'Selecione um mês diferente do atual' : 'Transferir os movimentos selecionados para o mês escolhido'"
+              @click="moveSelected"
+            >
+              <font-awesome-icon :icon="moving ? 'circle-notch' : 'arrow-right-arrow-left'" :spin="moving" />
+              <span>{{ moving ? 'Enviando...' : 'Mover para o mês' }}</span>
+            </button>
+          </div>
+          <span class="bulk-hint-text">
+            <font-awesome-icon icon="circle-info" />
+            <span>A data original dos movimentos será mantida.</span>
+          </span>
+        </div>
+      </div>
+    </Transition>
+
     <div class="table-wrap desktop-table-wrap">
       <table>
         <thead>
           <tr>
-            <th class="col-select"><span class="sr-only">Selecionar</span></th>
+            <th class="col-select">
+              <input
+                type="checkbox"
+                class="kadem-checkbox"
+                :checked="allSelected"
+                :indeterminate.prop="someSelected && !allSelected"
+                :disabled="moving || !transactions.length"
+                :title="allSelected ? 'Desmarcar todos os movimentos' : 'Selecionar todos os movimentos filtrados'"
+                aria-label="Selecionar todos os movimentos filtrados"
+                @change="toggleSelectAll($event.target.checked)"
+              />
+            </th>
             <th class="col-date">Data</th>
             <th class="col-desc">Descrição</th>
             <th class="col-cat">Categoria</th>
@@ -24,9 +96,18 @@
           <tr
             v-for="transaction in paginatedTransactions"
             :key="transaction.local_id || transaction.id"
-            :class="{ ignored: transaction.is_ignored }"
+            :class="{ ignored: transaction.is_ignored, 'row-selected': isSelected(transaction) }"
           >
-            <td class="col-select"><input type="checkbox" :checked="isSelected(transaction)" :disabled="moving" aria-label="Selecionar movimento" @change="toggleSelection(transaction, $event.target.checked)" /></td>
+            <td class="col-select">
+              <input
+                type="checkbox"
+                class="kadem-checkbox"
+                :checked="isSelected(transaction)"
+                :disabled="moving"
+                aria-label="Selecionar movimento"
+                @change="toggleSelection(transaction, $event.target.checked)"
+              />
+            </td>
             <td class="col-date date-cell">
               <strong>{{ formatShortDate(transactionCalendarDate(transaction)) }}</strong>
               <small v-if="timeLabel(transaction)">{{
@@ -144,10 +225,17 @@
           v-for="transaction in paginatedTransactions"
           :key="transaction.local_id || transaction.id"
           class="transaction-mobile-card"
-          :class="{ ignored: transaction.is_ignored }"
+          :class="{ ignored: transaction.is_ignored, 'card-selected': isSelected(transaction) }"
         >
           <div class="card-top-row">
-            <input type="checkbox" :checked="isSelected(transaction)" :disabled="moving" aria-label="Selecionar movimento" @change="toggleSelection(transaction, $event.target.checked)" />
+            <input
+              type="checkbox"
+              class="kadem-checkbox"
+              :checked="isSelected(transaction)"
+              :disabled="moving"
+              aria-label="Selecionar movimento"
+              @change="toggleSelection(transaction, $event.target.checked)"
+            />
             <div class="date-badge">
               <strong>{{ formatShortDate(transactionCalendarDate(transaction)) }}</strong>
               <small v-if="timeLabel(transaction)">{{
@@ -337,6 +425,9 @@ export default {
     };
   },
   computed: {
+    someSelected() {
+      return this.selectedIds.length > 0;
+    },
     allSelected() { return this.transactions.length > 0 && this.transactions.every((item) => this.isSelected(item)); },
     validTargetMonth() { return /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(this.targetMonth); },
     totalPages() {
@@ -375,8 +466,15 @@ export default {
       this.selectedIds = checked ? [...new Set([...this.selectedIds, id])] : this.selectedIds.filter((item) => item !== id);
     },
     selectAll(checked) { this.selectedIds = checked ? this.transactions.map((item) => this.selectionKey(item)) : []; },
+    toggleSelectAll(checked) {
+      this.selectAll(checked);
+    },
+    clearSelection() {
+      this.selectedIds = [];
+    },
     moveSelected() {
-      this.$emit('move-transactions', { transactions: this.transactions.filter((item) => this.isSelected(item)), month: this.targetMonth });
+      const selected = this.transactions.filter((item) => this.isSelected(item));
+      this.$emit('move-transactions', { transactions: selected, month: this.targetMonth });
     },
     isSavingPaymentOrigin(transaction) {
       return this.savingPaymentOriginIds.includes(String(transaction.id || transaction.local_id));
@@ -418,13 +516,227 @@ export default {
 </script>
 
 <style scoped>
-.move-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--text-secondary); font-size: 0.85rem; }
-.move-controls label { display: inline-flex; align-items: center; gap: 6px; }
-.move-controls input[type="month"], .move-controls button { padding: 8px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--text-primary); }
-.move-controls button { cursor: pointer; font-weight: 600; }
-.move-controls button:disabled { opacity: .5; cursor: not-allowed; }
-.move-controls small { flex-basis: 100%; }
-.col-select { width: 32px; }
+/* Barra de Ações em Lote */
+.bulk-selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: 10px 16px;
+  background: var(--surface-1);
+  border: 1px solid rgba(53, 90, 253, 0.35);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(8px);
+  position: relative;
+  z-index: 5;
+  transition: all var(--transition-fast);
+}
+
+[data-theme='dark'] .bulk-selection-bar {
+  background: linear-gradient(135deg, rgba(20, 24, 41, 0.95), rgba(26, 32, 58, 0.95));
+  border-color: rgba(53, 90, 253, 0.45);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), 0 0 15px rgba(53, 90, 253, 0.12);
+}
+
+.bulk-left-group,
+.bulk-right-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.selection-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(53, 90, 253, 0.12);
+  border: 1px solid rgba(53, 90, 253, 0.3);
+  border-radius: 9999px;
+  padding: 4px 12px 4px 6px;
+  color: var(--color-info);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.selection-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-info);
+  color: #ffffff;
+  font-size: 0.7rem;
+}
+
+.selection-pill-text strong {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.bulk-selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bulk-text-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all var(--transition-fast);
+}
+
+.bulk-text-btn:hover:not(:disabled) {
+  color: var(--color-info);
+  background: rgba(53, 90, 253, 0.08);
+}
+
+.bulk-clear-btn:hover:not(:disabled) {
+  color: var(--color-danger, #ef4444);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.bulk-move-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bulk-month-field-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.bulk-month-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.bulk-month-input {
+  height: 36px;
+  padding: 0 12px 0 32px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.bulk-month-input:focus {
+  border-color: var(--color-info);
+  box-shadow: 0 0 0 2px rgba(53, 90, 253, 0.2);
+}
+
+.bulk-move-btn {
+  height: 36px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-info);
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all var(--transition-fast);
+  box-shadow: 0 2px 8px rgba(53, 90, 253, 0.3);
+}
+
+.bulk-move-btn:hover:not(:disabled) {
+  background: #254bfa;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(53, 90, 253, 0.4);
+}
+
+.bulk-move-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.bulk-move-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.bulk-hint-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+/* Coluna de Seleção */
+.col-select {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  text-align: center;
+  padding-left: 14px;
+  padding-right: 10px;
+}
+
+th.col-select {
+  vertical-align: middle;
+}
+
+td.col-select {
+  vertical-align: middle;
+}
+
+/* Linha selecionada na tabela desktop */
+tr.row-selected td {
+  background: rgba(53, 90, 253, 0.08) !important;
+}
+
+tr.row-selected:hover td {
+  background: rgba(53, 90, 253, 0.12) !important;
+}
+
+tr.row-selected td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-info);
+}
+
+/* Card selecionado no mobile */
+.transaction-mobile-card.card-selected {
+  border-color: rgba(53, 90, 253, 0.5);
+  background: rgba(53, 90, 253, 0.07);
+  box-shadow: 0 2px 10px rgba(53, 90, 253, 0.12);
+}
+
+/* Animação suave de entrada/saída da barra */
+.bulk-bar-anim-enter-active,
+.bulk-bar-anim-leave-active {
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bulk-bar-anim-enter-from,
+.bulk-bar-anim-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.99);
+}
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 .payment-origin {
   display: flex;
@@ -880,6 +1192,36 @@ tr.ignored {
     display: none;
   }
 
+  .bulk-selection-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    padding: 12px;
+  }
+
+  .bulk-left-group,
+  .bulk-right-group {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .bulk-move-controls {
+    width: 100%;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .bulk-month-field-wrap,
+  .bulk-month-input,
+  .bulk-move-btn {
+    width: 100%;
+  }
+
+  .bulk-hint-text {
+    justify-content: center;
+    width: 100%;
+  }
+
   .mobile-transactions-list {
     display: flex;
     flex-direction: column;
@@ -918,6 +1260,36 @@ tr.ignored {
 @media (max-width: 768px) {
   .desktop-table-wrap {
     display: none;
+  }
+
+  .bulk-selection-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    padding: 12px;
+  }
+
+  .bulk-left-group,
+  .bulk-right-group {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .bulk-move-controls {
+    width: 100%;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .bulk-month-field-wrap,
+  .bulk-month-input,
+  .bulk-move-btn {
+    width: 100%;
+  }
+
+  .bulk-hint-text {
+    justify-content: center;
+    width: 100%;
   }
 
   .mobile-transactions-list {
