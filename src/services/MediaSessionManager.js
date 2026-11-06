@@ -13,7 +13,7 @@ class MediaSessionManager {
    * Define os metadados da música atual (Título, Artista, Capa).
    * @param {Object} music - Objeto da música (deve conter title, channel/artist, thumbnail).
    */
-  set_metadata(music) {
+  set_metadata(music, mode = "unknown") {
     if (!this.has_media_session || !music) return;
 
     // Garante que a imagem esteja em uma estrutura aceita ou usa uma vazia
@@ -31,7 +31,7 @@ class MediaSessionManager {
       title: music.title || "Kadem Player",
       artist: music.channel || music.artist || "Desconhecido",
       // O Genos reconhece a sessão de mídia do Kadem por este álbum (services/genosRemote.js).
-      album: "Kadem Queue",
+      album: mode === "native" || mode === "youtube" ? `Kadem Queue · ${mode}` : "Kadem Queue",
       artwork: artwork,
     });
   }

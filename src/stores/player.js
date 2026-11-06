@@ -516,10 +516,10 @@ export const usePlayerStore = defineStore("player", {
     /**
      * Centraliza a atualização completa da MediaSession (Handlers + Metadados + Estado)
      */
-    _refresh_media_session(track = this.current_music, is_playing = this.is_playing) {
+    _refresh_media_session(track = this.current_music, is_playing = this.is_playing, mode = this.player_mode) {
       if (!track) return;
       this._setup_media_session_handlers();
-      MediaSessionManager.set_metadata(track);
+      MediaSessionManager.set_metadata(track, mode);
       MediaSessionManager.set_playback_state(is_playing);
     },
 
@@ -796,7 +796,7 @@ export const usePlayerStore = defineStore("player", {
       this.is_loading = true;
       this.is_playing = false;
 
-      this._refresh_media_session(targetTrack, false);
+      this._refresh_media_session(targetTrack, false, "unknown");
 
       let finalAudioBlob = targetTrack.audio_blob;
 
