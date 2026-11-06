@@ -1256,13 +1256,13 @@ export const usePlayerStore = defineStore("player", {
 
     async pullPlayerState() {
       const isCurrent = captureSyncSession();
-      // Se algo começou a tocar nesta aba enquanto as preferências chegavam (ex.: comando do Genos), o estado do
-      // servidor é mais velho: não troca a faixa, a fila nem o app ativo, e não restaura o player por cima.
       const play_epoch = this.local_play_epoch;
-      const played_here = () => this.local_play_epoch !== play_epoch;
-      this.restore_local_volume();
+      // Uma sincronização tardia também pode começar depois que o Genos já colocou uma faixa para tocar.
+      const played_here = () => this.is_playing || this.local_play_epoch !== play_epoch;
 
       try {
+        if (played_here()) return;
+        this.restore_local_volume();
         const response = await api.get("/radio/preferences", { timeout: 15000 });
         if (!isCurrent() || played_here()) return;
         const prefs = response.data;

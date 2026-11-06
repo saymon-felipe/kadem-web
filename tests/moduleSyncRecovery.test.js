@@ -148,6 +148,33 @@ test('preferências do servidor que chegam depois de um play desta aba não troc
   assert.equal(player.is_initialized, true);
 }));
 
+test('sincronização iniciada com uma faixa nativa tocando preserva o player', () => withModules(async ({ server, api }) => {
+  const { usePlayerStore } = await server.ssrLoadModule('/src/stores/player.js');
+  const { radioRepository } = await server.ssrLoadModule('/src/services/localData/radioRepository.js');
+  const player = usePlayerStore();
+  player.current_music = { local_id: 1, youtube_id: 'pedida-pelo-genos' };
+  player.queue = [{ youtube_id: 'seguinte' }];
+  player.active_app = 'radio_flow';
+  player.player_mode = 'native';
+  player.is_playing = true;
+  player.local_play_epoch = 1;
+  let restored = false;
+  api.get = async () => ({
+    data: { current_track_id: 2, queue: [{ youtube_id: 'antiga' }], active_app: 'kadem_nexo' },
+  });
+  radioRepository.getLocalTrackByServerId = async () => ({ local_id: 2, youtube_id: 'antiga', source: 'upload' });
+  player.restorePlayerConnection = async () => { restored = true; };
+
+  await player.pullPlayerState();
+
+  assert.equal(restored, false);
+  assert.equal(player.current_music.youtube_id, 'pedida-pelo-genos');
+  assert.equal(player.queue[0].youtube_id, 'seguinte');
+  assert.equal(player.active_app, 'radio_flow');
+  assert.equal(player.is_playing, true);
+  assert.equal(player.is_initialized, true);
+}));
+
 test('restaurar o player não pausa a música nativa que já está tocando', () => withModules(async ({ server }) => {
   const { usePlayerStore } = await server.ssrLoadModule('/src/stores/player.js');
   const player = usePlayerStore();
