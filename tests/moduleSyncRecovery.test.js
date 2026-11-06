@@ -190,6 +190,49 @@ test('restaurar o player não pausa a música nativa que já está tocando', () 
   assert.equal(player.is_player_ready, true);
 }));
 
+test('sincronização iniciada depois do pedido local não restaura a faixa antiga enquanto o player carrega', () => withModules(async ({ server, api }) => {
+  const { usePlayerStore } = await server.ssrLoadModule('/src/stores/player.js');
+  const player = usePlayerStore();
+  player.current_music = { youtube_id: 'pedida' };
+  player.local_play_epoch = 1;
+  player.is_playing = false;
+  player.is_loading = true;
+  let fetched = false;
+  api.get = async () => { fetched = true; return { data: { current_track_id: 99 } }; };
+  await player.pullPlayerState();
+  assert.equal(fetched, false);
+  assert.equal(player.current_music.youtube_id, 'pedida');
+  assert.equal(player.is_loading, true);
+}));
+
+test('pedido do Genos em preparação impede que a sincronização reponha a faixa antiga', () => withModules(async ({ server, api }) => {
+  const { usePlayerStore } = await server.ssrLoadModule('/src/stores/player.js');
+  const player = usePlayerStore();
+  player.genos_command_pending = true;
+  player.current_music = { youtube_id: 'local' };
+  let fetched = false;
+  api.get = async () => { fetched = true; return { data: { current_track_id: 99 } }; };
+  await player.pullPlayerState();
+  assert.equal(fetched, false);
+  assert.equal(player.current_music.youtube_id, 'local');
+}));
+
+test('player inicia vídeo pendente quando o iframe fica pronto, sem restaurar a música antiga', () => withModules(async ({ server }) => {
+  const { usePlayerStore } = await server.ssrLoadModule('/src/stores/player.js');
+  const player = usePlayerStore();
+  const track = { youtube_id: 'new' };
+  player.current_music = track;
+  player.local_play_epoch = 1;
+  player.is_loading = true;
+  player.pending_youtube_play = { track, start_seconds: 0 };
+  player.yt_player_instance = { loadVideoById() {} };
+  let played = null;
+  player._playYoutube = async (item) => { played = item.youtube_id; player.pending_youtube_play = null; };
+  await player.restorePlayerConnection();
+  assert.equal(played, 'new');
+  assert.equal(player.is_player_ready, true);
+}));
+
 test('Health recupera cursor corrompido e interrompe paginação sem avanço', (context) => withModules(async ({ server, db, api }) => {
   context.mock.method(console, 'error', () => {});
   const { healthRepository } = await server.ssrLoadModule('/src/services/localData/healthRepository.js');

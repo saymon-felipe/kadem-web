@@ -7,6 +7,7 @@ import { useRadioInsightsStore } from "@/stores/radioInsights";
 import { useUtilsStore } from "@/stores/utils";
 import {
   is_liked_playlist_request,
+  is_requested_track_playing,
   match_downloaded_track,
   match_playlist,
   match_track,
@@ -46,17 +47,6 @@ const wait_until = (condition, timeout_ms, interval_ms = 150) => new Promise((re
     }
   }, interval_ms);
 });
-
-// Igual ao critério do rastreador de escuta: o áudio está de fato saindo, não só pedido.
-const is_really_playing = (player) => {
-  if (player.is_loading) return false;
-  if (player.player_mode === "native") {
-    const media = player.native_audio_instance;
-    return !!media && !media.paused && !media.ended && media.readyState >= 3;
-  }
-  if (player.player_mode === "youtube") return player.yt_player_instance?.getPlayerState?.() === 1;
-  return false;
-};
 
 const read_storage = (storage, key) => {
   try { return storage.getItem(key); } catch { return null; }
@@ -120,11 +110,15 @@ export const genosRemote = {
 
   /** Executa um comando "play". Devolve { ok, reason?, title? }; nunca lança. */
   async run(command) {
+    const player = usePlayerStore();
+    player.genos_command_pending = true;
     try {
       return await this._run(command);
     } catch (error) {
       console.warn("[Genos] Falha ao executar o comando.", { name: error?.name, status: error?.response?.status });
       return { ok: false, reason: "playback_failed" };
+    } finally {
+      player.genos_command_pending = false;
     }
   },
 
@@ -135,6 +129,7 @@ export const genosRemote = {
     const online = () => utils.connection.connected;
     // Sem internet só tocam as faixas com áudio salvo neste aparelho.
     const playable = (track) => online() || radio.hasTrackAudio(track);
+    let requestedYoutubeId = "";
 
     radioFlowApi.open({ focus: true });
 
@@ -181,6 +176,7 @@ export const genosRemote = {
 
       const foundDownloaded = !!downloaded || (!!found && !online() && await hasFile(found));
       if (entry && (online() || foundDownloaded)) {
+        requestedYoutubeId = found.youtube_id || "";
         // A faixa toca dentro da sua playlist, que continua depois dela.
         await radioFlowApi.play_playlist(entry.playlist, entry.tracks.filter((track) => playable(track) || (track === found && foundDownloaded)), found);
       } else if (!online()) {
@@ -194,11 +190,12 @@ export const genosRemote = {
           return { ok: false, reason: "search_failed" };
         }
         if (!item) return { ok: false, reason: "not_found" };
+        requestedYoutubeId = item.youtube_id;
         await radioFlowApi.play_track(item, null, { force_restart: true });
       }
     }
 
-    const started = await wait_until(() => is_really_playing(player), PLAYBACK_START_TIMEOUT_MS);
+    const started = await wait_until(() => is_requested_track_playing(player, requestedYoutubeId), PLAYBACK_START_TIMEOUT_MS);
     if (!started) return { ok: false, reason: "playback_failed" };
     return { ok: true, title: player.current_music?.title || "" };
   },

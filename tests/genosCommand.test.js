@@ -5,6 +5,7 @@ import {
   genos_failure_message,
   has_genos_query,
   is_liked_playlist_request,
+  is_requested_track_playing,
   match_playlist,
   match_downloaded_track,
   match_track,
@@ -126,6 +127,21 @@ test("prioriza correspondência forte com arquivo confirmado pelo youtubeId", as
   assert.deepEqual(checked, ["stream", "download"]);
   assert.equal(await match_downloaded_track(candidates, "música inexistente", async () => true), null);
   assert.equal(await match_downloaded_track(candidates, "tempo perdido", async () => false), null);
+});
+
+test("confirma a música solicitada, e não o áudio anterior ou o vídeo errado", () => {
+  const player = { current_music: { youtube_id: "old" }, player_mode: "native", is_loading: false,
+    native_audio_instance: { paused: false, ended: false, readyState: 4 } };
+  assert.equal(is_requested_track_playing(player, "new"), false);
+  player.current_music = { youtube_id: "new" };
+  assert.equal(is_requested_track_playing(player, "new"), true);
+  player.player_mode = "youtube";
+  player.yt_player_instance = { getPlayerState: () => 1, getVideoData: () => ({ video_id: "old" }) };
+  assert.equal(is_requested_track_playing(player, "new"), false);
+  player.yt_player_instance.getVideoData = () => ({ video_id: "new" });
+  assert.equal(is_requested_track_playing(player, "new"), true);
+  player.is_loading = true;
+  assert.equal(is_requested_track_playing(player, "new"), false);
 });
 
 test("mensagens de falha citam o pedido", () => {

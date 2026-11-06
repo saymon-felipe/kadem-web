@@ -77,9 +77,11 @@ export const usePlayerStore = defineStore("player", {
     // Conta os pedidos de reprodução desta aba. A restauração da sessão anterior (preferências do servidor e o
     // player do YouTube ficando pronto) desiste quando ele muda, para não pausar nem trocar o que acabou de começar.
     local_play_epoch: 0,
+    genos_command_pending: false,
     is_player_ready: false,
     yt_player_instance: null,
     pending_youtube_restore: null,
+    pending_youtube_play: null,
     native_audio_instance: markRaw(new Audio()),
     current_audio_url: null,
     current_lyrics: [],
@@ -621,6 +623,7 @@ export const usePlayerStore = defineStore("player", {
         this.yt_player_instance &&
         typeof this.yt_player_instance.loadVideoById === "function"
       ) {
+        this.pending_youtube_play = null;
         this.is_loading = true;
         this._refresh_normalization();
 
@@ -642,7 +645,10 @@ export const usePlayerStore = defineStore("player", {
         this.is_loading = false;
         this._force_media_session_override(track);
       } else {
-        if (should_play) this.is_loading = true;
+        if (should_play) {
+          this.pending_youtube_play = { track, start_seconds };
+          this.is_loading = true;
+        }
       }
     },
 
@@ -715,6 +721,7 @@ export const usePlayerStore = defineStore("player", {
     async play_track(track, playlist = null, { force_restart = false } = {}) {
       this.local_play_epoch += 1;
       this.pending_youtube_restore = null;
+      this.pending_youtube_play = null;
       const isSameTrack = this._are_same_tracks(track, this.current_music);
 
       if (isSameTrack && !force_restart) {
@@ -1152,6 +1159,20 @@ export const usePlayerStore = defineStore("player", {
       const play_epoch = this.local_play_epoch;
       // Um play desta aba durante a restauração (ex.: comando do Genos antes de o YouTube carregar) vence.
       const superseded = () => this.local_play_epoch !== play_epoch;
+      if (this.pending_youtube_play && this.yt_player_instance?.loadVideoById) {
+        const pending = this.pending_youtube_play;
+        if (this.current_music?.youtube_id === pending.track.youtube_id) {
+          await this._playYoutube(pending.track, true, pending.start_seconds);
+          this.set_player_ready(true);
+          return;
+        }
+        this.pending_youtube_play = null;
+      }
+      // Uma restauração tardia nunca deve voltar a faixa anterior após um play local desta aba.
+      if (this.local_play_epoch > 0) {
+        this.set_player_ready(true);
+        return;
+      }
       if (this.is_playing && this.player_mode === "native" && this.native_audio_instance && !this.native_audio_instance.paused) {
         this.set_player_ready(true);
         return;
@@ -1258,7 +1279,7 @@ export const usePlayerStore = defineStore("player", {
       const isCurrent = captureSyncSession();
       const play_epoch = this.local_play_epoch;
       // Uma sincronização tardia também pode começar depois que o Genos já colocou uma faixa para tocar.
-      const played_here = () => this.is_playing || this.local_play_epoch !== play_epoch;
+      const played_here = () => this.genos_command_pending || this.is_playing || this.local_play_epoch > 0 || this.local_play_epoch !== play_epoch;
 
       try {
         if (played_here()) return;

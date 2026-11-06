@@ -189,6 +189,22 @@ export async function match_downloaded_track(tracks, wanted, hasFile) {
   return null;
 }
 
+/** Confirma que a mídia realmente iniciada corresponde ao pedido, sem confundir o áudio anterior com o novo. */
+export function is_requested_track_playing(player, youtubeId = "") {
+  if (player.is_loading || (youtubeId && player.current_music?.youtube_id !== youtubeId)) return false;
+  if (player.player_mode === "native") {
+    const media = player.native_audio_instance;
+    return !!media && !media.paused && !media.ended && media.readyState >= 3;
+  }
+  if (player.player_mode === "youtube") {
+    const yt = player.yt_player_instance;
+    if (yt?.getPlayerState?.() !== 1) return false;
+    const activeId = yt.getVideoData?.()?.video_id;
+    return !youtubeId || activeId === youtubeId;
+  }
+  return false;
+}
+
 /** Texto curto para a notificação na tela, por motivo de falha. */
 export function genos_failure_message(reason, name = "") {
   const quoted = name ? `"${name}"` : "o pedido";
