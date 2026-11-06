@@ -6,6 +6,7 @@ import {
   has_genos_query,
   is_liked_playlist_request,
   match_playlist,
+  match_downloaded_track,
   match_track,
   normalize_spoken,
   parse_genos_command,
@@ -108,6 +109,23 @@ test("prefere a faixa baixada quando as duas correspondem igual", () => {
     { local_id: 21, title: "Tempo Perdido", channel: "Legião Urbana Ao Vivo" },
   ];
   assert.equal(id(match_track(twins, "tempo perdido", { prefer: (track) => track.local_id === 21 })), 21);
+});
+
+test("prioriza correspondência forte com arquivo confirmado pelo youtubeId", async () => {
+  const candidates = [
+    { local_id: 30, title: "Tempo Perdido", channel: "Legião Urbana", youtube_id: "stream" },
+    { local_id: 31, title: "Tempo Perdido ao vivo", channel: "Legião Urbana", youtube_id: "download" },
+    { local_id: 32, title: "Outra música", channel: "Outro", youtube_id: "other" },
+  ];
+  const checked = [];
+  const result = await match_downloaded_track(candidates, "tempo perdido", async (track) => {
+    checked.push(track.youtube_id);
+    return track.youtube_id === "download" || track.youtube_id === "other";
+  });
+  assert.equal(result.local_id, 31);
+  assert.deepEqual(checked, ["stream", "download"]);
+  assert.equal(await match_downloaded_track(candidates, "música inexistente", async () => true), null);
+  assert.equal(await match_downloaded_track(candidates, "tempo perdido", async () => false), null);
 });
 
 test("mensagens de falha citam o pedido", () => {

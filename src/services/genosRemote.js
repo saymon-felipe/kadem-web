@@ -7,6 +7,7 @@ import { useRadioInsightsStore } from "@/stores/radioInsights";
 import { useUtilsStore } from "@/stores/utils";
 import {
   is_liked_playlist_request,
+  match_downloaded_track,
   match_playlist,
   match_track,
 } from "@/utils/genos_command";
@@ -94,6 +95,8 @@ async function library_tracks(playlists) {
     const tracks = await radioRepository.getLocalTracks(playlist.local_id);
     for (const track of tracks || []) entries.push({ track, playlist, tracks });
   }
+  const liked = await liked_tracks();
+  for (const track of liked) entries.push({ track, playlist: LIKED_PLAYLIST, tracks: liked });
   return entries;
 }
 
@@ -162,14 +165,24 @@ export const genosRemote = {
       await radioFlowApi.play_playlist(playlist, available);
     } else {
       const library = await library_tracks(radio.playlists);
-      const found = match_track(library.map((entry) => entry.track), command.name, {
+      const tracks = library.map((entry) => entry.track);
+      // O youtube_id identifica o arquivo no cache compartilhado; is_offline pode estar desatualizado.
+      const hasFile = async (track) => {
+        if (track.audio_blob) return true;
+        if (!track.youtube_id) return false;
+        try { return await radioRepository.hasGlobalPlayableMedia(track.youtube_id); }
+        catch { return false; }
+      };
+      const downloaded = await match_downloaded_track(tracks, command.name, hasFile);
+      const found = downloaded || match_track(tracks, command.name, {
         prefer: (track) => radio.hasTrackAudio(track),
       });
       const entry = found ? library.find((item) => item.track === found) : null;
 
-      if (entry && playable(found)) {
+      const foundDownloaded = !!downloaded || (!!found && !online() && await hasFile(found));
+      if (entry && (online() || foundDownloaded)) {
         // A faixa toca dentro da sua playlist, que continua depois dela.
-        await radioFlowApi.play_playlist(entry.playlist, entry.tracks.filter(playable), found);
+        await radioFlowApi.play_playlist(entry.playlist, entry.tracks.filter((track) => playable(track) || (track === found && foundDownloaded)), found);
       } else if (!online()) {
         return { ok: false, reason: found ? "offline_not_downloaded" : "offline_not_found" };
       } else {

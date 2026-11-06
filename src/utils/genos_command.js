@@ -141,7 +141,7 @@ const TRACK_THRESHOLD = 55;
  * A faixa que melhor corresponde à fala ("evidências", "evidências do chitãozinho"), comparando título e canal.
  * [prefer] desempata a favor de uma faixa (ex.: baixada no aparelho).
  */
-export function match_track(tracks, wanted, { prefer = () => false } = {}) {
+export function match_track(tracks, wanted, { prefer = () => false, minimumScore = TRACK_THRESHOLD } = {}) {
   const wanted_tokens = content_tokens(wanted);
   if (!wanted_tokens.length) return null;
   const wanted_text = normalize_spoken(wanted);
@@ -168,13 +168,25 @@ export function match_track(tracks, wanted, { prefer = () => false } = {}) {
         score = wanted_tokens.length >= 3 && ratio >= 0.75 ? Math.round(70 * ratio) : 0;
       }
     }
-    if (score >= TRACK_THRESHOLD && prefer(track)) score += 5;
+    if (score >= minimumScore && prefer(track)) score += 5;
     if (score > best_score) {
       best = track;
       best_score = score;
     }
   }
-  return best_score >= TRACK_THRESHOLD ? best : null;
+  return best_score >= minimumScore ? best : null;
+}
+
+/** Busca primeiro uma correspondência forte cujo arquivo esteja realmente presente no cache. */
+export async function match_downloaded_track(tracks, wanted, hasFile) {
+  const remaining = [...(tracks || [])];
+  while (remaining.length) {
+    const candidate = match_track(remaining, wanted, { minimumScore: 80 });
+    if (!candidate) return null;
+    if (await hasFile(candidate)) return candidate;
+    remaining.splice(remaining.indexOf(candidate), 1);
+  }
+  return null;
 }
 
 /** Texto curto para a notificação na tela, por motivo de falha. */
