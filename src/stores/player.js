@@ -18,6 +18,7 @@ import { RadioListeningTracker } from '../services/radioListeningTracker';
 import { radioInsightsRepository } from '../services/localData/radioInsightsRepository';
 import { syncService } from '../services/syncService';
 import { captureSyncSession } from '../utils/syncState';
+import { record_player_event } from '../services/playerDiagnostics';
 
 function debounce(func, wait) {
   let timeout;
@@ -337,6 +338,7 @@ export const usePlayerStore = defineStore("player", {
     },
 
     _recover_native_audio(element) {
+      record_player_event("recover-native-audio");
       const runtime = normalization_runtime(this);
       if (this.native_audio_instance !== element || !element.src) return;
       runtime.normalizer?.release(element);
@@ -524,8 +526,8 @@ export const usePlayerStore = defineStore("player", {
     _setup_media_session_handlers() {
       const store = this;
       MediaSessionManager.set_action_handlers({
-        onPlay: () => !store.is_playing && store.toggle_play(),
-        onPause: () => store.is_playing && store.toggle_play(),
+        onPlay: () => { record_player_event("media-session:play"); return !store.is_playing && store.toggle_play(); },
+        onPause: () => { record_player_event("media-session:pause"); return store.is_playing && store.toggle_play(); },
         onPrev: () => store.prev(),
         onNext: () => store.next(),
         onSeek: (details) =>
@@ -595,6 +597,7 @@ export const usePlayerStore = defineStore("player", {
         };
 
         audio.onended = () => this.next({ completed: true });
+        audio.onpause = () => record_player_event("audio:pause", { is_playing: this.is_playing, at_s: Math.round(audio.currentTime) });
 
         if (should_play) {
           await audio.play();
@@ -870,7 +873,10 @@ export const usePlayerStore = defineStore("player", {
       });
 
       const should_play = this.is_playing;
-      if (!should_play) void this._listening_event('pause');
+      if (!should_play) {
+        record_player_event("toggle_play:pause", { mode: this.player_mode });
+        void this._listening_event('pause');
+      }
 
       if (should_play && this.player_mode === "youtube") {
         try {
@@ -1188,6 +1194,7 @@ export const usePlayerStore = defineStore("player", {
             this.set_player_ready(true);
             return;
           }
+          if (blob || this.current_music.storage_key) record_player_event("restore:native-reload");
           if (blob) {
             await this._handle_native_playback(
               this.current_music,

@@ -14,6 +14,7 @@
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import { genosRemote } from "@/services/genosRemote";
 import { radioFlowApi } from "@/services/radioFlowApi";
+import { record_player_event } from "@/services/playerDiagnostics";
 import { useAppStore } from "@/stores/app";
 import {
   genos_failure_message,
@@ -92,6 +93,7 @@ export default {
     },
     on_channel_message(message) {
       if (message?.type !== "took-over" || message.page_id === this.page_id) return;
+      record_player_event("genos:took-over", { from: message.page_id });
       void radioFlowApi.pause();
       if (document.visibilityState === "hidden") {
         // Só fecha se o navegador deixar (página aberta pelo Android, sem histórico); senão fica pausada.
@@ -103,7 +105,9 @@ export default {
       this.running = true;
       this.channel?.postMessage({ type: "took-over", page_id: this.page_id });
       try {
+        record_player_event("genos:command", { kind: command.kind });
         const result = await genosRemote.run(command);
+        record_player_event("genos:result", { ok: result.ok, reason: result.reason || "" });
         if (result.ok) {
           this.toast(result.title ? `Genos: tocando ${result.title}.` : "Genos: tocando.", "success");
         } else {
