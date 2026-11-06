@@ -18,6 +18,7 @@
     <homeWidgets />
     <DesktopWindowManager />
     <GlobalPlayerHost />
+    <GenosRemoteHost />
 
     <VaultMigrationModal
       v-if="user"
@@ -50,6 +51,7 @@ import systemBackgroundDark from "../assets/images/system-background-black.webp"
 import DesktopWindowManager from "../components/windowing/DesktopWindowManager.vue";
 import SyncIndicator from "@/components/SyncIndicator.vue";
 import GlobalPlayerHost from "@/components/radio/GlobalPlayerHost.vue";
+import GenosRemoteHost from "@/components/radio/GenosRemoteHost.vue";
 import VaultMigrationModal from "@/components/auth/VaultMigrationModal.vue";
 import RecoverySetupModal from "@/components/auth/RecoverySetupModal.vue";
 
@@ -61,6 +63,7 @@ export default {
     DesktopWindowManager,
     SyncIndicator,
     GlobalPlayerHost,
+    GenosRemoteHost,
     VaultMigrationModal,
     RecoverySetupModal,
   },

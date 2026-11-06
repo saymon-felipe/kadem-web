@@ -30,6 +30,7 @@ class MediaSessionManager {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: music.title || "Kadem Player",
       artist: music.channel || music.artist || "Desconhecido",
+      // O Genos reconhece a sessão de mídia do Kadem por este álbum (services/genosRemote.js).
       album: "Kadem Queue",
       artwork: artwork,
     });
