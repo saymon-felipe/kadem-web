@@ -121,6 +121,48 @@ test('player rejeita fila inválida e não reabre um app desconhecido', () => wi
   assert.equal(player.active_app, null);
 }));
 
+test('preferências do servidor que chegam depois de um play desta aba não trocam faixa, fila nem app ativo', () => withModules(async ({ server, api }) => {
+  const { usePlayerStore } = await server.ssrLoadModule('/src/stores/player.js');
+  const player = usePlayerStore();
+  player.current_music = { youtube_id: 'pedida-pelo-genos', title: 'Pedida' };
+  player.queue = [{ youtube_id: 'seguinte' }];
+  player.active_app = 'radio_flow';
+  let release; let started;
+  const requestStarted = new Promise(resolve => { started = resolve; });
+  api.get = () => new Promise(resolve => { release = resolve; started(); });
+  const pull = player.pullPlayerState();
+  await requestStarted;
+  // Comando do Genos tocou algo enquanto as preferências estavam a caminho.
+  player.local_play_epoch += 1;
+  player.is_playing = true;
+  let restored = false;
+  player.restorePlayerConnection = async () => { restored = true; };
+  release({ data: { active_app: 'kadem_nexo', queue: [{ youtube_id: 'antiga' }], is_shuffle: true, current_track_id: 999 } });
+  await pull;
+  assert.equal(player.active_app, 'radio_flow');
+  assert.equal(player.current_music.youtube_id, 'pedida-pelo-genos');
+  assert.equal(player.queue[0].youtube_id, 'seguinte');
+  assert.equal(player.is_shuffle, false);
+  assert.equal(player.is_playing, true);
+  assert.equal(restored, false);
+  assert.equal(player.is_initialized, true);
+}));
+
+test('restaurar o player não pausa a música nativa que já está tocando', () => withModules(async ({ server }) => {
+  const { usePlayerStore } = await server.ssrLoadModule('/src/stores/player.js');
+  const player = usePlayerStore();
+  let reloaded = false;
+  player._handle_native_playback = async () => { reloaded = true; };
+  player.current_music = { local_id: 1, youtube_id: 'tocando' };
+  player.player_mode = 'native';
+  player.is_playing = true;
+  player.native_audio_instance = { paused: false, play() {}, pause() {} };
+  await player.restorePlayerConnection();
+  assert.equal(reloaded, false);
+  assert.equal(player.is_playing, true);
+  assert.equal(player.is_player_ready, true);
+}));
+
 test('Health recupera cursor corrompido e interrompe paginação sem avanço', (context) => withModules(async ({ server, db, api }) => {
   context.mock.method(console, 'error', () => {});
   const { healthRepository } = await server.ssrLoadModule('/src/services/localData/healthRepository.js');

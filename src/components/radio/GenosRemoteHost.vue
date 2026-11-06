@@ -13,6 +13,7 @@
 <script>
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import { genosRemote } from "@/services/genosRemote";
+import { radioFlowApi } from "@/services/radioFlowApi";
 import { useAppStore } from "@/stores/app";
 import {
   genos_failure_message,
@@ -21,7 +22,13 @@ import {
   strip_genos_query,
 } from "@/utils/genos_command";
 
-/** Recebe os comandos do Genos que chegam na URL de abertura do PWA (ver services/genosRemote.js). */
+const CHANNEL = "kadem-genos-remote";
+
+/**
+ * Recebe os comandos do Genos que chegam na URL de abertura do PWA (ver services/genosRemote.js).
+ * No Android cada abertura pelo Genos pode criar outra página do Kadem: a página que recebe o comando avisa as
+ * outras, que pausam o player e, se estiverem escondidas, se fecham, para não sobrar mais de um Kadem tocando.
+ */
 export default {
   name: "GenosRemoteHost",
   components: { ConfirmationModal },
@@ -31,6 +38,17 @@ export default {
       pending: null,
       running: false,
     };
+  },
+  created() {
+    this.page_id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    if (typeof BroadcastChannel === "function") {
+      this.channel = new BroadcastChannel(CHANNEL);
+      this.channel.onmessage = (event) => this.on_channel_message(event.data);
+    }
+  },
+  beforeUnmount() {
+    this.channel?.close();
+    this.channel = null;
   },
   watch: {
     "$route.query": {
@@ -72,9 +90,18 @@ export default {
       this.pending = null;
       this.confirm_open = false;
     },
+    on_channel_message(message) {
+      if (message?.type !== "took-over" || message.page_id === this.page_id) return;
+      void radioFlowApi.pause();
+      if (document.visibilityState === "hidden") {
+        // Só fecha se o navegador deixar (página aberta pelo Android, sem histórico); senão fica pausada.
+        setTimeout(() => { try { window.close(); } catch { /* fechamento recusado */ } }, 300);
+      }
+    },
     async run(command) {
       if (this.running) return;
       this.running = true;
+      this.channel?.postMessage({ type: "took-over", page_id: this.page_id });
       try {
         const result = await genosRemote.run(command);
         if (result.ok) {

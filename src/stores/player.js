@@ -73,6 +73,9 @@ export const usePlayerStore = defineStore("player", {
     active_app_tabs: {},
     mobile_tab: "playlists",
     is_initialized: false,
+    // Conta os pedidos de reprodução desta aba. A restauração da sessão anterior (preferências do servidor e o
+    // player do YouTube ficando pronto) desiste quando ele muda, para não pausar nem trocar o que acabou de começar.
+    local_play_epoch: 0,
     is_player_ready: false,
     yt_player_instance: null,
     pending_youtube_restore: null,
@@ -707,6 +710,7 @@ export const usePlayerStore = defineStore("player", {
     },
 
     async play_track(track, playlist = null, { force_restart = false } = {}) {
+      this.local_play_epoch += 1;
       this.pending_youtube_restore = null;
       const isSameTrack = this._are_same_tracks(track, this.current_music);
 
@@ -1139,6 +1143,13 @@ export const usePlayerStore = defineStore("player", {
        ========================================================================== */
 
     async restorePlayerConnection() {
+      const play_epoch = this.local_play_epoch;
+      // Um play desta aba durante a restauração (ex.: comando do Genos antes de o YouTube carregar) vence.
+      const superseded = () => this.local_play_epoch !== play_epoch;
+      if (this.is_playing && this.player_mode === "native" && this.native_audio_instance && !this.native_audio_instance.paused) {
+        this.set_player_ready(true);
+        return;
+      }
       this.set_player_ready(false);
       this._ensure_audio_instance();
       this.restore_local_volume();
@@ -1159,6 +1170,12 @@ export const usePlayerStore = defineStore("player", {
             videoId: this.current_music.youtube_id,
             startSeconds: 0,
           });
+          if (superseded()) {
+            this.pending_youtube_restore = null;
+            this.is_loading = false;
+            this.set_player_ready(true);
+            return;
+          }
         } else {
           this.is_loading = true;
           this.is_playing = false;
@@ -1167,6 +1184,10 @@ export const usePlayerStore = defineStore("player", {
       } else if (this.current_music && this.player_mode === "native") {
         try {
           const blob = await radioRepository.getTrackBlob(this.current_music.local_id);
+          if (superseded()) {
+            this.set_player_ready(true);
+            return;
+          }
           if (blob) {
             await this._handle_native_playback(
               this.current_music,
@@ -1189,6 +1210,10 @@ export const usePlayerStore = defineStore("player", {
         }
       }
 
+      if (superseded()) {
+        this.set_player_ready(true);
+        return;
+      }
       if (this.current_music) {
         this._refresh_media_session(this.current_music, false);
       }
@@ -1224,11 +1249,15 @@ export const usePlayerStore = defineStore("player", {
 
     async pullPlayerState() {
       const isCurrent = captureSyncSession();
+      // Se algo começou a tocar nesta aba enquanto as preferências chegavam (ex.: comando do Genos), o estado do
+      // servidor é mais velho: não troca a faixa, a fila nem o app ativo, e não restaura o player por cima.
+      const play_epoch = this.local_play_epoch;
+      const played_here = () => this.local_play_epoch !== play_epoch;
       this.restore_local_volume();
 
       try {
         const response = await api.get("/radio/preferences", { timeout: 15000 });
-        if (!isCurrent()) return;
+        if (!isCurrent() || played_here()) return;
         const prefs = response.data;
 
         if (prefs && Object.keys(prefs).length > 0) {
@@ -1246,7 +1275,7 @@ export const usePlayerStore = defineStore("player", {
             );
             if (!pl)
               pl = await radioRepository.getLocalPlaylist(prefs.current_playlist_id);
-            if (!isCurrent()) return;
+            if (!isCurrent() || played_here()) return;
             if (pl) this.current_playlist = pl;
           }
 
@@ -1262,7 +1291,7 @@ export const usePlayerStore = defineStore("player", {
               track = this.queue.find((t) => t.id === prefs.current_track_id);
             }
 
-            if (!isCurrent()) return;
+            if (!isCurrent() || played_here()) return;
             if (track) {
               this.current_music = track;
               this.queue = this.queue.filter((t) => t.youtube_id !== track.youtube_id);
@@ -1274,7 +1303,7 @@ export const usePlayerStore = defineStore("player", {
                 this.player_mode = "native";
               } else {
                 const hasBlob = await radioRepository.hasGlobalPlayableMedia(track.youtube_id);
-                if (!isCurrent()) return;
+                if (!isCurrent() || played_here()) return;
                 this.player_mode = hasBlob ? "native" : "youtube";
               }
               this.is_playing = false;
@@ -1285,7 +1314,7 @@ export const usePlayerStore = defineStore("player", {
         console.warn("[PlayerStore] Falha ao carregar preferências:", error.message);
       } finally {
         if (isCurrent()) this.is_initialized = true;
-        if (isCurrent() && this.current_music && !this.is_playing) {
+        if (isCurrent() && this.current_music && !this.is_playing && !played_here()) {
           await this.restorePlayerConnection();
         }
       }

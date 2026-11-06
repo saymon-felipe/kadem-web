@@ -23,6 +23,7 @@ export const GENOS_KEY_STORAGE = "kadem_genos_remote_key";
 const LAST_NONCE_STORAGE = "kadem_genos_last_nonce";
 
 const PLAYER_READY_TIMEOUT_MS = 12000;
+const INITIAL_SYNC_TIMEOUT_MS = 6000;
 const PLAYBACK_START_TIMEOUT_MS = 15000;
 const SEARCH_TIMEOUT_MS = 12000;
 
@@ -137,9 +138,12 @@ export const genosRemote = {
     if (!radio.playlists.length) await radioFlowApi.playlists.load_local();
     if (!radio.playlists.length && online()) await radioFlowApi.playlists.refresh().catch(() => {});
 
-    // Antes de tocar, o player precisa ter terminado de restaurar a sessão anterior; senão a restauração
-    // (que chega quando o YouTube carrega) pausaria o que o comando acabou de iniciar.
+    // Antes de tocar, o player termina de restaurar a sessão anterior e a primeira sincronização traz as preferências
+    // do servidor (faixa, fila, app ativo). As duas também desistem se algo tocar antes (player.local_play_epoch),
+    // mas esperar evita trocar o embaralhamento e o app ativo pedidos agora.
     await player.wait_for_player_ready(online() ? PLAYER_READY_TIMEOUT_MS : 2000);
+    if (online()) await wait_until(() => player.is_initialized, INITIAL_SYNC_TIMEOUT_MS);
+    radioFlowApi.open({ focus: true });
 
     if (command.shuffle) radioFlowApi.set_shuffle(true);
     if (player.is_playing) await radioFlowApi.pause();
