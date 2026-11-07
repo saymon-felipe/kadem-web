@@ -3,7 +3,8 @@
 //   /?genos=play&track=<música falada>&key=<chave do Genos>&nonce=<id>
 // Funções puras (sem stores nem alias "@/"), testadas por `npm run test:genos`.
 
-export const GENOS_QUERY_KEYS = Object.freeze(["genos", "playlist", "track", "shuffle", "key", "nonce"]);
+// `req` e `port` são da ponte Agenda/Health/Nexo (utils/genos_bridge.js); saem da URL junto com os demais.
+export const GENOS_QUERY_KEYS = Object.freeze(["genos", "playlist", "track", "shuffle", "key", "nonce", "req", "port"]);
 
 const MIN_KEY_LENGTH = 16;
 const MAX_NAME_LENGTH = 120;

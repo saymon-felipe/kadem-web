@@ -5,6 +5,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useRadioStore } from "@/stores/radio";
 import { useRadioInsightsStore } from "@/stores/radioInsights";
 import { useUtilsStore } from "@/stores/utils";
+import { GENOS_KEY_STORAGE, authorize_scopes, has_scopes } from "@/services/genosAccess";
 import {
   is_liked_playlist_request,
   is_requested_track_playing,
@@ -21,7 +22,7 @@ import {
  * O Genos confirma a reprodução lendo a sessão de mídia do Android: o álbum "Kadem Queue" definido em
  * MediaSessionManager identifica o Kadem; não o altere sem atualizar o Genos.
  */
-export const GENOS_KEY_STORAGE = "kadem_genos_remote_key";
+export { GENOS_KEY_STORAGE };
 const LAST_NONCE_STORAGE = "kadem_genos_last_nonce";
 
 const PLAYER_READY_TIMEOUT_MS = 12000;
@@ -91,13 +92,13 @@ async function library_tracks(playlists) {
 }
 
 export const genosRemote = {
-  is_authorized(key) {
-    const stored = read_storage(localStorage, GENOS_KEY_STORAGE);
-    return !!stored && !!key && stored === key;
+  /** A chave foi aceita para o escopo (Radio Flow por padrão). Ver services/genosAccess.js. */
+  is_authorized(key, scope = "radio") {
+    return has_scopes(key, [scope]);
   },
 
-  authorize(key) {
-    write_storage(localStorage, GENOS_KEY_STORAGE, key);
+  authorize(key, scopes = ["radio"]) {
+    authorize_scopes(key, scopes);
   },
 
   /** O mesmo comando (nonce) não roda duas vezes na mesma aba, por exemplo depois de recarregar a página. */

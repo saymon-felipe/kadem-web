@@ -109,6 +109,15 @@ export const useAgendaStore = defineStore("agenda", () => {
     }
   }
 
+  // Leitura somente do Dexie (sem rede nem fila), para quem precisa responder na hora (ex.: Genos).
+  async function loadLocalEvents() {
+    const sessionIsCurrent = captureSyncSession();
+    const generation = loadGeneration;
+    const local = await agendaRepository.getEvents(currentUserId());
+    if (sessionIsCurrent() && generation === loadGeneration && (!isLoading.value || !records.value.length)) records.value = local;
+    return local;
+  }
+
   async function createEvent(data) {
     const timestamp = now();
     return persist({ local_key: localKey(), source: "manual", created_at: timestamp, ...normalizeInput(data) });
@@ -188,6 +197,7 @@ export const useAgendaStore = defineStore("agenda", () => {
     googleBusy,
     clearState,
     loadEvents,
+    loadLocalEvents,
     createEvent,
     updateEvent,
     deleteEvent,

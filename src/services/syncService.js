@@ -876,8 +876,29 @@ async function processTaskItem(task) {
   }
 }
 
+// Enquanto `runDeferred` executa algo, os pedidos de sincronização só ficam anotados: a gravação local termina na hora
+// (o Genos espera a resposta) e a fila roda uma vez no fim, sem ser aguardada.
+let deferDepth = 0;
+let deferredRequested = false;
+
 export const syncService = {
+  async runDeferred(action) {
+    deferDepth += 1;
+    try {
+      return await action();
+    } finally {
+      deferDepth -= 1;
+      if (deferDepth === 0 && deferredRequested) {
+        deferredRequested = false;
+        void syncService.processSyncQueue().catch((error) => console.warn("[SyncService] Sincronização adiada falhou:", error));
+      }
+    }
+  },
   async processSyncQueue() {
+    if (deferDepth > 0) {
+      deferredRequested = true;
+      return;
+    }
     if (typeof navigator !== 'undefined' && navigator.locks) {
       return navigator.locks.request('kadem-background', () => syncService._processSyncQueue());
     }
