@@ -1,227 +1,270 @@
 <template>
-  <div>
-    <div v-if="!personalEnabled" class="panel connections-soon">
-      <div class="soon-icon">
-        <font-awesome-icon icon="link" />
-      </div>
-      <div>
-        <span class="soon-kicker">Em breve</span>
-        <h3>Conexões bancárias automáticas</h3>
-        <p>
-          O Kadem Nexo está preparando uma integração viável para produção. Por enquanto, use
-          lançamento rápido no momento da compra e importe CSV para organizar o histórico.
-        </p>
-      </div>
-      <button class="primary-action compact" type="button" @click="$emit('view-transactions')">
-        <font-awesome-icon icon="list" />
-        Ir para movimentos
+  <div class="connections">
+    <p v-if="error" class="connection-error" role="alert">
+      {{ error }}
+      <button v-if="!personalEnabled" class="text-btn" type="button" @click="$emit('reload')">
+        Tentar novamente
       </button>
-    </div>
+    </p>
 
-    <template v-else>
-      <div class="panel">
-        <div class="panel-title">
-          <h3>Conexões</h3>
-          <div class="inline-actions">
-            <button class="text-btn" :disabled="syncingBanks" @click="$emit('sync')">
-              <font-awesome-icon
-                :icon="syncingBanks ? 'circle-notch' : 'arrows-rotate'"
-                :spin="syncingBanks"
-              />
-              Sincronizar
-            </button>
-            <button class="primary-action compact" :disabled="syncingBanks" @click="$emit('connect')">
-              <font-awesome-icon icon="link" />
-              Conectar
-            </button>
+    <section v-if="personalEnabled" class="panel" aria-labelledby="connections-heading">
+      <header class="panel-header">
+        <div class="panel-heading">
+          <span class="bank-icon heading-icon" aria-hidden="true">
+            <font-awesome-icon icon="link" />
+          </span>
+          <div>
+            <h3 id="connections-heading">Open Finance</h3>
+            <p>Importe movimentos de contas e cartões conectados.</p>
           </div>
         </div>
-        <p v-if="error" role="alert">{{ error }}</p>
-
-        <div class="connection-grid">
-          <article
-            v-for="connection in connections"
-            :key="connection.item_id"
-            class="connection-card"
+        <div class="inline-actions">
+          <button
+            v-if="connections.length"
+            class="primary-action"
+            type="button"
+            :disabled="syncingBanks"
+            @click="$emit('sync')"
           >
+            <font-awesome-icon
+              :icon="syncingBanks ? 'circle-notch' : 'arrows-rotate'"
+              :spin="syncingBanks"
+            />
+            {{ syncingBanks ? 'Sincronizando…' : 'Sincronizar' }}
+          </button>
+        </div>
+      </header>
+
+      <ul v-if="connections.length" class="connection-list">
+        <li v-for="connection in connections" :key="connection.item_id" class="connection-card">
+          <div class="institution">
+            <span class="bank-icon" aria-hidden="true">
+              <font-awesome-icon icon="building-columns" />
+            </span>
             <div>
               <strong>{{ connection.connector_name }}</strong>
-              <span>
-                {{ connectionStatusLabel(connection.status) }} ·
-                {{
-                  connection.last_sync_at
-                    ? formatShortDate(connection.last_sync_at)
-                    : 'sem sincronização'
-                }}
+              <span class="connection-status" :class="statusTone(connection)">
+                {{ statusLabel(connection) }}
               </span>
             </div>
-            <button
-              class="icon-btn small danger"
-              title="Remover"
-              @click="$emit('delete', connection.item_id)"
-            >
-              <font-awesome-icon icon="trash" />
-            </button>
-          </article>
-          <p v-if="connections.length === 0" class="empty-line">Nenhuma conexão ativa.</p>
-        </div>
+          </div>
+
+          <div class="last-sync">
+            <span>Última sincronização</span>
+            <time v-if="connection.last_sync_at" :datetime="connection.last_sync_at">
+              {{ formatSyncDate(connection.last_sync_at) }}
+            </time>
+            <span v-else>Ainda não realizada</span>
+          </div>
+
+          <button
+            class="icon-btn"
+            type="button"
+            :aria-label="`Remover conexão de ${connection.connector_name}`"
+            :disabled="syncingBanks"
+            @click="$emit('delete', connection.item_id)"
+          >
+            <font-awesome-icon icon="trash" />
+          </button>
+        </li>
+      </ul>
+
+      <div v-else class="empty-state">
+        <h4>Nenhuma instituição conectada</h4>
+        <button class="primary-action" type="button" :disabled="syncingBanks" @click="$emit('connect')">
+          <font-awesome-icon :icon="syncingBanks ? 'circle-notch' : 'link'" :spin="syncingBanks" />
+          {{ syncingBanks ? 'Conectando…' : 'Conectar instituição' }}
+        </button>
       </div>
-    </template>
+    </section>
+
+    <section v-else-if="!error" class="panel unavailable">
+      <span class="bank-icon heading-icon" aria-hidden="true">
+        <font-awesome-icon icon="link" />
+      </span>
+      <div>
+        <h3>Conexões bancárias automáticas</h3>
+        <p>Enquanto o Open Finance está indisponível, você pode adicionar lançamentos e importar CSV em Movimentos.</p>
+      </div>
+      <button class="primary-action" type="button" @click="$emit('view-transactions')">
+        Ir para Movimentos
+      </button>
+    </section>
   </div>
 </template>
 
 <script>
+const syncDateFormatter = new Intl.DateTimeFormat('pt-BR', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+});
+
+const connectionStatusLabels = {
+  UPDATED: 'Atualizada',
+  UPDATING: 'Atualizando',
+  LOGIN_ERROR: 'Erro de acesso',
+  OUTDATED: 'Desatualizada',
+};
+
 export default {
   name: 'NexoConnectionsTab',
-  emits: ['connect', 'delete', 'sync', 'upgrade', 'view-transactions'],
+  emits: ['connect', 'delete', 'reload', 'sync', 'view-transactions'],
   props: {
     personalEnabled: { type: Boolean, default: false },
     error: { type: String, default: '' },
-    isPaidPlan: {
-      type: Boolean,
-      default: false,
-    },
-    syncingBanks: {
-      type: Boolean,
-      default: false,
-    },
-    connections: {
-      type: Array,
-      required: true,
-    },
-    formatShortDate: {
-      type: Function,
-      required: true,
-    },
+    syncingBanks: { type: Boolean, default: false },
+    connections: { type: Array, required: true },
   },
   methods: {
-    connectionStatusLabel(status) {
-      const labels = {
-        UPDATED: 'Atualizada',
-        UPDATING: 'Atualizando',
-        LOGIN_ERROR: 'Erro de acesso',
-        OUTDATED: 'Desatualizada',
-        DELETED: 'Removida',
-      }
-      return labels[status] || 'Pendente'
+    formatSyncDate(value) {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? 'Data indisponível' : syncDateFormatter.format(date);
+    },
+    statusLabel(connection) {
+      if (connection.running) return 'Sincronizando…';
+      if (connection.last_error) return 'Falha na sincronização';
+      return connectionStatusLabels[connection.status] || 'Pendente';
+    },
+    statusTone(connection) {
+      if (connection.last_error || connection.status === 'LOGIN_ERROR') return 'status-error';
+      return connection.status === 'UPDATED' ? 'status-ready' : '';
     },
   },
-}
+};
 </script>
 
 <style scoped>
-.panel,
-.connection-card {
+.connections {
+  container-type: inline-size;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.panel {
   background: var(--surface-0);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
-  transition:
-    background var(--transition-base),
-    border-color var(--transition-base);
-}
-
-.panel {
   padding: var(--space-5);
-  min-height: 0;
 }
 
-.panel-title,
-.inline-actions {
+.panel-header,
+.panel-heading,
+.institution,
+.unavailable {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
 }
 
-.panel-title {
-  margin-bottom: var(--space-5);
-  align-items: flex-start;
+.panel-header {
+  justify-content: space-between;
   flex-wrap: wrap;
 }
 
-.panel-title h3,
-.connections-soon h3,
-.connections-soon p {
-  margin: 0;
-}
-
-.inline-actions {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.connections-soon {
-  min-height: 320px;
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-5);
-}
-
-.connections-soon p {
-  max-width: 620px;
+.panel-heading p,
+.unavailable p {
   color: var(--text-secondary);
-  line-height: 1.55;
+  font-size: var(--fontsize-xs);
+  line-height: 1.5;
+  margin-top: var(--space-1);
 }
 
-.soon-icon {
-  width: 72px;
-  height: 72px;
+.bank-icon {
+  flex: 0 0 38px;
+  height: 38px;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--deep-blue);
-  font-size: var(--fontsize-md);
 }
 
-.soon-kicker {
-  display: inline-flex;
-  width: max-content;
-  margin-bottom: var(--space-2);
-  border-radius: 999px;
-  background: var(--dark-yellow-2);
-  color: var(--gray-100);
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--fontsize-xs);
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.heading-icon {
+  flex-basis: 46px;
+  height: 46px;
 }
 
-.connection-grid {
+.connection-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--space-3);
+  gap: var(--space-2);
+  list-style: none;
+  margin-top: var(--space-5);
 }
 
 .connection-card {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(156px, 25%) auto;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
 }
 
-.connection-card div {
-  min-width: 0;
-}
-
-.connection-card strong,
-.connection-card span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.institution strong {
   display: block;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
 }
 
-.connection-card span,
-.empty-line {
+.connection-status {
+  display: inline-block;
+  margin-top: var(--space-1);
+  border-radius: 999px;
+  padding: 2px var(--space-2);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: var(--fontsize-xs);
+  font-weight: 600;
+}
+
+.status-ready {
+  background: var(--green-high);
+  color: var(--text-primary);
+}
+
+.status-error {
+  background: var(--red-high);
+  color: var(--text-primary);
+}
+
+.last-sync {
+  display: grid;
+  gap: 3px;
   color: var(--text-secondary);
   font-size: var(--fontsize-xs);
 }
 
-.connection-card button {
+.last-sync time {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding: var(--space-5) var(--space-3);
+  border: 1px dashed var(--glass-border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.connection-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--red-high);
+  color: var(--text-primary);
+}
+
+.unavailable .primary-action {
   margin-left: auto;
 }
 
@@ -238,51 +281,33 @@ export default {
   min-height: 40px;
   border-radius: var(--radius-sm);
   font-weight: 600;
-  transition:
-    transform var(--transition-fast),
-    background var(--transition-fast),
-    box-shadow var(--transition-fast),
-    filter var(--transition-fast);
 }
 
 .primary-action {
   background: var(--deep-blue-gradient-right);
   color: var(--white);
-  padding: 0 var(--space-4);
+  padding: var(--space-2) var(--space-4);
 }
 
-.primary-action.compact {
-  min-height: 36px;
+.primary-action:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.text-btn,
+.icon-btn {
+  background: var(--surface-2);
 }
 
 .text-btn {
-  background: transparent;
-  padding: 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
 }
 
 .icon-btn {
   width: 40px;
-  background: var(--surface-2);
 }
 
-.icon-btn.small {
-  width: 34px;
-  min-height: 34px;
-}
-
-.primary-action:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.08);
-}
-
-.text-btn:hover,
-.icon-btn:hover {
-  background: var(--dark-yellow-2);
-}
-
-.icon-btn.danger:hover {
+.icon-btn:hover:not(:disabled) {
   background: var(--red-high);
-  color: var(--red);
 }
 
 button:disabled {
@@ -290,69 +315,33 @@ button:disabled {
   cursor: not-allowed;
 }
 
-@container (max-width: 780px) {
-  .connections-soon {
-    grid-template-columns: 1fr;
-    justify-items: start;
-    min-height: 240px;
-  }
-
-  .connections-soon .primary-action {
-    width: 100%;
-  }
-
-  .connection-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@container (max-width: 600px) {
-  .panel {
-    padding: var(--space-4);
-  }
-}
-
 @container (max-width: 480px) {
   .panel {
     padding: var(--space-3);
   }
 
-  .connections-soon {
-    gap: var(--space-3);
-    min-height: auto;
-  }
-}
-
-@media (max-width: 780px) {
-  .connections-soon {
-    grid-template-columns: 1fr;
-    justify-items: start;
-    min-height: 240px;
-  }
-
-  .connections-soon .primary-action {
+  .panel-header .inline-actions,
+  .panel-header .primary-action {
     width: 100%;
   }
 
-  .connection-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 600px) {
-  .panel {
-    padding: var(--space-4);
-  }
-}
-
-@media (max-width: 480px) {
-  .panel {
-    padding: var(--space-3);
+  .connection-card {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .connections-soon {
-    gap: var(--space-3);
-    min-height: auto;
+  .last-sync {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--glass-border);
+  }
+
+  .unavailable {
+    flex-wrap: wrap;
+  }
+
+  .unavailable .primary-action {
+    width: 100%;
   }
 }
 </style>

@@ -361,12 +361,10 @@
             <NexoConnectionsTab
               :personal-enabled="personalConnectionEnabled"
               :error="connectionError"
-              :is-paid-plan="isPaidPlan"
               :syncing-banks="syncingBanks"
               :connections="connections"
-              :format-short-date="shortDate"
               @view-transactions="setActiveTab('transactions')"
-              @upgrade="showPlanModal = true"
+              @reload="loadConnections"
               @sync="syncConnections"
               @connect="connectPersonal"
               @delete="deleteConnection"
@@ -1513,12 +1511,16 @@ export default {
       try {
         const status = await financeService.getPersonalConnectionStatus();
         this.personalConnectionEnabled = Boolean(status.data?.enabled);
+        if (this.personalConnectionEnabled) {
+          const { data } = await financeService.getConnections();
+          this.connections = data;
+        } else {
+          this.connections = [];
+        }
+        this.connectionError = "";
       } catch {
-        this.personalConnectionEnabled = false;
+        this.connectionError = "Não foi possível carregar as conexões. Tente novamente.";
       }
-      if (!this.personalConnectionEnabled) return;
-      const { data } = await financeService.getConnections();
-      this.connections = data || [];
     },
     async loadUsage() {
       if (!this.canUseAi) {
@@ -3274,32 +3276,40 @@ export default {
       widget.init();
     },
     async connectPersonal() {
+      await this.runConnectionAction(financeService.connectPersonal, "Não foi possível conectar a instituição.");
+    },
+    async syncConnections() {
+      await this.runConnectionAction(financeService.syncConnections, "Não foi possível sincronizar os movimentos.");
+    },
+    async runConnectionAction(action, fallback) {
+      if (this.syncingBanks) return;
       this.syncingBanks = true;
       this.connectionError = "";
       try {
-        await financeService.connectPersonal();
-        await this.reloadAll();
+        await action();
+        await this.refreshAfterBankSync();
       } catch (error) {
-        this.connectionError = error.response?.data?.message || error.message || "Não foi possível conectar.";
+        await this.loadConnections();
+        this.connectionError = error.response?.data?.message || (error.isAxiosError
+          ? (error.response ? fallback : "Não foi possível acessar o servidor do Kadem. Tente novamente em instantes.")
+          : error.message || fallback);
       } finally {
         this.syncingBanks = false;
       }
     },
-    async syncConnections() {
-      this.syncingBanks = true;
-      this.connectionError = "";
-      try {
-        await financeService.syncConnections();
-        await this.reloadAll();
-      } catch (error) {
-        this.connectionError = error.response?.data?.message || error.message || "Não foi possível sincronizar.";
-      } finally {
-        this.syncingBanks = false;
+    async refreshAfterBankSync() {
+      const [, views] = await Promise.allSettled([this.loadConnections(), this.refreshTransactionDrivenViews()]);
+      if (views.status === "rejected") {
+        this.connectionError = "Sincronização concluída. Recarregue o Nexo para atualizar a visualização dos movimentos.";
       }
     },
     async deleteConnection(itemId) {
-      await financeService.deleteConnection(itemId);
-      await this.loadConnections();
+      try {
+        await financeService.deleteConnection(itemId);
+        await this.loadConnections();
+      } catch (error) {
+        this.connectionError = error.response?.data?.message || "Não foi possível remover a conexão.";
+      }
     },
     async autoCategorize() {
       if (!this.canUseAi) {
@@ -3529,12 +3539,14 @@ export default {
   },
   mounted() {
     this.reloadAll();
+    window.addEventListener("nexo-open-finance-synced", this.refreshAfterBankSync);
     if (this.$refs.tabViewport) {
       this.$refs.tabViewport.scrollLeft = 0;
     }
     document.addEventListener("keydown", this.handleGlobalKeydown);
   },
   beforeUnmount() {
+    window.removeEventListener("nexo-open-finance-synced", this.refreshAfterBankSync);
     document.removeEventListener("keydown", this.handleGlobalKeydown);
   },
   watch: {

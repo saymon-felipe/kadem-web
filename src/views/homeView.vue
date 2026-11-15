@@ -185,6 +185,15 @@ export default {
       utilsStore._start_smart_polling();
     },
 
+    async syncOpenFinanceOnEntry() {
+      try {
+        const { financeService } = await import('@/services/financeService');
+        if (useAuthStore().isLoggedIn) await financeService.syncOpenFinanceOnEntry();
+      } catch {
+        console.warn('[Nexo] Não foi possível sincronizar as conexões ao entrar.');
+      }
+    },
+
     handleResize() {
       this.updateMobileStatus();
     },
@@ -216,6 +225,11 @@ export default {
     this.init_connection_monitor();
 
     this.checkAuthStatus(true);
+    if (navigator.onLine) {
+      void this.syncOpenFinanceOnEntry();
+    } else {
+      window.addEventListener('online', this.syncOpenFinanceOnEntry, { once: true });
+    }
 
     setTimeout(() => {
       this.check_vault_security_status();
@@ -226,6 +240,7 @@ export default {
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
   },
   beforeUnmount() {
+    window.removeEventListener('online', this.syncOpenFinanceOnEntry);
     window.removeEventListener("resize", this.handleResize);
     window.removeEventListener("project-access-revoked", this.handleProjectRevoked);
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);

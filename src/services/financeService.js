@@ -38,6 +38,37 @@ const toPlain = (value, fallback = {}) => {
   return JSON.parse(JSON.stringify(value));
 };
 
+const openFinancePollInterval = 1500;
+const openFinancePollTimeout = 3 * 60_000;
+
+const waitForOpenFinance = async (request, isCurrent) => {
+  const result = await request;
+  assertSyncSession(isCurrent);
+  if (result.status !== 202) return result;
+
+  const itemIds = new Set(result.data?.item_ids);
+  const startedAt = Date.parse(result.data?.started_at);
+  if (!itemIds.size || !Number.isFinite(startedAt)) throw new Error('Resposta de sincronização inválida.');
+  const deadline = Date.now() + openFinancePollTimeout;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, openFinancePollInterval));
+    assertSyncSession(isCurrent);
+    const response = await api.get('/finance/open-finance/connections', { timeout: 8000 });
+    assertSyncSession(isCurrent);
+    const connections = requireSyncArray(response.data).filter((item) => itemIds.has(item.item_id));
+    if (connections.some((item) => item.running)) continue;
+
+    const failure = connections.find((item) => item.last_error);
+    if (failure) throw new Error(failure.last_error);
+    if (connections.length === itemIds.size && connections.every((item) => Date.parse(item.last_sync_at) >= startedAt)) {
+      return response;
+    }
+    if (connections.length !== itemIds.size) throw new Error('A conexão foi removida durante a sincronização.');
+  }
+
+  throw new Error('A sincronização ainda está em andamento. Atualize a página em alguns instantes.');
+};
+
 // A escrita local (Dexie + fila) ja aconteceu quando este await volta; o envio ao servidor e um passo a
 // parte. Por padrao esperamos por ele; `waitForSync: false` devolve a promessa do envio para a tela
 // poder fechar o modal na hora e esperar o servidor em segundo plano.
@@ -742,7 +773,10 @@ export const financeService = {
     return api.get("/finance/open-finance/personal");
   },
   connectPersonal() {
-    return api.post("/finance/open-finance/personal");
+    return waitForOpenFinance(
+      api.post("/finance/open-finance/personal", { async: true }),
+      captureSyncSession(),
+    );
   },
   async getConnections() {
     const isCurrent = captureSyncSession();
@@ -762,7 +796,24 @@ export const financeService = {
     return api.delete(`/finance/open-finance/connections/${itemId}`);
   },
   syncConnections(data = {}) {
-    return api.post("/finance/open-finance/sync", data);
+    return waitForOpenFinance(
+      api.post("/finance/open-finance/sync", { ...data, async: true }),
+      captureSyncSession(),
+    );
+  },
+  async syncOpenFinanceOnEntry() {
+    const isCurrent = captureSyncSession();
+    const status = await financeService.getPersonalConnectionStatus();
+    if (!isCurrent() || !status.data?.enabled) return;
+
+    const { data } = await api.get("/finance/open-finance/connections");
+    if (!isCurrent() || !requireSyncArray(data).length) return;
+
+    await syncService.processSyncQueue();
+    if (!isCurrent()) return;
+
+    await financeService.syncConnections();
+    if (isCurrent()) window.dispatchEvent(new Event("nexo-open-finance-synced"));
   },
   autoCategorize(data = {}) {
     return api.post("/finance/ai/categorize", data);

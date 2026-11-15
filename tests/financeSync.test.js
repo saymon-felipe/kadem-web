@@ -597,6 +597,56 @@ const loadOfflineFinance = async (server) => {
   return modules;
 };
 
+test('Open Finance aguarda a nova sincronização e preserva o horário anterior se houver falha', { timeout: 30000 }, async () => {
+  const server = await createViteServer();
+  try {
+    const { financeService } = await server.ssrLoadModule('/src/services/financeService.js');
+    const { api } = await server.ssrLoadModule('/src/plugins/api.js');
+    const startedAt = '2026-11-15T15:00:00Z';
+    const before = { item_id: 'item', last_sync_at: '2026-11-14T15:00:00Z' };
+    const after = { ...before, last_sync_at: '2026-11-15T15:00:03Z' };
+    const snapshots = [{ ...before, running: true }, before, after];
+    api.post = async (url, body) => {
+      assert.equal(url, '/finance/open-finance/sync');
+      assert.deepEqual(body, { async: true });
+      return { status: 202, data: { item_ids: ['item'], started_at: startedAt } };
+    };
+    api.get = async () => ({ data: [snapshots.shift()] });
+    assert.deepEqual((await financeService.syncConnections()).data, [after]);
+    assert.equal(snapshots.length, 0);
+
+    api.get = async () => ({ data: [{ ...before, last_error: 'Banco indisponível.' }] });
+    await assert.rejects(financeService.syncConnections(), /Banco indisponível/);
+  } finally {
+    await server.close();
+  }
+});
+
+test('Conexões mostra a data e a hora da última sincronização mesmo após falha', { timeout: 30000 }, async () => {
+  const server = await createViteServer();
+  try {
+    const { default: Connections } = await server.ssrLoadModule('/src/components/finance/nexo/NexoConnectionsTab.vue');
+    const lastSync = '2026-11-15T15:25:00Z';
+    const formatted = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(lastSync));
+    const app = createSSRApp(Connections, {
+      personalEnabled: true,
+      connections: [
+        { item_id: 'a', connector_name: 'Banco A', last_sync_at: lastSync, last_error: 'Indisponível' },
+        { item_id: 'b', connector_name: 'Banco B', running: true },
+      ],
+    });
+    app.component('font-awesome-icon', { render: () => null });
+    const html = await renderToString(app);
+    assert.ok(html.includes(`datetime="${lastSync}"`));
+    assert.ok(html.includes(formatted));
+    assert.ok(html.includes('Falha na sincronização'));
+    assert.ok(html.includes('Sincronizando…'));
+    assert.ok(html.includes('Ainda não realizada'));
+  } finally {
+    await server.close();
+  }
+});
+
 test('falha do servidor sinaliza movimentos incompletos sem perder cache offline', { timeout: 60000 }, async () => {
   const server = await createViteServer(); let db;
   try {

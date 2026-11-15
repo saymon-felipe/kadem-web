@@ -7,7 +7,7 @@ const resolveApiUrl = () => {
   }
 
   if (import.meta.env.DEV) {
-    return 'http://localhost:3000/api';
+    return '/api';
   }
 
   throw new Error('[Kadem] Variável VITE_API_URL não definida.');
@@ -56,7 +56,7 @@ const getCookie = (name) => {
 
 const normalizePath = (url = '') => {
   try {
-    return new URL(url, url_api).pathname.replace(/^\/api/, '');
+    return new URL(url, new URL(url_api, window.location.origin)).pathname.replace(/^\/api/, '');
   } catch {
     return String(url).split('?')[0];
   }
