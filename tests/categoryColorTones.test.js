@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   hexToHsl,
   hslToHex,
-  normalizeHex,
   isToneOf,
   clampToMacroTone,
   generateCategoryTones,

@@ -67,7 +67,7 @@ class MediaSessionManager {
         } else {
           navigator.mediaSession.setActionHandler(action, null);
         }
-      } catch (error) {
+      } catch {
         console.warn(`MediaSession action '${action}' não suportada neste navegador.`);
       }
     });
@@ -93,7 +93,7 @@ class MediaSessionManager {
         playbackRate: state.playbackRate || 1,
         position: state.position,
       });
-    } catch (error) {
+    } catch {
       // Ignora erros de arredondamento
     }
   }

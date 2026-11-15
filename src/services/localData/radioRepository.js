@@ -238,7 +238,7 @@ export const radioRepository = {
     try {
       const files = await db.global_audio_cache.toArray();
       return files.map(f => f.youtube_id);
-    } catch (e) {
+    } catch {
       return [];
     }
   },
@@ -247,7 +247,7 @@ export const radioRepository = {
     try {
       const files = await db.global_video_cache.toArray();
       return files.map(f => f.youtube_id);
-    } catch (e) {
+    } catch {
       return [];
     }
   },

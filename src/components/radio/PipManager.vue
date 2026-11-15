@@ -446,14 +446,14 @@ export default {
       this.ctx.fillText(current_text, cursor_x, time_y);
     },
 
-    initialize_stream() {
+    async initialize_stream() {
       if (this.is_stream_initialized && this.$refs.pip_video.readyState >= 1) {
-        return Promise.resolve();
+        return;
       }
 
       this.is_initializing = true;
 
-      return new Promise(async (resolve) => {
+      {
         const video_el = this.$refs.pip_video;
 
         if (this.background_img.complete) {
@@ -492,15 +492,17 @@ export default {
 
         this.is_stream_initialized = true;
 
-        video_el.onloadedmetadata = () => {
-          this.is_pip_ready = true;
-          if (this.is_playing) {
-            video_el.play().catch((e) => console.warn("Autoplay PiP blocked", e));
-          }
-          this.is_initializing = false;
-          resolve();
-        };
-      });
+        await new Promise((resolve) => {
+          video_el.onloadedmetadata = () => {
+            this.is_pip_ready = true;
+            if (this.is_playing) {
+              video_el.play().catch((e) => console.warn("Autoplay PiP blocked", e));
+            }
+            this.is_initializing = false;
+            resolve();
+          };
+        });
+      }
     },
 
     async toggle_pip() {
@@ -575,7 +577,7 @@ export default {
     if (this.oscillator) {
       try {
         this.oscillator.stop();
-      } catch (e) {}
+      } catch { /* Ignora falhas ao encerrar o contexto de áudio. */ }
       this.oscillator.disconnect();
     }
     if (this.audio_ctx) this.audio_ctx.close();

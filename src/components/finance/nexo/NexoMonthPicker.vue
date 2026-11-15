@@ -137,7 +137,8 @@ export default {
       this.close();
     },
     toggle() {
-      this.isOpen ? this.close() : this.open();
+      if (this.isOpen) this.close();
+      else this.open();
     },
     open() {
       this.isOpen = true;

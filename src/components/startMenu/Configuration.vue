@@ -67,6 +67,7 @@ import {
 } from "@/services/pwaInstall";
 
 export default {
+  name: "AppConfiguration",
   components: {
     BaseModal,
     DeleteAccountForm,

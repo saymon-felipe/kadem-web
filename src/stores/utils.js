@@ -58,10 +58,10 @@ export const useUtilsStore = defineStore("utils", {
         console.warn(`[Utils] Falha ao baixar imagem via Backend Proxy:`, error);
         // Fallback final: Tenta direto (pode falhar CORS, mas tenta)
         try {
-          const fallback = await fetch(url, { mode: 'no-cors' });
+          await fetch(url, { mode: 'no-cors' });
           // Nota: no-cors retorna opaque, não serve pra canvas, mas serve pra img tag simples
           return null;
-        } catch (e) { return null; }
+        } catch { return null; }
       }
     },
     init_connection_monitor() {
@@ -109,7 +109,7 @@ export const useUtilsStore = defineStore("utils", {
         const is_api_available = await check_system_health();
         this._set_connection_status(true, is_api_available);
         return is_api_available;
-      } catch (error) {
+      } catch {
         this._set_connection_status(true, false);
         return false;
       }

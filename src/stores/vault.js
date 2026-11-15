@@ -210,7 +210,7 @@ export const useVaultStore = defineStore('vault', () => {
           id: acc.id,
           ...account_data
         });
-      } catch (err) {
+      } catch {
         zombie_count.value++;
         console.warn(`[Vault] Conta órfã detectada (localId ${acc.localId}). Aguardando resgate.`);
       };
@@ -431,7 +431,7 @@ export const useVaultStore = defineStore('vault', () => {
 
       const validationToken = await _decrypt(encryptedValidation, keyCandidate);
       return validationToken === "VALID_VAULT_KEY";
-    } catch (decryptError) {
+    } catch {
       return false;
     }
   };
@@ -475,7 +475,7 @@ export const useVaultStore = defineStore('vault', () => {
     accounts.value.splice(accountIndex, 1, updatedAccount);
     _resetAutoLock();
 
-    const { localId: omitLocalId, id: omitId, ...dataToEncrypt } = updatedAccount;
+    const { localId: _omitLocalId, id: _omitId, ...dataToEncrypt } = updatedAccount;
     const dataString = JSON.stringify(dataToEncrypt);
     const encryptedBlob = await _encrypt(dataString);
 
@@ -554,9 +554,6 @@ export const useVaultStore = defineStore('vault', () => {
     }
   };
 
-  const get_safe_salt = (email) => {
-    return email ? email.trim().toLowerCase() : '';
-  };
 
   const sanitize_recovery_code = (code) => {
     if (!code) return '';
@@ -712,7 +709,7 @@ export const useVaultStore = defineStore('vault', () => {
       let is_zombie = false;
       try {
         await _decrypt(acc.data, _mek.value);
-      } catch (e) {
+      } catch {
         is_zombie = true;
       }
 

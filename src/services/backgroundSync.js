@@ -35,7 +35,7 @@ export async function backgroundPull() {
       method,
       credentials: "include",
       headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf, ...options.headers },
-      body: data === undefined ? undefined : JSON.stringify(data),
+      ...(data === undefined ? {} : { body: JSON.stringify(data) }),
       signal: AbortSignal.timeout(15000),
     });
     if (!response.ok) {

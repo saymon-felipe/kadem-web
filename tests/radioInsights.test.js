@@ -101,7 +101,7 @@ test('Dexie v24 → v25: curtidas offline, contador compartilhado entre abas, pu
     await old.global_audio_cache.put({ youtube_id: song.youtube_id, audio_blob: new Blob(['offline']) });
     await old.syncQueue.add({ type: 'CREATE_PLAYLIST', payload: { name: 'Pendente' }, timestamp: new Date().toISOString() });
     old.close(); await db.open();
-    assert.equal(db.verno, 25);
+    assert.equal(db.verno, 30);
     assert.equal((await db.global_audio_cache.get(song.youtube_id)).audio_blob.size, 7);
     assert.equal(await db.syncQueue.count(), 1);
     await db.syncQueue.clear();

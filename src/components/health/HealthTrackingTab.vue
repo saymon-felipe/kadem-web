@@ -492,7 +492,7 @@ export default {
     },
     checkinItems(event) {
       const entries = Object.entries(event.values || {}).filter(
-        ([_, v]) => v !== "" && v !== null && v !== undefined,
+        ([, v]) => v !== "" && v !== null && v !== undefined,
       );
       return entries.slice(0, 5).map(([key, value]) => {
         const tracker = this.trackers.find((item) => item.local_key === key);
@@ -511,7 +511,7 @@ export default {
     },
     checkinRemainingCount(event) {
       const entries = Object.entries(event.values || {}).filter(
-        ([_, v]) => v !== "" && v !== null && v !== undefined,
+        ([, v]) => v !== "" && v !== null && v !== undefined,
       );
       return Math.max(0, entries.length - 5);
     },

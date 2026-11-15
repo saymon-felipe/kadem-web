@@ -2,6 +2,7 @@ import { before, test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import process from "node:process";
+import { setImmediate } from "node:timers";
 import "fake-indexeddb/auto";
 import { createServer } from "vite";
 import vue from "@vitejs/plugin-vue";
@@ -212,6 +213,25 @@ test("tabela desktop e celular mostram hora real de Genos, inclusive meia-noite,
     assert.equal((html.match(/>\s*Genos\s*</g) || []).length, 4);
     assert.equal((html.match(/>\s*CSV\s*</g) || []).length, 2);
     assert.ok(html.includes("21/10")); assert.ok(html.includes("Não informado")); assert.ok(!html.includes("UNKNOWN"));
+  } finally { await server.close(); }
+});
+
+test("ações da tabela explicam vínculo patrimonial apenas quando existe", { timeout: 30000 }, async () => {
+  const server = await createViteServer();
+  try {
+    const { default: Table } = await server.ssrLoadModule('/src/components/finance/nexo/NexoTransactionsTable.vue');
+    const render = async (flags) => {
+      const app = createSSRApp(Table, { transactions: [{ id: 1, description: 'Movimento', type: 'EXPENSE', amount: 1, transaction_date: '2026-11-01', ...flags }], categories: [], categorizingIds: [], formatSignedMoney: () => '', formatShortDate: () => '' });
+      app.component('font-awesome-icon', { render: () => null });
+      return renderToString(app);
+    };
+    const unlinked = await render({ physical_linked: false, has_physical_history: false });
+    assert.equal((unlinked.match(/title="Editar"/g) || []).length, 2);
+    assert.equal((unlinked.match(/title="Excluir"/g) || []).length, 2);
+    assert.ok(!unlinked.includes('vínculos patrimoniais preservam'));
+    const linked = await render({ physical_linked: true, has_physical_history: true });
+    assert.equal((linked.match(/disabled title="Editar \(lançamento vinculado/g) || []).length, 2);
+    assert.equal((linked.match(/disabled title="Excluir \(vínculos patrimoniais/g) || []).length, 2);
   } finally { await server.close(); }
 });
 
@@ -576,6 +596,26 @@ const loadOfflineFinance = async (server) => {
     modules.db.finance_categories.add({ local_key: `category-${category.id}`, pending_sync: false, ...category });
   return modules;
 };
+
+test('falha do servidor sinaliza movimentos incompletos sem perder cache offline', { timeout: 60000 }, async () => {
+  const server = await createViteServer(); let db;
+  try {
+    const m = await loadOfflineFinance(server); db = m.db;
+    await m.financeRepository.setTransactions([{ id: 501, description: 'Local', type: 'EXPENSE', amount: 1, transaction_date: '2026-11-01' }], { month: '2026-11' });
+    m.api.get = async () => { const error = new Error('erro'); error.response = { status: 500 }; throw error; };
+    let result = await m.financeService.listTransactions({ month: '2026-11', limit: 250 });
+    assert.equal(result.serverError, true);
+    assert.equal(result.data.length, 1);
+    m.api.get = async () => { throw new Error('offline'); };
+    result = await m.financeService.listTransactions({ month: '2026-11', limit: 250 });
+    assert.equal(result.serverError, false);
+    assert.equal(result.data.length, 1);
+    m.api.get = async () => ({ data: [] });
+    result = await m.financeService.listTransactions({ month: '2026-11', limit: 250 });
+    assert.equal(result.serverError, undefined);
+    assert.equal(result.data.length, 0);
+  } finally { db?.close(); await server.close(); }
+});
 
 test('mover movimentos é atômico offline e sincroniza todas em uma única requisição', { timeout: 60000 }, async () => {
   const server = await createViteServer(); let db;

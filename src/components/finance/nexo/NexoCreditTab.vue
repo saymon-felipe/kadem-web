@@ -309,7 +309,8 @@ export default {
       this.savingCard = true;
       this.error = "";
       try {
-        const { id, is_archived: _archived, ...data } = this.cardForm;
+        const { id, ...data } = this.cardForm;
+        delete data.is_archived;
         const result = await financeService.saveCreditCard(id, { ...data, credit_limit: Number(data.credit_limit) });
         this.showCard = false;
         this.$emit("changed");

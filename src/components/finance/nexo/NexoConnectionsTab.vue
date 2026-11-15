@@ -1,7 +1,6 @@
 <template>
   <div>
-    <NexoGenosPairing :active="active" />
-    <div class="panel connections-soon">
+    <div v-if="!personalEnabled" class="panel connections-soon">
       <div class="soon-icon">
         <font-awesome-icon icon="link" />
       </div>
@@ -19,9 +18,8 @@
       </button>
     </div>
 
-    <template v-if="false">
-      <ProGate v-if="!isPaidPlan" @upgrade="$emit('upgrade')" />
-      <div v-else class="panel">
+    <template v-else>
+      <div class="panel">
         <div class="panel-title">
           <h3>Conexões</h3>
           <div class="inline-actions">
@@ -32,12 +30,13 @@
               />
               Sincronizar
             </button>
-            <button class="primary-action compact" @click="$emit('connect')">
+            <button class="primary-action compact" :disabled="syncingBanks" @click="$emit('connect')">
               <font-awesome-icon icon="link" />
               Conectar
             </button>
           </div>
         </div>
+        <p v-if="error" role="alert">{{ error }}</p>
 
         <div class="connection-grid">
           <article
@@ -72,18 +71,12 @@
 </template>
 
 <script>
-import ProGate from './ProGate.vue'
-import NexoGenosPairing from './NexoGenosPairing.vue'
-
 export default {
   name: 'NexoConnectionsTab',
-  components: {
-    ProGate,
-    NexoGenosPairing,
-  },
   emits: ['connect', 'delete', 'sync', 'upgrade', 'view-transactions'],
   props: {
-    active: { type: Boolean, default: false },
+    personalEnabled: { type: Boolean, default: false },
+    error: { type: String, default: '' },
     isPaidPlan: {
       type: Boolean,
       default: false,

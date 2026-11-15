@@ -115,7 +115,6 @@ import RescueAccountsModal from "./RescueAccountsModal.vue";
 import { useVaultStore } from "@/stores/vault";
 import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
-import loadingSpinner from "../../loadingSpinner.vue";
 import {
   isBiometricCancellationError,
   isBiometricSupported,
@@ -126,8 +125,7 @@ export default {
     AccountList,
     AccountForm,
     BaseModal,
-    RescueAccountsModal,
-    loadingSpinner
+    RescueAccountsModal
   },
   setup() {
     const vault = useVaultStore();
@@ -191,7 +189,7 @@ export default {
         await this.vault.unlockVault(this.masterPasswordInput, this.auth.user.email);
         this.masterPasswordInput = "";
         this.passwordFieldType = "password";
-      } catch (err) {
+      } catch {
         this.error = "Senha incorreta. Tente novamente.";
       } finally {
         this.isLoading = false;

@@ -55,6 +55,7 @@
               :moving-transactions="movingTransactions"
               :saving-payment-origin-ids="savingPaymentOriginIds"
               :payment-origin-error="paymentOriginError"
+              :transactions-error="transactionsError"
               :credit-cards="creditCards"
               :is-paid-plan="isPaidPlan"
               :can-use-ai="canUseAi"
@@ -358,7 +359,8 @@
 
           <template v-else-if="tab.id === 'connections'">
             <NexoConnectionsTab
-              :active="activeTab === 'connections'"
+              :personal-enabled="personalConnectionEnabled"
+              :error="connectionError"
               :is-paid-plan="isPaidPlan"
               :syncing-banks="syncingBanks"
               :connections="connections"
@@ -366,7 +368,7 @@
               @view-transactions="setActiveTab('transactions')"
               @upgrade="showPlanModal = true"
               @sync="syncConnections"
-              @connect="openPluggyWidget"
+              @connect="connectPersonal"
               @delete="deleteConnection"
             />
           </template>
@@ -765,6 +767,7 @@ export default {
       savingPaymentCardIds: [],
       paymentCardError: "",
       paymentOriginError: "",
+      transactionsError: "",
       savingCategory: false,
       savingMacro: false,
       showCategoryForm: false,
@@ -785,6 +788,8 @@ export default {
       pendingCategorySelection: null,
       budgets: [],
       connections: [],
+      personalConnectionEnabled: false,
+      connectionError: "",
       macroDistribution: [],
       investmentSummary: {
         month_invested: 0,
@@ -1433,11 +1438,12 @@ export default {
       };
     },
     async loadTransactions() {
-      const { data } = await financeService.listTransactions({
+      const { data, serverError } = await financeService.listTransactions({
         month: this.selectedMonth,
         limit: 1000,
       });
       this.transactions = data || [];
+      this.transactionsError = serverError ? "Não foi possível atualizar os movimentos no servidor. Os dados locais podem estar incompletos." : "";
     },
     async loadCategories() {
       const { data } = await financeService.getCategories();
@@ -1504,7 +1510,13 @@ export default {
       };
     },
     async loadConnections() {
-      if (!this.isPaidPlan) return;
+      try {
+        const status = await financeService.getPersonalConnectionStatus();
+        this.personalConnectionEnabled = Boolean(status.data?.enabled);
+      } catch {
+        this.personalConnectionEnabled = false;
+      }
+      if (!this.personalConnectionEnabled) return;
       const { data } = await financeService.getConnections();
       this.connections = data || [];
     },
@@ -1535,7 +1547,7 @@ export default {
         this.recentTransactions = this.recentTransactions.filter((item) => !movedKeys.has(String(this.transactionKey(item))));
         this.credit = buildCreditSummary(this.transactions, this.categories);
         await result.synced;
-      } catch (error) {
+      } catch {
         this.paymentOriginError = "Não foi possível transferir os movimentos. Confira a seleção e tente novamente.";
       } finally {
         try { await this.refreshTransactionDrivenViews(); } finally { this.movingTransactions = false; }
@@ -1807,8 +1819,7 @@ export default {
         defaultPositiveType: "INCOME",
       };
     },
-    async parseCsvWithSchema(parsedRows, schema, fallbackDelimiter = null) {
-      const delimiter = schema.delimiter || fallbackDelimiter || ",";
+    async parseCsvWithSchema(parsedRows, schema) {
       const rawHeaders = (parsedRows[0] || []).map((header) => this.cleanCsvCell(header));
 
       // Find indices of columns
@@ -3262,11 +3273,26 @@ export default {
       });
       widget.init();
     },
+    async connectPersonal() {
+      this.syncingBanks = true;
+      this.connectionError = "";
+      try {
+        await financeService.connectPersonal();
+        await this.reloadAll();
+      } catch (error) {
+        this.connectionError = error.response?.data?.message || error.message || "Não foi possível conectar.";
+      } finally {
+        this.syncingBanks = false;
+      }
+    },
     async syncConnections() {
       this.syncingBanks = true;
+      this.connectionError = "";
       try {
         await financeService.syncConnections();
         await this.reloadAll();
+      } catch (error) {
+        this.connectionError = error.response?.data?.message || error.message || "Não foi possível sincronizar.";
       } finally {
         this.syncingBanks = false;
       }

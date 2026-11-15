@@ -169,7 +169,7 @@ export const useNotificationStore = defineStore("notifications", {
       this.isAttentionDismissed = true;
       try {
         localStorage.setItem(ATTENTION_DISMISSED_KEY, "true");
-      } catch {}
+      } catch { /* O estado continua válido em memória. */ }
     },
 
     toggleTray() {

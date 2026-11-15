@@ -87,7 +87,9 @@
       </NexoFilterPanel>
     </div>
     <p v-if="paymentOriginError" class="payment-origin-error" role="alert">{{ paymentOriginError }}</p>
+    <p v-if="transactionsError" class="payment-origin-error" role="alert">{{ transactionsError }}</p>
     <NexoTransactionsTable
+      v-if="!transactionsError || transactions.length"
       :selected-month="selectedMonth"
       :moving="movingTransactions"
       :saving-payment-origin-ids="savingPaymentOriginIds"
@@ -147,6 +149,7 @@ export default {
     movingTransactions: { type: Boolean, default: false },
     savingPaymentOriginIds: { type: Array, default: () => [] },
     paymentOriginError: { type: String, default: "" },
+    transactionsError: { type: String, default: "" },
     creditCards: {type:Array,default:()=>[]},
     isPaidPlan: {
       type: Boolean,

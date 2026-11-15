@@ -429,8 +429,8 @@ export const financeService = {
 
       await financeRepository.setTransactions(items, params);
       return response(await financeRepository.getTransactions(params));
-    } catch {
-      return response(await financeRepository.getTransactions(params));
+    } catch (error) {
+      return { ...response(await financeRepository.getTransactions(params)), serverError: error.response?.status >= 500 };
     }
   },
 
@@ -737,6 +737,12 @@ export const financeService = {
 
   getConnectToken() {
     return api.post("/finance/open-finance/connect-token");
+  },
+  getPersonalConnectionStatus() {
+    return api.get("/finance/open-finance/personal");
+  },
+  connectPersonal() {
+    return api.post("/finance/open-finance/personal");
   },
   async getConnections() {
     const isCurrent = captureSyncSession();

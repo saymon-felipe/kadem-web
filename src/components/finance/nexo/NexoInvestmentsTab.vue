@@ -770,6 +770,7 @@ export default {
   },
   watch: {
     activeInvestmentTab(tab) {
+      usePlayerStore().setActiveAppTab(INVESTMENT_TAB_STORAGE_KEY, tab)
       if (tab === 'summary' || tab === 'calculator') {
         this.$nextTick(() => {
           this.updateChartDimensions()
@@ -1137,11 +1138,6 @@ export default {
           growthPercent,
         }
       })
-    },
-  },
-  watch: {
-    activeInvestmentTab(tabId) {
-      usePlayerStore().setActiveAppTab(INVESTMENT_TAB_STORAGE_KEY, tabId)
     },
   },
   methods: {

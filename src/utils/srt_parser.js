@@ -31,7 +31,7 @@ export const parse_srt = (srt_content) => {
     try {
       const parsed = JSON.parse(srt_content);
       if (Array.isArray(parsed)) return parsed;
-    } catch (e) {
+    } catch {
       // Não é JSON, continua para o parser de texto (Regex)
     }
   }

@@ -439,7 +439,7 @@ export default {
       if (typeof navigator !== "undefined" && navigator.vibrate) {
         try {
           navigator.vibrate(15);
-        } catch {}
+        } catch { /* Vibração indisponível neste dispositivo. */ }
       }
 
       await this.insightsStore.setReaction(this.current_music, nextVote);

@@ -8,7 +8,6 @@ import {
   kanbanRepository,
   accountsRepository,
   radioRepository,
-  financeRepository,
   healthRepository,
   agendaRepository,
 } from "./localData";
@@ -24,7 +23,7 @@ import { radioInsightsRepository, isRadioInsightsTask, LISTENING_COUNTERS } from
 import { reportAttachmentUpload, finishAttachmentUpload } from "./attachmentUploadProgress";
 import { createPersonalSyncExecutor } from "./personalSyncExecutor";
 const personalSync = createPersonalSyncExecutor({ api: { post: (...args) => api.post(...args), put: (...args) => api.put(...args), delete: (...args) => api.delete(...args) }, getUserId: () => useAuthStore().user?.id, syncReceipt: async (payload) => { const { receiptService } = await import("./receiptService"); await receiptService.sync(payload.local_key, payload.user_id); }, deleteReceipt: async (payload) => { const { receiptService } = await import("./receiptService"); await receiptService.syncDeletion(payload.local_key, payload.user_id); } });
-import { captureSyncSession, assertSyncSession, requireSyncArray } from "../utils/syncState";
+import { captureSyncSession, requireSyncArray } from "../utils/syncState";
 
 let isProcessing = false;
 let rerunRequested = false;
@@ -299,10 +298,11 @@ async function _handleProjectTask(task) {
       await api.delete(`/projects/${task.payload.projectId}/members/${task.payload.targetUserId}`);
       break;
 
-    case "REVOKE_PROJECT_INVITE":
+    case "REVOKE_PROJECT_INVITE": {
       const encodedEmail = encodeURIComponent(task.payload.targetEmail);
       await api.delete(`/projects/${task.payload.projectId}/invites/${encodedEmail}`);
       break;
+    }
   }
 }
 
@@ -318,7 +318,7 @@ async function _handleKanbanTask(task) {
   let serverId, response;
 
   switch (task.type) {
-    case "CREATE_COLUMN":
+    case "CREATE_COLUMN": {
       const serverProjId = await resolveServerProjectId(task.payload.project_id);
       const colPayload = {
         title: task.payload.title,
@@ -329,8 +329,9 @@ async function _handleKanbanTask(task) {
       response = await api.post(`/kanban/columns`, colPayload);
       await kanbanRepository.setServerIdForColumn(task.entity_id, response.data.id);
       break;
+    }
 
-    case "UPDATE_COLUMN":
+    case "UPDATE_COLUMN": {
       serverId = task.payload.id;
       if (!serverId) {
         const col = await kanbanRepository.get_column_by_local_id(task.entity_id);
@@ -345,6 +346,7 @@ async function _handleKanbanTask(task) {
         await api.put(`/kanban/columns/${serverId}`, { changes: colChanges });
       }
       break;
+    }
 
     case "DELETE_COLUMN":
       serverId = task.payload.id;
@@ -357,7 +359,7 @@ async function _handleKanbanTask(task) {
       }
       break;
 
-    case "REORDER_COLUMNS":
+    case "REORDER_COLUMNS": {
       const pIdReorder = await resolveServerProjectId(task.payload.project_id);
       const colsOrder = [];
       for (const c of task.payload.columns_order) {
@@ -370,8 +372,9 @@ async function _handleKanbanTask(task) {
       }
       if (colsOrder.length) await api.post(`/kanban/projects/${pIdReorder}/reorder-columns`, { columns: colsOrder });
       break;
+    }
 
-    case "CREATE_TASK":
+    case "CREATE_TASK": {
       if (!await kanbanRepository.get_task_by_local_id(task.entity_id)) return;
       const tProjId = await resolveServerProjectId(task.payload.project_id);
       const parentCol = await kanbanRepository.get_column_by_local_id(task.payload.column_id);
@@ -387,6 +390,7 @@ async function _handleKanbanTask(task) {
       response = await api.post(`/kanban/tasks`, taskPayload);
       await kanbanRepository.setServerIdForTask(task.entity_id, response.data.id);
       break;
+    }
 
     case "UPDATE_TASK_PARENT": {
       const localTask = await kanbanRepository.get_task_by_local_id(task.entity_id);
@@ -399,7 +403,7 @@ async function _handleKanbanTask(task) {
       break;
     }
 
-    case "UPDATE_TASK":
+    case "UPDATE_TASK": {
       if (!await kanbanRepository.get_task_by_local_id(task.entity_id)) return;
       delete task.payload.parent_task_local_id;
       delete task.payload.parent_task_id;
@@ -427,8 +431,9 @@ async function _handleKanbanTask(task) {
         await api.put(`/kanban/tasks/${serverId}`, { changes: taskChanges });
       }
       break;
+    }
 
-    case "ADD_TASK_ATTACHMENT":
+    case "ADD_TASK_ATTACHMENT": {
       const attachment = await kanbanRepository.get_attachment_by_local_id(task.payload.attachment_local_id);
       if (!attachment) return;
 
@@ -458,6 +463,7 @@ async function _handleKanbanTask(task) {
         finishAttachmentUpload(attachment.local_id);
       }
       break;
+    }
 
     case "DELETE_TASK_ATTACHMENT":
       serverId = task.payload.id;
@@ -485,7 +491,7 @@ async function _handleKanbanTask(task) {
       }
       break;
 
-    case "MOVE_TASK_LIST":
+    case "MOVE_TASK_LIST": {
       const targetColLocalId = task.payload.column_id;
       const targetCol = await kanbanRepository.get_column_by_local_id(targetColLocalId);
 
@@ -517,8 +523,9 @@ async function _handleKanbanTask(task) {
         });
       }
       break;
+    }
 
-    case "CREATE_TASK_COMMENT":
+    case "CREATE_TASK_COMMENT": {
       const localTask = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
       if (!localTask.id) throw new Error("TASK_NOT_SYNCED: Comentário aguardando Task.");
 
@@ -531,8 +538,9 @@ async function _handleKanbanTask(task) {
         id: response.data.id,
       });
       break;
+    }
 
-    case "UPDATE_TASK_COMMENT":
+    case "UPDATE_TASK_COMMENT": {
       const lTaskUpd = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
       if (!lTaskUpd) return;
       const commToUpdate = lTaskUpd.comments.find((c) => c.local_id === task.payload.comment_local_id);
@@ -541,6 +549,7 @@ async function _handleKanbanTask(task) {
 
       await api.put(`/kanban/comments/${commToUpdate.id}`, { content: task.payload.content });
       break;
+    }
 
     case "DELETE_TASK_COMMENT":
       serverId = task.payload.server_id;
@@ -554,7 +563,7 @@ async function _handleKanbanTask(task) {
       }
       break;
 
-    case "TOGGLE_COMMENT_LIKE":
+    case "TOGGLE_COMMENT_LIKE": {
       const lTaskLike = await kanbanRepository.get_task_by_local_id(task.payload.task_local_id);
       if (!lTaskLike) return;
       const targetComment = lTaskLike.comments.find((c) => c.local_id === task.payload.comment_local_id);
@@ -565,6 +574,7 @@ async function _handleKanbanTask(task) {
         if (e.response.status !== 404) throw e;
       }
       break;
+    }
   }
 }
 
@@ -572,7 +582,7 @@ async function _handleRadioTask(task) {
   let serverId, response;
 
   switch (task.type) {
-    case "CREATE_PLAYLIST":
+    case "CREATE_PLAYLIST": {
       const { localId, ...playlistData } = task.payload;
       response = await api.post("/radio/playlists", playlistData);
       const serverData = response.data;
@@ -582,6 +592,7 @@ async function _handleRadioTask(task) {
         updated_at: serverData.updated_at,
       });
       break;
+    }
 
     case "DELETE_PLAYLIST":
       serverId = task.payload.id;
@@ -613,7 +624,7 @@ async function _handleRadioTask(task) {
       }
       break;
 
-    case "ADD_TRACK":
+    case "ADD_TRACK": {
       let parentPlaylistId = task.payload.playlist_id;
 
       if (!task.payload.playlist_id_is_server) {
@@ -629,6 +640,7 @@ async function _handleRadioTask(task) {
 
       await radioRepository.updateLocalTrack(task.payload.localId, { id: response.data.id });
       break;
+    }
 
     case "DELETE_TRACK":
       serverId = task.payload.id;

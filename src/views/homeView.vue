@@ -40,7 +40,6 @@
 <script>
 import { mapState, mapActions } from "pinia";
 import { useAuthStore } from "@/stores/auth";
-import { useVaultStore } from "@/stores/vault";
 import { useAppStore } from "@/stores/app";
 import { useUtilsStore } from "@/stores/utils";
 import headerSystem from "../components/headerSystem.vue";
