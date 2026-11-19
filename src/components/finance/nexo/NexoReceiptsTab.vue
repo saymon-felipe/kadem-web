@@ -753,7 +753,7 @@
                 <font-awesome-icon icon="arrow-up-right-from-square" /><span>Abrir consulta no portal</span>
               </a>
               <details v-if="selected.qr_reference" class="qr-inline-details">
-                <summary><font-awesome-icon icon="qrcode" /> <span>Ver QR Code</span></summary>
+                <summary class="key-chip-btn"><font-awesome-icon icon="qrcode" /> <span>Ver QR Code</span></summary>
                 <code class="fiscal-key-box">{{ selected.qr_reference }}</code>
               </details>
             </div>
@@ -772,9 +772,49 @@
           <div class="receipt-warnings">
             <span v-for="warning in detailWarnings" :key="warning">{{ warning }}</span>
           </div>
-          <button v-if="portalRetryVisible" type="button" class="key-chip-btn" :disabled="busy || !connected" @click="reprocess(false)">
-            <font-awesome-icon icon="arrows-rotate" /> Reler
+        </div>
+        <div v-if="!editing" class="compact-head-actions" role="group" aria-label="Ações da nota">
+          <button
+            type="button"
+            class="compact"
+            :class="selected.status === 'REVIEW' ? 'primary-action' : 'secondary-btn'"
+            :disabled="busy || !selected.id"
+            @click="startEdit"
+          >
+            <font-awesome-icon icon="pencil" />
+            <span>{{ selected.status === 'REVIEW' ? 'Conferir dados' : 'Editar dados' }}</span>
           </button>
+          <button
+            type="button"
+            class="ai-action-btn compact"
+            :disabled="busy || !connected"
+            title="Extrair dados com inteligência artificial se necessário"
+            @click="reprocess(true)"
+          >
+            <font-awesome-icon icon="wand-magic-sparkles" class="ai-btn-icon" />
+            <span>Ler com IA</span>
+          </button>
+          <button
+            type="button"
+            class="secondary-btn compact"
+            :disabled="busy || !connected"
+            title="Reprocessar leitura determinística"
+            @click="reprocess(false)"
+          >
+            <font-awesome-icon icon="arrows-rotate" />
+            <span>Reler</span>
+          </button>
+          <label class="secondary-btn compact file-button" :class="{ 'is-disabled': busy }">
+            <font-awesome-icon icon="plus" />
+            <span>Anexar</span>
+            <input
+              type="file"
+              multiple
+              accept=".xml,.pdf,image/jpeg,image/png,image/webp"
+              :disabled="busy"
+              @change="addDocuments"
+            />
+          </label>
         </div>
         <div v-if="foreignReceipt && selected.data?.accounting?.exchange_rate" class="nexo-banner info" role="status">
           {{ receiptPaymentLabel }}: {{ money(selected.data.accounting.paid_total) }} · Troco: {{ money(selected.data.accounting.change) }}.
@@ -971,7 +1011,7 @@
 
               <label class="nexo-checkbox checkbox-surface">
                 <input v-model="edit.document_complete" type="checkbox" />
-                <span>Conferi que o comprovante anexado está completo, com todas as páginas e itens.</span>
+                <span>Conferi que o comprovante contém todas as páginas e itens da nota.</span>
               </label>
 
               <div class="modal-actions-bar">
@@ -1048,55 +1088,12 @@
             <section class="modal-compact-section">
               <div class="compact-section-head">
                 <div class="title-with-badge">
-                  <h4>Anexos e leitura</h4>
+                  <h4>Anexos</h4>
                   <span v-if="selected.documents?.length || unmatchedLocalFiles.length" class="count-pill neutral">
                     {{ (selected.documents?.length || 0) + unmatchedLocalFiles.length }}
                   </span>
                 </div>
 
-                <div class="compact-head-actions">
-                  <button
-                    type="button"
-                    class="secondary-btn compact"
-                    :disabled="busy || !selected.id"
-                    @click="startEdit"
-                  >
-                    <font-awesome-icon icon="pencil" />
-                    <span>Editar dados</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="ai-action-btn compact"
-                    :disabled="busy || !connected"
-                    title="Extrair dados com inteligência artificial se necessário"
-                    @click="reprocess(true)"
-                  >
-                    <font-awesome-icon icon="wand-magic-sparkles" class="ai-btn-icon" />
-                    <span>Ler com IA</span>
-                  </button>
-                  <button
-                    v-if="!portalRetryVisible"
-                    type="button"
-                    class="secondary-btn compact"
-                    :disabled="busy || !connected"
-                    title="Reprocessar leitura determinística"
-                    @click="reprocess(false)"
-                  >
-                    <font-awesome-icon icon="arrows-rotate" />
-                    <span>Reler</span>
-                  </button>
-                  <label class="secondary-btn compact file-button" :class="{ 'is-disabled': busy }">
-                    <font-awesome-icon icon="plus" />
-                    <span>Anexar</span>
-                    <input
-                      type="file"
-                      multiple
-                      accept=".xml,.pdf,image/jpeg,image/png,image/webp"
-                      :disabled="busy"
-                      @change="addDocuments"
-                    />
-                  </label>
-                </div>
               </div>
 
               <div v-if="selected.documents?.length || localFiles.length" class="compact-docs-list">
@@ -1661,9 +1658,6 @@ export default {
           : "Confira se a leitura inclui todos os itens da nota.");
       }
       return [...new Set(remaining)];
-    },
-    portalRetryVisible() {
-      return Boolean(this.portalUrl && !this.selected?.original_complete && this.detailWarnings.length);
     },
     foreignReceipt() {
       return this.selected?.data?.document_kind === 'FOREIGN_RECEIPT';
@@ -4985,20 +4979,7 @@ button:disabled {
 .product-name-link { padding: 0; border: 0; background: none; color: var(--text-primary); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
 .product-name-link:hover { text-decoration: underline; }
 
-.qr-inline-details {
-  font-size: 0.74rem;
-  color: var(--text-secondary);
-}
-
 .qr-inline-details summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-  background: var(--surface-1);
-  border: 1px solid var(--glass-border);
-  cursor: pointer;
   list-style: none;
 }
 
