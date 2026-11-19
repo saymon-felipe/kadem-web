@@ -267,7 +267,7 @@
             >
               <div class="receipt-row-main">
                 <span class="receipt-avatar" :class="statusTone(row)">
-                  <font-awesome-icon :icon="statusIcon(row)" :spin="row.status === 'PROCESSING'" />
+                  <font-awesome-icon :icon="statusIcon(row)" :spin="receiptStatus(row) === 'PROCESSING'" />
                 </span>
 
                 <div class="receipt-row-copy">
@@ -278,7 +278,7 @@
                       {{ row.sync_error ? "Falha no envio" : "Aguardando envio" }}
                     </span>
                     <span v-else class="status-pill" :class="statusTone(row)">
-                      {{ states[row.status] || row.status }}
+                      {{ states[receiptStatus(row)] || row.status }}
                     </span>
                     <span v-if="row.ai_status === 'INSUFFICIENT_AI_CREDITS'" class="status-pill warning">
                       <font-awesome-icon icon="triangle-exclamation" />
@@ -697,17 +697,12 @@
     />
 
     <!-- MODAL 1: DETALHES DA NOTA FISCAL (Simplificado e Objetivo) -->
-    <BaseModal :model-value="!!selected" :title="selected?.merchant || 'Nota fiscal'" size="lg" @close="closeDetail">
+    <BaseModal :model-value="!!selected" title="Nota fiscal" size="lg" @close="closeDetail">
       <div v-if="selected" class="nexo-receipt-modal">
         <div v-if="foreignReceipt" class="nexo-banner info" role="status">
           Comprovante estrangeiro · {{ receiptCountry }}. Valores originais em {{ receiptCurrency }}.
         </div>
         <div v-if="selected.sync_error" class="nexo-banner error" role="alert">Falha no envio: {{ selected.sync_error }}. Tente novamente ou exclua o rascunho.</div>
-        <div v-for="warning in selected.warnings" :key="warning" class="nexo-banner warning" role="alert">
-          <font-awesome-icon icon="triangle-exclamation" class="banner-icon" />
-          <span>{{ warning }}</span>
-        </div>
-
         <div v-if="detailError" class="nexo-banner error" role="alert">
           <font-awesome-icon icon="triangle-exclamation" class="banner-icon" />
           <span>{{ detailError }}</span>
@@ -721,10 +716,16 @@
         <!-- Cabeçalho Compacto de Resumo -->
         <header class="receipt-overview-bar">
           <div class="overview-meta-col">
+            <h3 class="overview-merchant">{{ selected.merchant || 'Emitente pendente' }}</h3>
             <div class="overview-badges-row">
-              <span class="status-pill" :class="statusTone(selected)">
-                {{ states[selected.status] || selected.status }}
+              <span v-if="!detailLinkLabel || !['MATCHED', 'PARTIAL'].includes(receiptStatus(selected))" class="status-pill" :class="statusTone(selected)">
+                {{ states[receiptStatus(selected)] || selected.status }}
               </span>
+              <span v-if="detailLinkLabel" class="status-pill success">
+                <font-awesome-icon icon="link" /> {{ detailLinkLabel }}
+              </span>
+            </div>
+            <div class="overview-badges-row">
               <span class="overview-meta-item">
                 <font-awesome-icon icon="calendar" />
                 {{ dateLabel(selected.issued_on) }}
@@ -748,11 +749,11 @@
                 <code>{{ formatAccessKeyShort(selected.access_key) }}</code>
               </button>
 
+              <a v-if="portalUrl" class="key-chip-btn" :href="portalUrl" target="_blank" rel="noopener noreferrer">
+                <font-awesome-icon icon="arrow-up-right-from-square" /><span>Abrir consulta no portal</span>
+              </a>
               <details v-if="selected.qr_reference" class="qr-inline-details">
-                <summary>
-                  <font-awesome-icon icon="qrcode" />
-                  <span>Ver QR Code</span>
-                </summary>
+                <summary><font-awesome-icon icon="qrcode" /> <span>Ver QR Code</span></summary>
                 <code class="fiscal-key-box">{{ selected.qr_reference }}</code>
               </details>
             </div>
@@ -762,8 +763,19 @@
             <span class="stat-label">Valor total</span>
             <strong class="overview-total-value">{{ money(selected.total ?? selected.data?.total, selected.total == null ? receiptCurrency : 'BRL') }}</strong>
             <small v-if="foreignReceipt">Original: {{ money(selected.data.total, receiptCurrency) }}</small>
+            <small v-if="Number(selected.data?.discount) > 0">Desconto de {{ money(selected.data.discount, receiptCurrency) }}</small>
           </div>
         </header>
+
+        <div v-if="detailWarnings.length" class="nexo-banner warning" role="alert">
+          <font-awesome-icon icon="triangle-exclamation" class="banner-icon" />
+          <div class="receipt-warnings">
+            <span v-for="warning in detailWarnings" :key="warning">{{ warning }}</span>
+          </div>
+          <button v-if="portalRetryVisible" type="button" class="key-chip-btn" :disabled="busy || !connected" @click="reprocess(false)">
+            <font-awesome-icon icon="arrows-rotate" /> Reler
+          </button>
+        </div>
         <div v-if="foreignReceipt && selected.data?.accounting?.exchange_rate" class="nexo-banner info" role="status">
           {{ receiptPaymentLabel }}: {{ money(selected.data.accounting.paid_total) }} · Troco: {{ money(selected.data.accounting.change) }}.
           Câmbio efetivo da compra em {{ dateLabel(selected.issued_on) }}:
@@ -974,11 +986,69 @@
 
           <!-- Modo de Visualização Padrão (Objetivo e Limpo) -->
           <div v-else key="modal-view" class="modal-sections-stack">
-            <!-- 1. Comprovantes e Leitura -->
+            <section v-if="receiptPayments.length || Number(selected.data?.change) > 0" class="modal-compact-section">
+              <div class="compact-section-head"><h4>Pagamentos</h4></div>
+              <div class="payment-list">
+                <div v-for="(payment, index) in receiptPayments" :key="index" class="payment-row">
+                  <span>{{ paymentMethodLabel(payment.fiscal_method) }}</span>
+                  <strong>{{ money(payment.amount, payment.currency || receiptCurrency) }}</strong>
+                </div>
+                <div v-if="Number(selected.data?.change) > 0" class="payment-row">
+                  <span>Troco</span><strong>{{ money(selected.data.change, selected.data.change_currency || receiptCurrency) }}</strong>
+                </div>
+              </div>
+            </section>
+
             <section class="modal-compact-section">
               <div class="compact-section-head">
                 <div class="title-with-badge">
-                  <h4>Comprovantes</h4>
+                  <h4>Itens da nota</h4>
+                  <span v-if="selected.items?.length" class="count-pill info">
+                    {{ selected.items.length }}
+                  </span>
+                </div>
+                <label v-if="selected.items?.length" class="nexo-checkbox receipt-group-checkbox">
+                  <input v-model="groupItems" type="checkbox" />
+                  <span>Agrupar itens iguais</span>
+                </label>
+              </div>
+
+              <NexoReceiptGrid v-if="selected.items?.length" v-model:column-order="itemColumnOrder"
+                :key="groupItems ? 'grouped-items' : 'original-items'"
+                :columns="itemGridColumns" :rows="displayedReceiptItems" label="Itens da nota fiscal">
+                <template #description="{ row }">
+                  <strong class="table-item-name">{{ row.description }}</strong>
+                  <small v-if="row.gtin || row.supplier_code" class="table-item-code">{{ row.gtin || row.supplier_code }}</small>
+                </template>
+                <template #quantity="{ row }">{{ quantityLabel(row.quantity, row.unit) }}</template>
+                <template #unit_price="{ row }">
+                  {{ money(row.unit_price, receiptCurrency, 10) }}
+                  <small v-if="foreignReceipt && selected.data?.accounting?.exchange_rate" class="receipt-amount-detail">≈ {{ money(Number(row.unit_price) * Number(selected.data.accounting.exchange_rate)) }}</small>
+                </template>
+                <template #total="{ row }">
+                  <strong>{{ money(row.total, receiptCurrency) }}</strong>
+                  <small v-if="Number(row.discount) > 0" class="receipt-amount-detail">Desconto: {{ money(row.discount, receiptCurrency) }}</small>
+                </template>
+                <template #actions="{ row }">
+                  <div class="table-row-actions">
+                    <button type="button" class="icon-btn small" title="Histórico de preços" aria-label="Histórico de preços"
+                      @click="showHistory({ id: row.product_id, description: row.description })">
+                      <font-awesome-icon icon="clock-rotate-left" />
+                    </button>
+                    <button type="button" class="icon-btn small" title="Associar todos os itens iguais desta nota" aria-label="Associar todos os itens iguais desta nota"
+                      @click="chooseProduct(row)">
+                      <font-awesome-icon icon="link" />
+                    </button>
+                  </div>
+                </template>
+              </NexoReceiptGrid>
+              <p v-else class="empty-inline-text">Nenhum item extraído desta nota até o momento.</p>
+            </section>
+
+            <section class="modal-compact-section">
+              <div class="compact-section-head">
+                <div class="title-with-badge">
+                  <h4>Anexos e leitura</h4>
                   <span v-if="selected.documents?.length || unmatchedLocalFiles.length" class="count-pill neutral">
                     {{ (selected.documents?.length || 0) + unmatchedLocalFiles.length }}
                   </span>
@@ -1005,6 +1075,7 @@
                     <span>Ler com IA</span>
                   </button>
                   <button
+                    v-if="!portalRetryVisible"
                     type="button"
                     class="secondary-btn compact"
                     :disabled="busy || !connected"
@@ -1035,7 +1106,7 @@
                       :icon="/^image\//.test(document.mime_type) ? 'image' : 'receipt'"
                       class="compact-doc-icon"
                     />
-                    <span class="compact-doc-name">{{ document.file_name }}</span>
+                    <span class="compact-doc-name">{{ document.origin === 'PORTAL' ? 'Consulta oficial da SEFAZ' : document.file_name }}</span>
                     <small class="compact-doc-size">{{ Math.ceil(document.size_bytes / 1024) }} KiB</small>
                   </div>
 
@@ -1085,54 +1156,7 @@
                   </div>
                 </div>
               </div>
-              <p v-else class="empty-inline-text">Nenhum arquivo anexado ainda.</p>
-            </section>
-
-            <!-- 2. Itens da Nota -->
-            <section class="modal-compact-section">
-              <div class="compact-section-head">
-                <div class="title-with-badge">
-                  <h4>Itens da nota</h4>
-                  <span v-if="selected.items?.length" class="count-pill info">
-                    {{ selected.items.length }}
-                  </span>
-                </div>
-                <label v-if="selected.items?.length" class="nexo-checkbox receipt-group-checkbox">
-                  <input v-model="groupItems" type="checkbox" />
-                  <span>Agrupar itens iguais</span>
-                </label>
-              </div>
-
-              <NexoReceiptGrid v-if="selected.items?.length" v-model:column-order="itemColumnOrder"
-                :key="groupItems ? 'grouped-items' : 'original-items'"
-                :columns="itemGridColumns" :rows="displayedReceiptItems" label="Itens da nota fiscal">
-                <template #description="{ row }">
-                  <strong class="table-item-name">{{ row.description }}</strong>
-                  <small v-if="row.gtin || row.supplier_code" class="table-item-code">{{ row.gtin || row.supplier_code }}</small>
-                </template>
-                <template #quantity="{ row }">{{ quantityLabel(row.quantity, row.unit) }}</template>
-                <template #unit_price="{ row }">
-                  {{ money(row.unit_price, receiptCurrency) }}
-                  <small v-if="foreignReceipt && selected.data?.accounting?.exchange_rate" class="receipt-amount-detail">≈ {{ money(Number(row.unit_price) * Number(selected.data.accounting.exchange_rate)) }}</small>
-                </template>
-                <template #total="{ row }">
-                  <strong>{{ money(row.total, receiptCurrency) }}</strong>
-                  <small v-if="Number(row.discount) > 0" class="receipt-amount-detail">Desconto: {{ money(row.discount, receiptCurrency) }}</small>
-                </template>
-                <template #actions="{ row }">
-                  <div class="table-row-actions">
-                    <button type="button" class="icon-btn small" title="Histórico de preços" aria-label="Histórico de preços"
-                      @click="showHistory({ id: row.product_id, description: row.description })">
-                      <font-awesome-icon icon="clock-rotate-left" />
-                    </button>
-                    <button type="button" class="icon-btn small" title="Associar todos os itens iguais desta nota" aria-label="Associar todos os itens iguais desta nota"
-                      @click="chooseProduct(row)">
-                      <font-awesome-icon icon="link" />
-                    </button>
-                  </div>
-                </template>
-              </NexoReceiptGrid>
-              <p v-else class="empty-inline-text">Nenhum item extraído desta nota até o momento.</p>
+              <p v-else class="empty-inline-text">Nenhum arquivo anexado. A inclusão é opcional.</p>
             </section>
 
             <!-- 3. Conciliação Financeira -->
@@ -1196,8 +1220,7 @@
                 </div>
               </div>
               <p v-else-if="!reconcilePanel" class="empty-inline-text">
-                Nenhum lançamento vinculado. Use os botões acima para vincular uma despesa existente, criar uma nova ou
-                apenas arquivar.
+                Nenhum lançamento vinculado.
               </p>
 
               <!-- Gaveta 1: Vincular Lançamento Existente -->
@@ -1590,10 +1613,10 @@ export default {
     previewUrl: null,
     previewMime: "",
     states: {
-      AWAITING_DOCUMENT: "Aguardando comprovante completo",
+      AWAITING_DOCUMENT: "Aguardando leitura completa",
       READY: "Pronta para conciliação",
       PROCESSING: "Em processamento",
-      REVIEW: "Conferir dados e vínculos",
+      REVIEW: "Para conferir",
       PARTIAL: "Parcialmente conciliada",
       MATCHED: "Conciliada",
       ARCHIVED: "Arquivada",
@@ -1602,6 +1625,46 @@ export default {
     },
   }),
   computed: {
+    detailLinkLabel() {
+      const links = this.activeReceiptLinks(this.selected || {});
+      if (!links.length) return "";
+      const cents = (amount) => Math.round(Number(amount) * 100);
+      const allocated = links.reduce((total, link) => total + cents(link.amount), 0);
+      const total = cents(this.selected.total);
+      if (total > 0 && allocated === total) return "Valor conciliado";
+      if (total > 0 && allocated < total) return "Vínculo parcial";
+      return links.length === 1 ? "Vínculo financeiro" : "Vínculos financeiros";
+    },
+    receiptPayments() {
+      return this.selected?.data?.payments || [];
+    },
+    portalUrl() {
+      try {
+        const url = new URL(this.selected?.qr_reference);
+        if (!["https:", "http:"].includes(url.protocol) || url.username || url.password ||
+            !url.hostname.endsWith(".gov.br") || !/nfce|consulta|dfe-portal/i.test(url.pathname)) return null;
+        url.protocol = "https:";
+        url.port = "";
+        return url.href;
+      } catch {
+        return null;
+      }
+    },
+    detailWarnings() {
+      const warnings = this.selected?.warnings || [];
+      const isIncomplete = (warning) => /portal não retornou a nota completa|comprovante integral pendente|^leitura parcial da nota/i.test(warning);
+      const remaining = warnings.filter((warning) => !isIncomplete(warning));
+      if (!this.selected?.original_complete && warnings.some(isIncomplete) &&
+          !remaining.some((warning) => /portal|consulta pública/i.test(warning))) {
+        remaining.unshift(this.portalUrl
+          ? "Abra a consulta no portal ou tente reler a nota."
+          : "Confira se a leitura inclui todos os itens da nota.");
+      }
+      return [...new Set(remaining)];
+    },
+    portalRetryVisible() {
+      return Boolean(this.portalUrl && !this.selected?.original_complete && this.detailWarnings.length);
+    },
     foreignReceipt() {
       return this.selected?.data?.document_kind === 'FOREIGN_RECEIPT';
     },
@@ -1748,6 +1811,15 @@ export default {
     window.removeEventListener("resize", this.updateGlider);
   },
   methods: {
+    receiptStatus(row) {
+      if (row.status === "PROCESSING" &&
+          !(row.active_run && Date.parse(row.processing_until) > Date.now())) return "FAILED";
+      return row.status;
+    },
+    paymentMethodLabel(method) {
+      const labels = { '01': 'Dinheiro', '02': 'Cheque', '03': 'Cartão de crédito', '04': 'Cartão de débito', '05': 'Crédito da loja', '10': 'Vale alimentação', '11': 'Vale refeição', '15': 'Boleto', '17': 'PIX', '90': 'Sem pagamento', '99': 'Outros' };
+      return labels[method] || method || 'Forma não identificada';
+    },
     activeReceiptLinks(row) {
       return (row.links || []).filter((link) => link.transaction_id != null);
     },
@@ -1770,11 +1842,11 @@ export default {
       };
       this.gliderReady = true;
     },
-    money(value, currency = 'BRL') {
+    money(value, currency = 'BRL', maximumFractionDigits) {
       if (!/^[A-Z]{3}$/.test(currency || '')) return value == null ? '—' : `${Number(value).toLocaleString('pt-BR')} (moeda não identificada)`;
       return value == null
         ? "—"
-        : new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(Number(value));
+        : new Intl.NumberFormat("pt-BR", { style: "currency", currency, maximumFractionDigits }).format(Number(value));
     },
     quantityLabel(value, unit) {
       const num = Number(value);
@@ -1807,7 +1879,7 @@ export default {
         FAILED: "danger",
         ARCHIVED: "neutral",
       };
-      return map[row.status] || "neutral";
+      return map[this.receiptStatus(row)] || "neutral";
     },
     statusIcon(row) {
       if (!row) return "receipt";
@@ -1822,7 +1894,7 @@ export default {
         FAILED: "triangle-exclamation",
         ARCHIVED: "box-archive",
       };
-      return map[row.status] || "receipt";
+      return map[this.receiptStatus(row)] || "receipt";
     },
     clearReceiptFilters() {
       this.filters = { q: "", from: "", to: "", amount: "", status: "" };
@@ -4798,12 +4870,51 @@ button:disabled {
 /* ==========================================================================
    MODAL 1: DETALHES DA NOTA FISCAL (Simplificado & Objetivo)
    ========================================================================== */
+.overview-merchant {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.125rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.receipt-warnings {
+  flex: 1;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.payment-list {
+  display: grid;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+}
+
+.payment-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.payment-row + .payment-row {
+  border-top: 1px solid var(--glass-border);
+}
+
+.payment-row strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
 .receipt-overview-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
   border-radius: var(--radius-md);
   background: var(--surface-2);
   border: 1px solid var(--glass-border);
@@ -4853,6 +4964,7 @@ button:disabled {
   border: 1px solid var(--glass-border);
   color: var(--text-secondary);
   font-size: 0.74rem;
+  text-decoration: none;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -4908,7 +5020,7 @@ button:disabled {
 }
 
 .overview-total-value {
-  font-size: 1.35rem;
+  font-size: clamp(1.35rem, 3vw, 1.9rem);
   font-weight: var(--font-bold);
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
