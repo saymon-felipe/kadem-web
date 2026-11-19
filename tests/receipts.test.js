@@ -287,6 +287,157 @@ test("resposta atrasada de outra sessão não substitui metadados", { timeout: 3
     await m.close();
   }
 });
+
+async function receiptToReview(m, id = "receipt") {
+  const created = await m.receiptRepository.create(1);
+  const items = [{ description: "Produto", quantity: 1, unit_price: "10.00", total: "10.00" }];
+  return m.receiptRepository.save(1, created.local_key, {
+    id, status: "REVIEW", revision: 1, total: "10.00", merchant: "Mercado",
+    original_complete: 0, documents: [{ id: "photo", mime_type: "image/jpeg" }],
+    data: { merchant: "Mercado", issuer_id: "12345678000195", issued_on: "2026-11-10", total: "10.00", items },
+    items,
+    links: [{ transaction_id: 9, amount: "10.00" }],
+    ai_status: "UNAVAILABLE",
+    warnings: ["Processamento interrompido. O original foi preservado.", "IA indisponível no momento. Confira os dados antes de confirmar."],
+  }, { pending_sync: false });
+}
+
+async function runReceiptQueue(m) {
+  const { syncService } = await m.server.ssrLoadModule("/src/services/syncService.js");
+  const { useUtilsStore } = await m.server.ssrLoadModule("/src/stores/utils.js");
+  useUtilsStore().$patch({ is_network_online: true, is_kadem_api_available: true });
+  await syncService.processSyncQueue();
+}
+
+test("conferência desmarca o checkbox, atualiza o grid offline e sincroniza sem aceitar pull antigo", { timeout: 30000 }, async () => {
+  const m = await setup();
+  try {
+    const { default: component } = await m.server.ssrLoadModule("/src/components/finance/nexo/NexoReceiptsTab.vue");
+    const row = await receiptToReview(m);
+    const vm = { ...component.data(), ...component.methods, selected: row, rows: [row] };
+    vm.receiptPageKeys.add(row.local_key);
+    vm.startEdit();
+    assert.equal(vm.edit.document_complete, false);
+    vm.edit.document_complete = true;
+    await vm.saveCorrection();
+    assert.equal(vm.editing, false);
+    assert.equal(vm.rows[0].status, "MATCHED");
+    assert.equal(vm.selected.original_complete, 1);
+    assert.equal((await m.receiptRepository.get(1, row.local_key)).original_complete, 0);
+    assert.equal((await m.receiptService.detail(row)).status, "MATCHED");
+    assert.deepEqual(await m.receiptRepository.list(1, { status: "REVIEW" }), []);
+    const task = await m.db.syncQueue.toCollection().first();
+    assert.equal(task.type, "CORRECT_FINANCE_RECEIPT");
+    assert.equal(task.idempotency_key, vm.selected.pending_correction.operation_key);
+
+    vm.selected = { ...await receiptToReview(m, "different"), original_complete: 1 };
+    vm.startEdit();
+    assert.equal(vm.edit.document_complete, false);
+    await m.receiptRepository.merge(1, [row]);
+    assert.equal((await m.receiptService.detail(row)).status, "MATCHED");
+    const canonical = { ...row, status: "MATCHED", original_complete: 1, warnings: [], revision: 2 };
+    m.api.patch = async (url, body, config) => {
+      assert.equal(url, "/finance/receipts/receipt");
+      assert.equal(config.headers["X-Expected-User-Id"], "1");
+      assert.equal(body.operation_key, task.idempotency_key);
+      assert.equal(body.document_complete, true);
+      return { data: canonical };
+    };
+    m.api.get = async () => ({ data: { changes: [] } });
+    navigator.onLine = true;
+    await runReceiptQueue(m);
+    assert.equal(await m.db.syncQueue.count(), 0);
+    await m.receiptRepository.merge(1, [row]);
+    m.api.get = async () => ({ data: row });
+    const confirmed = await m.receiptService.detail(row);
+    assert.equal(confirmed.status, "MATCHED");
+    assert.equal(confirmed.pending_correction, null);
+    assert.equal(confirmed.revision, 2);
+  } finally { await m.close(); }
+});
+
+test("falha na conferência restaura a situação confirmada, mostra toast e preserva o envio para retry", { timeout: 30000 }, async () => {
+  const m = await setup();
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  let vm;
+  try {
+    const { default: component } = await m.server.ssrLoadModule("/src/components/finance/nexo/NexoReceiptsTab.vue");
+    globalThis.window = { innerWidth: 1200, matchMedia: () => ({ matches: false }) };
+    const row = await receiptToReview(m);
+    await m.receiptService.correct(row, { document_complete: true, merchant: "Mercado corrigido" });
+    let observed, rejected, confirmed;
+    const observation = new Promise((resolve) => { observed = resolve; });
+    const rejection = new Promise((resolve) => { rejected = resolve; });
+    const confirmation = new Promise((resolve) => { confirmed = resolve; });
+    vm = { ...component.data(), ...component.methods, currentUserId: 1, selected: row, $emit: confirmed };
+    vm.filters.status = "REVIEW";
+    vm.updateReceiptGrid = (byKey) => {
+      component.methods.updateReceiptGrid.call(vm, byKey);
+      observed();
+      if (vm.rows[0]?.pending_correction?.error) rejected(vm.rows[0].status);
+    };
+    vm.subscribeReceipts();
+    await observation;
+    assert.deepEqual(vm.rows, []);
+    const task = await m.db.syncQueue.toCollection().first();
+    const seen = [];
+    m.api.patch = async (_url, body) => {
+      seen.push(body.operation_key);
+      if (seen.length === 1) throw Object.assign(new Error("Falha"), {
+        response: { status: 422, data: { message: "Confira o valor da nota." } },
+      });
+      return { data: { ...row, merchant: body.merchant, status: "MATCHED", original_complete: 1, revision: 2, warnings: [] } };
+    };
+    m.api.get = async () => ({ data: { changes: [] } });
+    await runReceiptQueue(m);
+    assert.equal(await rejection, "REVIEW");
+    const failed = await m.receiptService.detail(row);
+    assert.equal(failed.status, "REVIEW");
+    assert.equal(failed.pending_correction.changes.merchant, "Mercado corrigido");
+    assert.equal(failed.pending_correction.error, "Confira o valor da nota.");
+    assert.equal((await m.db.syncQueue.get(task.id)).status, "FAILED");
+    const { useAppStore } = await m.server.ssrLoadModule("/src/stores/app.js");
+    assert.equal(useAppStore().toasts[0].type, "error");
+    assert.match(useAppStore().toasts[0].message, /Confira o valor da nota/);
+    await m.receiptService.retryCorrection(row);
+    await runReceiptQueue(m);
+    assert.equal(await confirmation, "changed");
+    assert.deepEqual(vm.rows, []);
+    assert.equal(vm.selected.status, "MATCHED");
+    assert.deepEqual(seen, [task.idempotency_key, task.idempotency_key]);
+    assert.equal((await m.receiptService.detail(row)).status, "MATCHED");
+    assert.equal(await m.db.syncQueue.count(), 0);
+  } finally {
+    vm?.receiptSubscription?.unsubscribe();
+    if (previousWindow) Object.defineProperty(globalThis, "window", previousWindow);
+    else delete globalThis.window;
+    await m.close();
+  }
+});
+
+test("resposta de conferência anterior preserva nova correção local e sua tarefa", { timeout: 30000 }, async () => {
+  const m = await setup();
+  try {
+    const row = await receiptToReview(m);
+    await m.receiptService.correct(row, { document_complete: true, merchant: "Primeira" });
+    const previous = await m.db.syncQueue.toCollection().first();
+    let finish, started;
+    const requestStarted = new Promise((resolve) => { started = resolve; });
+    m.api.patch = async () => new Promise((resolve) => { finish = resolve; started(); });
+    const first = m.receiptService.syncCorrection(previous.payload);
+    await requestStarted;
+    const next = await m.receiptService.correct(row, { merchant: "Segunda" });
+    finish({ data: { ...row, merchant: "Primeira", revision: 2, original_complete: 1, status: "MATCHED", warnings: [] } });
+    await first;
+    const queued = await m.db.syncQueue.toArray();
+    assert.equal(queued.length, 1);
+    assert.notEqual(queued[0].id, previous.id);
+    assert.equal(queued[0].idempotency_key, next.pending_correction.operation_key);
+    assert.equal((await m.receiptService.detail(row)).merchant, "Segunda");
+    assert.equal((await m.receiptService.detail(row)).pending_correction.changes.document_complete, true);
+  } finally { await m.close(); }
+});
+
 test("exclusão conserva os arquivos locais até confirmação do servidor e remove a fila após sucesso", { timeout: 30000 }, async () => {
   const m = await setup();
   try {

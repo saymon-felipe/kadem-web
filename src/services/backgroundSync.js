@@ -74,7 +74,7 @@ export async function backgroundPull() {
     .filter((t) => t.type.includes("FINANCE") || t.type.includes("HEALTH"))
     .sort((a, b) => (priority[a.type] || 4) - (priority[b.type] || 4));
   for (const task of tasks.slice(0, 50)) {
-    if (["SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT"].includes(task.type)) continue;
+    if (["SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT", "CORRECT_FINANCE_RECEIPT"].includes(task.type)) continue;
     activeTask = task;
     try {
       await (task.type.includes("HEALTH") ? executor.health(task) : executor.finance(task));

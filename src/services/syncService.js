@@ -865,6 +865,9 @@ async function processTaskItem(task) {
     }
   } else if (task.type === "DOWNLOAD_LYRICS") {
     await _handleDownloadLyricsTask(task);
+  } else if (task.type === "CORRECT_FINANCE_RECEIPT") {
+    const { receiptService } = await import("./receiptService");
+    await receiptService.syncCorrection(task.payload);
   } else if (task.type.includes("FINANCE")) {
     await personalSync.finance(task);
   } else if (task.type.includes("HEALTH")) {
@@ -932,7 +935,8 @@ export const syncService = {
     try {
       while (true) {
         const pendingTasks = (await syncQueueRepository.getPendingTasks()).filter(task =>
-          !isRadioInsightsTask(task) || task.payload.user_id === useAuthStore().user?.id);
+          (!isRadioInsightsTask(task) && task.type !== "CORRECT_FINANCE_RECEIPT") ||
+          task.payload.user_id === useAuthStore().user?.id);
         if (pendingTasks.length === 0) break;
 
         console.log(`[SyncService] Iniciando sincronização de ${pendingTasks.length} tarefas...`);
@@ -999,12 +1003,13 @@ export const syncService = {
             else await syncQueueRepository.deleteTask(task.id);
             console.log(`[SyncService] OK: ${task.type} (${task.id})`);
           } catch (error) {
-            // A captura interativa pode ter cancelado ou suspendido esta tarefa enquanto ela aguardava o mesmo envio.
-            if (["SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT"].includes(task.type)) {
+            const isReceiptTask = ["SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT", "CORRECT_FINANCE_RECEIPT"].includes(task.type);
+            // Uma ação fiscal pode ter substituído ou cancelado a tarefa durante o envio.
+            if (isReceiptTask) {
               const current = await db.syncQueue.get(task.id);
               if (!current || current.status === "FAILED") continue;
             }
-            if (!["SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT", "MOVE_FINANCE_TRANSACTIONS"].includes(task.type) && error.response && (error.response.status === 403 || error.response.status === 404)) {
+            if (!isReceiptTask && task.type !== "MOVE_FINANCE_TRANSACTIONS" && error.response && (error.response.status === 403 || error.response.status === 404)) {
               console.warn(`[SyncService] Erro Fatal (${error.response.status}). Removendo tarefa ${task.type}.`);
               await syncQueueRepository.deleteTask(task.id);
 
@@ -1025,8 +1030,12 @@ export const syncService = {
             const current_retries = task.retry_count || 0;
             const max_retries = 5;
 
-            if (current_retries >= max_retries) {
-              console.error(`[SyncService] FALHA FINAL: Tarefa ${task.id} excedeu ${max_retries} tentativas.`);
+            const rejectedCorrection = task.type === "CORRECT_FINANCE_RECEIPT" &&
+              [400, 403, 404, 410, 422].includes(error.response?.status);
+            if (rejectedCorrection || current_retries >= max_retries) {
+              console.error(rejectedCorrection
+                ? `[SyncService] Conferência fiscal rejeitada (${error.response.status}).`
+                : `[SyncService] FALHA FINAL: Tarefa ${task.id} excedeu ${max_retries} tentativas.`);
               await syncQueueRepository.updateTask(task.id, {
                 status: "FAILED",
                 last_error: error.response?.data?.message || error.message || "Erro desconhecido",

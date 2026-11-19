@@ -1,7 +1,7 @@
 import { api } from "@/plugins/api";
 import { db } from "@/db";
 import { useAuthStore } from "@/stores/auth";
-import { receiptRepository } from "@/services/localData/receiptRepository";
+import { isOlderReceipt, projectReceipt, receiptRepository } from "@/services/localData/receiptRepository";
 import { syncQueueRepository } from "@/services/localData/syncQueueRepository";
 import { captureSyncSession, assertSyncSession } from "@/utils/syncState";
 
@@ -16,11 +16,26 @@ const deleting = new Map();
 const identity = (user_id) => ({ headers: { "X-Expected-User-Id": String(user_id) } });
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const PROCESSING_FAILED = "Não foi possível processar o comprovante. O original foi preservado; revise ou tente novamente.";
+const CORRECT_RECEIPT = "CORRECT_FINANCE_RECEIPT";
+const correctionKey = (user_id, local_key) => `correct-receipt:${user_id}:${local_key}`;
+const requestCorrectionSync = () => {
+  if (online()) void import("./syncService").then(({ syncService }) => syncService.processSyncQueue())
+    .catch((error) => console.warn("Não foi possível iniciar a sincronização da conferência fiscal.", error));
+};
+async function correctionToast(user_id, session, message, type) {
+  try {
+    const { useAppStore } = await import("@/stores/app");
+    if (session() && useAuthStore().user?.id === user_id) useAppStore().showToast({ message, type });
+  } catch (error) {
+    console.warn("Não foi possível exibir o aviso de conferência fiscal.", error);
+  }
+}
+
 const purgeLocal = async (user_id, rows) => {
   const keys = new Set(rows.map((item) => item.local_key));
   await db.transaction("rw", db.finance_receipts, db.finance_receipt_files, db.syncQueue, async () => {
     await db.finance_receipt_files.where("user_id").equals(user_id).filter((file) => keys.has(file.receipt_local_key)).delete();
-    await db.syncQueue.where("type").anyOf("SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT").filter((task) => task.payload?.user_id === user_id && keys.has(task.payload?.local_key)).delete();
+    await db.syncQueue.where("type").anyOf("SYNC_FINANCE_RECEIPT", "DELETE_FINANCE_RECEIPT", CORRECT_RECEIPT).filter((task) => task.payload?.user_id === user_id && keys.has(task.payload?.local_key)).delete();
     await db.finance_receipts.bulkDelete(rows.map((item) => item.local_id));
   });
 };
@@ -165,7 +180,7 @@ export const receiptService = {
       await db.finance_receipts.where("user_id").equals(user_id)
         .filter((item) => item.local_key === row.local_key || (current.id && item.id === current.id))
         .modify({ pending_delete: true, pending_sync: true });
-      await db.syncQueue.where("type").equals("SYNC_FINANCE_RECEIPT")
+      await db.syncQueue.where("type").anyOf("SYNC_FINANCE_RECEIPT", CORRECT_RECEIPT)
         .filter((task) => task.payload?.user_id === user_id && task.payload?.local_key === row.local_key).delete();
       await syncQueueRepository.addSyncQueueTask({
         type: "DELETE_FINANCE_RECEIPT",
@@ -290,13 +305,20 @@ export const receiptService = {
       try {
         const { data } = await api.get(`/finance/receipts/${row.id}`);
         assertSyncSession(session);
-        return receiptRepository.save(user_id, row.local_key, data);
+        return db.transaction("rw", db.finance_receipts, async () => {
+          assertSyncSession(session);
+          const current = await receiptRepository.get(user_id, row.local_key);
+          if (!current || current.pending_delete) return current;
+          const updated = isOlderReceipt(data, current) ? current : await receiptRepository.save(user_id, row.local_key, data);
+          assertSyncSession(session);
+          return projectReceipt(updated);
+        });
       } catch (error) {
         assertSyncSession(session);
         if (error.response && error.response.status < 500) throw error;
       }
     }
-    return receiptRepository.get(user_id, row.local_key);
+    return projectReceipt(await receiptRepository.get(user_id, row.local_key));
   },
   async addDocuments(row, files) {
     const user_id = owner();
@@ -340,9 +362,95 @@ export const receiptService = {
   async correct(row, changes) {
     const user_id = owner(),
       session = captureSyncSession();
-    const { data } = await api.patch(`/finance/receipts/${row.id}`, changes, { ...identity(user_id), timeout: 250000 });
+    const updated = await db.transaction("rw", db.finance_receipts, db.syncQueue, async () => {
+      assertSyncSession(session);
+      const current = await receiptRepository.get(user_id, row.local_key);
+      if (!current?.id || current.pending_delete) throw new Error("Nota fiscal indisponível para conferência.");
+      const operation_key = crypto.randomUUID();
+      const pending_correction = {
+        operation_key,
+        changes: JSON.parse(JSON.stringify({ ...current.pending_correction?.changes, ...changes })),
+      };
+      const compact_key = correctionKey(user_id, row.local_key);
+      // A resposta de um envio iniciado antes desta edição continua usando o ID da tarefa antiga.
+      await db.syncQueue.where("compact_key").equals(compact_key).delete();
+      await syncQueueRepository.addSyncQueueTask({
+        type: CORRECT_RECEIPT,
+        payload: { user_id, local_key: row.local_key, operation_key },
+        idempotency_key: operation_key,
+        compact_key,
+      });
+      await db.finance_receipts.update(current.local_id, { pending_correction });
+      assertSyncSession(session);
+      return projectReceipt({ ...current, pending_correction });
+    });
+    requestCorrectionSync();
+    return updated;
+  },
+  async retryCorrection(row) {
+    const user_id = owner(), session = captureSyncSession();
+    const updated = await db.transaction("rw", db.finance_receipts, db.syncQueue, async () => {
+      assertSyncSession(session);
+      const current = await receiptRepository.get(user_id, row.local_key);
+      const pending = current?.pending_correction;
+      if (!current || current.pending_delete) throw new Error("Nota fiscal indisponível para conferência.");
+      if (!pending) return current;
+      const task = await db.syncQueue.where("idempotency_key").equals(pending.operation_key).first();
+      if (!task) throw new Error("Salve a conferência novamente para preparar um novo envio.");
+      await syncQueueRepository.updateTask(task.id, {
+        status: "PENDING", retry_count: 0, next_attempt_at: new Date().toISOString(), last_error: null,
+      });
+      const pending_correction = { ...pending, error: null };
+      await db.finance_receipts.update(current.local_id, { pending_correction });
+      assertSyncSession(session);
+      return projectReceipt({ ...current, pending_correction });
+    });
+    requestCorrectionSync();
+    return updated;
+  },
+  async syncCorrection({ user_id, local_key, operation_key }) {
+    if (owner() !== user_id) throw new Error("NOT_SYNCED: aguardando a conta proprietária da nota fiscal.");
+    const session = captureSyncSession();
+    const current = await receiptRepository.get(user_id, local_key);
+    if (current?.pending_delete || current?.pending_correction?.operation_key !== operation_key) return;
+    if (!current.id || current.pending_sync) throw new Error("NOT_SYNCED: aguardando o envio da nota e dos arquivos.");
     assertSyncSession(session);
-    return receiptRepository.save(user_id, row.local_key, data);
+    const { changes } = current.pending_correction;
+    let data;
+    try {
+      ({ data } = await api.patch(`/finance/receipts/${current.id}`, { ...changes, operation_key }, {
+        ...identity(user_id), timeout: 250000,
+      }));
+      if (!data?.id || !data.status || !data.data) throw new Error("Resposta de conferência inválida.");
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || "Erro desconhecido.";
+      const notify = await db.transaction("rw", db.finance_receipts, async () => {
+        assertSyncSession(session);
+        const latest = await receiptRepository.get(user_id, local_key);
+        const pending = latest?.pending_correction;
+        if (latest?.pending_delete || pending?.operation_key !== operation_key) return false;
+        await db.finance_receipts.update(latest.local_id, { pending_correction: { ...pending, error: message } });
+        assertSyncSession(session);
+        return pending.error !== message;
+      });
+      if (notify) await correctionToast(user_id, session, `Falha ao sincronizar a conferência da nota. ${message}`, "error");
+      throw error;
+    }
+    const acknowledged = await db.transaction("rw", db.finance_receipts, async () => {
+      assertSyncSession(session);
+      const latest = await receiptRepository.get(user_id, local_key);
+      if (!latest || latest.pending_delete) return false;
+      const matchingOperation = latest.pending_correction?.operation_key === operation_key;
+      if (!isOlderReceipt(data, latest))
+        await receiptRepository.save(user_id, local_key, data, matchingOperation ? { pending_correction: null } : {});
+      else if (matchingOperation) await db.finance_receipts.update(latest.local_id, { pending_correction: null });
+      assertSyncSession(session);
+      return matchingOperation;
+    });
+    if (acknowledged && changes.document_complete && (!data.original_complete || data.warnings?.length)) {
+      const warning = data.warnings?.[0] || "Confira os dados e os originais da nota.";
+      await correctionToast(user_id, session, `A nota ainda precisa de revisão. ${warning}`, "warning");
+    }
   },
   async reconcile(row, options) {
     const user_id = owner(),

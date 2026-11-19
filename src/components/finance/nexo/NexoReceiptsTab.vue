@@ -273,7 +273,8 @@
                 <div class="receipt-row-copy">
                   <div class="receipt-row-title">
                     <strong>{{ row.merchant || "Comprovante aguardando leitura" }}</strong>
-                    <span v-if="row.pending_sync" class="status-pill pending">
+                    <span v-if="row.pending_correction" class="status-pill pending">{{ row.pending_correction.error ? 'Falha ao enviar correção' : 'Conferência pendente de envio' }}</span>
+                    <span v-else-if="row.pending_sync" class="status-pill pending">
                       <font-awesome-icon icon="cloud-arrow-up" />
                       {{ row.sync_error ? "Falha no envio" : "Aguardando envio" }}
                     </span>
@@ -703,6 +704,9 @@
           Comprovante estrangeiro · {{ receiptCountry }}. Valores originais em {{ receiptCurrency }}.
         </div>
         <div v-if="selected.sync_error" class="nexo-banner error" role="alert">Falha no envio: {{ selected.sync_error }}. Tente novamente ou exclua o rascunho.</div>
+        <div v-if="selected.pending_correction?.error" class="nexo-banner error" role="alert">
+          {{ selected.pending_correction.error }}
+        </div>
         <div v-if="detailError" class="nexo-banner error" role="alert">
           <font-awesome-icon icon="triangle-exclamation" class="banner-icon" />
           <span>{{ detailError }}</span>
@@ -721,6 +725,9 @@
               <span v-if="!detailLinkLabel || !['MATCHED', 'PARTIAL'].includes(receiptStatus(selected))" class="status-pill" :class="statusTone(selected)">
                 {{ states[receiptStatus(selected)] || selected.status }}
               </span>
+              <span v-if="selected.original_complete" class="status-pill success">Comprovante conferido</span>
+              <span v-if="selected.pending_correction" class="status-pill pending">{{ selected.pending_correction.error ? 'Falha ao enviar correção' : 'Conferência pendente de envio' }}</span>
+              <button v-if="selected.pending_correction?.error" type="button" class="secondary-btn compact" :disabled="busy" @click="retryCorrection">Tentar envio novamente</button>
               <span v-if="detailLinkLabel" class="status-pill success">
                 <font-awesome-icon icon="link" /> {{ detailLinkLabel }}
               </span>
@@ -1515,15 +1522,17 @@
 </template>
 
 <script>
+import { liveQuery } from "dexie";
 import BaseModal from "@/components/BaseModal.vue";
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import NexoReceiptGrid from "./NexoReceiptGrid.vue";
 import NexoFilterPanel from "./NexoFilterPanel.vue";
 import { receiptService } from "@/services/receiptService";
-import { receiptRepository } from "@/services/localData/receiptRepository";
+import { matchesReceiptFilters, projectReceipt, receiptRepository } from "@/services/localData/receiptRepository";
 import { api } from "@/plugins/api";
 import { db } from "@/db";
 import { useAuthStore } from "@/stores/auth";
+import { useAppStore } from "@/stores/app";
 import { syncService } from "@/services/syncService";
 import { captureSyncSession, assertSyncSession } from "@/utils/syncState";
 import { transactionCalendarDate } from "@/utils/financeNotificationDisplay";
@@ -1569,6 +1578,8 @@ export default {
     gliderStyle: {},
     gliderReady: false,
     subnavObserver: null,
+    receiptSubscription: null,
+    receiptPageKeys: new Set(),
     views: [
       { id: "receipts", label: "Notas", icon: "receipt" },
       { id: "products", label: "Produtos", icon: "boxes-stacked" },
@@ -1756,8 +1767,12 @@ export default {
       }
     },
     currentUserId() {
+      this.receiptPageKeys.clear();
       this.rows = [];
       this.selected = null;
+      this.editing = false;
+      this.edit = { items: [] };
+      this.subscribeReceipts();
       this.captureModalOpen = false;
       this.captureFailure = "";
       this.reconcilePanel = "";
@@ -1777,6 +1792,7 @@ export default {
     },
   },
   mounted() {
+    this.subscribeReceipts();
     window.addEventListener("online", this.connectionChanged);
     window.addEventListener("offline", this.connectionChanged);
     window.addEventListener("resize", this.updateGlider);
@@ -1790,6 +1806,7 @@ export default {
     if (this.active) this.reload();
   },
   beforeUnmount() {
+    this.receiptSubscription?.unsubscribe();
     this.stopCamera();
     this.closePreview();
     if (this.copyKeyTimer) {
@@ -1805,6 +1822,36 @@ export default {
     window.removeEventListener("resize", this.updateGlider);
   },
   methods: {
+    subscribeReceipts() {
+      this.receiptSubscription?.unsubscribe();
+      const userId = this.currentUserId;
+      if (!userId) return;
+      let pending = new Set();
+      this.receiptSubscription = liveQuery(() => db.finance_receipts.where("user_id").equals(userId).toArray())
+        .subscribe({ next: (rows) => {
+          if (this.currentUserId !== userId) return;
+          const byKey = new Map(rows.map((row) => [row.local_key, projectReceipt(row)]));
+          const currentPending = new Set(rows.filter((row) => row.pending_correction).map((row) => row.local_key));
+          const confirmed = [...pending].some((key) => byKey.has(key) && !currentPending.has(key));
+          for (const key of [...pending, ...currentPending]) this.receiptPageKeys.add(key);
+          pending = currentPending;
+          this.updateReceiptGrid(byKey);
+          if (this.selected && !this.editing) {
+            const updated = byKey.get(this.selected.local_key);
+            if (updated) this.selected = { ...this.selected, ...updated };
+          }
+          if (confirmed) this.$emit("changed");
+        }, error: (error) => console.warn("Não foi possível acompanhar as notas fiscais locais.", error) });
+    },
+    updateReceiptGrid(byKey) {
+      const syncErrors = new Map(this.rows.filter((row) => row.sync_error).map((row) => [row.local_key, row.sync_error]));
+      this.rows = [...this.receiptPageKeys].map((key) => byKey.get(key))
+        .filter((row) => row && !row.pending_delete && matchesReceiptFilters(row, this.filters) &&
+          (!this.transactionId || this.activeReceiptLinks(row).some((link) => String(link.transaction_id) === String(this.transactionId))))
+        .map((row) => row.pending_sync && syncErrors.has(row.local_key)
+          ? { ...row, sync_error: syncErrors.get(row.local_key) }
+          : row);
+    },
     receiptStatus(row) {
       if (row.status === "PROCESSING" &&
           !(row.active_run && Date.parse(row.processing_until) > Date.now())) return "FAILED";
@@ -1987,6 +2034,7 @@ export default {
       );
       const rows = await this.request(() => receiptService.list(filters));
       this.hasMore = rows.has_more;
+      this.receiptPageKeys = new Set(rows.map((row) => row.local_key));
       this.rows = rows;
     },
     async reload() {
@@ -2009,6 +2057,7 @@ export default {
         );
         const rows = await this.request(() => receiptService.list(filters));
         this.hasMore = rows.has_more;
+        for (const row of rows) this.receiptPageKeys.add(row.local_key);
         this.rows = [...new Map([...this.rows, ...rows].map((r) => [r.local_key, r])).values()];
       });
     },
@@ -2134,7 +2183,9 @@ export default {
       if (completed) await this.reload();
     },
     startEdit() {
-      const d = this.selected.data || {};
+      this.detailError = "";
+      this.reconcilePanel = "";
+      const d = { ...this.selected.data, ...this.selected.pending_correction?.changes };
       this.edit = {
         merchant: d.merchant || this.selected.merchant || "",
         issuer_id: d.issuer_id || "",
@@ -2145,7 +2196,7 @@ export default {
         discount: d.discount || "0",
         freight: d.freight || "0",
         other: d.other || "0",
-        document_complete: !!this.selected.original_complete,
+        document_complete: false,
         items: JSON.parse(JSON.stringify(d.items || [])),
         ...(this.foreignReceipt ? {
           document_kind: 'FOREIGN_RECEIPT', country_code: d.country_code || '', currency: d.currency || '',
@@ -2156,11 +2207,44 @@ export default {
       this.editing = true;
     },
     async saveCorrection() {
-      await this.run(async () => {
-        this.selected = await receiptService.correct(this.selected, this.edit);
+      if (this.busy) return;
+      const session = captureSyncSession();
+      const target = this.selected;
+      this.busy = true;
+      try {
+        const { document_complete, ...changes } = this.edit;
+        if (document_complete) changes.document_complete = true;
+        const updated = await receiptService.correct(target, changes);
+        if (!session()) return;
+        this.showUpdatedCorrection(target, updated);
+      } catch (error) {
+        if (session()) useAppStore().showToast({ message: error?.response?.data?.message || error.message || "Não foi possível salvar as correções.", type: "error" });
+      } finally {
+        this.busy = false;
+      }
+    },
+    async retryCorrection() {
+      if (this.busy) return;
+      const session = captureSyncSession();
+      const target = this.selected;
+      this.busy = true;
+      try {
+        const updated = await receiptService.retryCorrection(target);
+        if (session()) this.showUpdatedCorrection(target, updated);
+      } catch (error) {
+        if (session()) useAppStore().showToast({ message: error?.message || "Não foi possível reenviar a correção.", type: "error" });
+      } finally {
+        this.busy = false;
+      }
+    },
+    showUpdatedCorrection(target, updated) {
+      if (this.selected?.local_key === target.local_key) {
+        this.selected = updated;
         this.editing = false;
-        this.$emit("changed");
-      });
+      }
+      const byKey = new Map(this.rows.map((row) => [row.local_key, row]));
+      byKey.set(updated.local_key, updated);
+      this.updateReceiptGrid(byKey);
     },
     setCandidates(items) {
       this.candidates = items;
