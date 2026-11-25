@@ -28,6 +28,8 @@ const LAST_NONCE_STORAGE = "kadem_genos_last_nonce";
 const PLAYER_READY_TIMEOUT_MS = 12000;
 const INITIAL_SYNC_TIMEOUT_MS = 6000;
 const PLAYBACK_START_TIMEOUT_MS = 15000;
+// Quanto o comando espera a conexão voltar antes de responder "sem internet". O Genos espera mais que isso (LiveMusic.kt).
+const CONNECTION_WAIT_MS = 30000;
 const SEARCH_TIMEOUT_MS = 12000;
 const SEARCH_CANDIDATES = 3;
 
@@ -135,6 +137,9 @@ export const genosRemote = {
 
     radioFlowApi.open({ focus: true });
 
+    // Recém-aberta, a página ainda não mediu a conexão: mede agora (uma checagem, no máximo 3 s) em vez de partir de "offline".
+    if (!online()) await utils.refresh_connection();
+
     if (!radio.playlists.length) await radioFlowApi.playlists.load_local();
     if (!radio.playlists.length && online()) await radioFlowApi.playlists.refresh().catch(() => {});
 
@@ -156,7 +161,10 @@ export const genosRemote = {
       const tracks = liked ? await liked_tracks() : await radioRepository.getLocalTracks(playlist.local_id);
       if (!tracks?.length) return { ok: false, reason: "playlist_empty", name: playlist.name };
 
-      const available = tracks.filter(playable);
+      let available = tracks.filter(playable);
+      // Sem nada tocável sem internet: antes de desistir, espera a conexão (logo depois de abrir a página ela ainda
+      // pode não ter sido medida, ou a rede estar voltando).
+      if (!available.length && await utils.wait_for_connection(CONNECTION_WAIT_MS)) available = tracks.filter(playable);
       if (!available.length) return { ok: false, reason: "offline_not_downloaded", name: playlist.name };
 
       await radioFlowApi.play_playlist(playlist, available);
@@ -177,6 +185,8 @@ export const genosRemote = {
       const entry = found ? library.find((item) => item.track === found) : null;
 
       const foundDownloaded = !!downloaded || (!!found && !online() && await hasFile(found));
+      // Faixa não baixada e sem conexão (ainda): espera a conexão antes de concluir que está offline.
+      if (!online() && !(entry && foundDownloaded)) await utils.wait_for_connection(CONNECTION_WAIT_MS);
       if (entry && (online() || foundDownloaded)) {
         requestedYoutubeId = found.youtube_id || "";
         // A faixa toca dentro da sua playlist, que continua depois dela.
