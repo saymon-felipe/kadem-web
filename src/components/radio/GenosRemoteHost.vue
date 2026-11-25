@@ -13,7 +13,7 @@
 <script>
 import ConfirmationModal from "@/components/ConfirmationModal.vue";
 import { genosRemote } from "@/services/genosRemote";
-import { authorize_scopes, consent_text, has_scopes } from "@/services/genosAccess";
+import { GENOS_ALL_SCOPES, authorize_scopes, consent_text, has_scopes } from "@/services/genosAccess";
 import { genosBridge } from "@/services/genosBridge/runtime";
 import { record_bridge_event, reply_to_genos } from "@/services/genosBridge/reply";
 import { radioFlowApi } from "@/services/radioFlowApi";
@@ -22,7 +22,6 @@ import { useAppStore } from "@/stores/app";
 import { usePlayerStore } from "@/stores/player";
 import {
   BRIDGE_ERRORS,
-  BRIDGE_SCOPES,
   bridge_fail,
   bridge_required_scopes,
   is_bridge_query,
@@ -65,13 +64,8 @@ export default {
   },
   computed: {
     consent() {
-      if (this.pending?.action === "bridge") {
-        return { message: "Permitir que o Genos use a Agenda, o Health e o Nexo?", description: consent_text(BRIDGE_SCOPES) };
-      }
-      return {
-        message: "Permitir que o Genos controle o Radio Flow?",
-        description: "O Genos, seu app de voz neste celular, poderá abrir o Kadem e tocar suas playlists e músicas, inclusive as baixadas, quando você pedir. A permissão fica só neste aparelho.",
-      };
+      // Uma única permissão cobre Radio Flow, Agenda, Health e Nexo: não importa por qual área o Genos chegou primeiro.
+      return { message: "Permitir que o Genos use o Kadem?", description: consent_text(GENOS_ALL_SCOPES) };
     },
   },
   created() {
@@ -131,7 +125,7 @@ export default {
       if (!required.length || has_scopes(command.key, required)) {
         void this.run_bridge(command);
       } else {
-        // Uma confirmação cobre Agenda, Health e Nexo de uma vez; a pessoa não é interrompida a cada área.
+        // Uma confirmação cobre todas as áreas (Radio Flow, Agenda, Health e Nexo); a pessoa não é interrompida a cada uma.
         this.pending = command;
         this.confirm_open = true;
       }
@@ -141,12 +135,11 @@ export default {
       this.pending = null;
       this.confirm_open = false;
       if (!command) return;
+      authorize_scopes(command.key, GENOS_ALL_SCOPES);
       if (command.action === "bridge") {
-        authorize_scopes(command.key, BRIDGE_SCOPES);
         void this.run_bridge(command);
         return;
       }
-      genosRemote.authorize(command.key);
       void this.run(command);
     },
     deny() {
