@@ -1,6 +1,8 @@
 // Comandos que o Genos (app Android pessoal) envia ao Radio Flow pela URL de abertura do PWA:
 //   /?genos=play&playlist=<nome falado>&shuffle=1&key=<chave do Genos>&nonce=<id>
 //   /?genos=play&track=<música falada>&key=<chave do Genos>&nonce=<id>
+// Com o Kadem já aberto, o Genos entrega o mesmo comando (mesmos campos) pela caixa de entrada local, sem recarregar a
+// página (services/genosInbox.js).
 // Funções puras (sem stores nem alias "@/"), testadas por `npm run test:genos`.
 
 // `req` e `port` são da ponte Agenda/Health/Nexo (utils/genos_bridge.js); saem da URL junto com os demais.
@@ -52,6 +54,7 @@ export function parse_genos_command(query) {
   const track = String(first(query.track) ?? "").trim().slice(0, MAX_NAME_LENGTH);
   if (key.length < MIN_KEY_LENGTH || (!playlist && !track)) return null;
 
+  const port = Number(first(query.port));
   return {
     action: "play",
     kind: playlist ? "playlist" : "track",
@@ -59,6 +62,8 @@ export function parse_genos_command(query) {
     shuffle: ["1", "true", "sim"].includes(String(first(query.shuffle) ?? "").toLowerCase()),
     key,
     nonce: String(first(query.nonce) ?? "").slice(0, 64),
+    // Porta do servidor local do Genos (para a caixa de entrada de comandos, services/genosInbox.js).
+    ...(Number.isInteger(port) && port >= 1024 && port <= 65535 ? { port } : {}),
   };
 }
 
@@ -215,7 +220,7 @@ export function genos_failure_message(reason, name = "") {
     case "offline_not_downloaded": return `Sem internet, e ${quoted} não tem músicas baixadas neste aparelho.`;
     case "offline_not_found": return `Sem internet, e não encontrei ${quoted} entre as músicas baixadas.`;
     case "not_found": return `Não encontrei ${quoted} no YouTube.`;
-    case "needs_tap": return `Abri ${quoted}, mas o Android bloqueou o início sozinho. Toque em play no Kadem.`;
+    case "needs_tap": return `Abri ${quoted}, mas o Android bloqueou o início sozinho. Toque em qualquer parte da tela.`;
     case "unavailable": return `${quoted} não pode ser tocada pelo YouTube.`;
     case "search_failed": return `Não consegui pesquisar ${quoted} agora.`;
     default: return `Não consegui tocar ${quoted}.`;

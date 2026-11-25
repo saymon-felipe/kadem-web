@@ -78,6 +78,8 @@ export const usePlayerStore = defineStore("player", {
     // player do YouTube ficando pronto) desiste quando ele muda, para não pausar nem trocar o que acabou de começar.
     local_play_epoch: 0,
     genos_command_pending: false,
+    // O Genos pediu uma faixa que o Chrome só toca depois de um toque: GenosTapPrompt cobre a tela até a pessoa tocar.
+    genos_tap_prompt: false,
     // Último erro do iframe do YouTube ({ youtube_id, code }) ou a faixa que não iniciou sozinha ({ reason: 'needs_tap' }).
     youtube_failure: null,
     is_player_ready: false,

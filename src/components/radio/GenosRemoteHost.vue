@@ -16,6 +16,7 @@ import { genosRemote } from "@/services/genosRemote";
 import { GENOS_ALL_SCOPES, authorize_scopes, consent_text, has_scopes } from "@/services/genosAccess";
 import { genosBridge } from "@/services/genosBridge/runtime";
 import { record_bridge_event, reply_to_genos } from "@/services/genosBridge/reply";
+import { INBOX_INTERVAL_MS, poll_inbox, remember_port, stored_key, stored_port } from "@/services/genosInbox";
 import { radioFlowApi } from "@/services/radioFlowApi";
 import { record_player_event } from "@/services/playerDiagnostics";
 import { useAppStore } from "@/stores/app";
@@ -48,6 +49,10 @@ const BRIDGE_PROGRESS = {
  * No Android cada abertura pelo Genos pode criar outra página do Kadem: a página que recebe o comando avisa as
  * outras, que pausam o player e, se estiverem escondidas, se fecham, para não sobrar mais de um Kadem tocando.
  *
+ * Com o Kadem aberto, o Genos não abre outra página: ele deixa o comando na caixa de entrada do servidor local
+ * (services/genosInbox.js) e esta página o busca de tempos em tempos. A página não recarrega e o toque que a pessoa
+ * já deu continua valendo para o Chrome, então a próxima música começa sem pedir toque de novo.
+ *
  * Pedidos da ponte (Agenda, Health e Nexo) executam nos dados locais e devolvem o resultado ao Genos por um servidor
  * local do celular (services/genosBridge); não tocam o player. A página aberta só para isso se fecha sozinha depois
  * que o Genos devolve a tela anterior, se ninguém a usou e nada toca nela.
@@ -75,10 +80,18 @@ export default {
       this.channel.onmessage = (event) => this.on_channel_message(event.data);
     }
   },
+  mounted() {
+    this.inbox_on_visibility = () => { if (document.visibilityState === "visible") this.schedule_inbox(0); };
+    document.addEventListener("visibilitychange", this.inbox_on_visibility);
+    this.schedule_inbox(INBOX_INTERVAL_MS);
+  },
   beforeUnmount() {
     this.channel?.close();
     this.channel = null;
     this.stop_bridge_watch();
+    document.removeEventListener("visibilitychange", this.inbox_on_visibility);
+    clearTimeout(this.inbox_timer);
+    this.inbox_stopped = true;
   },
   watch: {
     "$route.query": {
@@ -98,11 +111,15 @@ export default {
       const command = parse_genos_command(query);
       // A URL perde o comando (e a chave) assim que ele é lido.
       this.$router.replace({ query: strip_genos_query(query) });
-
+      this.accept(command);
+    },
+    // Comando "play" lido (da URL ou da caixa de entrada): confere o pedido e a permissão e executa.
+    accept(command) {
       if (!command) {
         this.toast("O comando do Genos não pôde ser lido.", "error");
         return;
       }
+      remember_port(command.port);
       if (!genosRemote.claim_nonce(command.nonce)) return;
 
       if (genosRemote.is_authorized(command.key)) {
@@ -112,6 +129,29 @@ export default {
         this.confirm_open = true;
       }
     },
+    schedule_inbox(delay) {
+      clearTimeout(this.inbox_timer);
+      if (this.inbox_stopped) return;
+      this.inbox_timer = setTimeout(() => void this.check_inbox(), delay);
+    },
+    // Busca na caixa de entrada do Genos. Só roda com a chave do Genos aceita neste aparelho, com a página visível ou
+    // tocando (escondida e calada o Chrome a congela de qualquer jeito) e sem outro comando em andamento.
+    async check_inbox() {
+      try {
+        const key = stored_key();
+        const active = document.visibilityState === "visible" || usePlayerStore().is_playing;
+        if (!key || !active || this.running || this.confirm_open) return;
+        const polled = await poll_inbox({ port: stored_port(), key });
+        if (polled.state !== "command") return;
+        const command = parse_genos_command(polled.command);
+        // A chave vem do Genos; só vale se for a mesma aceita aqui.
+        if (command && command.key !== key) return;
+        record_player_event("genos:inbox", { kind: command?.kind || "" });
+        this.accept(command);
+      } finally {
+        this.schedule_inbox(INBOX_INTERVAL_MS);
+      }
+    },
     consume_bridge(query) {
       const command = parse_bridge_command(query);
       this.$router.replace({ query: strip_genos_query(query) });
@@ -119,6 +159,7 @@ export default {
         this.toast("O pedido do Genos não pôde ser lido.", "error");
         return;
       }
+      remember_port(command.port);
       if (!genosRemote.claim_nonce(command.nonce)) return;
 
       const required = bridge_required_scopes(command.op);
@@ -171,6 +212,7 @@ export default {
         if (result.ok) {
           this.toast(result.title ? `Genos: tocando ${result.title}.` : "Genos: tocando.", "success");
         } else {
+          if (result.reason === "needs_tap") usePlayerStore().genos_tap_prompt = true;
           this.toast(genos_failure_message(result.reason, result.name || command.name), "error");
         }
       } finally {

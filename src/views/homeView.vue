@@ -19,6 +19,7 @@
     <DesktopWindowManager />
     <GlobalPlayerHost />
     <GenosRemoteHost />
+    <GenosTapPrompt />
 
     <VaultMigrationModal
       v-if="user"
@@ -51,6 +52,7 @@ import DesktopWindowManager from "../components/windowing/DesktopWindowManager.v
 import SyncIndicator from "@/components/SyncIndicator.vue";
 import GlobalPlayerHost from "@/components/radio/GlobalPlayerHost.vue";
 import GenosRemoteHost from "@/components/radio/GenosRemoteHost.vue";
+import GenosTapPrompt from "@/components/radio/GenosTapPrompt.vue";
 import VaultMigrationModal from "@/components/auth/VaultMigrationModal.vue";
 import RecoverySetupModal from "@/components/auth/RecoverySetupModal.vue";
 
@@ -63,6 +65,7 @@ export default {
     SyncIndicator,
     GlobalPlayerHost,
     GenosRemoteHost,
+    GenosTapPrompt,
     VaultMigrationModal,
     RecoverySetupModal,
   },
