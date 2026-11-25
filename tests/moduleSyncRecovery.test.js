@@ -250,6 +250,7 @@ test('YouTube que não inicia (autoplay bloqueado) deixa de aparecer como tocand
   context.mock.timers.tick(3000);
   assert.equal(player.is_playing, false);
   assert.deepEqual({ ...player.youtube_failure }, { youtube_id: 'abc', reason: 'needs_tap', state: 5 });
+  assert.equal(player.is_playing, false);
 }));
 
 test('YouTube que começa a tocar dentro do prazo mantém o estado e não registra falha', (context) => withModules(async ({ server }) => {

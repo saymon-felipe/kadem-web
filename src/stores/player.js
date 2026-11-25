@@ -645,7 +645,7 @@ export const usePlayerStore = defineStore("player", {
         this.is_playing = false;
         this.is_loading = false;
         this.youtube_failure = { youtube_id, reason: "needs_tap", state };
-        this._refresh_media_session(this.current_music, false);
+        this._refresh_media_session(this.current_music, false, "tap");
       }, delays[attempt]);
       check(0);
     },

@@ -12,4 +12,6 @@ test("a sessão informa ao Genos a fonte efetiva e não reaproveita uma fonte an
   assert.equal(navigator.mediaSession.metadata.album, "Kadem Queue");
   manager.set_metadata(track, "youtube");
   assert.equal(navigator.mediaSession.metadata.album, "Kadem Queue · youtube");
+  manager.set_metadata(track, "tap");
+  assert.equal(navigator.mediaSession.metadata.album, "Kadem Queue · tap");
 });

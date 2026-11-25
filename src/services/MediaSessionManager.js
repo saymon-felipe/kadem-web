@@ -31,7 +31,8 @@ class MediaSessionManager {
       title: music.title || "Kadem Player",
       artist: music.channel || music.artist || "Desconhecido",
       // O Genos reconhece a sessão de mídia do Kadem por este álbum (services/genosRemote.js).
-      album: mode === "native" || mode === "youtube" ? `Kadem Queue · ${mode}` : "Kadem Queue",
+      // "tap": o Android bloqueou o início sozinho e falta um toque em play; o Genos lê isso e avisa por voz.
+      album: mode === "native" || mode === "youtube" || mode === "tap" ? `Kadem Queue · ${mode}` : "Kadem Queue",
       artwork: artwork,
     });
   }
