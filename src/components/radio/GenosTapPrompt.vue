@@ -6,7 +6,7 @@
       role="button"
       tabindex="0"
       aria-live="assertive"
-      @pointerdown.prevent="tap"
+      @click.prevent="tap"
       @keydown.enter.prevent="tap"
       @keydown.space.prevent="tap"
     >
@@ -44,7 +44,12 @@ export default {
       const player = this.player;
       player.genos_tap_prompt = false;
       player.youtube_failure = null;
-      // O toque já é a interação que o Chrome pedia: o play acontece dentro dele.
+      // O toque já é a interação que o Chrome pedia: o play acontece dentro dele. No iframe do YouTube parado (estado
+      // -1, o vídeo nunca começou) `playVideo` não faz nada; é preciso carregar o vídeo de novo, dentro do toque.
+      if (player.player_mode === "youtube" && player.current_music?.youtube_id) {
+        void player._playYoutube(player.current_music, true, 0);
+        return;
+      }
       if (!player.is_playing) void player.toggle_play();
     },
   },
