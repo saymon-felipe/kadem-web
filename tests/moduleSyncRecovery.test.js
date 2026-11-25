@@ -233,6 +233,51 @@ test('player inicia vídeo pendente quando o iframe fica pronto, sem restaurar a
   assert.equal(player.is_player_ready, true);
 }));
 
+test('YouTube que não inicia (autoplay bloqueado) deixa de aparecer como tocando e avisa que falta um toque', (context) => withModules(async ({ server }) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  const { usePlayerStore } = await server.ssrLoadModule('/src/stores/player.js');
+  const player = usePlayerStore();
+  let plays = 0;
+  player.yt_player_instance = { getPlayerState: () => 5, playVideo() { plays += 1; } };
+  player.player_mode = 'youtube';
+  player.current_music = { youtube_id: 'abc' };
+  player.local_play_epoch = 1;
+  player.is_playing = true;
+  player._watch_youtube_start('abc');
+  context.mock.timers.tick(2500);
+  assert.equal(plays, 1);
+  assert.equal(player.is_playing, true);
+  context.mock.timers.tick(3000);
+  assert.equal(player.is_playing, false);
+  assert.deepEqual({ ...player.youtube_failure }, { youtube_id: 'abc', reason: 'needs_tap', state: 5 });
+}));
+
+test('YouTube que começa a tocar dentro do prazo mantém o estado e não registra falha', (context) => withModules(async ({ server }) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  const { usePlayerStore } = await server.ssrLoadModule('/src/stores/player.js');
+  const player = usePlayerStore();
+  player.yt_player_instance = { getPlayerState: () => 1, playVideo() { assert.fail('não deve reenviar play'); } };
+  player.player_mode = 'youtube';
+  player.current_music = { youtube_id: 'abc' };
+  player.is_playing = true;
+  player._watch_youtube_start('abc');
+  context.mock.timers.tick(6000);
+  assert.equal(player.is_playing, true);
+  assert.equal(player.youtube_failure, null);
+}));
+
+test('Erro do iframe do YouTube desfaz o estado de tocando e classifica o motivo', (context) => withModules(async ({ server }) => {
+  const { usePlayerStore } = await server.ssrLoadModule('/src/stores/player.js');
+  const player = usePlayerStore();
+  player.current_music = { youtube_id: 'abc' };
+  player.is_playing = true;
+  player.handle_youtube_error({ data: 150 });
+  assert.equal(player.is_playing, false);
+  assert.equal(player.youtube_failure.reason, 'unavailable');
+  player.handle_youtube_error({ data: 5 });
+  assert.equal(player.youtube_failure.reason, 'playback_failed');
+}));
+
 test('Health recupera cursor corrompido e interrompe paginação sem avanço', (context) => withModules(async ({ server, db, api }) => {
   context.mock.method(console, 'error', () => {});
   const { healthRepository } = await server.ssrLoadModule('/src/services/localData/healthRepository.js');

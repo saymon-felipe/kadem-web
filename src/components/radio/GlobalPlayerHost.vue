@@ -18,6 +18,7 @@ export default {
       "register_yt_instance",
       "restorePlayerConnection",
       "handle_youtube_state_change",
+      "handle_youtube_error",
       "next",
       "start_listening_tracking",
       "stop_listening_tracking",
@@ -49,6 +50,7 @@ export default {
             this.handle_youtube_state_change(event);
             if (event.data === 0) this.next({ completed: true });
           },
+          onError: (event) => this.handle_youtube_error(event),
         },
       });
     },

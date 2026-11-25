@@ -215,6 +215,8 @@ export function genos_failure_message(reason, name = "") {
     case "offline_not_downloaded": return `Sem internet, e ${quoted} não tem músicas baixadas neste aparelho.`;
     case "offline_not_found": return `Sem internet, e não encontrei ${quoted} entre as músicas baixadas.`;
     case "not_found": return `Não encontrei ${quoted} no YouTube.`;
+    case "needs_tap": return `Abri ${quoted}, mas o Android bloqueou o início sozinho. Toque em play no Kadem.`;
+    case "unavailable": return `${quoted} não pode ser tocada pelo YouTube.`;
     case "search_failed": return `Não consegui pesquisar ${quoted} agora.`;
     default: return `Não consegui tocar ${quoted}.`;
   }

@@ -78,6 +78,8 @@ export const usePlayerStore = defineStore("player", {
     // player do YouTube ficando pronto) desiste quando ele muda, para não pausar nem trocar o que acabou de começar.
     local_play_epoch: 0,
     genos_command_pending: false,
+    // Último erro do iframe do YouTube ({ youtube_id, code }) ou a faixa que não iniciou sozinha ({ reason: 'needs_tap' }).
+    youtube_failure: null,
     is_player_ready: false,
     yt_player_instance: null,
     pending_youtube_restore: null,
@@ -618,6 +620,49 @@ export const usePlayerStore = defineStore("player", {
       }
     },
 
+    /**
+     * `loadVideoById` não garante que o vídeo começou: com o app aberto por intent (Genos) o Chrome pode bloquear o
+     * autoplay e o iframe fica parado (cued/unstarted/pausado) enquanto `is_playing` já é true. A interface então mostra
+     * "tocando" sem som e o primeiro toque pausa de verdade. Confere o estado real, tenta `playVideo` de novo e, se
+     * continuar parado, desfaz o estado otimista e registra que falta um toque (`youtube_failure.reason = "needs_tap"`).
+     */
+    _watch_youtube_start(youtube_id, delays = [2500, 3000]) {
+      const epoch = this.local_play_epoch;
+      const check = (attempt) => setTimeout(() => {
+        if (this.local_play_epoch !== epoch || this.player_mode !== "youtube") return;
+        if (this.current_music?.youtube_id !== youtube_id || !this.is_playing) return;
+        const yt = this.yt_player_instance;
+        const state = yt?.getPlayerState?.();
+        // 1 tocando, 3 carregando, 0 terminou: nada a corrigir.
+        if (state === 1 || state === 3 || state === 0) return;
+        if (attempt < delays.length - 1) {
+          record_player_event("youtube:start-retry", { state });
+          try { yt?.playVideo?.(); } catch { /* iframe ainda carregando */ }
+          check(attempt + 1);
+          return;
+        }
+        record_player_event("youtube:start-stalled", { state });
+        this.is_playing = false;
+        this.is_loading = false;
+        this.youtube_failure = { youtube_id, reason: "needs_tap", state };
+        this._refresh_media_session(this.current_music, false);
+      }, delays[attempt]);
+      check(0);
+    },
+
+    /** Erro do iframe (101/150/153: incorporação bloqueada; 100: removido; 2/5: pedido ou HTML5 inválido). */
+    handle_youtube_error(event) {
+      const code = Number(event?.data) || 0;
+      record_player_event("youtube:error", { code });
+      this.is_playing = false;
+      this.is_loading = false;
+      this.youtube_failure = {
+        youtube_id: this.current_music?.youtube_id || "",
+        reason: [100, 101, 150, 153].includes(code) ? "unavailable" : "playback_failed",
+        code,
+      };
+    },
+
     async _playYoutube(track, should_play = true, start_seconds = 0) {
       if (
         this.yt_player_instance &&
@@ -634,6 +679,7 @@ export const usePlayerStore = defineStore("player", {
           });
           this.is_playing = true;
           this._activate_silent_anchor();
+          this._watch_youtube_start(track.youtube_id);
         } else {
           await this.yt_player_instance.cueVideoById({
             videoId: track.youtube_id,
@@ -720,6 +766,7 @@ export const usePlayerStore = defineStore("player", {
 
     async play_track(track, playlist = null, { force_restart = false } = {}) {
       this.local_play_epoch += 1;
+      this.youtube_failure = null;
       this.pending_youtube_restore = null;
       this.pending_youtube_play = null;
       const isSameTrack = this._are_same_tracks(track, this.current_music);

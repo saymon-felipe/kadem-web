@@ -29,6 +29,7 @@ const PLAYER_READY_TIMEOUT_MS = 12000;
 const INITIAL_SYNC_TIMEOUT_MS = 6000;
 const PLAYBACK_START_TIMEOUT_MS = 15000;
 const SEARCH_TIMEOUT_MS = 12000;
+const SEARCH_CANDIDATES = 3;
 
 const LIKED_PLAYLIST = Object.freeze({
   local_id: "liked",
@@ -183,21 +184,44 @@ export const genosRemote = {
       } else if (!online()) {
         return { ok: false, reason: found ? "offline_not_downloaded" : "offline_not_found" };
       } else {
-        let item;
+        let items;
         try {
           const { data } = await api.get("/radio/search", { params: { q: command.name }, timeout: SEARCH_TIMEOUT_MS });
-          item = data?.items?.find((candidate) => candidate?.youtube_id);
+          items = (data?.items || []).filter((candidate) => candidate?.youtube_id).slice(0, SEARCH_CANDIDATES);
         } catch {
           return { ok: false, reason: "search_failed" };
         }
-        if (!item) return { ok: false, reason: "not_found" };
-        requestedYoutubeId = item.youtube_id;
-        await radioFlowApi.play_track(item, null, { force_restart: true });
+        if (!items.length) return { ok: false, reason: "not_found" };
+        // O primeiro resultado pode não ser incorporável (erro 101/150) ou estar removido: tenta os seguintes.
+        let failure = { ok: false, reason: "playback_failed" };
+        for (const item of items) {
+          requestedYoutubeId = item.youtube_id;
+          await radioFlowApi.play_track(item, null, { force_restart: true });
+          const outcome = await this._await_playback(player, requestedYoutubeId);
+          if (outcome.ok) return { ok: true, title: player.current_music?.title || "" };
+          failure = outcome;
+          if (outcome.reason === "needs_tap") break; // outro resultado não resolve autoplay bloqueado
+        }
+        return failure;
       }
     }
 
-    const started = await wait_until(() => is_requested_track_playing(player, requestedYoutubeId), PLAYBACK_START_TIMEOUT_MS);
-    if (!started) return { ok: false, reason: "playback_failed" };
+    const outcome = await this._await_playback(player, requestedYoutubeId);
+    if (!outcome.ok) return outcome;
     return { ok: true, title: player.current_music?.title || "" };
+  },
+
+  /**
+   * Espera a faixa pedida tocar de verdade. Falha cedo quando o player já sabe que não vai tocar (erro do iframe ou
+   * autoplay bloqueado, desfeito em player._watch_youtube_start) em vez de esperar o tempo todo e responder "erro".
+   */
+  async _await_playback(player, youtube_id) {
+    const failure = () => {
+      const f = player.youtube_failure;
+      return f && (!f.youtube_id || !youtube_id || f.youtube_id === youtube_id) ? f : null;
+    };
+    await wait_until(() => is_requested_track_playing(player, youtube_id) || !!failure(), PLAYBACK_START_TIMEOUT_MS);
+    if (is_requested_track_playing(player, youtube_id)) return { ok: true };
+    return { ok: false, reason: failure()?.reason || "playback_failed" };
   },
 };

@@ -148,4 +148,6 @@ test("mensagens de falha citam o pedido", () => {
   assert.equal(genos_failure_message("playlist_not_found", "Foco"), 'Não encontrei a playlist "Foco".');
   assert.match(genos_failure_message("offline_not_downloaded", "Treino"), /Sem internet/);
   assert.equal(genos_failure_message("qualquer"), "Não consegui tocar o pedido.");
+  assert.match(genos_failure_message("needs_tap", "Evidências"), /Toque em play/);
+  assert.match(genos_failure_message("unavailable", "X"), /não pode ser tocada/);
 });
